@@ -23,4 +23,9 @@ func TestCommitsRelation(t *testing.T) {
 	row, err := iter.Next()
 	assert.Nil(err)
 	assert.NotNil(row)
+	fields := row.Fields()
+	assert.NotNil(fields)
+	assert.IsType("", fields[1])
+	assert.IsType("", fields[2])
+	assert.IsType(int64(0), fields[3])
 }
