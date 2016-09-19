@@ -34,8 +34,8 @@ func (r commitsRelation) RowIter() (sql.RowIter, error) {
 	return iter, nil
 }
 
-func (commitsRelation) Children() []*sql.Node {
-	return []*sql.Node{}
+func (commitsRelation) Children() []sql.Node {
+	return []sql.Node{}
 }
 
 type iter struct {
