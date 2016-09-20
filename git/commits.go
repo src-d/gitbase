@@ -15,6 +15,10 @@ func newCommitsRelation(r *git.Repository) sql.PhysicalRelation {
 	return &commitsRelation{r: r}
 }
 
+func (commitsRelation) Resolved() bool {
+	return true
+}
+
 func (commitsRelation) Name() string {
 	return commitsRelationName
 }
