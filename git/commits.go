@@ -21,7 +21,14 @@ func (commitsRelation) Name() string {
 
 func (commitsRelation) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Field{"author", sql.String},
+		sql.Field{"hash", sql.String},
+		sql.Field{"author_name", sql.String},
+		sql.Field{"author_email", sql.String},
+		sql.Field{"author_time", sql.Timestamp},
+		sql.Field{"comitter_name", sql.String},
+		sql.Field{"comitter_email", sql.String},
+		sql.Field{"comitter_time", sql.Timestamp},
+		sql.Field{"message", sql.String},
 	}
 }
 
@@ -55,6 +62,13 @@ func (i *iter) Next() (sql.Row, error) {
 
 func commitToRow(c *git.Commit) sql.Row {
 	return sql.NewMemoryRow(
-		c.Author.String(),
+		c.Hash.String(),
+		c.Author.Name,
+		c.Author.Email,
+		c.Author.When.Unix(),
+		c.Committer.Name,
+		c.Committer.Email,
+		c.Committer.When.Unix(),
+		c.Message,
 	)
 }
