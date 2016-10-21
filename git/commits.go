@@ -38,7 +38,7 @@ func (commitsRelation) Schema() sql.Schema {
 }
 
 func (r *commitsRelation) TransformUp(f func(sql.Node) sql.Node) sql.Node {
-	return f(newCommitsRelation(r.r))
+	return f(r)
 }
 
 func (r *commitsRelation) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
