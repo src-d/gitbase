@@ -37,6 +37,10 @@ func (commitsRelation) Schema() sql.Schema {
 	}
 }
 
+func (r *commitsRelation) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+	return f(newCommitsRelation(r.r))
+}
+
 func (r commitsRelation) RowIter() (sql.RowIter, error) {
 	cIter, err := r.r.Commits()
 	if err != nil {

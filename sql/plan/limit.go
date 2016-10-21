@@ -22,12 +22,23 @@ func (l *Limit) Schema() sql.Schema {
 	return l.UnaryNode.Child.Schema()
 }
 
+func (p *Limit) Resolved() bool {
+	return p.UnaryNode.Child.Resolved()
+}
+
 func (l *Limit) RowIter() (sql.RowIter, error) {
 	li, err := l.Child.RowIter()
 	if err != nil {
 		return nil, err
 	}
 	return &limitIter{l, 0, li}, nil
+}
+
+func (l *Limit) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+	c := l.UnaryNode.Child.TransformUp(f)
+	n := NewLimit(l.size, c)
+
+	return f(n)
 }
 
 type limitIter struct {
