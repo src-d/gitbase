@@ -2,6 +2,7 @@ package plan
 
 import (
 	"github.com/mvader/gitql/sql"
+	"fmt"
 )
 
 type Project struct {
@@ -56,7 +57,7 @@ func (p *Project) RowIter() (sql.RowIter, error) {
 func (p *Project) TransformUp(f func(sql.Node) sql.Node) sql.Node {
 	c := p.UnaryNode.Child.TransformUp(f)
 	n := NewProject(p.expressions, c)
-
+	fmt.Printf("TransformUp Project = %+v (%+v)\n", n, c.Schema())
 	return f(n)
 }
 

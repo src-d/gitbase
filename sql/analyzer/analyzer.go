@@ -12,7 +12,7 @@ const maxAnalysisIterations = 1000
 
 type Analyzer struct {
 	Rules           []Rule
-	Catalog         sql.Catalog
+	Catalog         *sql.Catalog
 	CurrentDatabase string
 }
 
@@ -21,7 +21,7 @@ type Rule struct {
 	Apply func(*Analyzer, sql.Node) sql.Node
 }
 
-func New(catalog sql.Catalog) *Analyzer {
+func New(catalog *sql.Catalog) *Analyzer {
 	return &Analyzer{
 		Rules:   DefaultRules,
 		Catalog: catalog,
@@ -29,6 +29,7 @@ func New(catalog sql.Catalog) *Analyzer {
 }
 
 func (a *Analyzer) Analyze(n sql.Node) (sql.Node, error) {
+	fmt.Printf("%+v\n", n)
 	prev := n
 	cur := a.analyzeOnce(n)
 	i := 0
