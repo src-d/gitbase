@@ -29,7 +29,6 @@ func New(catalog *sql.Catalog) *Analyzer {
 }
 
 func (a *Analyzer) Analyze(n sql.Node) (sql.Node, error) {
-	fmt.Printf("%+v\n", n)
 	prev := n
 	cur := a.analyzeOnce(n)
 	i := 0
