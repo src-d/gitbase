@@ -22,11 +22,11 @@ func NewDatabase(name string, r *git.Repository) sql.Database {
 	}
 }
 
-func (d Database) Name() string {
+func (d *Database) Name() string {
 	return d.name
 }
 
-func (d Database) Relations() map[string]sql.PhysicalRelation {
+func (d *Database) Relations() map[string]sql.PhysicalRelation {
 	return map[string]sql.PhysicalRelation{
 		commitsRelationName: d.cr,
 	}
