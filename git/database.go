@@ -1,8 +1,9 @@
 package git
 
 import (
-	"gopkg.in/src-d/go-git.v4"
 	"github.com/mvader/gitql/sql"
+
+	"gopkg.in/src-d/go-git.v4"
 )
 
 const (
@@ -10,23 +11,19 @@ const (
 )
 
 type Database struct {
-	url string
-	cr sql.PhysicalRelation
+	name string
+	cr   sql.PhysicalRelation
 }
 
-func NewDatabase(url string) sql.Database {
-	r := git.NewMemoryRepository()
-	r.Clone(&git.CloneOptions{
-		URL: url,
-	})
+func NewDatabase(name string, r *git.Repository) sql.Database {
 	return &Database{
-		url: url,
-		cr: newCommitsRelation(r),
+		name: name,
+		cr:   newCommitsRelation(r),
 	}
 }
 
 func (d Database) Name() string {
-	return d.url
+	return d.name
 }
 
 func (d Database) Relations() map[string]sql.PhysicalRelation {
