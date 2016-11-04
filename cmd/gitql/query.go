@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	gitqlgit "github.com/mvader/gitql/git"
-	"github.com/mvader/gitql/sql"
+	gitqlgit "github.com/gitql/gitql/git"
+	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
-	"github.com/mvader/gitql"
+	"github.com/gitql/gitql"
 	"io"
 	"github.com/olekukonko/tablewriter"
 )
