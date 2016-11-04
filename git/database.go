@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	referencesRelationName = "references"
-	commitsRelationName    = "commits"
-	tagsRelationName       = "tags"
+	referencesRelationName  = "references"
+	commitsRelationName     = "commits"
+	tagsRelationName        = "tags"
+	treeEntriesRelationName = "tree_entries"
 )
 
 type Database struct {
@@ -17,6 +18,7 @@ type Database struct {
 	cr   sql.PhysicalRelation
 	tr   sql.PhysicalRelation
 	rr   sql.PhysicalRelation
+	ter  sql.PhysicalRelation
 }
 
 func NewDatabase(name string, r *git.Repository) sql.Database {
@@ -25,6 +27,7 @@ func NewDatabase(name string, r *git.Repository) sql.Database {
 		cr:   newCommitsRelation(r),
 		rr:   newReferencesRelation(r),
 		tr:   newTagsRelation(r),
+		ter:  newTreeEntriesRelation(r),
 	}
 }
 
@@ -34,8 +37,9 @@ func (d *Database) Name() string {
 
 func (d *Database) Relations() map[string]sql.PhysicalRelation {
 	return map[string]sql.PhysicalRelation{
-		commitsRelationName:    d.cr,
-		tagsRelationName:       d.tr,
-		referencesRelationName: d.rr,
+		commitsRelationName:     d.cr,
+		tagsRelationName:        d.tr,
+		referencesRelationName:  d.rr,
+		treeEntriesRelationName: d.ter,
 	}
 }
