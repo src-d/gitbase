@@ -50,7 +50,7 @@ func (r commitsRelation) RowIter() (sql.RowIter, error) {
 	if err != nil {
 		return nil, err
 	}
-	iter := &iter{i: cIter}
+	iter := &commitIter{i: cIter}
 	return iter, nil
 }
 
@@ -58,11 +58,11 @@ func (commitsRelation) Children() []sql.Node {
 	return []sql.Node{}
 }
 
-type iter struct {
+type commitIter struct {
 	i *git.CommitIter
 }
 
-func (i *iter) Next() (sql.Row, error) {
+func (i *commitIter) Next() (sql.Row, error) {
 	commit, err := i.i.Next()
 	if err == io.EOF {
 		return nil, io.EOF
