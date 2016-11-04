@@ -3,16 +3,16 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/gitql/gitql"
 	gitqlgit "github.com/gitql/gitql/git"
 	"github.com/gitql/gitql/sql"
 
-	"gopkg.in/src-d/go-git.v4"
-	"github.com/gitql/gitql"
-	"io"
 	"github.com/olekukonko/tablewriter"
+	"gopkg.in/src-d/go-git.v4"
 )
 
 type CmdQuery struct {
