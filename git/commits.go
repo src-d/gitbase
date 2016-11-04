@@ -3,7 +3,7 @@ package git
 import (
 	"io"
 
-	"github.com/mvader/gitql/sql"
+	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
 )
