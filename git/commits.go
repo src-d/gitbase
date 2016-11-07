@@ -1,8 +1,6 @@
 package git
 
 import (
-	"io"
-
 	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
@@ -64,9 +62,6 @@ type commitIter struct {
 
 func (i *commitIter) Next() (sql.Row, error) {
 	commit, err := i.i.Next()
-	if err == io.EOF {
-		return nil, io.EOF
-	}
 	if err != nil {
 		return nil, err
 	}
