@@ -6,23 +6,23 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 )
 
-type tagsRelation struct {
+type tagsTable struct {
 	r *git.Repository
 }
 
-func newTagsRelation(r *git.Repository) sql.PhysicalRelation {
-	return &tagsRelation{r: r}
+func newTagsTable(r *git.Repository) sql.Table {
+	return &tagsTable{r: r}
 }
 
-func (tagsRelation) Resolved() bool {
+func (tagsTable) Resolved() bool {
 	return true
 }
 
-func (tagsRelation) Name() string {
-	return tagsRelationName
+func (tagsTable) Name() string {
+	return tagsTableName
 }
 
-func (tagsRelation) Schema() sql.Schema {
+func (tagsTable) Schema() sql.Schema {
 	return sql.Schema{
 		sql.Field{"hash", sql.String},
 		sql.Field{"name", sql.String},
@@ -34,15 +34,15 @@ func (tagsRelation) Schema() sql.Schema {
 	}
 }
 
-func (r *tagsRelation) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *tagsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
 	return f(r)
 }
 
-func (r *tagsRelation) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
+func (r *tagsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
 	return r
 }
 
-func (r tagsRelation) RowIter() (sql.RowIter, error) {
+func (r tagsTable) RowIter() (sql.RowIter, error) {
 	tIter, err := r.r.Tags()
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (r tagsRelation) RowIter() (sql.RowIter, error) {
 	return iter, nil
 }
 
-func (tagsRelation) Children() []sql.Node {
+func (tagsTable) Children() []sql.Node {
 	return []sql.Node{}
 }
 

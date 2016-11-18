@@ -8,7 +8,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/fixtures"
 )
 
-func TestBlobsRelation(t *testing.T) {
+func TestBlobsTable(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
@@ -18,14 +18,14 @@ func TestBlobsRelation(t *testing.T) {
 	db := NewDatabase("foo", r)
 	assert.NotNil(db)
 
-	relations := db.Relations()
-	rel, ok := relations[blobsRelationName]
+	tables := db.Tables()
+	table, ok := tables[blobsTableName]
 	assert.True(ok)
-	assert.NotNil(rel)
-	assert.Equal(blobsRelationName, rel.Name())
-	assert.Equal(0, len(rel.Children()))
+	assert.NotNil(table)
+	assert.Equal(blobsTableName, table.Name())
+	assert.Equal(0, len(table.Children()))
 
-	iter, err := rel.RowIter()
+	iter, err := table.RowIter()
 	assert.Nil(err)
 	assert.NotNil(iter)
 

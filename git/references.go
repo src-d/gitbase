@@ -8,23 +8,23 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 )
 
-type referencesRelation struct {
+type referencesTable struct {
 	r *git.Repository
 }
 
-func newReferencesRelation(r *git.Repository) sql.PhysicalRelation {
-	return &referencesRelation{r: r}
+func newReferencesTable(r *git.Repository) sql.Table {
+	return &referencesTable{r: r}
 }
 
-func (referencesRelation) Resolved() bool {
+func (referencesTable) Resolved() bool {
 	return true
 }
 
-func (referencesRelation) Name() string {
-	return referencesRelationName
+func (referencesTable) Name() string {
+	return referencesTableName
 }
 
-func (referencesRelation) Schema() sql.Schema {
+func (referencesTable) Schema() sql.Schema {
 	return sql.Schema{
 		sql.Field{"hash", sql.String},
 		sql.Field{"name", sql.String},
@@ -36,15 +36,15 @@ func (referencesRelation) Schema() sql.Schema {
 	}
 }
 
-func (r *referencesRelation) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *referencesTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
 	return f(r)
 }
 
-func (r *referencesRelation) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
+func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
 	return r
 }
 
-func (r referencesRelation) RowIter() (sql.RowIter, error) {
+func (r referencesTable) RowIter() (sql.RowIter, error) {
 	rIter, err := r.r.Refs()
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (r referencesRelation) RowIter() (sql.RowIter, error) {
 	return iter, nil
 }
 
-func (referencesRelation) Children() []sql.Node {
+func (referencesTable) Children() []sql.Node {
 	return []sql.Node{}
 }
 

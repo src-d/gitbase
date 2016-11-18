@@ -7,30 +7,30 @@ import (
 )
 
 const (
-	referencesRelationName  = "references"
-	commitsRelationName     = "commits"
-	tagsRelationName        = "tags"
-	blobsRelationName       = "blobs"
-	treeEntriesRelationName = "tree_entries"
+	referencesTableName  = "references"
+	commitsTableName     = "commits"
+	tagsTableName        = "tags"
+	blobsTableName       = "blobs"
+	treeEntriesTableName = "tree_entries"
 )
 
 type Database struct {
 	name string
-	cr   sql.PhysicalRelation
-	tr   sql.PhysicalRelation
-	rr   sql.PhysicalRelation
-	ter  sql.PhysicalRelation
-	br   sql.PhysicalRelation
+	cr   sql.Table
+	tr   sql.Table
+	rr   sql.Table
+	ter  sql.Table
+	br   sql.Table
 }
 
 func NewDatabase(name string, r *git.Repository) sql.Database {
 	return &Database{
 		name: name,
-		cr:   newCommitsRelation(r),
-		rr:   newReferencesRelation(r),
-		tr:   newTagsRelation(r),
-		br:   newBlobsRelation(r),
-		ter:  newTreeEntriesRelation(r),
+		cr:   newCommitsTable(r),
+		rr:   newReferencesTable(r),
+		tr:   newTagsTable(r),
+		br:   newBlobsTable(r),
+		ter:  newTreeEntriesTable(r),
 	}
 }
 
@@ -38,12 +38,12 @@ func (d *Database) Name() string {
 	return d.name
 }
 
-func (d *Database) Relations() map[string]sql.PhysicalRelation {
-	return map[string]sql.PhysicalRelation{
-		commitsRelationName:     d.cr,
-		tagsRelationName:        d.tr,
-		referencesRelationName:  d.rr,
-		blobsRelationName:       d.br,
-		treeEntriesRelationName: d.ter,
+func (d *Database) Tables() map[string]sql.Table {
+	return map[string]sql.Table{
+		commitsTableName:     d.cr,
+		tagsTableName:        d.tr,
+		referencesTableName:  d.rr,
+		blobsTableName:       d.br,
+		treeEntriesTableName: d.ter,
 	}
 }

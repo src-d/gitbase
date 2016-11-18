@@ -6,23 +6,23 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 )
 
-type commitsRelation struct {
+type commitsTable struct {
 	r *git.Repository
 }
 
-func newCommitsRelation(r *git.Repository) sql.PhysicalRelation {
-	return &commitsRelation{r: r}
+func newCommitsTable(r *git.Repository) sql.Table {
+	return &commitsTable{r: r}
 }
 
-func (commitsRelation) Resolved() bool {
+func (commitsTable) Resolved() bool {
 	return true
 }
 
-func (commitsRelation) Name() string {
-	return commitsRelationName
+func (commitsTable) Name() string {
+	return commitsTableName
 }
 
-func (commitsRelation) Schema() sql.Schema {
+func (commitsTable) Schema() sql.Schema {
 	return sql.Schema{
 		sql.Field{"hash", sql.String},
 		sql.Field{"author_name", sql.String},
@@ -35,15 +35,15 @@ func (commitsRelation) Schema() sql.Schema {
 	}
 }
 
-func (r *commitsRelation) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *commitsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
 	return f(r)
 }
 
-func (r *commitsRelation) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
+func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
 	return r
 }
 
-func (r commitsRelation) RowIter() (sql.RowIter, error) {
+func (r commitsTable) RowIter() (sql.RowIter, error) {
 	cIter, err := r.r.Commits()
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func (r commitsRelation) RowIter() (sql.RowIter, error) {
 	return iter, nil
 }
 
-func (commitsRelation) Children() []sql.Node {
+func (commitsTable) Children() []sql.Node {
 	return []sql.Node{}
 }
 
