@@ -6,38 +6,38 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 )
 
-type blobsRelation struct {
+type blobsTable struct {
 	r *git.Repository
 }
 
-func newBlobsRelation(r *git.Repository) sql.PhysicalRelation {
-	return &blobsRelation{r: r}
+func newBlobsTable(r *git.Repository) sql.Table {
+	return &blobsTable{r: r}
 }
 
-func (blobsRelation) Resolved() bool {
+func (blobsTable) Resolved() bool {
 	return true
 }
 
-func (blobsRelation) Name() string {
-	return blobsRelationName
+func (blobsTable) Name() string {
+	return blobsTableName
 }
 
-func (blobsRelation) Schema() sql.Schema {
+func (blobsTable) Schema() sql.Schema {
 	return sql.Schema{
 		sql.Field{"hash", sql.String},
 		sql.Field{"size", sql.BigInteger},
 	}
 }
 
-func (r *blobsRelation) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *blobsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
 	return f(r)
 }
 
-func (r *blobsRelation) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
+func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
 	return r
 }
 
-func (r blobsRelation) RowIter() (sql.RowIter, error) {
+func (r blobsTable) RowIter() (sql.RowIter, error) {
 	bIter, err := r.r.Blobs()
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (r blobsRelation) RowIter() (sql.RowIter, error) {
 	return iter, nil
 }
 
-func (blobsRelation) Children() []sql.Node {
+func (blobsTable) Children() []sql.Node {
 	return []sql.Node{}
 }
 

@@ -8,23 +8,23 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 )
 
-type treeEntriesRelation struct {
+type treeEntriesTable struct {
 	r *git.Repository
 }
 
-func newTreeEntriesRelation(r *git.Repository) sql.PhysicalRelation {
-	return &treeEntriesRelation{r: r}
+func newTreeEntriesTable(r *git.Repository) sql.Table {
+	return &treeEntriesTable{r: r}
 }
 
-func (treeEntriesRelation) Resolved() bool {
+func (treeEntriesTable) Resolved() bool {
 	return true
 }
 
-func (treeEntriesRelation) Name() string {
-	return treeEntriesRelationName
+func (treeEntriesTable) Name() string {
+	return treeEntriesTableName
 }
 
-func (treeEntriesRelation) Schema() sql.Schema {
+func (treeEntriesTable) Schema() sql.Schema {
 	return sql.Schema{
 		sql.Field{"tree_hash", sql.String},
 		sql.Field{"entry_hash", sql.String},
@@ -33,15 +33,15 @@ func (treeEntriesRelation) Schema() sql.Schema {
 	}
 }
 
-func (r *treeEntriesRelation) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *treeEntriesTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
 	return f(r)
 }
 
-func (r *treeEntriesRelation) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
+func (r *treeEntriesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
 	return r
 }
 
-func (r treeEntriesRelation) RowIter() (sql.RowIter, error) {
+func (r treeEntriesTable) RowIter() (sql.RowIter, error) {
 	cIter, err := r.r.Trees()
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (r treeEntriesRelation) RowIter() (sql.RowIter, error) {
 	return iter, nil
 }
 
-func (treeEntriesRelation) Children() []sql.Node {
+func (treeEntriesTable) Children() []sql.Node {
 	return []sql.Node{}
 }
 

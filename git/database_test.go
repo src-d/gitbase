@@ -12,7 +12,7 @@ func init() {
 	fixtures.RootFolder = "../../../../gopkg.in/src-d/go-git.v4/fixtures/"
 }
 
-func TestDatabaseRelations(t *testing.T) {
+func TestDatabase_Tables(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
@@ -22,12 +22,12 @@ func TestDatabaseRelations(t *testing.T) {
 	db := NewDatabase("foo", r)
 	assert.NotNil(db)
 
-	relations := db.Relations()
-	_, ok := relations[commitsRelationName]
+	tables := db.Tables()
+	_, ok := tables[commitsTableName]
 	assert.True(ok)
 }
 
-func TestDatabaseName(t *testing.T) {
+func TestDatabase_Name(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
