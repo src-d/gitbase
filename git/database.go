@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	referencesTableName  = "references"
+	// TODO 'references' is a reserved keyword into the parser
+	referencesTableName  = "refs"
 	commitsTableName     = "commits"
 	tagsTableName        = "tags"
 	blobsTableName       = "blobs"
