@@ -36,22 +36,15 @@ func (c *CmdQuery) Execute(args []string) error {
 		return err
 	}
 
-	if err := c.executeQuery(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.executeQuery()
 }
 
 func (c *CmdQuery) validate() error {
 	var err error
 	c.Path, err = findDotGitFolder(c.Path)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
+
 func (c *CmdQuery) buildDatabase() error {
 	c.print("opening %q repository...\n", c.Path)
 
