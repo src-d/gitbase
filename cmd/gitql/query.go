@@ -95,7 +95,6 @@ func (c *CmdQuery) printQuery(schema sql.Schema, iter sql.RowIter) {
 	w := tablewriter.NewWriter(os.Stdout)
 	headers := []string{}
 	for _, f := range schema {
-		fmt.Printf("HEADER: %s\n", f.Name)
 		headers = append(headers, f.Name)
 	}
 	w.SetHeader(headers)
