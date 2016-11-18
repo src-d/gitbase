@@ -4,7 +4,8 @@ import (
 	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/core"
+	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 )
 
 type referencesRelation struct {
@@ -57,7 +58,7 @@ func (referencesRelation) Children() []sql.Node {
 }
 
 type referenceIter struct {
-	i core.ReferenceIter
+	i storer.ReferenceIter
 }
 
 func (i *referenceIter) Next() (sql.Row, error) {
@@ -69,7 +70,7 @@ func (i *referenceIter) Next() (sql.Row, error) {
 	return referenceToRow(reference), nil
 }
 
-func referenceToRow(c *core.Reference) sql.Row {
+func referenceToRow(c *plumbing.Reference) sql.Row {
 	return sql.NewMemoryRow(
 		c.Hash().String(),
 		c.Name().String(),
