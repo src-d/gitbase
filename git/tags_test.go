@@ -2,46 +2,42 @@ package git
 
 import (
 	"testing"
-	"time"
+
+	"github.com/gitql/gitql/sql"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/fixtures"
 )
 
-func TestTagsTable(t *testing.T) {
+func TestTagsTable_Name(t *testing.T) {
 	assert := assert.New(t)
 
-	f := fixtures.ByTag("tags").One()
-	r, err := git.NewFilesystemRepository(f.DotGit().Base())
-	assert.Nil(err)
-
-	db := NewDatabase("foo", r)
-	assert.NotNil(db)
-
-	tables := db.Tables()
-	table, ok := tables[tagsTableName]
-	assert.True(ok)
-	assert.NotNil(table)
+	f := fixtures.Basic().One()
+	table := getTable(assert, f, tagsTableName)
 	assert.Equal(tagsTableName, table.Name())
+}
+
+func TestTagsTable_Children(t *testing.T) {
+	assert := assert.New(t)
+
+	f := fixtures.Basic().One()
+	table := getTable(assert, f, tagsTableName)
 	assert.Equal(0, len(table.Children()))
+}
 
-	iter, err := table.RowIter()
+func TestTagsTable_RowIter(t *testing.T) {
+	assert := assert.New(t)
+
+	f := fixtures.ByURL("https://github.com/git-fixtures/tags.git").One()
+	table := getTable(assert, f, tagsTableName)
+
+	rows, err := sql.NodeToRows(table)
 	assert.Nil(err)
-	assert.NotNil(iter)
+	assert.Len(rows, 4)
 
-	row, err := iter.Next()
-	assert.Nil(err)
-	assert.NotNil(row)
-
-	fields := row.Fields()
-	assert.NotNil(fields)
-
-	assert.IsType("", fields[0])
-	assert.IsType("", fields[1])
-	assert.IsType("", fields[2])
-	assert.IsType("", fields[3])
-	assert.IsType(time.Time{}, fields[4])
-	assert.IsType("", fields[5])
-	assert.IsType("", fields[6])
+	schema := table.Schema()
+	for idx, row := range rows {
+		err := schema.CheckRow(row)
+		assert.Nil(err, "row %d doesn't conform to schema", idx)
+	}
 }

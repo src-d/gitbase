@@ -27,10 +27,10 @@ func (commitsTable) Schema() sql.Schema {
 		sql.Field{"hash", sql.String},
 		sql.Field{"author_name", sql.String},
 		sql.Field{"author_email", sql.String},
-		sql.Field{"author_time", sql.Timestamp},
+		sql.Field{"author_when", sql.TimestampWithTimezone},
 		sql.Field{"comitter_name", sql.String},
 		sql.Field{"comitter_email", sql.String},
-		sql.Field{"comitter_time", sql.Timestamp},
+		sql.Field{"comitter_when", sql.TimestampWithTimezone},
 		sql.Field{"message", sql.String},
 	}
 }
@@ -73,10 +73,10 @@ func commitToRow(c *git.Commit) sql.Row {
 		c.Hash.String(),
 		c.Author.Name,
 		c.Author.Email,
-		c.Author.When.Unix(),
+		c.Author.When,
 		c.Committer.Name,
 		c.Committer.Email,
-		c.Committer.When.Unix(),
+		c.Committer.When,
 		c.Message,
 	)
 }
