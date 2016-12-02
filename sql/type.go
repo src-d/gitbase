@@ -9,6 +9,29 @@ import (
 
 type Schema []Field
 
+func (s Schema) CheckRow(row Row) error {
+	fields := row.Fields()
+	expected := len(s)
+	got := len(fields)
+	if expected != got {
+		return fmt.Errorf("expected %d values, got %d", expected, got)
+	}
+
+	for idx, f := range s {
+		v := fields[idx]
+		if f.Type.Check(v) {
+			continue
+		}
+
+		typ := reflect.TypeOf(v).String()
+		return fmt.Errorf("value at %d has unexpected type: %s",
+			idx, typ)
+
+	}
+
+	return nil
+}
+
 type Field struct {
 	Name string
 	Type Type

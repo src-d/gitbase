@@ -74,6 +74,7 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 
 		if i.ei >= len(i.t.Entries) {
 			i.t = nil
+			continue
 		}
 
 		e := i.t.Entries[i.ei]

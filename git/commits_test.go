@@ -3,39 +3,41 @@ package git
 import (
 	"testing"
 
+	"github.com/gitql/gitql/sql"
+
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/fixtures"
 )
 
-func TestCommitsTable(t *testing.T) {
+func TestCommitsTable_Name(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
-	r, err := git.NewFilesystemRepository(f.DotGit().Base())
-	assert.Nil(err)
-
-	db := NewDatabase("foo", r)
-	assert.NotNil(db)
-
-	tables := db.Tables()
-	table, ok := tables[commitsTableName]
-	assert.True(ok)
-	assert.NotNil(table)
+	table := getTable(assert, f, commitsTableName)
 	assert.Equal(commitsTableName, table.Name())
+}
+
+func TestCommitsTable_Children(t *testing.T) {
+	assert := assert.New(t)
+
+	f := fixtures.Basic().One()
+	table := getTable(assert, f, commitsTableName)
 	assert.Equal(0, len(table.Children()))
+}
 
-	iter, err := table.RowIter()
+func TestCommitsTable_RowIter(t *testing.T) {
+	assert := assert.New(t)
+
+	f := fixtures.Basic().One()
+	table := getTable(assert, f, commitsTableName)
+
+	rows, err := sql.NodeToRows(table)
 	assert.Nil(err)
-	assert.NotNil(iter)
+	assert.Len(rows, 9)
 
-	row, err := iter.Next()
-	assert.Nil(err)
-	assert.NotNil(row)
-
-	fields := row.Fields()
-	assert.NotNil(fields)
-	assert.IsType("", fields[1])
-	assert.IsType("", fields[2])
-	assert.IsType(int64(0), fields[3])
+	schema := table.Schema()
+	for idx, row := range rows {
+		err := schema.CheckRow(row)
+		assert.Nil(err, "row %d doesn't conform to schema", idx)
+	}
 }
