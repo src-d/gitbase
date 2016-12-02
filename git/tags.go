@@ -28,7 +28,7 @@ func (tagsTable) Schema() sql.Schema {
 		sql.Field{"name", sql.String},
 		sql.Field{"tagger_email", sql.String},
 		sql.Field{"tagger_name", sql.String},
-		sql.Field{"tagger_when", sql.Timestamp},
+		sql.Field{"tagger_when", sql.TimestampWithTimezone},
 		sql.Field{"message", sql.String},
 		sql.Field{"target", sql.String},
 	}

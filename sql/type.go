@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Schema []Field
@@ -123,28 +124,29 @@ func (t bigIntegerType) Compare(a interface{}, b interface{}) int {
 	return compareInt64(a, b)
 }
 
-var Timestamp = timestampType{}
+// TimestampWithTimezone is a timestamp with timezone.
+var TimestampWithTimezone = timestampWithTimeZoneType{}
 
-type timestampType struct{}
+type timestampWithTimeZoneType struct{}
 
-func (t timestampType) Name() string {
-	return "timestamp"
+func (t timestampWithTimeZoneType) Name() string {
+	return "timestamp with timezone"
 }
 
-func (t timestampType) InternalType() reflect.Kind {
-	return reflect.Int64
+func (t timestampWithTimeZoneType) InternalType() reflect.Kind {
+	return reflect.Struct
 }
 
-func (t timestampType) Check(v interface{}) bool {
-	return checkInt64(v)
+func (t timestampWithTimeZoneType) Check(v interface{}) bool {
+	return checkTimestamp(v)
 }
 
-func (t timestampType) Convert(v interface{}) (interface{}, error) {
-	return convertToInt64(v)
+func (t timestampWithTimeZoneType) Convert(v interface{}) (interface{}, error) {
+	return convertToTimestamp(v)
 }
 
-func (t timestampType) Compare(a interface{}, b interface{}) int {
-	return compareInt64(a, b)
+func (t timestampWithTimeZoneType) Compare(a interface{}, b interface{}) int {
+	return compareTimestamp(a, b)
 }
 
 var String = stringType{}
@@ -407,6 +409,46 @@ func compareFloat64(a interface{}, b interface{}) int {
 	if av < bv {
 		return -1
 	} else if av > bv {
+		return 1
+	}
+	return 0
+}
+
+func checkTimestamp(v interface{}) bool {
+	_, ok := v.(time.Time)
+	return ok
+}
+
+const timestampLayout = "2006-01-02 15:04:05.000000"
+
+func convertToTimestamp(v interface{}) (interface{}, error) {
+	switch v.(type) {
+	case string:
+		t, err := time.Parse(timestampLayout, v.(string))
+		if err != nil {
+			return nil, fmt.Errorf("value %q can't be converted to int64", v)
+		}
+		return t, nil
+	default:
+		if !BigInteger.Check(v) {
+			return nil, ErrInvalidType
+		}
+
+		bi, err := BigInteger.Convert(v)
+		if err != nil {
+			return nil, ErrInvalidType
+		}
+
+		return time.Unix(bi.(int64), 0), nil
+	}
+}
+
+func compareTimestamp(a interface{}, b interface{}) int {
+	av := a.(time.Time)
+	bv := b.(time.Time)
+	if av.Before(bv) {
+		return -1
+	} else if av.After(bv) {
 		return 1
 	}
 	return 0
