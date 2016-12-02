@@ -13,6 +13,7 @@ const (
 	tagsTableName        = "tags"
 	blobsTableName       = "blobs"
 	treeEntriesTableName = "tree_entries"
+	objectsTableName     = "objects"
 )
 
 type Database struct {
@@ -22,6 +23,7 @@ type Database struct {
 	rr   sql.Table
 	ter  sql.Table
 	br   sql.Table
+	or   sql.Table
 }
 
 func NewDatabase(name string, r *git.Repository) sql.Database {
@@ -32,6 +34,7 @@ func NewDatabase(name string, r *git.Repository) sql.Database {
 		tr:   newTagsTable(r),
 		br:   newBlobsTable(r),
 		ter:  newTreeEntriesTable(r),
+		or:   newObjectsTable(r),
 	}
 }
 
@@ -46,5 +49,6 @@ func (d *Database) Tables() map[string]sql.Table {
 		referencesTableName:  d.rr,
 		blobsTableName:       d.br,
 		treeEntriesTableName: d.ter,
+		objectsTableName:     d.or,
 	}
 }

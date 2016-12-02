@@ -38,6 +38,7 @@ func TestDatabase_Tables(t *testing.T) {
 		treeEntriesTableName,
 		tagsTableName,
 		blobsTableName,
+		objectsTableName,
 	}
 	sort.Strings(expected)
 
