@@ -7,15 +7,12 @@ import (
 )
 
 type tagsTable struct {
+	sql.TableBase
 	r *git.Repository
 }
 
 func newTagsTable(r *git.Repository) sql.Table {
 	return &tagsTable{r: r}
-}
-
-func (tagsTable) Resolved() bool {
-	return true
 }
 
 func (tagsTable) Name() string {
@@ -34,14 +31,6 @@ func (tagsTable) Schema() sql.Schema {
 	}
 }
 
-func (r *tagsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
-	return f(r)
-}
-
-func (r *tagsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
-}
-
 func (r tagsTable) RowIter() (sql.RowIter, error) {
 	tIter, err := r.r.Tags()
 	if err != nil {
@@ -49,10 +38,6 @@ func (r tagsTable) RowIter() (sql.RowIter, error) {
 	}
 	iter := &tagIter{i: tIter}
 	return iter, nil
-}
-
-func (tagsTable) Children() []sql.Node {
-	return []sql.Node{}
 }
 
 type tagIter struct {

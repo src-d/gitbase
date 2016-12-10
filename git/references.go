@@ -9,15 +9,12 @@ import (
 )
 
 type referencesTable struct {
+	sql.TableBase
 	r *git.Repository
 }
 
 func newReferencesTable(r *git.Repository) sql.Table {
 	return &referencesTable{r: r}
-}
-
-func (referencesTable) Resolved() bool {
-	return true
 }
 
 func (referencesTable) Name() string {
@@ -36,14 +33,6 @@ func (referencesTable) Schema() sql.Schema {
 	}
 }
 
-func (r *referencesTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
-	return f(r)
-}
-
-func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
-}
-
 func (r referencesTable) RowIter() (sql.RowIter, error) {
 	rIter, err := r.r.Refs()
 	if err != nil {
@@ -51,10 +40,6 @@ func (r referencesTable) RowIter() (sql.RowIter, error) {
 	}
 	iter := &referenceIter{i: rIter}
 	return iter, nil
-}
-
-func (referencesTable) Children() []sql.Node {
-	return []sql.Node{}
 }
 
 type referenceIter struct {
