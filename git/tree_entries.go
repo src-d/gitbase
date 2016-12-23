@@ -6,6 +6,7 @@ import (
 	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type treeEntriesTable struct {
@@ -55,8 +56,8 @@ func (treeEntriesTable) Children() []sql.Node {
 }
 
 type treeEntryIter struct {
-	i  *git.TreeIter
-	t  *git.Tree
+	i  *object.TreeIter
+	t  *object.Tree
 	ei int
 }
 
@@ -84,7 +85,7 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 	}
 }
 
-func treeEntryToRow(t *git.Tree, e git.TreeEntry) sql.Row {
+func treeEntryToRow(t *object.Tree, e object.TreeEntry) sql.Row {
 	return sql.NewMemoryRow(
 		t.ID().String(),
 		e.Hash.String(),

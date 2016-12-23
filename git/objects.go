@@ -4,6 +4,7 @@ import (
 	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type objectsTable struct {
@@ -51,7 +52,7 @@ func (objectsTable) Children() []sql.Node {
 }
 
 type objectIter struct {
-	i *git.ObjectIter
+	i *object.ObjectIter
 }
 
 func (i *objectIter) Next() (sql.Row, error) {
@@ -63,7 +64,7 @@ func (i *objectIter) Next() (sql.Row, error) {
 	return objectToRow(o), nil
 }
 
-func objectToRow(o git.Object) sql.Row {
+func objectToRow(o object.Object) sql.Row {
 	return sql.NewMemoryRow(
 		o.ID().String(),
 		o.Type().String(),

@@ -33,7 +33,7 @@ func TestReferencesTable_RowIter(t *testing.T) {
 
 	rows, err := sql.NodeToRows(table)
 	assert.Nil(err)
-	assert.Len(rows, 5)
+	assert.Len(rows, 7)
 
 	schema := table.Schema()
 	for idx, row := range rows {

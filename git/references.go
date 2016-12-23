@@ -45,7 +45,7 @@ func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expr
 }
 
 func (r referencesTable) RowIter() (sql.RowIter, error) {
-	rIter, err := r.r.Refs()
+	rIter, err := r.r.References()
 	if err != nil {
 		return nil, err
 	}
