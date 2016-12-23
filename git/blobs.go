@@ -4,6 +4,7 @@ import (
 	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type blobsTable struct {
@@ -51,7 +52,7 @@ func (blobsTable) Children() []sql.Node {
 }
 
 type blobIter struct {
-	i *git.BlobIter
+	i *object.BlobIter
 }
 
 func (i *blobIter) Next() (sql.Row, error) {
@@ -63,7 +64,7 @@ func (i *blobIter) Next() (sql.Row, error) {
 	return blobToRow(blob), nil
 }
 
-func blobToRow(c *git.Blob) sql.Row {
+func blobToRow(c *object.Blob) sql.Row {
 	return sql.NewMemoryRow(
 		c.Hash.String(),
 		c.Size,

@@ -4,6 +4,7 @@ import (
 	"github.com/gitql/gitql/sql"
 
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type tagsTable struct {
@@ -56,7 +57,7 @@ func (tagsTable) Children() []sql.Node {
 }
 
 type tagIter struct {
-	i *git.TagIter
+	i *object.TagIter
 }
 
 func (i *tagIter) Next() (sql.Row, error) {
@@ -68,7 +69,7 @@ func (i *tagIter) Next() (sql.Row, error) {
 	return tagToRow(tag), nil
 }
 
-func tagToRow(c *git.Tag) sql.Row {
+func tagToRow(c *object.Tag) sql.Row {
 	return sql.NewMemoryRow(
 		c.Hash.String(),
 		c.Name,
