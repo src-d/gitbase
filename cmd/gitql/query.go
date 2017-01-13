@@ -9,17 +9,18 @@ import (
 
 	"github.com/gitql/gitql"
 	gitqlgit "github.com/gitql/gitql/git"
+	"github.com/gitql/gitql/internal/format"
 	"github.com/gitql/gitql/sql"
 
-	"github.com/olekukonko/tablewriter"
 	"gopkg.in/src-d/go-git.v4"
 )
 
 type CmdQuery struct {
 	cmd
 
-	Path string `short:"p" long:"path" description:"Path where the git repository is located"`
-	Args struct {
+	Path   string `short:"p" long:"path" description:"Path where the git repository is located"`
+	Format string `short:"f" long:"format" default:"pretty" description:"Ouptut format. Formats supported: pretty, csv, json."`
+	Args   struct {
 		SQL string `positional-arg-name:"sql" required:"true" description:"SQL query to execute"`
 	} `positional-args:"yes"`
 
@@ -86,34 +87,39 @@ func (c *CmdQuery) executeQuery() error {
 		return err
 	}
 
-	c.printQuery(schema, iter)
-
-	return nil
+	return c.printQuery(schema, iter)
 }
 
-func (c *CmdQuery) printQuery(schema sql.Schema, iter sql.RowIter) {
-	w := tablewriter.NewWriter(os.Stdout)
+func (c *CmdQuery) printQuery(schema sql.Schema, iter sql.RowIter) error {
+	f, err := format.NewFormat(c.Format, os.Stdout)
+	if err != nil {
+		return err
+	}
+
 	headers := []string{}
 	for _, f := range schema {
 		headers = append(headers, f.Name)
 	}
-	w.SetHeader(headers)
+
+	if err := f.WriteHeader(headers); err != nil {
+		return err
+	}
+
 	for {
 		row, err := iter.Next()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return
+			return err
 		}
-		rowStrings := []string{}
-		for _, v := range row.Fields() {
-			rowStrings = append(rowStrings, fmt.Sprintf("%v", v))
+
+		if err := f.Write(row.Fields()); err != nil {
+			return err
 		}
-		w.Append(rowStrings)
 	}
-	w.Render()
+
+	return f.Close()
 }
 
 func findDotGitFolder(path string) (string, error) {
