@@ -8,11 +8,11 @@ import (
 	"strings"
 )
 
-type CmdRepl struct {
-	cmdQueryUtils
+type CmdShell struct {
+	cmdQueryBase
 }
 
-func (c *CmdRepl) Execute(args []string) error {
+func (c *CmdShell) Execute(args []string) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -21,18 +21,23 @@ func (c *CmdRepl) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Print("\n            gitQL REPL\n" +
-		"            ----------\n" +
-		"You must end your queries with ';'\n\n")
+	fmt.Print(`
+           gitQL SHELL
+           -----------
+You must end your queries with ';'
+
+`)
 
 	s := bufio.NewScanner(os.Stdin)
 
-	s.Split(ScanQueries)
+	s.Split(scanQueries)
 
 	for {
 		fmt.Print("!> ")
 
-		s.Scan()
+		if !s.Scan() {
+			break
+		}
 
 		query := s.Text()
 
@@ -47,18 +52,19 @@ func (c *CmdRepl) Execute(args []string) error {
 			continue
 		}
 
-		err = c.printQuery(schema, rowIter, "pretty")
-		if err != nil {
+		if err := c.printQuery(schema, rowIter, "pretty"); err != nil {
 			c.printError(err)
 		}
 	}
+
+	return s.Err()
 }
 
-func (c *CmdRepl) printError(err error) {
+func (c *CmdShell) printError(err error) {
 	fmt.Printf("ERROR: %v\n\n", err)
 }
 
-func ScanQueries(data []byte, atEOF bool) (int, []byte, error) {
+func scanQueries(data []byte, atEOF bool) (int, []byte, error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}

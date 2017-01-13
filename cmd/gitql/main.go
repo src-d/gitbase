@@ -10,7 +10,7 @@ import (
 func main() {
 	parser := flags.NewNamedParser("gitql", flags.Default)
 	parser.AddCommand("query", "Execute a SQL query a repository.", "", &CmdQuery{})
-	parser.AddCommand("repl", "Start an interactive session.", "", &CmdRepl{})
+	parser.AddCommand("shell", "Start an interactive session.", "", &CmdShell{})
 	parser.AddCommand("version", "Show the version information.", "", &CmdVersion{})
 
 	_, err := parser.Parse()

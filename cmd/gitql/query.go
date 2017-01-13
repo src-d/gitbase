@@ -1,7 +1,7 @@
 package main
 
 type CmdQuery struct {
-	cmdQueryUtils
+	cmdQueryBase
 
 	Format string `short:"f" long:"format" default:"pretty" description:"Ouptut format. Formats supported: pretty, csv, json."`
 	Args   struct {

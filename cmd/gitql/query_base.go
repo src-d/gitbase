@@ -14,21 +14,22 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 )
 
-type cmdQueryUtils struct {
+type cmdQueryBase struct {
 	cmd
 
 	Path string `short:"p" long:"path" description:"Path where the git repository is located"`
 
 	db sql.Database
+	e  *gitql.Engine
 }
 
-func (c *cmdQueryUtils) validate() error {
+func (c *cmdQueryBase) validate() error {
 	var err error
 	c.Path, err = findDotGitFolder(c.Path)
 	return err
 }
 
-func (c *cmdQueryUtils) buildDatabase() error {
+func (c *cmdQueryBase) buildDatabase() error {
 	c.print("opening %q repository...\n", c.Path)
 
 	var err error
@@ -54,20 +55,21 @@ func (c *cmdQueryUtils) buildDatabase() error {
 	c.print("current HEAD %q\n", head.Hash())
 
 	name := filepath.Base(filepath.Join(c.Path, ".."))
+
 	c.db = gitqlgit.NewDatabase(name, r)
+	c.e = gitql.New()
+	c.e.AddDatabase(c.db)
+
 	return nil
 }
 
-func (c *cmdQueryUtils) executeQuery(sql string) (sql.Schema, sql.RowIter, error) {
+func (c *cmdQueryBase) executeQuery(sql string) (sql.Schema, sql.RowIter, error) {
 	c.print("executing %q at %q\n", sql, c.db.Name())
 
-	e := gitql.New()
-	e.AddDatabase(c.db)
-
-	return e.Query(sql)
+	return c.e.Query(sql)
 }
 
-func (c *cmdQueryUtils) printQuery(schema sql.Schema, iter sql.RowIter, formatId string) error {
+func (c *cmdQueryBase) printQuery(schema sql.Schema, iter sql.RowIter, formatId string) error {
 	f, err := format.NewFormat(formatId, os.Stdout)
 	if err != nil {
 		return err
