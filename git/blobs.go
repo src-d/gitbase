@@ -65,7 +65,7 @@ func (i *blobIter) Next() (sql.Row, error) {
 }
 
 func blobToRow(c *object.Blob) sql.Row {
-	return sql.NewMemoryRow(
+	return sql.NewRow(
 		c.Hash.String(),
 		c.Size,
 	)

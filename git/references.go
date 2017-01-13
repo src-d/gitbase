@@ -71,7 +71,7 @@ func (i *referenceIter) Next() (sql.Row, error) {
 }
 
 func referenceToRow(c *plumbing.Reference) sql.Row {
-	return sql.NewMemoryRow(
+	return sql.NewRow(
 		c.Hash().String(),
 		c.Name().String(),
 		c.IsBranch(),

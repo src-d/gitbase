@@ -65,7 +65,7 @@ func (i *objectIter) Next() (sql.Row, error) {
 }
 
 func objectToRow(o object.Object) sql.Row {
-	return sql.NewMemoryRow(
+	return sql.NewRow(
 		o.ID().String(),
 		o.Type().String(),
 	)

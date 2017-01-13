@@ -70,7 +70,7 @@ func (i *commitIter) Next() (sql.Row, error) {
 }
 
 func commitToRow(c *object.Commit) sql.Row {
-	return sql.NewMemoryRow(
+	return sql.NewRow(
 		c.Hash.String(),
 		c.Author.Name,
 		c.Author.Email,

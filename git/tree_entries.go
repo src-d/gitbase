@@ -86,7 +86,7 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 }
 
 func treeEntryToRow(t *object.Tree, e object.TreeEntry) sql.Row {
-	return sql.NewMemoryRow(
+	return sql.NewRow(
 		t.ID().String(),
 		e.Hash.String(),
 		strconv.FormatInt(int64(e.Mode), 8),
