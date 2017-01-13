@@ -1,16 +1,16 @@
 package main
 
 import (
-	"io"
+	"database/sql"
 	"os"
 	"path/filepath"
 
 	"github.com/gitql/gitql"
-	gitqlgit "github.com/gitql/gitql/git"
+	"github.com/gitql/gitql/git"
 	"github.com/gitql/gitql/internal/format"
-	"github.com/gitql/gitql/sql"
 
-	"srcd.works/go-git.v4"
+	gogit "srcd.works/go-git.v4"
+	"srcd.works/go-git.v4/utils/ioutil"
 )
 
 type cmdQueryBase struct {
@@ -18,72 +18,67 @@ type cmdQueryBase struct {
 
 	Path string `short:"p" long:"path" description:"Path where the git repository is located"`
 
-	db sql.Database
-	e  *gitql.Engine
+	db   *sql.DB
+	name string
 }
 
 func (c *cmdQueryBase) buildDatabase() error {
 	c.print("opening %q repository...\n", c.Path)
 
 	var err error
-	r, err := git.PlainOpen(c.Path)
+	r, err := gogit.PlainOpen(c.Path)
 	if err != nil {
 		return err
 	}
 
-	name := filepath.Base(filepath.Join(c.Path, ".."))
-
-	c.db = gitqlgit.NewDatabase(name, r)
-	c.e = gitql.New()
-	c.e.AddDatabase(c.db)
-
-	return nil
+	c.name = filepath.Base(filepath.Join(c.Path, ".."))
+	gitql.DefaultEngine.AddDatabase(git.NewDatabase(c.name, r))
+	c.db, err = sql.Open(gitql.DriverName, "")
+	return err
 }
 
-func (c *cmdQueryBase) executeQuery(sql string) (sql.Schema, sql.RowIter, error) {
-	c.print("executing %q at %q\n", sql, c.db.Name())
-
-	return c.e.Query(sql)
+func (c *cmdQueryBase) executeQuery(sql string) (*sql.Rows, error) {
+	c.print("executing %q at %q\n", sql, c.name)
+	return c.db.Query(sql)
 }
 
-func (c *cmdQueryBase) printQuery(schema sql.Schema, iter sql.RowIter, formatId string) error {
+func (c *cmdQueryBase) printQuery(rows *sql.Rows, formatId string) (err error) {
+	defer ioutil.CheckClose(rows, &err)
+
 	f, err := format.NewFormat(formatId, os.Stdout)
 	if err != nil {
 		return err
 	}
+	defer ioutil.CheckClose(f, &err)
 
-	headers := []string{}
-	for _, f := range schema {
-		headers = append(headers, f.Name)
+	cols, err := rows.Columns()
+	if err != nil {
+		return err
 	}
 
-	if err := f.WriteHeader(headers); err != nil {
+	if err := f.WriteHeader(cols); err != nil {
 		return err
+	}
+
+	vals := make([]interface{}, len(cols))
+	valPtrs := make([]interface{}, len(cols))
+	for i := 0; i < len(cols); i++ {
+		valPtrs[i] = &vals[i]
 	}
 
 	for {
-		row, err := iter.Next()
-		if err == io.EOF {
+		if !rows.Next() {
 			break
 		}
-		if err != nil {
+
+		if err := rows.Scan(valPtrs...); err != nil {
 			return err
 		}
 
-		dataRow := make([]interface{}, len(row))
-		for i := range row {
-			dataRow[i] = interface{}(row[i])
-		}
-
-		if err := f.Write(dataRow); err != nil {
+		if err := f.Write(vals); err != nil {
 			return err
 		}
 	}
 
-	if err := iter.Close(); err != nil {
-		_ = f.Close()
-		return err
-	}
-
-	return f.Close()
+	return rows.Err()
 }
