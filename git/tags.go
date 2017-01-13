@@ -70,7 +70,7 @@ func (i *tagIter) Next() (sql.Row, error) {
 }
 
 func tagToRow(c *object.Tag) sql.Row {
-	return sql.NewMemoryRow(
+	return sql.NewRow(
 		c.Hash.String(),
 		c.Name,
 		c.Tagger.Email,

@@ -19,7 +19,6 @@ func TestNewJsonFormat(t *testing.T) {
 	}, w, t)
 }
 
-
 func TestNewFormat_Json(t *testing.T) {
 	testNewFormat("json", t)
 }

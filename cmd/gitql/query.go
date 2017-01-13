@@ -114,7 +114,12 @@ func (c *CmdQuery) printQuery(schema sql.Schema, iter sql.RowIter) error {
 			return err
 		}
 
-		if err := f.Write(row.Fields()); err != nil {
+		record := make([]interface{}, len(row))
+		for i := 0; i < len(row); i++ {
+			record[i] = row[i]
+		}
+
+		if err := f.Write(record); err != nil {
 			return err
 		}
 	}
