@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/chzyer/readline"
+	"github.com/fatih/color"
 )
 
 const (
@@ -25,8 +26,15 @@ func (c *CmdShell) Execute(args []string) error {
 		return err
 	}
 
+	blue := color.New(color.FgHiBlue).SprintfFunc()
+	white := color.New(color.FgWhite).SprintfFunc()
+	red := color.New(color.FgHiRed).PrintfFunc()
+
+	prompt := blue(initPrompt)
+	mlPrompt := blue(multilinePrompt)
+
 	rl, err := readline.NewEx(&readline.Config{
-		Prompt:                 initPrompt,
+		Prompt:                 prompt,
 		HistoryFile:            "/tmp/gitql-history",
 		DisableAutoSaveHistory: true,
 	})
@@ -34,12 +42,10 @@ func (c *CmdShell) Execute(args []string) error {
 		return err
 	}
 
-	rl.Terminal.Print(fmt.Sprint(`
-           gitQL SHELL
-           -----------
-You must end your queries with ';'
-
-`))
+	fmt.Println("          ", white("git")+blue("QL"), "SHELL")
+	fmt.Println("           -----------")
+	fmt.Println("You must end your queries with ';'")
+	fmt.Println("")
 
 	var cmds []string
 	for {
@@ -53,25 +59,25 @@ You must end your queries with ';'
 		}
 		cmds = append(cmds, line)
 		if !strings.HasSuffix(line, ";") {
-			rl.SetPrompt(multilinePrompt)
+			rl.SetPrompt(mlPrompt)
 			continue
 		}
 
 		query := strings.Join(cmds, " ")
 		cmds = cmds[:0]
-		rl.SetPrompt(initPrompt)
+		rl.SetPrompt(prompt)
 		rl.SaveHistory(query)
 
 		rl.Terminal.Print(fmt.Sprintf("\n--> Executing query: %s\n\n", query))
 
 		schema, rowIter, err := c.executeQuery(query)
 		if err != nil {
-			rl.Terminal.Print(fmt.Sprintf("ERROR: %v\n\n", err))
+			red("ERROR: %v\n\n", err)
 			continue
 		}
 
 		if err := c.printQuery(schema, rowIter, "pretty"); err != nil {
-			rl.Terminal.Print(fmt.Sprintf("ERROR: %v\n\n", err))
+			red("ERROR: %v\n\n", err)
 			continue
 		}
 	}
