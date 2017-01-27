@@ -10,15 +10,12 @@ import (
 )
 
 type treeEntriesTable struct {
+	sql.TableBase
 	r *git.Repository
 }
 
 func newTreeEntriesTable(r *git.Repository) sql.Table {
 	return &treeEntriesTable{r: r}
-}
-
-func (treeEntriesTable) Resolved() bool {
-	return true
 }
 
 func (treeEntriesTable) Name() string {
@@ -34,14 +31,6 @@ func (treeEntriesTable) Schema() sql.Schema {
 	}
 }
 
-func (r *treeEntriesTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
-	return f(r)
-}
-
-func (r *treeEntriesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
-}
-
 func (r treeEntriesTable) RowIter() (sql.RowIter, error) {
 	cIter, err := r.r.Trees()
 	if err != nil {
@@ -49,10 +38,6 @@ func (r treeEntriesTable) RowIter() (sql.RowIter, error) {
 	}
 	iter := &treeEntryIter{i: cIter}
 	return iter, nil
-}
-
-func (treeEntriesTable) Children() []sql.Node {
-	return []sql.Node{}
 }
 
 type treeEntryIter struct {

@@ -8,15 +8,12 @@ import (
 )
 
 type blobsTable struct {
+	sql.TableBase
 	r *git.Repository
 }
 
 func newBlobsTable(r *git.Repository) sql.Table {
 	return &blobsTable{r: r}
-}
-
-func (blobsTable) Resolved() bool {
-	return true
 }
 
 func (blobsTable) Name() string {
@@ -30,14 +27,6 @@ func (blobsTable) Schema() sql.Schema {
 	}
 }
 
-func (r *blobsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
-	return f(r)
-}
-
-func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
-}
-
 func (r blobsTable) RowIter() (sql.RowIter, error) {
 	bIter, err := r.r.Blobs()
 	if err != nil {
@@ -45,10 +34,6 @@ func (r blobsTable) RowIter() (sql.RowIter, error) {
 	}
 	iter := &blobIter{i: bIter}
 	return iter, nil
-}
-
-func (blobsTable) Children() []sql.Node {
-	return []sql.Node{}
 }
 
 type blobIter struct {

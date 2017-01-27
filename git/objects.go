@@ -8,15 +8,12 @@ import (
 )
 
 type objectsTable struct {
+	sql.TableBase
 	r *git.Repository
 }
 
 func newObjectsTable(r *git.Repository) sql.Table {
 	return &objectsTable{r: r}
-}
-
-func (objectsTable) Resolved() bool {
-	return true
 }
 
 func (objectsTable) Name() string {
@@ -30,14 +27,6 @@ func (objectsTable) Schema() sql.Schema {
 	}
 }
 
-func (r *objectsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
-	return f(r)
-}
-
-func (r *objectsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
-}
-
 func (r objectsTable) RowIter() (sql.RowIter, error) {
 	oIter, err := r.r.Objects()
 	if err != nil {
@@ -45,10 +34,6 @@ func (r objectsTable) RowIter() (sql.RowIter, error) {
 	}
 	iter := &objectIter{i: oIter}
 	return iter, nil
-}
-
-func (objectsTable) Children() []sql.Node {
-	return []sql.Node{}
 }
 
 type objectIter struct {

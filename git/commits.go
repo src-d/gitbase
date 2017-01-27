@@ -8,15 +8,12 @@ import (
 )
 
 type commitsTable struct {
+	sql.TableBase
 	r *git.Repository
 }
 
 func newCommitsTable(r *git.Repository) sql.Table {
 	return &commitsTable{r: r}
-}
-
-func (commitsTable) Resolved() bool {
-	return true
 }
 
 func (commitsTable) Name() string {
@@ -36,14 +33,6 @@ func (commitsTable) Schema() sql.Schema {
 	}
 }
 
-func (r *commitsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
-	return f(r)
-}
-
-func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
-}
-
 func (r commitsTable) RowIter() (sql.RowIter, error) {
 	cIter, err := r.r.Commits()
 	if err != nil {
@@ -51,10 +40,6 @@ func (r commitsTable) RowIter() (sql.RowIter, error) {
 	}
 	iter := &commitIter{i: cIter}
 	return iter, nil
-}
-
-func (commitsTable) Children() []sql.Node {
-	return []sql.Node{}
 }
 
 type commitIter struct {
