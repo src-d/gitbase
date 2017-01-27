@@ -69,6 +69,11 @@ func (i *commitIter) Next() (sql.Row, error) {
 	return commitToRow(commit), nil
 }
 
+func (i *commitIter) Close() error {
+	i.i.Close()
+	return nil
+}
+
 func commitToRow(c *object.Commit) sql.Row {
 	return sql.NewRow(
 		c.Hash.String(),

@@ -64,6 +64,11 @@ func (i *objectIter) Next() (sql.Row, error) {
 	return objectToRow(o), nil
 }
 
+func (i *objectIter) Close() error {
+	i.i.Close()
+	return nil
+}
+
 func objectToRow(o object.Object) sql.Row {
 	return sql.NewRow(
 		o.ID().String(),

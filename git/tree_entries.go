@@ -85,6 +85,11 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 	}
 }
 
+func (i *treeEntryIter) Close() error {
+	i.i.Close()
+	return nil
+}
+
 func treeEntryToRow(t *object.Tree, e object.TreeEntry) sql.Row {
 	return sql.NewRow(
 		t.ID().String(),
