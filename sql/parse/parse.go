@@ -282,6 +282,8 @@ func comparisonExprToExpression(c *sqlparser.ComparisonExpr) (sql.Expression,
 	switch c.Operator {
 	default:
 		return nil, errUnsupportedFeature(c.Operator)
+	case sqlparser.LikeStr:
+		return expression.NewLike(left, right), nil
 	case sqlparser.EqualStr:
 		return expression.NewEquals(left, right), nil
 	case sqlparser.LessThanStr:
