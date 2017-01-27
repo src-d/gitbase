@@ -26,13 +26,13 @@ func (referencesTable) Name() string {
 
 func (referencesTable) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Field{"hash", sql.String},
-		sql.Field{"name", sql.String},
-		sql.Field{"is_branch", sql.Boolean},
-		sql.Field{"is_note", sql.Boolean},
-		sql.Field{"is_remote", sql.Boolean},
-		sql.Field{"is_tag", sql.Boolean},
-		sql.Field{"target", sql.String},
+		sql.Column{"hash", sql.String},
+		sql.Column{"name", sql.String},
+		sql.Column{"is_branch", sql.Boolean},
+		sql.Column{"is_note", sql.Boolean},
+		sql.Column{"is_remote", sql.Boolean},
+		sql.Column{"is_tag", sql.Boolean},
+		sql.Column{"target", sql.String},
 	}
 }
 
