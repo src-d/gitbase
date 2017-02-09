@@ -25,14 +25,14 @@ func (commitsTable) Name() string {
 
 func (commitsTable) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Field{"hash", sql.String},
-		sql.Field{"author_name", sql.String},
-		sql.Field{"author_email", sql.String},
-		sql.Field{"author_when", sql.TimestampWithTimezone},
-		sql.Field{"comitter_name", sql.String},
-		sql.Field{"comitter_email", sql.String},
-		sql.Field{"comitter_when", sql.TimestampWithTimezone},
-		sql.Field{"message", sql.String},
+		sql.Column{"hash", sql.String},
+		sql.Column{"author_name", sql.String},
+		sql.Column{"author_email", sql.String},
+		sql.Column{"author_when", sql.TimestampWithTimezone},
+		sql.Column{"comitter_name", sql.String},
+		sql.Column{"comitter_email", sql.String},
+		sql.Column{"comitter_when", sql.TimestampWithTimezone},
+		sql.Column{"message", sql.String},
 	}
 }
 

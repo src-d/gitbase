@@ -25,8 +25,8 @@ func (objectsTable) Name() string {
 
 func (objectsTable) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Field{"id", sql.String},
-		sql.Field{"type", sql.String},
+		sql.Column{"id", sql.String},
+		sql.Column{"type", sql.String},
 	}
 }
 

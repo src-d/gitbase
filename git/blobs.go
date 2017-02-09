@@ -25,8 +25,8 @@ func (blobsTable) Name() string {
 
 func (blobsTable) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Field{"hash", sql.String},
-		sql.Field{"size", sql.BigInteger},
+		sql.Column{"hash", sql.String},
+		sql.Column{"size", sql.BigInteger},
 	}
 }
 
