@@ -64,6 +64,11 @@ func (i *blobIter) Next() (sql.Row, error) {
 	return blobToRow(blob), nil
 }
 
+func (i *blobIter) Close() error {
+	i.i.Close()
+	return nil
+}
+
 func blobToRow(c *object.Blob) sql.Row {
 	return sql.NewRow(
 		c.Hash.String(),

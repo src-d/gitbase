@@ -70,6 +70,11 @@ func (i *referenceIter) Next() (sql.Row, error) {
 	return referenceToRow(reference), nil
 }
 
+func (i *referenceIter) Close() error {
+	i.i.Close()
+	return nil
+}
+
 func referenceToRow(c *plumbing.Reference) sql.Row {
 	return sql.NewRow(
 		c.Hash().String(),

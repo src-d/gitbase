@@ -103,6 +103,11 @@ func (c *cmdQueryBase) printQuery(schema sql.Schema, iter sql.RowIter, formatId 
 		}
 	}
 
+	if err := iter.Close(); err != nil {
+		_ = f.Close()
+		return err
+	}
+
 	return f.Close()
 }
 

@@ -69,6 +69,11 @@ func (i *tagIter) Next() (sql.Row, error) {
 	return tagToRow(tag), nil
 }
 
+func (i *tagIter) Close() error {
+	i.i.Close()
+	return nil
+}
+
 func tagToRow(c *object.Tag) sql.Row {
 	return sql.NewRow(
 		c.Hash.String(),
