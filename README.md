@@ -11,7 +11,8 @@
   
   <a href="https://godoc.org/github.com/gitql/gitql"><img alt="GoDoc" src="https://godoc.org/github.com/gitql/gitql?status.svg" /></a>
 </p>
-[![asciicast](https://asciinema.org/a/102733.png)](https://asciinema.org/a/102733?autoplay=1)
+
+<a href="https://asciinema.org/a/102733?autoplay=1" target="_blank"><img src="https://asciinema.org/a/102733.png" width="979"/></a>
 
 ## Installation
 
