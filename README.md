@@ -12,7 +12,7 @@
   <a href="https://godoc.org/github.com/gitql/gitql"><img alt="GoDoc" src="https://godoc.org/github.com/gitql/gitql?status.svg" /></a>
 </p>
 
-<a href="https://asciinema.org/a/102717?autoplay=1" target="_blank"><img src="https://asciinema.org/a/102717.png" width="979"/></a>
+<img src="https://rawgit.com/gitql/gitql/master/tty.gif" width="979"/></a>
 
 ## Installation
 
