@@ -1,6 +1,16 @@
-[![Build Status](https://travis-ci.org/gitql/gitql.svg?branch=master)](https://travis-ci.org/gitql/gitql) [![codecov](https://codecov.io/gh/gitql/gitql/branch/master/graph/badge.svg)](https://codecov.io/gh/gitql/gitql) [![GoDoc](https://godoc.org/github.com/gitql/gitql?status.svg)](https://godoc.org/github.com/gitql/gitql)
+<p align="center"> 
+  <img src="https://rawgit.com/gitql/gitql/master/gitql-logo.svg">
+</p>
 
-<center> <img src="https://rawgit.com/gitql/gitql/master/gitql-logo.svg"></center>
+<p align="center"> 
+ <a href="https://codebeat.co/projects/github-com-gitql-gitql"><img alt="codebeat badge" src="https://codebeat.co/badges/ff0a63ef-e1b1-4a8a-9662-8b2ae17718fa" /></a>
+ 
+ <a href="https://travis-ci.org/gitql/gitql"><img alt="Build Status" src="https://travis-ci.org/gitql/gitql.svg?branch=master" /></a>
+ 
+  <a href="https://codecov.io/gh/gitql/gitql"><img alt="codecov" src="https://codecov.io/gh/gitql/gitql/branch/master/graph/badge.svg" /></a>
+  
+  <a href="https://godoc.org/github.com/gitql/gitql"><img alt="GoDoc" src="https://godoc.org/github.com/gitql/gitql?status.svg" /></a>
+</p>
 
 **gitql** is a SQL interface to Git repositories, written in Go.
 
