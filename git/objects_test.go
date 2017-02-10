@@ -5,8 +5,8 @@ import (
 
 	"github.com/gitql/gitql/sql"
 
+	"github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/src-d/go-git.v4/fixtures"
 )
 
 func TestObjectsTable_Name(t *testing.T) {

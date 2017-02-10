@@ -10,10 +10,6 @@ type CmdQuery struct {
 }
 
 func (c *CmdQuery) Execute(args []string) error {
-	if err := c.validate(); err != nil {
-		return err
-	}
-
 	if err := c.buildDatabase(); err != nil {
 		return err
 	}
