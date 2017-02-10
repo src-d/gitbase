@@ -2,6 +2,7 @@ package expression
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gitql/gitql/sql"
 )
@@ -40,6 +41,58 @@ func (c *Equals) TransformUp(f func(sql.Expression) sql.Expression) sql.Expressi
 	rc := c.BinaryExpression.Right.TransformUp(f)
 
 	return f(NewEquals(lc, rc))
+}
+
+func (e Equals) Name() string {
+	return e.Left.Name() + "==" + e.Right.Name()
+}
+
+type Like struct {
+	Comparison
+}
+
+func NewLike(left sql.Expression, right sql.Expression) *Like {
+	// FIXME: enable this again
+	// checkEqualTypes(left, right)
+	return &Like{Comparison{BinaryExpression{left, right}, left.Type()}}
+}
+
+func (e Like) Eval(row sql.Row) interface{} {
+	l := e.Left.Eval(row)
+	r := e.Right.Eval(row)
+
+	sl, okl := l.(string)
+	sr, okr := r.(string)
+
+	if !okl || !okr {
+		return e.ChildType.Compare(l, r) == 0
+	}
+
+	prefix := strings.HasPrefix(sr, "%")
+	suffix := strings.HasSuffix(sr, "%")
+	cs := strings.Replace(sr, "%", "", -1)
+
+	switch {
+	case prefix && suffix:
+		return strings.Contains(sl, cs)
+	case prefix:
+		return strings.HasSuffix(sl, cs)
+	case suffix:
+		return strings.HasPrefix(sl, cs)
+	default:
+		return strings.EqualFold(sl, cs)
+	}
+}
+
+func (c *Like) TransformUp(f func(sql.Expression) sql.Expression) sql.Expression {
+	lc := c.BinaryExpression.Left.TransformUp(f)
+	rc := c.BinaryExpression.Right.TransformUp(f)
+
+	return f(NewLike(lc, rc))
+}
+
+func (e Like) Name() string {
+	return e.Left.Name() + " LIKE " + e.Right.Name()
 }
 
 type GreaterThan struct {
@@ -138,8 +191,4 @@ func checkEqualTypes(a sql.Expression, b sql.Expression) {
 	if a.Resolved() && b.Resolved() && a.Type() != b.Type() {
 		panic(fmt.Errorf("both types should be equal: %v and %v\n", a, b))
 	}
-}
-
-func (e Equals) Name() string {
-	return e.Left.Name() + "==" + e.Right.Name()
 }
