@@ -6,13 +6,15 @@ import (
 
 	"github.com/gitql/gitql/sql"
 
+	"github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/fixtures"
+	"srcd.works/go-billy.v1/memfs"
+	"srcd.works/go-git.v4"
+	"srcd.works/go-git.v4/storage/filesystem"
 )
 
 func init() {
-	fixtures.RootFolder = "../../../../gopkg.in/src-d/go-git.v4/fixtures/"
+	fixtures.RootFolder = "../../../../github.com/src-d/go-git-fixtures/"
 }
 
 const (
@@ -56,8 +58,11 @@ func TestDatabase_Name(t *testing.T) {
 func getDB(assert *assert.Assertions, fixture *fixtures.Fixture,
 	name string) sql.Database {
 
-	r, err := git.NewFilesystemRepository(fixture.DotGit().Base())
-	assert.Nil(err)
+	s, err := filesystem.NewStorage(fixture.DotGit())
+	assert.NoError(err)
+
+	r, err := git.Open(s, memfs.New())
+	assert.NoError(err)
 
 	db := NewDatabase(name, r)
 	assert.NotNil(db)

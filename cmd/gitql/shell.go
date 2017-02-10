@@ -18,10 +18,6 @@ type CmdShell struct {
 }
 
 func (c *CmdShell) Execute(args []string) error {
-	if err := c.validate(); err != nil {
-		return err
-	}
-
 	if err := c.buildDatabase(); err != nil {
 		return err
 	}

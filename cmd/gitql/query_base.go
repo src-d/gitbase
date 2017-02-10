@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,7 +10,7 @@ import (
 	"github.com/gitql/gitql/internal/format"
 	"github.com/gitql/gitql/sql"
 
-	"gopkg.in/src-d/go-git.v4"
+	"srcd.works/go-git.v4"
 )
 
 type cmdQueryBase struct {
@@ -23,36 +22,14 @@ type cmdQueryBase struct {
 	e  *gitql.Engine
 }
 
-func (c *cmdQueryBase) validate() error {
-	var err error
-	c.Path, err = findDotGitFolder(c.Path)
-	return err
-}
-
 func (c *cmdQueryBase) buildDatabase() error {
 	c.print("opening %q repository...\n", c.Path)
 
 	var err error
-	r, err := git.NewFilesystemRepository(c.Path)
+	r, err := git.PlainOpen(c.Path)
 	if err != nil {
 		return err
 	}
-
-	empty, err := r.IsEmpty()
-	if err != nil {
-		return err
-	}
-
-	if empty {
-		return errors.New("error: the repository is empty")
-	}
-
-	head, err := r.Head()
-	if err != nil {
-		return err
-	}
-
-	c.print("current HEAD %q\n", head.Hash())
 
 	name := filepath.Base(filepath.Join(c.Path, ".."))
 
@@ -109,31 +86,4 @@ func (c *cmdQueryBase) printQuery(schema sql.Schema, iter sql.RowIter, formatId 
 	}
 
 	return f.Close()
-}
-
-func findDotGitFolder(path string) (string, error) {
-	if path == "" {
-		var err error
-		path, err = os.Getwd()
-		if err != nil {
-			return "", err
-		}
-	}
-
-	git := filepath.Join(path, ".git")
-	_, err := os.Stat(git)
-	if err == nil {
-		return git, nil
-	}
-
-	if !os.IsNotExist(err) {
-		return "", err
-	}
-
-	next := filepath.Join(path, "..")
-	if next == path {
-		return "", errors.New("unable to find a git repository")
-	}
-
-	return findDotGitFolder(next)
 }

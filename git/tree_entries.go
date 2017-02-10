@@ -5,8 +5,8 @@ import (
 
 	"github.com/gitql/gitql/sql"
 
-	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing/object"
+	"srcd.works/go-git.v4"
+	"srcd.works/go-git.v4/plumbing/object"
 )
 
 type treeEntriesTable struct {
