@@ -13,8 +13,6 @@
 </p>
 
 <a href="https://asciinema.org/a/6jkqoob0842tt50drttrbrctj?autoplay=1" target="_blank"><img src="https://asciinema.org/a/6jkqoob0842tt50drttrbrctj.png" width="979"/></a>
-**gitql** is a SQL interface to Git repositories, written in Go.
-
 
 ## Installation
 
