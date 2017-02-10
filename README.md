@@ -11,8 +11,11 @@
   
   <a href="https://godoc.org/github.com/gitql/gitql"><img alt="GoDoc" src="https://godoc.org/github.com/gitql/gitql?status.svg" /></a>
 </p>
+[![asciicast](https://asciinema.org/a/6jkqoob0842tt50drttrbrctj.png)](https://asciinema.org/a/6jkqoob0842tt50drttrbrctj)
+
 
 **gitql** is a SQL interface to Git repositories, written in Go.
+
 
 ## Installation
 
