@@ -11,7 +11,7 @@
   
   <a href="https://godoc.org/github.com/gitql/gitql"><img alt="GoDoc" src="https://godoc.org/github.com/gitql/gitql?status.svg" /></a>
 </p>
-<a href="https://asciinema.org/a/102717?autoplay=1" target="_blank"><img src="https://asciinema.org/a/102717.png" width="979"/></a>
+[![asciicast](https://asciinema.org/a/102733.png)](https://asciinema.org/a/102733)
 
 ## Installation
 
@@ -47,7 +47,7 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 +------------------------------------------+---------------------+-----------------------+
 ```
 
-Also you can use the interactive shell like you usually do to explore tables in postgreSQL per example:
+You can use the interactive shell like you usually do to explore tables in postgreSQL per example:
 
 ```bash
 $ gitql shell
@@ -83,7 +83,7 @@ gitql exposes the following tables:
 
 ## SQL syntax
 
-We are adding continuously more functionality to gitql. Actually we supports a subset of the SQL standard, currently including:
+We are continuously adding more functionality to gitql. We support a subset of the SQL standard, currently including:
 
 |                        |                                     Supported                                     |
 |:----------------------:|:---------------------------------------------------------------------------------:|
