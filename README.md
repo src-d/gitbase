@@ -85,12 +85,12 @@ gitql exposes the following tables:
 
 We are adding continuously more functionality to gitql. Actually we supports a subset of the SQL standard, currently including:
 
-|                        |                                     Supported                                     |        Planned       |
-|:----------------------:|:---------------------------------------------------------------------------------:|:--------------------:|
-| Comparison expressions |                                !=, ==, >, <, >=,<=                                |                      |
-|  Grouping expressions  |                                    COUNT, FIRST                                   |    LAST, SUM, AVG    |
-|  Standard expressions  |                              ALIAS, LITERAL, STAR (*)                             |     LIKE, REGEXP     |
-|       Statements       | CROSS JOIN, DESCRIBE, FILTER (WHERE), GROUP BY, LIMIT, SELECT, SHOW TABLES, SORT  | more JOINS, DISTINCT |
+|                        |                                     Supported                                     |
+|:----------------------:|:---------------------------------------------------------------------------------:|
+| Comparison expressions |                                !=, ==, >, <, >=,<=                                |
+|  Grouping expressions  |                                    COUNT, FIRST                                   |
+|  Standard expressions  |                              ALIAS, LITERAL, STAR (*)                             |
+|       Statements       | CROSS JOIN, DESCRIBE, FILTER (WHERE), GROUP BY, LIMIT, SELECT, SHOW TABLES, SORT  |
 
 ## License
 
