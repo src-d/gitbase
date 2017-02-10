@@ -1,6 +1,6 @@
-<img style="float: center;" src="https://rawgit.com/gitql/gitql/master/gitql-logo.svg">
-
 [![Build Status](https://travis-ci.org/gitql/gitql.svg?branch=master)](https://travis-ci.org/gitql/gitql) [![codecov](https://codecov.io/gh/gitql/gitql/branch/master/graph/badge.svg)](https://codecov.io/gh/gitql/gitql) [![GoDoc](https://godoc.org/github.com/gitql/gitql?status.svg)](https://godoc.org/github.com/gitql/gitql)
+
+<center> <img src="https://rawgit.com/gitql/gitql/master/gitql-logo.svg"></center>
 
 **gitql** is a SQL interface to Git repositories, written in Go.
 
@@ -41,7 +41,8 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 Also you can use the interactive shell like you usually do to explore tables in postgreSQL per example:
 
 ```bash
-13:10 $ gitql shell
+$ gitql shell
+
            gitQL SHELL
            -----------
 You must end your queries with ';'
@@ -70,6 +71,7 @@ gitql exposes the following tables:
 |  references  | hash,hash, name, is_branch, is_note, is_remote, is_tag, target                                      |
 |     tags     | hash, name, tagger_email, tagger_name, tagger_when, message, target                                 |
 | tree_entries | tree_hash, entry_hash, mode, name                                                                   |
+
 ## SQL syntax
 
 We are adding continuously more functionality to gitql. Actually we supports a subset of the SQL standard, currently including:
