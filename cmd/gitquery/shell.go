@@ -31,14 +31,14 @@ func (c *CmdShell) Execute(args []string) error {
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt:                 prompt,
-		HistoryFile:            "/tmp/gitql-history",
+		HistoryFile:            fmt.Sprintf("/tmp/%s-history", name),
 		DisableAutoSaveHistory: true,
 	})
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("          ", white("git")+blue("QL"), "SHELL")
+	fmt.Println("          ", white("git")+blue("query"), "shell")
 	fmt.Println("           -----------")
 	fmt.Println("You must end your queries with ';'")
 	fmt.Println("")
