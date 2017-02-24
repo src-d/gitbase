@@ -1,30 +1,27 @@
-<p align="center"> 
-  <img src="https://rawgit.com/sqle/gitql/master/gitql-logo.svg">
-</p>
+# gitquery
 
-<p align="center"> 
-
+<p>
   <a href="https://codebeat.co/projects/github-com-sqle-gitql"><img alt="codebeat badge" src="https://codebeat.co/badges/d797a013-326b-4686-a1a7-adcb3039f65c" /></a>
 
-  <a href="https://travis-ci.org/sqle/gitql"><img alt="Build Status" src="https://travis-ci.org/sqle/gitql.svg?branch=master" /></a>
+  <a href="https://travis-ci.org/sqle/gitquery"><img alt="Build Status" src="https://travis-ci.org/sqle/gitquery.svg?branch=master" /></a>
  
-  <a href="https://codecov.io/gh/sqle/gitql"><img alt="codecov" src="https://codecov.io/gh/sqle/gitql/branch/master/graph/badge.svg" /></a>
+  <a href="https://codecov.io/gh/sqle/gitquery"><img alt="codecov" src="https://codecov.io/gh/sqle/gitquery/branch/master/graph/badge.svg" /></a>
   
-  <a href="https://godoc.org/gopkg.in/sqle/gitql.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/sqle/gitql.v0?status.svg" /></a>
+  <a href="https://godoc.org/gopkg.in/sqle/gitquery.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/sqle/gitquery.v0?status.svg" /></a>
 </p>
 
 <a href="https://asciinema.org/a/102733?autoplay=1" target="_blank"><img src="https://asciinema.org/a/102733.png" width="979"/></a>
 
 ## Installation
 
-Check the [Releases](https://github.com/sqle/gitql/releases) page to download
-the gitql binary.
+Check the [Releases](https://github.com/sqle/gitquery/releases) page to download
+the gitquery binary.
 
 ## Usage
 
 ```bash
 Usage:
-  gitql [OPTIONS] <query | shell | version>
+  gitquery [OPTIONS] <query | shell | version>
 
 Help Options:
   -h, --help  Show this help message
@@ -39,7 +36,7 @@ For example:
 
 ```bash
 $ cd my_git_repo
-$ gitql query 'SELECT hash, author_email, author_name FROM commits LIMIT 2;' 
+$ gitquery query 'SELECT hash, author_email, author_name FROM commits LIMIT 2;' 
 SELECT hash, author_email, author_name FROM commits LIMIT 2;
 +------------------------------------------+---------------------+-----------------------+
 |                   HASH                   |    AUTHOR EMAIL     |      AUTHOR NAME      |
@@ -52,7 +49,7 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 You can use the interactive shell like you usually do to explore tables in postgreSQL per example:
 
 ```bash
-$ gitql shell
+$ gitquery shell
 
            gitQL SHELL
            -----------
@@ -73,7 +70,7 @@ You must end your queries with ';'
 
 ## Tables
 
-gitql exposes the following tables:
+gitquery exposes the following tables:
 
 |     Name     |                                               Columns                                               |
 |:------------:|:---------------------------------------------------------------------------------------------------:|
@@ -85,7 +82,7 @@ gitql exposes the following tables:
 
 ## SQL syntax
 
-We are continuously adding more functionality to gitql. We support a subset of the SQL standard, currently including:
+We are continuously adding more functionality to gitquery. We support a subset of the SQL standard, currently including:
 
 |                        |                                     Supported                                     |
 |:----------------------:|:---------------------------------------------------------------------------------:|
@@ -96,4 +93,4 @@ We are continuously adding more functionality to gitql. We support a subset of t
 
 ## License
 
-gitql is licensed under the [MIT License](https://github.com/sqle/gitql/blob/master/LICENSE).
+gitquery is licensed under the [MIT License](https://github.com/sqle/gitquery/blob/master/LICENSE).

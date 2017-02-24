@@ -1,4 +1,4 @@
-package gitql
+package gitquery
 
 import (
 	"gopkg.in/sqle/sqle.v0/sql"

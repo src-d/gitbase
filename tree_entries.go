@@ -1,4 +1,4 @@
-package gitql
+package gitquery
 
 import (
 	"strconv"
