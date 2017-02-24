@@ -1,4 +1,4 @@
-package git
+package gitql
 
 import (
 	"sort"
@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	fixtures.RootFolder = "../../../../github.com/src-d/go-git-fixtures/"
+	fixtures.RootFolder = "../../../github.com/src-d/go-git-fixtures/"
 }
 
 const (

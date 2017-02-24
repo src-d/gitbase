@@ -1,4 +1,4 @@
-package git
+package gitql
 
 import (
 	"testing"
@@ -9,31 +9,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestObjectsTable_Name(t *testing.T) {
+func TestTreeEntriesTable_Name(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, objectsTableName)
-	assert.Equal(objectsTableName, table.Name())
+	table := getTable(assert, f, treeEntriesTableName)
+	assert.Equal(treeEntriesTableName, table.Name())
 }
 
-func TestObjectsTable_Children(t *testing.T) {
+func TestTreeEntriesTable_Children(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, objectsTableName)
+	table := getTable(assert, f, treeEntriesTableName)
 	assert.Equal(0, len(table.Children()))
 }
 
-func TestObjectsTable_RowIter(t *testing.T) {
+func TestTreeEntriesTable_RowIter(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, objectsTableName)
+	table := getTable(assert, f, treeEntriesTableName)
 
 	rows, err := sql.NodeToRows(table)
 	assert.Nil(err)
-	assert.Len(rows, 31)
+	assert.Len(rows, 45)
 
 	schema := table.Schema()
 	for idx, row := range rows {

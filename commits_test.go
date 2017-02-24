@@ -1,4 +1,4 @@
-package git
+package gitql
 
 import (
 	"testing"
@@ -9,31 +9,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTagsTable_Name(t *testing.T) {
+func TestCommitsTable_Name(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, tagsTableName)
-	assert.Equal(tagsTableName, table.Name())
+	table := getTable(assert, f, commitsTableName)
+	assert.Equal(commitsTableName, table.Name())
 }
 
-func TestTagsTable_Children(t *testing.T) {
+func TestCommitsTable_Children(t *testing.T) {
 	assert := assert.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, tagsTableName)
+	table := getTable(assert, f, commitsTableName)
 	assert.Equal(0, len(table.Children()))
 }
 
-func TestTagsTable_RowIter(t *testing.T) {
+func TestCommitsTable_RowIter(t *testing.T) {
 	assert := assert.New(t)
 
-	f := fixtures.ByURL("https://github.com/git-fixtures/tags.git").One()
-	table := getTable(assert, f, tagsTableName)
+	f := fixtures.Basic().One()
+	table := getTable(assert, f, commitsTableName)
 
 	rows, err := sql.NodeToRows(table)
 	assert.Nil(err)
-	assert.Len(rows, 4)
+	assert.Len(rows, 9)
 
 	schema := table.Schema()
 	for idx, row := range rows {
