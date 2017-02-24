@@ -1,22 +1,23 @@
 <p align="center"> 
-  <img src="https://rawgit.com/gitql/gitql/master/gitql-logo.svg">
+  <img src="https://rawgit.com/sqle/gitql/master/gitql-logo.svg">
 </p>
 
 <p align="center"> 
- <a href="https://codebeat.co/projects/github-com-gitql-gitql"><img alt="codebeat badge" src="https://codebeat.co/badges/ff0a63ef-e1b1-4a8a-9662-8b2ae17718fa" /></a>
+
+  <a href="https://codebeat.co/projects/github-com-sqle-gitql"><img alt="codebeat badge" src="https://codebeat.co/badges/d797a013-326b-4686-a1a7-adcb3039f65c" /></a>
+
+  <a href="https://travis-ci.org/sqle/gitql"><img alt="Build Status" src="https://travis-ci.org/sqle/gitql.svg?branch=master" /></a>
  
- <a href="https://travis-ci.org/gitql/gitql"><img alt="Build Status" src="https://travis-ci.org/gitql/gitql.svg?branch=master" /></a>
- 
-  <a href="https://codecov.io/gh/gitql/gitql"><img alt="codecov" src="https://codecov.io/gh/gitql/gitql/branch/master/graph/badge.svg" /></a>
+  <a href="https://codecov.io/gh/sqle/gitql"><img alt="codecov" src="https://codecov.io/gh/sqle/gitql/branch/master/graph/badge.svg" /></a>
   
-  <a href="https://godoc.org/github.com/gitql/gitql"><img alt="GoDoc" src="https://godoc.org/github.com/gitql/gitql?status.svg" /></a>
+  <a href="https://godoc.org/gopkg.in/sqle/gitql.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/sqle/gitql.v0?status.svg" /></a>
 </p>
 
 <a href="https://asciinema.org/a/102733?autoplay=1" target="_blank"><img src="https://asciinema.org/a/102733.png" width="979"/></a>
 
 ## Installation
 
-Check the [Releases](https://github.com/gitql/gitql/releases) page to download
+Check the [Releases](https://github.com/sqle/gitql/releases) page to download
 the gitql binary.
 
 ## Usage
@@ -95,4 +96,4 @@ We are continuously adding more functionality to gitql. We support a subset of t
 
 ## License
 
-gitql is licensed under the [MIT License](https://github.com/gitql/gitql/blob/master/LICENSE).
+gitql is licensed under the [MIT License](https://github.com/sqle/gitql/blob/master/LICENSE).
