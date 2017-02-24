@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gitql/gitql"
-	"github.com/gitql/gitql/git"
-	"github.com/gitql/gitql/internal/format"
+	"gopkg.in/sqle/gitql.v0/git"
+	"gopkg.in/sqle/gitql.v0/internal/format"
+	"gopkg.in/sqle/sqle.v0"
 
 	gogit "srcd.works/go-git.v4"
 	"srcd.works/go-git.v4/utils/ioutil"
@@ -32,8 +32,8 @@ func (c *cmdQueryBase) buildDatabase() error {
 	}
 
 	c.name = filepath.Base(filepath.Join(c.Path, ".."))
-	gitql.DefaultEngine.AddDatabase(git.NewDatabase(c.name, r))
-	c.db, err = sql.Open(gitql.DriverName, "")
+	sqle.DefaultEngine.AddDatabase(git.NewDatabase(c.name, r))
+	c.db, err = sql.Open(sqle.DriverName, "")
 	return err
 }
 

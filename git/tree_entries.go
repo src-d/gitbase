@@ -3,7 +3,7 @@ package git
 import (
 	"strconv"
 
-	"github.com/gitql/gitql/sql"
+	"gopkg.in/sqle/sqle.v0/sql"
 
 	"srcd.works/go-git.v4"
 	"srcd.works/go-git.v4/plumbing/object"

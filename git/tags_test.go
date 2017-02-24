@@ -3,7 +3,7 @@ package git
 import (
 	"testing"
 
-	"github.com/gitql/gitql/sql"
+	"gopkg.in/sqle/sqle.v0/sql"
 
 	"github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/assert"

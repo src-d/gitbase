@@ -4,9 +4,9 @@ import (
 	gosql "database/sql"
 	"testing"
 
-	"github.com/gitql/gitql"
-	"github.com/gitql/gitql/mem"
-	"github.com/gitql/gitql/sql"
+	"gopkg.in/sqle/gitql.v0"
+	"gopkg.in/sqle/gitql.v0/mem"
+	"gopkg.in/sqle/sqle.v0/sql"
 
 	"github.com/stretchr/testify/require"
 )
