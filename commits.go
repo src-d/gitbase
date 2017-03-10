@@ -3,8 +3,8 @@ package gitquery
 import (
 	"gopkg.in/sqle/sqle.v0/sql"
 
-	"srcd.works/go-git.v4"
-	"srcd.works/go-git.v4/plumbing/object"
+	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type commitsTable struct {

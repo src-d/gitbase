@@ -8,9 +8,9 @@ import (
 
 	"github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/assert"
-	"srcd.works/go-billy.v1/memfs"
-	"srcd.works/go-git.v4"
-	"srcd.works/go-git.v4/storage/filesystem"
+	"gopkg.in/src-d/go-billy.v2/memfs"
+	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
 func init() {
