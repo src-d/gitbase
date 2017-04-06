@@ -9,8 +9,8 @@ import (
 	"gopkg.in/sqle/gitquery.v0/internal/format"
 	"gopkg.in/sqle/sqle.v0"
 
-	gogit "srcd.works/go-git.v4"
-	"srcd.works/go-git.v4/utils/ioutil"
+	gogit "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 )
 
 type cmdQueryBase struct {

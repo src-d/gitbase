@@ -3,7 +3,7 @@ package gitquery
 import (
 	"gopkg.in/sqle/sqle.v0/sql"
 
-	"srcd.works/go-git.v4"
+	"gopkg.in/src-d/go-git.v4"
 )
 
 const (

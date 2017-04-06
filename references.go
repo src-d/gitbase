@@ -3,9 +3,9 @@ package gitquery
 import (
 	"gopkg.in/sqle/sqle.v0/sql"
 
-	"srcd.works/go-git.v4"
-	"srcd.works/go-git.v4/plumbing"
-	"srcd.works/go-git.v4/plumbing/storer"
+	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 )
 
 type referencesTable struct {
