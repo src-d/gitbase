@@ -26,6 +26,12 @@ func (pf *PrettyFormat) WriteHeader(headers []string) error {
 func (pf *PrettyFormat) Write(line []interface{}) error {
 	rowStrings := []string{}
 	for _, v := range line {
+		if tv, ok := v.(string); ok {
+			v = fmt.Sprintf(`"%s"`, tv)
+		} else if v == nil {
+			v = "NULL"
+		}
+
 		rowStrings = append(rowStrings, fmt.Sprintf("%v", v))
 	}
 	pf.tw.Append(rowStrings)

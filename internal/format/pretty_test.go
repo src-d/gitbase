@@ -9,14 +9,20 @@ func TestNewPrettyFormat(t *testing.T) {
 	w := bytes.NewBuffer(nil)
 	testFormat(&formatSpec{
 		Format: NewPrettyFormat(w),
-		Result: "+----+----+----+\n| A  | B  | C  |" +
-			"\n+----+----+----+\n| a1 | b1 | c1 |" +
-			"\n+----+----+----+\n",
+		Result: `` +
+			`+------+------+------+
+|  A   |  B   |  C   |
++------+------+------+
+| "a1" | "b1" | "c1" |
+| "a1" | "b1" | NULL |
+| "a1" | "b1" |    1 |
++------+------+------+
+`,
 		Headers: []string{"a", "b", "c"},
 		Lines: [][]interface{}{
-			[]interface{}{
-				"a1", "b1", "c1",
-			},
+			{"a1", "b1", "c1"},
+			{"a1", "b1", nil},
+			{"a1", "b1", 1},
 		},
 	}, w, t)
 }

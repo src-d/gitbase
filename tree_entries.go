@@ -27,10 +27,10 @@ func (treeEntriesTable) Name() string {
 
 func (treeEntriesTable) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Column{"tree_hash", sql.String},
-		sql.Column{"entry_hash", sql.String},
-		sql.Column{"mode", sql.String},
-		sql.Column{"name", sql.String},
+		{Name: "tree_hash", Type: sql.String, Nullable: false},
+		{Name: "entry_hash", Type: sql.String, Nullable: false},
+		{Name: "mode", Type: sql.String, Nullable: false},
+		{Name: "name", Type: sql.String, Nullable: false},
 	}
 }
 

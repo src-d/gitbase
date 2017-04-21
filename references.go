@@ -26,13 +26,14 @@ func (referencesTable) Name() string {
 
 func (referencesTable) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Column{"hash", sql.String},
-		sql.Column{"name", sql.String},
-		sql.Column{"is_branch", sql.Boolean},
-		sql.Column{"is_note", sql.Boolean},
-		sql.Column{"is_remote", sql.Boolean},
-		sql.Column{"is_tag", sql.Boolean},
-		sql.Column{"target", sql.String},
+		{Name: "name", Type: sql.String, Nullable: false},
+		{Name: "type", Type: sql.String, Nullable: false},
+		{Name: "hash", Type: sql.String, Nullable: true},
+		{Name: "target", Type: sql.String, Nullable: true},
+		{Name: "is_branch", Type: sql.Boolean, Nullable: false},
+		{Name: "is_note", Type: sql.Boolean, Nullable: false},
+		{Name: "is_remote", Type: sql.Boolean, Nullable: false},
+		{Name: "is_tag", Type: sql.Boolean, Nullable: false},
 	}
 }
 
@@ -76,13 +77,28 @@ func (i *referenceIter) Close() error {
 }
 
 func referenceToRow(c *plumbing.Reference) sql.Row {
+	var (
+		target, hash interface{}
+		refType      string
+	)
+	switch c.Type() {
+	case plumbing.SymbolicReference:
+		target = c.Target().String()
+		refType = "symbolic-reference"
+	case plumbing.HashReference:
+		hash = c.Hash().String()
+		refType = "hash-reference"
+	case plumbing.InvalidReference:
+		refType = "invalid-reference"
+	}
 	return sql.NewRow(
-		c.Hash().String(),
 		c.Name().String(),
+		refType,
+		hash,
+		target,
 		c.IsBranch(),
 		c.IsNote(),
 		c.IsRemote(),
 		c.IsTag(),
-		c.Target().String(),
 	)
 }
