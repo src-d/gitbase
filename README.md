@@ -76,7 +76,7 @@ gitquery exposes the following tables:
 |:------------:|:---------------------------------------------------------------------------------------------------:|
 |    commits   | hash, author_name, author_email, author_time, comitter_name, comitter_email, comitter_time, message |
 |     blobs    | hash, size                                                                                          |
-|  references  | hash,hash, name, is_branch, is_note, is_remote, is_tag, target                                      |
+|  refs        | name, type, hash, target, is_branch, is_note, is_remote, is_tag                                     |
 |     tags     | hash, name, tagger_email, tagger_name, tagger_when, message, target                                 |
 | tree_entries | tree_hash, entry_hash, mode, name                                                                   |
 
