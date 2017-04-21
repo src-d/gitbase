@@ -43,7 +43,7 @@ func (r *treeEntriesTable) TransformExpressionsUp(f func(sql.Expression) sql.Exp
 }
 
 func (r treeEntriesTable) RowIter() (sql.RowIter, error) {
-	cIter, err := r.r.Trees()
+	cIter, err := r.r.TreeObjects()
 	if err != nil {
 		return nil, err
 	}

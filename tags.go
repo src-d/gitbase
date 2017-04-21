@@ -44,7 +44,7 @@ func (r *tagsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression
 }
 
 func (r tagsTable) RowIter() (sql.RowIter, error) {
-	tIter, err := r.r.Tags()
+	tIter, err := r.r.TagObjects()
 	if err != nil {
 		return nil, err
 	}

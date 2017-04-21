@@ -39,7 +39,7 @@ func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expressio
 }
 
 func (r blobsTable) RowIter() (sql.RowIter, error) {
-	bIter, err := r.r.Blobs()
+	bIter, err := r.r.BlobObjects()
 	if err != nil {
 		return nil, err
 	}
