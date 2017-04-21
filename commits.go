@@ -45,7 +45,7 @@ func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) sql.Express
 }
 
 func (r commitsTable) RowIter() (sql.RowIter, error) {
-	cIter, err := r.r.Commits()
+	cIter, err := r.r.CommitObjects()
 	if err != nil {
 		return nil, err
 	}
