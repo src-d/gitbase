@@ -25,13 +25,13 @@ func (tagsTable) Name() string {
 
 func (tagsTable) Schema() sql.Schema {
 	return sql.Schema{
-		sql.Column{"hash", sql.String},
-		sql.Column{"name", sql.String},
-		sql.Column{"tagger_email", sql.String},
-		sql.Column{"tagger_name", sql.String},
-		sql.Column{"tagger_when", sql.TimestampWithTimezone},
-		sql.Column{"message", sql.String},
-		sql.Column{"target", sql.String},
+		{Name: "hash", Type: sql.String, Nullable: false},
+		{Name: "name", Type: sql.String, Nullable: false},
+		{Name: "tagger_email", Type: sql.String, Nullable: false},
+		{Name: "tagger_name", Type: sql.String, Nullable: false},
+		{Name: "tagger_when", Type: sql.TimestampWithTimezone, Nullable: false},
+		{Name: "message", Type: sql.String, Nullable: false},
+		{Name: "target", Type: sql.String, Nullable: false},
 	}
 }
 
