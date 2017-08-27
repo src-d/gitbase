@@ -58,7 +58,7 @@ func (commitsTable) Children() []sql.Node {
 }
 
 type commitIter struct {
-	i *object.CommitIter
+	i object.CommitIter
 }
 
 func (i *commitIter) Next() (sql.Row, error) {
