@@ -3,7 +3,7 @@ package main
 type CmdQuery struct {
 	cmdQueryBase
 
-	Format string `short:"f" long:"format" default:"pretty" description:"Ouptut format. Formats supported: pretty, csv, json."`
+	Format string `short:"f" long:"format" default:"pretty" description:"Output format. Formats supported: pretty, csv, json."`
 	Args   struct {
 		SQL string `positional-arg-name:"sql" required:"true" description:"SQL query to execute"`
 	} `positional-args:"yes"`
