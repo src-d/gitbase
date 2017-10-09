@@ -96,9 +96,9 @@ func referenceToRow(c *plumbing.Reference) sql.Row {
 		refType,
 		hash,
 		target,
-		c.IsBranch(),
-		c.IsNote(),
-		c.IsRemote(),
-		c.IsTag(),
+		c.Name().IsBranch(),
+		c.Name().IsNote(),
+		c.Name().IsRemote(),
+		c.Name().IsTag(),
 	)
 }
