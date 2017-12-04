@@ -7,8 +7,8 @@ import (
 	"gopkg.in/sqle/sqle.v0/sql/expression"
 	"gopkg.in/sqle/sqle.v0/sql/plan"
 
-	"github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestReferencesTable_Name(t *testing.T) {

@@ -6,15 +6,15 @@ import (
 
 	"gopkg.in/sqle/sqle.v0/sql"
 
-	"github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/src-d/go-billy.v3/memfs"
+	"gopkg.in/src-d/go-billy.v4/memfs"
+	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
 func init() {
-	fixtures.RootFolder = "../../../github.com/src-d/go-git-fixtures/"
+	fixtures.RootFolder = "vendor/gopkg.in/src-d/go-git-fixtures.v3/"
 }
 
 const (
