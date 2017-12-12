@@ -1,16 +1,6 @@
-# gitquery
+# GitQuery  <a href="https://codebeat.co/projects/github-com-sqle-gitql"><img alt="codebeat badge" src="https://codebeat.co/badges/d797a013-326b-4686-a1a7-adcb3039f65c" /></a> <a href="https://travis-ci.org/sqle/gitquery"><img alt="Build Status" src="https://travis-ci.org/sqle/gitquery.svg?branch=master" /></a> <a href="https://codecov.io/gh/sqle/gitquery"><img alt="codecov" src="https://codecov.io/gh/sqle/gitquery/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/sqle/gitquery.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/sqle/gitquery.v0?status.svg" /></a>
 
-<p>
-  <a href="https://codebeat.co/projects/github-com-sqle-gitql"><img alt="codebeat badge" src="https://codebeat.co/badges/d797a013-326b-4686-a1a7-adcb3039f65c" /></a>
-
-  <a href="https://travis-ci.org/sqle/gitquery"><img alt="Build Status" src="https://travis-ci.org/sqle/gitquery.svg?branch=master" /></a>
- 
-  <a href="https://codecov.io/gh/sqle/gitquery"><img alt="codecov" src="https://codecov.io/gh/sqle/gitquery/branch/master/graph/badge.svg" /></a>
-  
-  <a href="https://godoc.org/gopkg.in/sqle/gitquery.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/sqle/gitquery.v0?status.svg" /></a>
-</p>
-
-<a href="https://asciinema.org/a/102733?autoplay=1" target="_blank"><img src="https://asciinema.org/a/102733.png" width="979"/></a>
+<div style="text-align:center"><img src ="assets/tty.gif"/></div>
 
 ## Installation
 
