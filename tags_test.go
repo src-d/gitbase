@@ -5,7 +5,7 @@ import (
 
 	"gopkg.in/sqle/sqle.v0/sql"
 
-	"github.com/src-d/go-git-fixtures"
+	"gopkg.in/src-d/go-git-fixtures.v3"
 	"github.com/stretchr/testify/assert"
 )
 

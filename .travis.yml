@@ -1,20 +1,16 @@
 language: go
 sudo: false
 go:
-  - 1.8
   - 1.9
   - tip
+go_import_path: gopkg.in/sqle/gitquery.v0
 matrix:
   fast_finish: true
   allow_failures:
     - go: tip
-before_install:
-  - rm -rf $GOPATH/src/gopkg.in/sqle
-  - mkdir -p $GOPATH/src/gopkg.in/sqle
-  - ln -s $PWD $GOPATH/src/gopkg.in/sqle/gitquery.v0
-  - cd $GOPATH/src/gopkg.in/sqle/gitquery.v0
-  - go get -t -v ./...
 install:
+  - go get -u github.com/golang/dep/cmd/dep
+  - dep ensure -v
   - go build -ldflags="-X main.version=$TRAVIS_TAG" -v -o gitquery ./cmd/...
 script:
   - sh ./go.test.sh
