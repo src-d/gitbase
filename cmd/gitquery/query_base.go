@@ -5,12 +5,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"gopkg.in/sqle/gitquery.v0"
-	"gopkg.in/sqle/gitquery.v0/internal/format"
 	"gopkg.in/sqle/sqle.v0"
 
 	gogit "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
+
+	"github.com/sqle/gitquery"
+	"github.com/sqle/gitquery/format"
 )
 
 type cmdQueryBase struct {
