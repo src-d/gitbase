@@ -3,9 +3,9 @@ package gitquery
 import (
 	"testing"
 
-	"gopkg.in/sqle/sqle.v0/sql"
-	"gopkg.in/sqle/sqle.v0/sql/expression"
-	"gopkg.in/sqle/sqle.v0/sql/plan"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/src-d/go-git-fixtures.v3"
@@ -34,7 +34,7 @@ func TestReferencesTable_RowIter(t *testing.T) {
 	table := getTable(assert, f, referencesTableName)
 
 	rows, err := sql.NodeToRows(plan.NewSort(
-		[]plan.SortField{{Column: expression.NewGetField(0, sql.String, "name", false), Order: plan.Ascending}},
+		[]plan.SortField{{Column: expression.NewGetField(0, sql.Text, "name", false), Order: plan.Ascending}},
 		table))
 	assert.Nil(err)
 

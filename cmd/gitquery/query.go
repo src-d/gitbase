@@ -14,10 +14,10 @@ func (c *CmdQuery) Execute(args []string) error {
 		return err
 	}
 
-	rows, err := c.executeQuery(c.Args.SQL)
+	schema, rows, err := c.executeQuery(c.Args.SQL)
 	if err != nil {
 		return err
 	}
 
-	return c.printQuery(rows, c.Format)
+	return c.printQuery(schema, rows, c.Format)
 }

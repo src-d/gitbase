@@ -1,7 +1,7 @@
 package gitquery
 
 import (
-	"gopkg.in/sqle/sqle.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4"
 )

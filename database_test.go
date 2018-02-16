@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"gopkg.in/sqle/sqle.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/src-d/go-billy.v4/memfs"
