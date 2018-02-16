@@ -1,3 +1,10 @@
+ignored = [
+  "gopkg.in/src-d/go-mysql-server.v0",
+  "gopkg.in/src-d/go-mysql-server.v0/sql",
+  "gopkg.in/src-d/go-mysql-server.v0/sql/expression",
+  "gopkg.in/src-d/go-mysql-server.v0/sql/plan",
+ ]
+
 [[constraint]]
   name = "github.com/chzyer/readline"
   version = "1.4.0"
@@ -19,14 +26,25 @@
   version = "1.1.4"
 
 [[constraint]]
-  name = "gopkg.in/sqle/sqle.v0"
-  version = "0.7.0"
-
-[[constraint]]
   name = "gopkg.in/src-d/go-git.v4"
   source = "github.com/src-d/go-git"
-  revision = "44c364fe3b7b8cdc0f9623afe870d6781a97ebb4"
 
 [[constraint]]
   name = "gopkg.in/src-d/go-git-fixtures.v3"
   version = "3.0.0"
+
+[[override]]
+  name = "golang.org/x/sys"
+  source = "github.com/golang/sys"
+
+[[override]]
+  name = "golang.org/x/crypto"
+  source = "github.com/golang/crypto"
+
+[[override]]
+  name = "golang.org/x/text"
+  source = "github.com/golang/text"
+
+[[override]]
+  name = "golang.org/x/net"
+  source = "github.com/golang/net"
