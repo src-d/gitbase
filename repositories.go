@@ -95,9 +95,13 @@ func (i *RepositoryIter) Close() error {
 	return nil
 }
 
-type funcInitRepository func(Repository, interface{}) error
-type funcNextRow func(interface{}) (sql.Row, error)
-type funcClose func(interface{}) error
+// RowRepoIterImplementation is the interface needed by each iterator
+// implementation
+type RowRepoIterImplementation interface {
+	InitRepository(Repository) error
+	Next() (sql.Row, error)
+	Close() error
+}
 
 // RowRepoIter is used as the base to iterate over all the repositories
 // in the pool. It needs three functions that execute specific code per
@@ -105,25 +109,19 @@ type funcClose func(interface{}) error
 type RowRepoIter struct {
 	repositoryIter *RepositoryIter
 	repository     *Repository
-	data           interface{}
-
-	funcInitRepository funcInitRepository
-	funcNextRow        funcNextRow
-	funcClose          funcClose
+	implementation RowRepoIterImplementation
 }
 
 // NewRowRepoIter initializes a new repository iterator.
 //
 // * pool: is a RepositoryPool we want to iterate
-// * data: this pointer will be passed to the provided functions and is useful
-//      to save state like initialized iterators or other needed variables
-// * init: called when a new repository is about to be iterated, initialize
-//      its iterator there
-// * next: called for each row
-// * close: called when a repository finished iterating
-func NewRowRepoIter(pool *RepositoryPool, data interface{},
-	init funcInitRepository, next funcNextRow,
-	close funcClose) (RowRepoIter, error) {
+// * impl: implementation with RowRepoIterImplementation interface
+//     * InitRepository: called when a new repository is about to be iterated,
+//         initialize its iterator there
+//     * Next: called for each row
+//     * Close: called when a repository finished iterating
+func NewRowRepoIter(pool *RepositoryPool,
+	impl RowRepoIterImplementation) (RowRepoIter, error) {
 
 	rIter, err := pool.RepoIter()
 	if err != nil {
@@ -131,11 +129,8 @@ func NewRowRepoIter(pool *RepositoryPool, data interface{},
 	}
 
 	repo := RowRepoIter{
-		repositoryIter:     rIter,
-		funcInitRepository: init,
-		funcNextRow:        next,
-		funcClose:          close,
-		data:               data,
+		repositoryIter: rIter,
+		implementation: impl,
 	}
 
 	err = repo.nextRepository()
@@ -156,7 +151,7 @@ func (i *RowRepoIter) nextRepository() error {
 	}
 
 	i.repository = repo
-	err = i.funcInitRepository(*repo, i.data)
+	err = i.implementation.InitRepository(*repo)
 	if err != nil {
 		return err
 	}
@@ -167,7 +162,7 @@ func (i *RowRepoIter) nextRepository() error {
 // Next gets the next row
 func (i *RowRepoIter) Next() (sql.Row, error) {
 	for {
-		row, err := i.funcNextRow(i.data)
+		row, err := i.implementation.Next()
 
 		switch err {
 		case nil:
@@ -191,9 +186,7 @@ func (i *RowRepoIter) Next() (sql.Row, error) {
 
 // Close called to close the iterator
 func (i *RowRepoIter) Close() error {
-	if i.funcClose != nil {
-		return i.funcClose(i.data)
-	}
+	return i.implementation.Close()
 
 	return nil
 }

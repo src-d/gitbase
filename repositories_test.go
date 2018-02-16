@@ -135,9 +135,7 @@ type testCommitIter struct {
 	iter object.CommitIter
 }
 
-func testInitRepository(repo Repository, data interface{}) error {
-	d := data.(*testCommitIter)
-
+func (d *testCommitIter) InitRepository(repo Repository) error {
 	cIter, err := repo.Repo.CommitObjects()
 	if err != nil {
 		return err
@@ -148,9 +146,7 @@ func testInitRepository(repo Repository, data interface{}) error {
 	return nil
 }
 
-func testNextRow(data interface{}) (sql.Row, error) {
-	d := data.(*testCommitIter)
-
+func (d *testCommitIter) Next() (sql.Row, error) {
 	_, err := d.iter.Next()
 	if err != nil {
 		return nil, err
@@ -159,9 +155,7 @@ func testNextRow(data interface{}) (sql.Row, error) {
 	return nil, nil
 }
 
-func testClose(data interface{}) error {
-	d := data.(*testCommitIter)
-
+func (d *testCommitIter) Close() error {
 	if d.iter != nil {
 		d.iter.Close()
 	}
@@ -185,8 +179,7 @@ func TestRepositoryRowIterator(t *testing.T) {
 
 	cIter := &testCommitIter{}
 
-	rowRepoIter, err := NewRowRepoIter(pool, cIter, testInitRepository,
-		testNextRow, testClose)
+	rowRepoIter, err := NewRowRepoIter(&pool, cIter)
 	require.Nil(err)
 
 	count := 0
