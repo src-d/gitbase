@@ -6,16 +6,15 @@ import (
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type treeEntriesTable struct {
-	r *git.Repository
+	pool *RepositoryPool
 }
 
-func newTreeEntriesTable(r *git.Repository) sql.Table {
-	return &treeEntriesTable{r: r}
+func newTreeEntriesTable(pool *RepositoryPool) sql.Table {
+	return &treeEntriesTable{pool: pool}
 }
 
 func (treeEntriesTable) Resolved() bool {
@@ -44,12 +43,14 @@ func (r *treeEntriesTable) TransformExpressionsUp(f func(sql.Expression) sql.Exp
 }
 
 func (r treeEntriesTable) RowIter() (sql.RowIter, error) {
-	cIter, err := r.r.TreeObjects()
+	iter := &treeEntryIter{}
+
+	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
-	iter := &treeEntryIter{i: cIter}
-	return iter, nil
+
+	return &rowRepoIter, nil
 }
 
 func (treeEntriesTable) Children() []sql.Node {
@@ -60,6 +61,17 @@ type treeEntryIter struct {
 	i  *object.TreeIter
 	fi *object.FileIter
 	t  *object.Tree
+}
+
+func (i *treeEntryIter) InitRepository(repo Repository) error {
+	iter, err := repo.Repo.TreeObjects()
+	if err != nil {
+		return err
+	}
+
+	i.i = iter
+
+	return nil
 }
 
 func (i *treeEntryIter) Next() (sql.Row, error) {
@@ -88,7 +100,10 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 }
 
 func (i *treeEntryIter) Close() error {
-	i.i.Close()
+	if i.i != nil {
+		i.i.Close()
+	}
+
 	return nil
 }
 

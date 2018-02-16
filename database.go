@@ -2,8 +2,6 @@ package gitquery
 
 import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-
-	"gopkg.in/src-d/go-git.v4"
 )
 
 const (
@@ -26,15 +24,15 @@ type Database struct {
 	or   sql.Table
 }
 
-func NewDatabase(name string, r *git.Repository) sql.Database {
+func NewDatabase(name string, pool *RepositoryPool) sql.Database {
 	return &Database{
 		name: name,
-		cr:   newCommitsTable(r),
-		rr:   newReferencesTable(r),
-		tr:   newTagsTable(r),
-		br:   newBlobsTable(r),
-		ter:  newTreeEntriesTable(r),
-		or:   newObjectsTable(r),
+		cr:   newCommitsTable(pool),
+		rr:   newReferencesTable(pool),
+		tr:   newTagsTable(pool),
+		br:   newBlobsTable(pool),
+		ter:  newTreeEntriesTable(pool),
+		or:   newObjectsTable(pool),
 	}
 }
 

@@ -36,8 +36,11 @@ func (c *cmdQueryBase) buildDatabase() error {
 		return err
 	}
 
+	pool := gitquery.NewRepositoryPool()
+	pool.Add(c.Path, r)
+
 	c.name = filepath.Base(filepath.Join(c.Path, ".."))
-	c.engine.AddDatabase(gitquery.NewDatabase(c.name, r))
+	c.engine.AddDatabase(gitquery.NewDatabase(c.name, &pool))
 	return err
 }
 

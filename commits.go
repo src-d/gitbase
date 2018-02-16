@@ -3,16 +3,15 @@ package gitquery
 import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type commitsTable struct {
-	r *git.Repository
+	pool *RepositoryPool
 }
 
-func newCommitsTable(r *git.Repository) sql.Table {
-	return &commitsTable{r: r}
+func newCommitsTable(pool *RepositoryPool) sql.Table {
+	return &commitsTable{pool: pool}
 }
 
 func (commitsTable) Resolved() bool {
@@ -45,12 +44,14 @@ func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) sql.Express
 }
 
 func (r commitsTable) RowIter() (sql.RowIter, error) {
-	cIter, err := r.r.CommitObjects()
+	iter := &commitIter{}
+
+	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
-	iter := &commitIter{i: cIter}
-	return iter, nil
+
+	return &rowRepoIter, nil
 }
 
 func (commitsTable) Children() []sql.Node {
@@ -58,19 +59,34 @@ func (commitsTable) Children() []sql.Node {
 }
 
 type commitIter struct {
-	i object.CommitIter
+	iter object.CommitIter
+}
+
+func (i *commitIter) InitRepository(repo Repository) error {
+	iter, err := repo.Repo.CommitObjects()
+	if err != nil {
+		return err
+	}
+
+	i.iter = iter
+
+	return nil
 }
 
 func (i *commitIter) Next() (sql.Row, error) {
-	commit, err := i.i.Next()
+	o, err := i.iter.Next()
 	if err != nil {
 		return nil, err
 	}
-	return commitToRow(commit), nil
+
+	return commitToRow(o), nil
 }
 
 func (i *commitIter) Close() error {
-	i.i.Close()
+	if i.iter != nil {
+		i.iter.Close()
+	}
+
 	return nil
 }
 
