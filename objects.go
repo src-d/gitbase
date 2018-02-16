@@ -1,7 +1,7 @@
 package gitquery
 
 import (
-	"gopkg.in/sqle/sqle.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -25,8 +25,8 @@ func (objectsTable) Name() string {
 
 func (objectsTable) Schema() sql.Schema {
 	return sql.Schema{
-		{Name: "id", Type: sql.String, Nullable: false},
-		{Name: "type", Type: sql.String, Nullable: false},
+		{Name: "id", Type: sql.Text, Nullable: false},
+		{Name: "type", Type: sql.Text, Nullable: false},
 	}
 }
 

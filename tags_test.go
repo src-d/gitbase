@@ -3,7 +3,7 @@ package gitquery
 import (
 	"testing"
 
-	"gopkg.in/sqle/sqle.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git-fixtures.v3"
 	"github.com/stretchr/testify/assert"

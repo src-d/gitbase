@@ -1,7 +1,7 @@
 package gitquery
 
 import (
-	"gopkg.in/sqle/sqle.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -25,13 +25,13 @@ func (tagsTable) Name() string {
 
 func (tagsTable) Schema() sql.Schema {
 	return sql.Schema{
-		{Name: "hash", Type: sql.String, Nullable: false},
-		{Name: "name", Type: sql.String, Nullable: false},
-		{Name: "tagger_email", Type: sql.String, Nullable: false},
-		{Name: "tagger_name", Type: sql.String, Nullable: false},
-		{Name: "tagger_when", Type: sql.TimestampWithTimezone, Nullable: false},
-		{Name: "message", Type: sql.String, Nullable: false},
-		{Name: "target", Type: sql.String, Nullable: false},
+		{Name: "hash", Type: sql.Text, Nullable: false},
+		{Name: "name", Type: sql.Text, Nullable: false},
+		{Name: "tagger_email", Type: sql.Text, Nullable: false},
+		{Name: "tagger_name", Type: sql.Text, Nullable: false},
+		{Name: "tagger_when", Type: sql.Timestamp, Nullable: false},
+		{Name: "message", Type: sql.Text, Nullable: false},
+		{Name: "target", Type: sql.Text, Nullable: false},
 	}
 }
 

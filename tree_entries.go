@@ -3,7 +3,7 @@ package gitquery
 import (
 	"strconv"
 
-	"gopkg.in/sqle/sqle.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -27,10 +27,10 @@ func (treeEntriesTable) Name() string {
 
 func (treeEntriesTable) Schema() sql.Schema {
 	return sql.Schema{
-		{Name: "tree_hash", Type: sql.String, Nullable: false},
-		{Name: "entry_hash", Type: sql.String, Nullable: false},
-		{Name: "mode", Type: sql.String, Nullable: false},
-		{Name: "name", Type: sql.String, Nullable: false},
+		{Name: "tree_hash", Type: sql.Text, Nullable: false},
+		{Name: "entry_hash", Type: sql.Text, Nullable: false},
+		{Name: "mode", Type: sql.Text, Nullable: false},
+		{Name: "name", Type: sql.Text, Nullable: false},
 	}
 }
 

@@ -1,7 +1,7 @@
 package gitquery
 
 import (
-	"gopkg.in/sqle/sqle.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -25,14 +25,14 @@ func (commitsTable) Name() string {
 
 func (commitsTable) Schema() sql.Schema {
 	return sql.Schema{
-		{Name: "hash", Type: sql.String, Nullable: false},
-		{Name: "author_name", Type: sql.String, Nullable: false},
-		{Name: "author_email", Type: sql.String, Nullable: false},
-		{Name: "author_when", Type: sql.TimestampWithTimezone, Nullable: false},
-		{Name: "comitter_name", Type: sql.String, Nullable: false},
-		{Name: "comitter_email", Type: sql.String, Nullable: false},
-		{Name: "comitter_when", Type: sql.TimestampWithTimezone, Nullable: false},
-		{Name: "message", Type: sql.String, Nullable: false},
+		{Name: "hash", Type: sql.Text, Nullable: false},
+		{Name: "author_name", Type: sql.Text, Nullable: false},
+		{Name: "author_email", Type: sql.Text, Nullable: false},
+		{Name: "author_when", Type: sql.Timestamp, Nullable: false},
+		{Name: "comitter_name", Type: sql.Text, Nullable: false},
+		{Name: "comitter_email", Type: sql.Text, Nullable: false},
+		{Name: "comitter_when", Type: sql.Timestamp, Nullable: false},
+		{Name: "message", Type: sql.Text, Nullable: false},
 	}
 }
 
