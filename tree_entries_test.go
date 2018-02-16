@@ -5,8 +5,8 @@ import (
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"gopkg.in/src-d/go-git-fixtures.v3"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestTreeEntriesTable_Name(t *testing.T) {
@@ -33,7 +33,7 @@ func TestTreeEntriesTable_RowIter(t *testing.T) {
 
 	rows, err := sql.NodeToRows(table)
 	assert.Nil(err)
-	assert.Len(rows, 45)
+	assert.Len(rows, 49)
 
 	schema := table.Schema()
 	for idx, row := range rows {
