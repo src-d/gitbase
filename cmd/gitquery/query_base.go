@@ -17,7 +17,7 @@ import (
 type cmdQueryBase struct {
 	cmd
 
-	Path string `short:"p" long:"path" description:"Path where the git repository is located"`
+	Path []string `short:"p" long:"path" description:"Path where the git repository is located"`
 
 	engine *sqle.Engine
 	name   string
@@ -31,15 +31,20 @@ func (c *cmdQueryBase) buildDatabase() error {
 	c.print("opening %q repository...\n", c.Path)
 
 	var err error
-	r, err := gogit.PlainOpen(c.Path)
-	if err != nil {
-		return err
-	}
 
 	pool := gitquery.NewRepositoryPool()
-	pool.Add(c.Path, r)
 
-	c.name = filepath.Base(filepath.Join(c.Path, ".."))
+	for _, path := range c.Path {
+		r, err := gogit.PlainOpen(path)
+		if err != nil {
+			return err
+		}
+
+		pool.Add(path, r)
+
+		c.name = filepath.Base(filepath.Join(path, ".."))
+	}
+
 	c.engine.AddDatabase(gitquery.NewDatabase(c.name, &pool))
 	return err
 }
