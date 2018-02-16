@@ -66,13 +66,13 @@ func (c *CmdShell) Execute(args []string) error {
 
 		rl.Terminal.Print(fmt.Sprintf("\n--> Executing query: %s\n\n", query))
 
-		rows, err := c.executeQuery(query)
+		schema, rows, err := c.executeQuery(query)
 		if err != nil {
 			red("ERROR: %v\n\n", err)
 			continue
 		}
 
-		if err := c.printQuery(rows, "pretty"); err != nil {
+		if err := c.printQuery(schema, rows, "pretty"); err != nil {
 			red("ERROR: %v\n\n", err)
 			continue
 		}

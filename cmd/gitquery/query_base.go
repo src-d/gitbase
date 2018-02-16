@@ -1,7 +1,7 @@
 package main
 
 import (
-	"database/sql"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -11,6 +11,7 @@ import (
 	gogit "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 type cmdQueryBase struct {
@@ -19,7 +20,6 @@ type cmdQueryBase struct {
 	Path string `short:"p" long:"path" description:"Path where the git repository is located"`
 
 	engine *sqle.Engine
-	db     *sql.DB
 	name   string
 }
 
@@ -38,16 +38,15 @@ func (c *cmdQueryBase) buildDatabase() error {
 
 	c.name = filepath.Base(filepath.Join(c.Path, ".."))
 	c.engine.AddDatabase(gitquery.NewDatabase(c.name, r))
-	c.db, err = sql.Open("sqle", "")
 	return err
 }
 
-func (c *cmdQueryBase) executeQuery(sql string) (*sql.Rows, error) {
+func (c *cmdQueryBase) executeQuery(sql string) (sql.Schema, sql.RowIter, error) {
 	c.print("executing %q at %q\n", sql, c.name)
-	return c.db.Query(sql)
+	return c.engine.Query(sql)
 }
 
-func (c *cmdQueryBase) printQuery(rows *sql.Rows, formatId string) (err error) {
+func (c *cmdQueryBase) printQuery(schema sql.Schema, rows sql.RowIter, formatId string) (err error) {
 	defer ioutil.CheckClose(rows, &err)
 
 	f, err := format.NewFormat(formatId, os.Stdout)
@@ -56,34 +55,29 @@ func (c *cmdQueryBase) printQuery(rows *sql.Rows, formatId string) (err error) {
 	}
 	defer ioutil.CheckClose(f, &err)
 
-	cols, err := rows.Columns()
-	if err != nil {
-		return err
+	columnNames := make([]string, len(schema))
+	for i, column := range schema {
+		columnNames[i] = column.Name
 	}
 
-	if err := f.WriteHeader(cols); err != nil {
+	if err := f.WriteHeader(columnNames); err != nil {
 		return err
-	}
-
-	vals := make([]interface{}, len(cols))
-	valPtrs := make([]interface{}, len(cols))
-	for i := 0; i < len(cols); i++ {
-		valPtrs[i] = &vals[i]
 	}
 
 	for {
-		if !rows.Next() {
+		row, err := rows.Next()
+		if err == io.EOF {
 			break
 		}
 
-		if err := rows.Scan(valPtrs...); err != nil {
+		if err != nil {
 			return err
 		}
 
-		if err := f.Write(vals); err != nil {
+		if err := f.Write(row); err != nil {
 			return err
 		}
 	}
 
-	return rows.Err()
+	return nil
 }
