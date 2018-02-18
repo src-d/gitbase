@@ -152,11 +152,8 @@ func (i *RowRepoIter) nextRepository() error {
 
 	i.repository = repo
 	err = i.implementation.InitRepository(*repo)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 // Next gets the next row

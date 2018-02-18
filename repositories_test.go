@@ -45,7 +45,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Nil(repo.Repo)
 	require.True(ok)
 
-	repo, ok = pool.GetPos(1)
+	_, ok = pool.GetPos(1)
 	require.False(ok)
 
 	gitRepo := &git.Repository{}
@@ -56,9 +56,9 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Equal(gitRepo, repo.Repo)
 	require.True(ok)
 
-	repo, ok = pool.GetPos(0)
+	_, ok = pool.GetPos(0)
 	require.True(ok)
-	repo, ok = pool.GetPos(2)
+	_, ok = pool.GetPos(2)
 	require.False(ok)
 }
 
@@ -148,11 +148,7 @@ func (d *testCommitIter) InitRepository(repo Repository) error {
 
 func (d *testCommitIter) Next() (sql.Row, error) {
 	_, err := d.iter.Next()
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
+	return nil, err
 }
 
 func (d *testCommitIter) Close() error {
