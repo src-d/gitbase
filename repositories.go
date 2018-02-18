@@ -2,6 +2,8 @@ package gitquery
 
 import (
 	"io"
+	"runtime"
+	"sync"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -98,92 +100,135 @@ func (i *RepositoryIter) Close() error {
 // RowRepoIterImplementation is the interface needed by each iterator
 // implementation
 type RowRepoIterImplementation interface {
-	InitRepository(Repository) error
+	NewIterator(*Repository) (RowRepoIterImplementation, error)
 	Next() (sql.Row, error)
 	Close() error
 }
 
 // RowRepoIter is used as the base to iterate over all the repositories
-// in the pool. It needs three functions that execute specific code per
-// implemented iterator.
+// in the pool
 type RowRepoIter struct {
 	repositoryIter *RepositoryIter
-	repository     *Repository
 	implementation RowRepoIterImplementation
+
+	wg    sync.WaitGroup
+	done  chan bool
+	err   chan error
+	repos chan *Repository
+	rows  chan sql.Row
 }
 
 // NewRowRepoIter initializes a new repository iterator.
 //
 // * pool: is a RepositoryPool we want to iterate
 // * impl: implementation with RowRepoIterImplementation interface
-//     * InitRepository: called when a new repository is about to be iterated,
-//         initialize its iterator there
+//     * NewIterator: called when a new repository is about to be iterated,
+//         returns a new RowRepoIterImplementation
 //     * Next: called for each row
 //     * Close: called when a repository finished iterating
 func NewRowRepoIter(pool *RepositoryPool,
-	impl RowRepoIterImplementation) (RowRepoIter, error) {
+	impl RowRepoIterImplementation) (*RowRepoIter, error) {
 
 	rIter, err := pool.RepoIter()
 	if err != nil {
-		return RowRepoIter{}, err
+		return nil, err
 	}
 
-	repo := RowRepoIter{
+	rowRepoIter := RowRepoIter{
 		repositoryIter: rIter,
 		implementation: impl,
+		done:           make(chan bool),
+		err:            make(chan error),
+		repos:          make(chan *Repository),
+		rows:           make(chan sql.Row),
 	}
 
-	err = repo.nextRepository()
-	if err != nil {
-		return RowRepoIter{}, err
+	go rowRepoIter.fillRepoChannel()
+
+	wNum := runtime.NumCPU()
+
+	for i := 0; i < wNum; i++ {
+		rowRepoIter.wg.Add(1)
+
+		go rowRepoIter.rowReader(i)
 	}
 
-	return repo, nil
+	go func() {
+		rowRepoIter.wg.Wait()
+		close(rowRepoIter.rows)
+	}()
+
+	return &rowRepoIter, nil
 }
 
-// nextRepository is called to initialize the next repository. It is called
-// when the iterator is created and when the previous repository finished
-// iterating.
-func (i *RowRepoIter) nextRepository() error {
-	repo, err := i.repositoryIter.Next()
-	if err != nil {
-		return err
+func (i *RowRepoIter) fillRepoChannel() {
+	for {
+		repo, err := i.repositoryIter.Next()
+
+		switch err {
+		case nil:
+			i.repos <- repo
+			continue
+
+		case io.EOF:
+			close(i.repos)
+			i.err <- io.EOF
+			return
+
+		default:
+			close(i.done)
+			close(i.repos)
+			i.err <- err
+			return
+		}
 	}
+}
 
-	i.repository = repo
-	err = i.implementation.InitRepository(*repo)
+func (i *RowRepoIter) rowReader(num int) {
+	defer i.wg.Done()
 
-	return err
+	for repo := range i.repos {
+		impl, _ := i.implementation.NewIterator(repo)
+
+	loop:
+		for {
+			select {
+			case <-i.done:
+				impl.Close()
+				return
+
+			default:
+				row, err := impl.Next()
+				switch err {
+				case nil:
+					i.rows <- row
+
+				case io.EOF:
+					impl.Close()
+					break loop
+
+				default:
+					impl.Close()
+					i.err <- err
+					close(i.done)
+					return
+				}
+			}
+		}
+	}
 }
 
 // Next gets the next row
 func (i *RowRepoIter) Next() (sql.Row, error) {
-	for {
-		row, err := i.implementation.Next()
-
-		switch err {
-		case nil:
-			return row, nil
-
-		case io.EOF:
-			i.Close()
-
-			err := i.nextRepository()
-			if err != nil {
-				return nil, err
-			}
-
-		default:
-			return nil, err
-		}
+	row, ok := <-i.rows
+	if !ok {
+		return nil, <-i.err
 	}
 
-	return nil, nil
+	return row, nil
 }
 
 // Close called to close the iterator
 func (i *RowRepoIter) Close() error {
 	return i.implementation.Close()
-
-	return nil
 }

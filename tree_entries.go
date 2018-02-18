@@ -50,7 +50,7 @@ func (r treeEntriesTable) RowIter() (sql.RowIter, error) {
 		return nil, err
 	}
 
-	return &rowRepoIter, nil
+	return rowRepoIter, nil
 }
 
 func (treeEntriesTable) Children() []sql.Node {
@@ -63,15 +63,15 @@ type treeEntryIter struct {
 	t  *object.Tree
 }
 
-func (i *treeEntryIter) InitRepository(repo Repository) error {
+func (i *treeEntryIter) NewIterator(
+	repo *Repository) (RowRepoIterImplementation, error) {
+
 	iter, err := repo.Repo.TreeObjects()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	i.i = iter
-
-	return nil
+	return &treeEntryIter{i: iter}, nil
 }
 
 func (i *treeEntryIter) Next() (sql.Row, error) {

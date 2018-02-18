@@ -51,7 +51,7 @@ func (r commitsTable) RowIter() (sql.RowIter, error) {
 		return nil, err
 	}
 
-	return &rowRepoIter, nil
+	return rowRepoIter, nil
 }
 
 func (commitsTable) Children() []sql.Node {
@@ -62,15 +62,15 @@ type commitIter struct {
 	iter object.CommitIter
 }
 
-func (i *commitIter) InitRepository(repo Repository) error {
+func (i *commitIter) NewIterator(
+	repo *Repository) (RowRepoIterImplementation, error) {
+
 	iter, err := repo.Repo.CommitObjects()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	i.iter = iter
-
-	return nil
+	return &commitIter{iter: iter}, nil
 }
 
 func (i *commitIter) Next() (sql.Row, error) {

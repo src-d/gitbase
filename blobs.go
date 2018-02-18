@@ -45,7 +45,7 @@ func (r blobsTable) RowIter() (sql.RowIter, error) {
 		return nil, err
 	}
 
-	return &rowRepoIter, nil
+	return rowRepoIter, nil
 }
 
 func (blobsTable) Children() []sql.Node {
@@ -56,15 +56,15 @@ type blobIter struct {
 	iter *object.BlobIter
 }
 
-func (i *blobIter) InitRepository(repo Repository) error {
+func (i *blobIter) NewIterator(
+	repo *Repository) (RowRepoIterImplementation, error) {
+
 	iter, err := repo.Repo.BlobObjects()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	i.iter = iter
-
-	return nil
+	return &blobIter{iter: iter}, nil
 }
 
 func (i *blobIter) Next() (sql.Row, error) {

@@ -45,7 +45,7 @@ func (r objectsTable) RowIter() (sql.RowIter, error) {
 		return nil, err
 	}
 
-	return &rowRepoIter, nil
+	return rowRepoIter, nil
 }
 
 func (objectsTable) Children() []sql.Node {
@@ -56,15 +56,15 @@ type objectIter struct {
 	iter *object.ObjectIter
 }
 
-func (i *objectIter) InitRepository(repo Repository) error {
+func (i *objectIter) NewIterator(
+	repo *Repository) (RowRepoIterImplementation, error) {
+
 	iter, err := repo.Repo.Objects()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	i.iter = iter
-
-	return nil
+	return &objectIter{iter: iter}, nil
 }
 
 func (i *objectIter) Next() (sql.Row, error) {

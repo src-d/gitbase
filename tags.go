@@ -50,7 +50,7 @@ func (r tagsTable) RowIter() (sql.RowIter, error) {
 		return nil, err
 	}
 
-	return &rowRepoIter, nil
+	return rowRepoIter, nil
 }
 
 func (tagsTable) Children() []sql.Node {
@@ -61,15 +61,15 @@ type tagIter struct {
 	iter *object.TagIter
 }
 
-func (i *tagIter) InitRepository(repo Repository) error {
+func (i *tagIter) NewIterator(
+	repo *Repository) (RowRepoIterImplementation, error) {
+
 	iter, err := repo.Repo.TagObjects()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	i.iter = iter
-
-	return nil
+	return &tagIter{iter: iter}, nil
 }
 
 func (i *tagIter) Next() (sql.Row, error) {

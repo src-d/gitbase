@@ -52,7 +52,7 @@ func (r referencesTable) RowIter() (sql.RowIter, error) {
 		return nil, err
 	}
 
-	return &rowRepoIter, nil
+	return rowRepoIter, nil
 }
 
 func (referencesTable) Children() []sql.Node {
@@ -63,15 +63,15 @@ type referenceIter struct {
 	iter storer.ReferenceIter
 }
 
-func (i *referenceIter) InitRepository(repo Repository) error {
+func (i *referenceIter) NewIterator(
+	repo *Repository) (RowRepoIterImplementation, error) {
+
 	iter, err := repo.Repo.References()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	i.iter = iter
-
-	return nil
+	return &referenceIter{iter: iter}, nil
 }
 
 func (i *referenceIter) Next() (sql.Row, error) {

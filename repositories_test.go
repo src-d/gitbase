@@ -135,15 +135,15 @@ type testCommitIter struct {
 	iter object.CommitIter
 }
 
-func (d *testCommitIter) InitRepository(repo Repository) error {
-	cIter, err := repo.Repo.CommitObjects()
+func (d *testCommitIter) NewIterator(
+	repo *Repository) (RowRepoIterImplementation, error) {
+
+	iter, err := repo.Repo.CommitObjects()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	d.iter = cIter
-
-	return nil
+	return &testCommitIter{iter: iter}, nil
 }
 
 func (d *testCommitIter) Next() (sql.Row, error) {
@@ -165,13 +165,13 @@ func TestRepositoryRowIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	id, err := pool.AddGit(path)
-	require.Equal(path, id)
-	require.Nil(err)
+	max := 64
 
-	id, err = pool.AddGit(path)
-	require.Equal(path, id)
-	require.Nil(err)
+	for i := 0; i < max; i++ {
+		id, err := pool.AddGit(path)
+		require.Equal(path, id)
+		require.Nil(err)
+	}
 
 	cIter := &testCommitIter{}
 
@@ -191,5 +191,6 @@ func TestRepositoryRowIterator(t *testing.T) {
 		count++
 	}
 
-	require.Equal(9*2, count)
+	// 9 is the number of commits from the test repo
+	require.Equal(9*max, count)
 }
