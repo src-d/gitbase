@@ -41,6 +41,7 @@ func TestDatabase_Tables(t *testing.T) {
 		tagsTableName,
 		blobsTableName,
 		objectsTableName,
+		repositoriesTableName,
 	}
 	sort.Strings(expected)
 
