@@ -2,6 +2,7 @@ package gitquery
 
 import (
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -159,23 +160,10 @@ func (d *testCommitIter) Close() error {
 	return nil
 }
 
-func TestRepositoryRowIterator(t *testing.T) {
-	require := require.New(t)
-
-	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
-
-	pool := NewRepositoryPool()
-	max := 64
-
-	for i := 0; i < max; i++ {
-		id, err := pool.AddGit(path)
-		require.Equal(path, id)
-		require.Nil(err)
-	}
-
+func testRepoIter(num int, require *require.Assertions, pool *RepositoryPool) {
 	cIter := &testCommitIter{}
 
-	rowRepoIter, err := NewRowRepoIter(&pool, cIter)
+	rowRepoIter, err := NewRowRepoIter(pool, cIter)
 	require.Nil(err)
 
 	count := 0
@@ -192,5 +180,36 @@ func TestRepositoryRowIterator(t *testing.T) {
 	}
 
 	// 9 is the number of commits from the test repo
-	require.Equal(9*max, count)
+	require.Equal(9*num, count)
+}
+
+func TestRepositoryRowIterator(t *testing.T) {
+	require := require.New(t)
+
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+
+	pool := NewRepositoryPool()
+	max := 64
+
+	for i := 0; i < max; i++ {
+		id, err := pool.AddGit(path)
+		require.Equal(path, id)
+		require.Nil(err)
+	}
+
+	testRepoIter(max, require, &pool)
+
+	// Test multiple iterators at the same time
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			testRepoIter(max, require, &pool)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
