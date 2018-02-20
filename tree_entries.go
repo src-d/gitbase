@@ -1,6 +1,7 @@
 package gitquery
 
 import (
+	"io"
 	"strconv"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -57,31 +58,32 @@ func (treeEntriesTable) Children() []sql.Node {
 
 type treeEntryIter struct {
 	i  *object.TreeIter
+	fi *object.FileIter
 	t  *object.Tree
-	ei int
 }
 
 func (i *treeEntryIter) Next() (sql.Row, error) {
 	for {
-		if i.t == nil {
-			tree, err := i.i.Next()
+		if i.fi == nil {
+			var err error
+			i.t, err = i.i.Next()
 			if err != nil {
 				return nil, err
 			}
 
-			i.t = tree
-			i.ei = 0
+			i.fi = i.t.Files()
 		}
 
-		if i.ei >= len(i.t.Entries) {
+		f, err := i.fi.Next()
+		if err == io.EOF {
+			i.fi = nil
 			i.t = nil
 			continue
+		} else if err != nil {
+			return nil, err
 		}
 
-		e := i.t.Entries[i.ei]
-		i.ei++
-
-		return treeEntryToRow(i.t, e), nil
+		return fileToRow(i.t, f), nil
 	}
 }
 
@@ -90,11 +92,11 @@ func (i *treeEntryIter) Close() error {
 	return nil
 }
 
-func treeEntryToRow(t *object.Tree, e object.TreeEntry) sql.Row {
+func fileToRow(t *object.Tree, f *object.File) sql.Row {
 	return sql.NewRow(
 		t.ID().String(),
-		e.Hash.String(),
-		strconv.FormatInt(int64(e.Mode), 8),
-		e.Name,
+		f.Hash.String(),
+		strconv.FormatInt(int64(f.Mode), 8),
+		f.Name,
 	)
 }
