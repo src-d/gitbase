@@ -17,7 +17,7 @@ import (
 type cmdQueryBase struct {
 	cmd
 
-	Path []string `short:"p" long:"path" description:"Path where the git repository is located"`
+	Path []string `short:"p" long:"path" description:"Path where the git repository is located, can be used several times"`
 
 	engine *sqle.Engine
 	name   string
