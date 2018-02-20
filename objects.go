@@ -40,12 +40,12 @@ func (r *objectsTable) TransformExpressionsUp(f func(sql.Expression) sql.Express
 func (r objectsTable) RowIter() (sql.RowIter, error) {
 	iter := &objectIter{}
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return repoIter, nil
 }
 
 func (objectsTable) Children() []sql.Node {
@@ -56,9 +56,7 @@ type objectIter struct {
 	iter *object.ObjectIter
 }
 
-func (i *objectIter) NewIterator(
-	repo *Repository) (RowRepoIterImplementation, error) {
-
+func (i *objectIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	iter, err := repo.Repo.Objects()
 	if err != nil {
 		return nil, err

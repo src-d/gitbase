@@ -137,8 +137,8 @@ type testCommitIter struct {
 }
 
 func (d *testCommitIter) NewIterator(
-	repo *Repository) (RowRepoIterImplementation, error) {
-
+	repo *Repository,
+) (RowRepoIter, error) {
 	iter, err := repo.Repo.CommitObjects()
 	if err != nil {
 		return nil, err
@@ -163,12 +163,12 @@ func (d *testCommitIter) Close() error {
 func testRepoIter(num int, require *require.Assertions, pool *RepositoryPool) {
 	cIter := &testCommitIter{}
 
-	rowRepoIter, err := NewRowRepoIter(pool, cIter)
+	repoIter, err := NewRowRepoIter(pool, cIter)
 	require.Nil(err)
 
 	count := 0
 	for {
-		row, err := rowRepoIter.Next()
+		row, err := repoIter.Next()
 		if err != nil {
 			require.Equal(io.EOF, err)
 			break

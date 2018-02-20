@@ -47,12 +47,12 @@ func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expr
 func (r referencesTable) RowIter() (sql.RowIter, error) {
 	iter := &referenceIter{}
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return repoIter, nil
 }
 
 func (referencesTable) Children() []sql.Node {
@@ -63,9 +63,7 @@ type referenceIter struct {
 	iter storer.ReferenceIter
 }
 
-func (i *referenceIter) NewIterator(
-	repo *Repository) (RowRepoIterImplementation, error) {
-
+func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	iter, err := repo.Repo.References()
 	if err != nil {
 		return nil, err

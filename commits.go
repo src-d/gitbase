@@ -46,12 +46,12 @@ func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) sql.Express
 func (r commitsTable) RowIter() (sql.RowIter, error) {
 	iter := &commitIter{}
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return repoIter, nil
 }
 
 func (commitsTable) Children() []sql.Node {
@@ -62,9 +62,7 @@ type commitIter struct {
 	iter object.CommitIter
 }
 
-func (i *commitIter) NewIterator(
-	repo *Repository) (RowRepoIterImplementation, error) {
-
+func (i *commitIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	iter, err := repo.Repo.CommitObjects()
 	if err != nil {
 		return nil, err

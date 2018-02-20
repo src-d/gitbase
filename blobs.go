@@ -40,12 +40,12 @@ func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expressio
 func (r blobsTable) RowIter() (sql.RowIter, error) {
 	iter := &blobIter{}
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return repoIter, nil
 }
 
 func (blobsTable) Children() []sql.Node {
@@ -56,9 +56,7 @@ type blobIter struct {
 	iter *object.BlobIter
 }
 
-func (i *blobIter) NewIterator(
-	repo *Repository) (RowRepoIterImplementation, error) {
-
+func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	iter, err := repo.Repo.BlobObjects()
 	if err != nil {
 		return nil, err

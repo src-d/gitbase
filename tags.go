@@ -45,12 +45,12 @@ func (r *tagsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression
 func (r tagsTable) RowIter() (sql.RowIter, error) {
 	iter := &tagIter{}
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return repoIter, nil
 }
 
 func (tagsTable) Children() []sql.Node {
@@ -61,9 +61,7 @@ type tagIter struct {
 	iter *object.TagIter
 }
 
-func (i *tagIter) NewIterator(
-	repo *Repository) (RowRepoIterImplementation, error) {
-
+func (i *tagIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	iter, err := repo.Repo.TagObjects()
 	if err != nil {
 		return nil, err

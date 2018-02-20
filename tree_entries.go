@@ -45,12 +45,12 @@ func (r *treeEntriesTable) TransformExpressionsUp(f func(sql.Expression) sql.Exp
 func (r treeEntriesTable) RowIter() (sql.RowIter, error) {
 	iter := &treeEntryIter{}
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return repoIter, nil
 }
 
 func (treeEntriesTable) Children() []sql.Node {
@@ -63,9 +63,7 @@ type treeEntryIter struct {
 	t  *object.Tree
 }
 
-func (i *treeEntryIter) NewIterator(
-	repo *Repository) (RowRepoIterImplementation, error) {
-
+func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	iter, err := repo.Repo.TreeObjects()
 	if err != nil {
 		return nil, err
