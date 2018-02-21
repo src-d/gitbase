@@ -6,6 +6,7 @@ import (
 
 	"github.com/src-d/gitquery"
 	"github.com/src-d/gitquery/internal/format"
+	"github.com/src-d/gitquery/internal/function"
 
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
@@ -38,7 +39,7 @@ func (c *cmdQueryBase) buildDatabase() error {
 	}
 
 	c.engine.AddDatabase(gitquery.NewDatabase(c.name, &pool))
-	return err
+	return function.Register(c.engine.Catalog)
 }
 
 func (c *cmdQueryBase) executeQuery(sql string) (sql.Schema, sql.RowIter, error) {
