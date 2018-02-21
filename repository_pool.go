@@ -2,6 +2,8 @@ package gitquery
 
 import (
 	"io"
+	"io/ioutil"
+	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -51,6 +53,28 @@ func (p *RepositoryPool) AddGit(path string) (string, error) {
 	p.Add(path, repo)
 
 	return path, nil
+}
+
+// AddDir adds all direct subdirectories from path as repos
+func (p *RepositoryPool) AddDir(path string) error {
+	dirs, err := ioutil.ReadDir(path)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range dirs {
+		if f.IsDir() {
+			name := filepath.Join(path, f.Name())
+			repo, err := git.PlainOpen(name)
+			if err != nil {
+				// TODO: log that the repo could not be opened
+			} else {
+				p.Add(f.Name(), repo)
+			}
+		}
+	}
+
+	return nil
 }
 
 // GetPos retrieves a repository at a given position. It returns false
@@ -130,7 +154,6 @@ func NewRowRepoIter(
 	pool *RepositoryPool,
 	iter RowRepoIter,
 ) (*rowRepoIter, error) {
-
 	rIter, err := pool.RepoIter()
 	if err != nil {
 		return nil, err

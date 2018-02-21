@@ -2,6 +2,10 @@ package gitquery
 
 import (
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -212,4 +216,56 @@ func TestRepositoryRowIterator(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestRepositoryPoolAddDir(t *testing.T) {
+	require := require.New(t)
+
+	tmpDir, err := ioutil.TempDir("", "gitquery-test")
+	require.Nil(err)
+
+	max := 64
+
+	for i := 0; i < max; i++ {
+		orig := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+		p := filepath.Join(tmpDir, strconv.Itoa(i))
+
+		err := os.Rename(orig, p)
+		require.Nil(err)
+	}
+
+	pool := NewRepositoryPool()
+	err = pool.AddDir(tmpDir)
+	require.Nil(err)
+
+	require.Equal(max, len(pool.repositories))
+
+	arrayID := make([]string, max)
+	arrayExpected := make([]string, max)
+
+	for i := 0; i < max; i++ {
+		repo, ok := pool.GetPos(i)
+		require.True(ok)
+		arrayID[i] = repo.ID
+		arrayExpected[i] = strconv.Itoa(i)
+
+		iter, err := repo.Repo.CommitObjects()
+		require.Nil(err)
+
+		counter := 0
+		for {
+			commit, err := iter.Next()
+			if err == io.EOF {
+				break
+			}
+
+			require.Nil(err)
+			require.NotNil(commit)
+			counter++
+		}
+
+		require.Equal(9, counter)
+	}
+
+	require.ElementsMatch(arrayExpected, arrayID)
 }
