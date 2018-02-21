@@ -4,9 +4,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"github.com/stretchr/testify/assert"
 	"gopkg.in/src-d/go-billy.v4/memfs"
 	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4"
@@ -22,10 +22,10 @@ const (
 )
 
 func TestDatabase_Tables(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	db := getDB(assert, f, testDBName)
+	db := getDB(require, f, testDBName)
 
 	tables := db.Tables()
 	var tableNames []string
@@ -44,43 +44,43 @@ func TestDatabase_Tables(t *testing.T) {
 	}
 	sort.Strings(expected)
 
-	assert.Equal(expected, tableNames)
+	require.Equal(expected, tableNames)
 }
 
 func TestDatabase_Name(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	db := getDB(assert, f, testDBName)
-	assert.Equal(testDBName, db.Name())
+	db := getDB(require, f, testDBName)
+	require.Equal(testDBName, db.Name())
 }
 
-func getDB(assert *assert.Assertions, fixture *fixtures.Fixture,
+func getDB(require *require.Assertions, fixture *fixtures.Fixture,
 	name string) sql.Database {
 
 	s, err := filesystem.NewStorage(fixture.DotGit())
-	assert.NoError(err)
+	require.NoError(err)
 
 	r, err := git.Open(s, memfs.New())
-	assert.NoError(err)
+	require.NoError(err)
 
 	db := NewDatabase(name, r)
-	assert.NotNil(db)
+	require.NotNil(db)
 
 	return db
 }
 
-func getTable(assert *assert.Assertions, fixture *fixtures.Fixture,
+func getTable(require *require.Assertions, fixture *fixtures.Fixture,
 	name string) sql.Table {
 
-	db := getDB(assert, fixture, "foo")
-	assert.NotNil(db)
-	assert.Equal(db.Name(), "foo")
+	db := getDB(require, fixture, "foo")
+	require.NotNil(db)
+	require.Equal(db.Name(), "foo")
 
 	tables := db.Tables()
 	table, ok := tables[name]
-	assert.True(ok, "table %s does not exist", table)
-	assert.NotNil(table)
+	require.True(ok, "table %s does not exist", table)
+	require.NotNil(table)
 
 	return table
 }

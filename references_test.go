@@ -3,40 +3,40 @@ package gitquery
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
-	"github.com/stretchr/testify/assert"
 	"gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestReferencesTable_Name(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, referencesTableName)
-	assert.Equal(referencesTableName, table.Name())
+	table := getTable(require, f, referencesTableName)
+	require.Equal(referencesTableName, table.Name())
 }
 
 func TestReferencesTable_Children(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, referencesTableName)
-	assert.Equal(0, len(table.Children()))
+	table := getTable(require, f, referencesTableName)
+	require.Equal(0, len(table.Children()))
 }
 
 func TestReferencesTable_RowIter(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, referencesTableName)
+	table := getTable(require, f, referencesTableName)
 
 	rows, err := sql.NodeToRows(plan.NewSort(
 		[]plan.SortField{{Column: expression.NewGetField(0, sql.Text, "name", false), Order: plan.Ascending}},
 		table))
-	assert.Nil(err)
+	require.Nil(err)
 
 	expected := []sql.Row{
 		sql.NewRow("HEAD", "symbolic-reference", nil, "refs/heads/master", false, false, false, false),
@@ -47,11 +47,11 @@ func TestReferencesTable_RowIter(t *testing.T) {
 		sql.NewRow("refs/remotes/origin/master", "hash-reference", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", nil, false, false, true, false),
 		sql.NewRow("refs/tags/v1.0.0", "hash-reference", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", nil, false, false, false, true),
 	}
-	assert.Equal(expected, rows)
+	require.Equal(expected, rows)
 
 	schema := table.Schema()
 	for idx, row := range rows {
 		err := schema.CheckRow(row)
-		assert.Nil(err, "row %d doesn't conform to schema", idx)
+		require.Nil(err, "row %d doesn't conform to schema", idx)
 	}
 }
