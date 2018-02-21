@@ -165,23 +165,29 @@ func NewRowRepoIter(
 
 func (i *rowRepoIter) fillRepoChannel() {
 	for {
-		repo, err := i.repositoryIter.Next()
-
-		switch err {
-		case nil:
-			i.repos <- repo
-			continue
-
-		case io.EOF:
-			close(i.repos)
-			i.err <- io.EOF
+		select {
+		case <-i.done:
 			return
 
 		default:
-			close(i.done)
-			close(i.repos)
-			i.err <- err
-			return
+			repo, err := i.repositoryIter.Next()
+
+			switch err {
+			case nil:
+				i.repos <- repo
+				continue
+
+			case io.EOF:
+				close(i.repos)
+				i.err <- io.EOF
+				return
+
+			default:
+				close(i.done)
+				close(i.repos)
+				i.err <- err
+				return
+			}
 		}
 	}
 }
