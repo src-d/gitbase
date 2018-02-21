@@ -3,41 +3,41 @@ package gitquery
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"github.com/stretchr/testify/assert"
 	"gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestCommitsTable_Name(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, commitsTableName)
-	assert.Equal(commitsTableName, table.Name())
+	table := getTable(require, f, commitsTableName)
+	require.Equal(commitsTableName, table.Name())
 }
 
 func TestCommitsTable_Children(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, commitsTableName)
-	assert.Equal(0, len(table.Children()))
+	table := getTable(require, f, commitsTableName)
+	require.Equal(0, len(table.Children()))
 }
 
 func TestCommitsTable_RowIter(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
 	f := fixtures.Basic().One()
-	table := getTable(assert, f, commitsTableName)
+	table := getTable(require, f, commitsTableName)
 
 	rows, err := sql.NodeToRows(table)
-	assert.Nil(err)
-	assert.Len(rows, 9)
+	require.Nil(err)
+	require.Len(rows, 9)
 
 	schema := table.Schema()
 	for idx, row := range rows {
 		err := schema.CheckRow(row)
-		assert.Nil(err, "row %d doesn't conform to schema", idx)
+		require.Nil(err, "row %d doesn't conform to schema", idx)
 	}
 }
