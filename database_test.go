@@ -38,7 +38,6 @@ func TestDatabase_Tables(t *testing.T) {
 		commitsTableName,
 		referencesTableName,
 		treeEntriesTableName,
-		tagsTableName,
 		blobsTableName,
 		objectsTableName,
 		repositoriesTableName,
