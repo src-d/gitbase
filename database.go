@@ -6,12 +6,13 @@ import (
 
 const (
 	// TODO 'references' is a reserved keyword into the parser
-	referencesTableName  = "refs"
-	commitsTableName     = "commits"
-	tagsTableName        = "tags"
-	blobsTableName       = "blobs"
-	treeEntriesTableName = "tree_entries"
-	objectsTableName     = "objects"
+	referencesTableName   = "refs"
+	commitsTableName      = "commits"
+	tagsTableName         = "tags"
+	blobsTableName        = "blobs"
+	treeEntriesTableName  = "tree_entries"
+	objectsTableName      = "objects"
+	repositoriesTableName = "repositories"
 )
 
 type Database struct {
@@ -22,6 +23,7 @@ type Database struct {
 	ter  sql.Table
 	br   sql.Table
 	or   sql.Table
+	rer  sql.Table
 }
 
 func NewDatabase(name string, pool *RepositoryPool) sql.Database {
@@ -33,6 +35,7 @@ func NewDatabase(name string, pool *RepositoryPool) sql.Database {
 		br:   newBlobsTable(pool),
 		ter:  newTreeEntriesTable(pool),
 		or:   newObjectsTable(pool),
+		rer:  newRepositoriesTable(pool),
 	}
 }
 
@@ -42,11 +45,12 @@ func (d *Database) Name() string {
 
 func (d *Database) Tables() map[string]sql.Table {
 	return map[string]sql.Table{
-		commitsTableName:     d.cr,
-		tagsTableName:        d.tr,
-		referencesTableName:  d.rr,
-		blobsTableName:       d.br,
-		treeEntriesTableName: d.ter,
-		objectsTableName:     d.or,
+		commitsTableName:      d.cr,
+		tagsTableName:         d.tr,
+		referencesTableName:   d.rr,
+		blobsTableName:        d.br,
+		treeEntriesTableName:  d.ter,
+		objectsTableName:      d.or,
+		repositoriesTableName: d.rer,
 	}
 }
