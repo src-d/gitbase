@@ -10,7 +10,7 @@ import (
 func TestRegister(t *testing.T) {
 	require := require.New(t)
 	catalog := sql.NewCatalog()
-	require.NoError(Register(catalog))
+	Register(catalog)
 
 	for fn := range functions {
 		_, err := catalog.Function(fn)

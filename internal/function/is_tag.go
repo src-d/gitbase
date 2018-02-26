@@ -14,7 +14,7 @@ type IsTag struct {
 }
 
 // NewIsTag creates a new IsTag function.
-func NewIsTag(e sql.Expression) *IsTag {
+func NewIsTag(e sql.Expression) sql.Expression {
 	return &IsTag{expression.UnaryExpression{Child: e}}
 }
 

@@ -14,7 +14,7 @@ type IsRemote struct {
 }
 
 // NewIsRemote creates a new IsRemote function.
-func NewIsRemote(e sql.Expression) *IsRemote {
+func NewIsRemote(e sql.Expression) sql.Expression {
 	return &IsRemote{expression.UnaryExpression{Child: e}}
 }
 

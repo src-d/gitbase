@@ -39,7 +39,8 @@ func (c *cmdQueryBase) buildDatabase() error {
 	}
 
 	c.engine.AddDatabase(gitquery.NewDatabase(c.name, &pool))
-	return function.Register(c.engine.Catalog)
+	function.Register(c.engine.Catalog)
+	return nil
 }
 
 func (c *cmdQueryBase) executeQuery(sql string) (sql.Schema, sql.RowIter, error) {

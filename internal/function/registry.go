@@ -2,18 +2,14 @@ package function
 
 import "gopkg.in/src-d/go-mysql-server.v0/sql"
 
-var functions = map[string]interface{}{
-	"is_tag":    NewIsTag,
-	"is_remote": NewIsRemote,
+var functions = map[string]sql.Function{
+	"is_tag":    sql.Function1(NewIsTag),
+	"is_remote": sql.Function1(NewIsRemote),
 }
 
 // Register all the gitquery functions in the SQL catalog.
-func Register(c *sql.Catalog) error {
+func Register(c *sql.Catalog) {
 	for k, v := range functions {
-		if err := c.RegisterFunction(k, v); err != nil {
-			return err
-		}
+		c.RegisterFunction(k, v)
 	}
-
-	return nil
 }
