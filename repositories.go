@@ -50,7 +50,7 @@ func (r repositoriesTable) RowIter() (sql.RowIter, error) {
 }
 
 func (repositoriesTable) Children() []sql.Node {
-	return []sql.Node{}
+	return nil
 }
 
 type repositoriesIter struct {
