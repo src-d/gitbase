@@ -39,15 +39,13 @@ func TestReferencesTable_RowIter(t *testing.T) {
 	require.Nil(err)
 
 	expected := []sql.Row{
-		sql.NewRow("HEAD", "symbolic-reference", nil, "refs/heads/master", false, false, false, false),
-		sql.NewRow("refs/heads/branch", "hash-reference", "e8d3ffab552895c19b9fcf7aa264d277cde33881", nil, true, false, false, false),
-		sql.NewRow("refs/heads/master", "hash-reference", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", nil, true, false, false, false),
-		sql.NewRow("refs/remotes/origin/HEAD", "symbolic-reference", nil, "refs/remotes/origin/master", false, false, true, false),
-		sql.NewRow("refs/remotes/origin/branch", "hash-reference", "e8d3ffab552895c19b9fcf7aa264d277cde33881", nil, false, false, true, false),
-		sql.NewRow("refs/remotes/origin/master", "hash-reference", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", nil, false, false, true, false),
-		sql.NewRow("refs/tags/v1.0.0", "hash-reference", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", nil, false, false, false, true),
+		sql.NewRow("repo", "refs/heads/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
+		sql.NewRow("repo", "refs/heads/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow("repo", "refs/remotes/origin/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
+		sql.NewRow("repo", "refs/remotes/origin/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow("repo", "refs/tags/v1.0.0", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
 	}
-	require.Equal(expected, rows)
+	require.ElementsMatch(expected, rows)
 
 	schema := table.Schema()
 	for idx, row := range rows {
