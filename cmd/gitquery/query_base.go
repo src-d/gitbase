@@ -3,12 +3,10 @@ package main
 import (
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/src-d/gitquery"
 	"github.com/src-d/gitquery/internal/format"
 
-	gogit "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -17,7 +15,7 @@ import (
 type cmdQueryBase struct {
 	cmd
 
-	Path string `short:"p" long:"path" description:"Path where the git repository is located"`
+	Path string `short:"p" long:"path" description:"Path where the git repositories are located, one per dir"`
 
 	engine *sqle.Engine
 	name   string
@@ -31,13 +29,15 @@ func (c *cmdQueryBase) buildDatabase() error {
 	c.print("opening %q repository...\n", c.Path)
 
 	var err error
-	r, err := gogit.PlainOpen(c.Path)
+
+	pool := gitquery.NewRepositoryPool()
+	err = pool.AddDir(c.Path)
 	if err != nil {
+		println("ERR", err.Error())
 		return err
 	}
 
-	c.name = filepath.Base(filepath.Join(c.Path, ".."))
-	c.engine.AddDatabase(gitquery.NewDatabase(c.name, r))
+	c.engine.AddDatabase(gitquery.NewDatabase(c.name, &pool))
 	return err
 }
 

@@ -64,7 +64,10 @@ func getDB(require *require.Assertions, fixture *fixtures.Fixture,
 	r, err := git.Open(s, memfs.New())
 	require.NoError(err)
 
-	db := NewDatabase(name, r)
+	pool := NewRepositoryPool()
+	pool.Add("repo", r)
+
+	db := NewDatabase(name, &pool)
 	require.NotNil(db)
 
 	return db

@@ -3,16 +3,15 @@ package gitquery
 import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type tagsTable struct {
-	r *git.Repository
+	pool *RepositoryPool
 }
 
-func newTagsTable(r *git.Repository) sql.Table {
-	return &tagsTable{r: r}
+func newTagsTable(pool *RepositoryPool) sql.Table {
+	return &tagsTable{pool: pool}
 }
 
 func (tagsTable) Resolved() bool {
@@ -44,12 +43,14 @@ func (r *tagsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression
 }
 
 func (r tagsTable) RowIter() (sql.RowIter, error) {
-	tIter, err := r.r.TagObjects()
+	iter := &tagIter{}
+
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
-	iter := &tagIter{i: tIter}
-	return iter, nil
+
+	return repoIter, nil
 }
 
 func (tagsTable) Children() []sql.Node {
@@ -57,20 +58,32 @@ func (tagsTable) Children() []sql.Node {
 }
 
 type tagIter struct {
-	i *object.TagIter
+	iter *object.TagIter
 }
 
-func (i *tagIter) Next() (sql.Row, error) {
-	tag, err := i.i.Next()
+func (i *tagIter) NewIterator(repo *Repository) (RowRepoIter, error) {
+	iter, err := repo.Repo.TagObjects()
 	if err != nil {
 		return nil, err
 	}
 
-	return tagToRow(tag), nil
+	return &tagIter{iter: iter}, nil
+}
+
+func (i *tagIter) Next() (sql.Row, error) {
+	o, err := i.iter.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	return tagToRow(o), nil
 }
 
 func (i *tagIter) Close() error {
-	i.i.Close()
+	if i.iter != nil {
+		i.iter.Close()
+	}
+
 	return nil
 }
 

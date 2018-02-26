@@ -3,16 +3,15 @@ package gitquery
 import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type blobsTable struct {
-	r *git.Repository
+	pool *RepositoryPool
 }
 
-func newBlobsTable(r *git.Repository) sql.Table {
-	return &blobsTable{r: r}
+func newBlobsTable(pool *RepositoryPool) sql.Table {
+	return &blobsTable{pool: pool}
 }
 
 func (blobsTable) Resolved() bool {
@@ -39,12 +38,14 @@ func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expressio
 }
 
 func (r blobsTable) RowIter() (sql.RowIter, error) {
-	bIter, err := r.r.BlobObjects()
+	iter := &blobIter{}
+
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
-	iter := &blobIter{i: bIter}
-	return iter, nil
+
+	return repoIter, nil
 }
 
 func (blobsTable) Children() []sql.Node {
@@ -52,20 +53,32 @@ func (blobsTable) Children() []sql.Node {
 }
 
 type blobIter struct {
-	i *object.BlobIter
+	iter *object.BlobIter
 }
 
-func (i *blobIter) Next() (sql.Row, error) {
-	blob, err := i.i.Next()
+func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
+	iter, err := repo.Repo.BlobObjects()
 	if err != nil {
 		return nil, err
 	}
 
-	return blobToRow(blob), nil
+	return &blobIter{iter: iter}, nil
+}
+
+func (i *blobIter) Next() (sql.Row, error) {
+	o, err := i.iter.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	return blobToRow(o), nil
 }
 
 func (i *blobIter) Close() error {
-	i.i.Close()
+	if i.iter != nil {
+		i.iter.Close()
+	}
+
 	return nil
 }
 

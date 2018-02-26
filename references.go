@@ -3,17 +3,16 @@ package gitquery
 import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 )
 
 type referencesTable struct {
-	r *git.Repository
+	pool *RepositoryPool
 }
 
-func newReferencesTable(r *git.Repository) sql.Table {
-	return &referencesTable{r: r}
+func newReferencesTable(pool *RepositoryPool) sql.Table {
+	return &referencesTable{pool: pool}
 }
 
 func (referencesTable) Resolved() bool {
@@ -46,12 +45,14 @@ func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expr
 }
 
 func (r referencesTable) RowIter() (sql.RowIter, error) {
-	rIter, err := r.r.References()
+	iter := &referenceIter{}
+
+	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
 		return nil, err
 	}
-	iter := &referenceIter{i: rIter}
-	return iter, nil
+
+	return repoIter, nil
 }
 
 func (referencesTable) Children() []sql.Node {
@@ -59,20 +60,32 @@ func (referencesTable) Children() []sql.Node {
 }
 
 type referenceIter struct {
-	i storer.ReferenceIter
+	iter storer.ReferenceIter
 }
 
-func (i *referenceIter) Next() (sql.Row, error) {
-	reference, err := i.i.Next()
+func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
+	iter, err := repo.Repo.References()
 	if err != nil {
 		return nil, err
 	}
 
-	return referenceToRow(reference), nil
+	return &referenceIter{iter: iter}, nil
+}
+
+func (i *referenceIter) Next() (sql.Row, error) {
+	o, err := i.iter.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	return referenceToRow(o), nil
 }
 
 func (i *referenceIter) Close() error {
-	i.i.Close()
+	if i.iter != nil {
+		i.iter.Close()
+	}
+
 	return nil
 }
 
