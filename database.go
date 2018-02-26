@@ -13,6 +13,7 @@ const (
 	treeEntriesTableName  = "tree_entries"
 	objectsTableName      = "objects"
 	repositoriesTableName = "repositories"
+	remotesTableName      = "remotes"
 )
 
 type Database struct {
@@ -24,6 +25,7 @@ type Database struct {
 	br   sql.Table
 	or   sql.Table
 	rer  sql.Table
+	rmr  sql.Table
 }
 
 func NewDatabase(name string, pool *RepositoryPool) sql.Database {
@@ -36,6 +38,7 @@ func NewDatabase(name string, pool *RepositoryPool) sql.Database {
 		ter:  newTreeEntriesTable(pool),
 		or:   newObjectsTable(pool),
 		rer:  newRepositoriesTable(pool),
+		rmr:  newRemotesTable(pool),
 	}
 }
 
@@ -52,5 +55,6 @@ func (d *Database) Tables() map[string]sql.Table {
 		treeEntriesTableName:  d.ter,
 		objectsTableName:      d.or,
 		repositoriesTableName: d.rer,
+		remotesTableName:      d.rmr,
 	}
 }
