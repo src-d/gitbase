@@ -13,8 +13,7 @@ const (
 
 func main() {
 	parser := flags.NewNamedParser(name, flags.Default)
-	parser.AddCommand("query", "Execute a SQL query a repository.", "", &CmdQuery{})
-	parser.AddCommand("shell", "Start an interactive session.", "", &CmdShell{})
+	parser.AddCommand("server", "Start SQL server.", "", &CmdServer{})
 	parser.AddCommand("version", "Show the version information.", "", &CmdVersion{})
 
 	_, err := parser.Parse()

@@ -4,58 +4,36 @@
 
 ## Installation
 
-Check the [Releases](https://github.com/sqle/gitquery/releases) page to download
+Check the [Releases](https://github.com/src-d/gitquery/releases) page to download
 the gitquery binary.
 
 ## Usage
 
 ```bash
 Usage:
-  gitquery [OPTIONS] <query | shell | version>
+  gitquery [OPTIONS] <server | version>
 
 Help Options:
   -h, --help  Show this help message
 
 Available commands:
-  query    Execute a SQL query a repository.
-  shell    Start an interactive session.
+  server   Start SQL server.
   version  Show the version information.
 ```
 
-For example:
+A MySQL client is needed to connect to the server. For example:
 
 ```bash
-$ cd my_git_repo
-$ gitquery query 'SELECT hash, author_email, author_name FROM commits LIMIT 2;' 
+$ mysql -u root -h 127.0.0.1
+MySQL [(none)]> SELECT hash, author_email, author_name FROM commits LIMIT 2;
 SELECT hash, author_email, author_name FROM commits LIMIT 2;
 +------------------------------------------+---------------------+-----------------------+
-|                   HASH                   |    AUTHOR EMAIL     |      AUTHOR NAME      |
+| hash                                     | author_email        | author_name           |
 +------------------------------------------+---------------------+-----------------------+
 | 003dc36e0067b25333cb5d3a5ccc31fd028a1c83 | user1@test.io       | Santiago M. Mola      |
 | 01ace9e4d144aaeb50eb630fed993375609bcf55 | user2@test.io       | Antonio Navarro Perez |
 +------------------------------------------+---------------------+-----------------------+
-```
-
-You can use the interactive shell like you usually do to explore tables in postgreSQL per example:
-
-```bash
-$ gitquery shell
-
-           gitQL SHELL
-           -----------
-You must end your queries with ';'
-
-!> SELECT hash, author_email, author_name FROM commits LIMIT 2;
-
---> Executing query: SELECT hash, author_email, author_name FROM commits LIMIT 2;
-
-+------------------------------------------+---------------------+-----------------------+
-|                   HASH                   |    AUTHOR EMAIL     |      AUTHOR NAME      |
-+------------------------------------------+---------------------+-----------------------+
-| 003dc36e0067b25333cb5d3a5ccc31fd028a1c83 | user1@test.io       | Santiago M. Mola      |
-| 01ace9e4d144aaeb50eb630fed993375609bcf55 | user2@test.io       | Antonio Navarro Perez |
-+------------------------------------------+---------------------+-----------------------+
-!>  
+2 rows in set (0.01 sec)
 ```
 
 ## Tables
@@ -83,4 +61,4 @@ We are continuously adding more functionality to gitquery. We support a subset o
 
 ## License
 
-gitquery is licensed under the [MIT License](https://github.com/sqle/gitquery/blob/master/LICENSE).
+gitquery is licensed under the [MIT License](https://github.com/src-d/gitquery/blob/master/LICENSE).
