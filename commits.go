@@ -28,9 +28,9 @@ func (commitsTable) Schema() sql.Schema {
 		{Name: "author_name", Type: sql.Text, Nullable: false},
 		{Name: "author_email", Type: sql.Text, Nullable: false},
 		{Name: "author_when", Type: sql.Timestamp, Nullable: false},
-		{Name: "comitter_name", Type: sql.Text, Nullable: false},
-		{Name: "comitter_email", Type: sql.Text, Nullable: false},
-		{Name: "comitter_when", Type: sql.Timestamp, Nullable: false},
+		{Name: "committer_name", Type: sql.Text, Nullable: false},
+		{Name: "committer_email", Type: sql.Text, Nullable: false},
+		{Name: "committer_when", Type: sql.Timestamp, Nullable: false},
 		{Name: "message", Type: sql.Text, Nullable: false},
 	}
 }

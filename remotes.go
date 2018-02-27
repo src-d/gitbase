@@ -59,11 +59,11 @@ func (remotesTable) Children() []sql.Node {
 }
 
 type remotesIter struct {
-	repository_id string
-	remotes       []*git.Remote
-	conf          *gitconfig.RemoteConfig
-	remotePos     int
-	urlPos        int
+	repositoryID string
+	remotes      []*git.Remote
+	conf         *gitconfig.RemoteConfig
+	remotePos    int
+	urlPos       int
 }
 
 func (i *remotesIter) NewIterator(
@@ -75,10 +75,10 @@ func (i *remotesIter) NewIterator(
 	}
 
 	return &remotesIter{
-		repository_id: repo.ID,
-		remotes:       remotes,
-		remotePos:     0,
-		urlPos:        0}, nil
+		repositoryID: repo.ID,
+		remotes:      remotes,
+		remotePos:    0,
+		urlPos:       0}, nil
 }
 
 func (i *remotesIter) Next() (sql.Row, error) {
@@ -101,7 +101,7 @@ func (i *remotesIter) Next() (sql.Row, error) {
 	}
 
 	row := sql.NewRow(
-		i.repository_id,
+		i.repositoryID,
 		config.Name,
 		config.URLs[i.urlPos],
 		config.URLs[i.urlPos],
