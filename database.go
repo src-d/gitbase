@@ -8,7 +8,6 @@ const (
 	// TODO 'references' is a reserved keyword into the parser
 	referencesTableName   = "refs"
 	commitsTableName      = "commits"
-	tagsTableName         = "tags"
 	blobsTableName        = "blobs"
 	treeEntriesTableName  = "tree_entries"
 	objectsTableName      = "objects"
@@ -19,7 +18,6 @@ const (
 type Database struct {
 	name string
 	cr   sql.Table
-	tr   sql.Table
 	rr   sql.Table
 	ter  sql.Table
 	br   sql.Table
@@ -33,7 +31,6 @@ func NewDatabase(name string, pool *RepositoryPool) sql.Database {
 		name: name,
 		cr:   newCommitsTable(pool),
 		rr:   newReferencesTable(pool),
-		tr:   newTagsTable(pool),
 		br:   newBlobsTable(pool),
 		ter:  newTreeEntriesTable(pool),
 		or:   newObjectsTable(pool),
@@ -49,7 +46,6 @@ func (d *Database) Name() string {
 func (d *Database) Tables() map[string]sql.Table {
 	return map[string]sql.Table{
 		commitsTableName:      d.cr,
-		tagsTableName:         d.tr,
 		referencesTableName:   d.rr,
 		blobsTableName:        d.br,
 		treeEntriesTableName:  d.ter,
