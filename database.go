@@ -17,28 +17,28 @@ const (
 
 // Database holds all git repository tables
 type Database struct {
-	name string
-	cr   sql.Table
-	rr   sql.Table
-	ter  sql.Table
-	br   sql.Table
-	or   sql.Table
-	rer  sql.Table
-	rmr  sql.Table
+	name         string
+	commits      sql.Table
+	references   sql.Table
+	treeEntries  sql.Table
+	blobs        sql.Table
+	objects      sql.Table
+	repositories sql.Table
+	remotes      sql.Table
 }
 
 // NewDatabase creates a new Database structure and initializes its
 // tables with the given pool
 func NewDatabase(name string, pool *RepositoryPool) sql.Database {
 	return &Database{
-		name: name,
-		cr:   newCommitsTable(pool),
-		rr:   newReferencesTable(pool),
-		br:   newBlobsTable(pool),
-		ter:  newTreeEntriesTable(pool),
-		or:   newObjectsTable(pool),
-		rer:  newRepositoriesTable(pool),
-		rmr:  newRemotesTable(pool),
+		name:         name,
+		commits:      newCommitsTable(pool),
+		references:   newReferencesTable(pool),
+		blobs:        newBlobsTable(pool),
+		treeEntries:  newTreeEntriesTable(pool),
+		objects:      newObjectsTable(pool),
+		repositories: newRepositoriesTable(pool),
+		remotes:      newRemotesTable(pool),
 	}
 }
 
@@ -50,12 +50,12 @@ func (d *Database) Name() string {
 // Tables returns a map with all initialized tables
 func (d *Database) Tables() map[string]sql.Table {
 	return map[string]sql.Table{
-		commitsTableName:      d.cr,
-		referencesTableName:   d.rr,
-		blobsTableName:        d.br,
-		treeEntriesTableName:  d.ter,
-		objectsTableName:      d.or,
-		repositoriesTableName: d.rer,
-		remotesTableName:      d.rmr,
+		commitsTableName:      d.commits,
+		referencesTableName:   d.references,
+		blobsTableName:        d.blobs,
+		treeEntriesTableName:  d.treeEntries,
+		objectsTableName:      d.objects,
+		repositoriesTableName: d.repositories,
+		remotesTableName:      d.remotes,
 	}
 }
