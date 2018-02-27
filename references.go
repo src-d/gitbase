@@ -25,14 +25,9 @@ func (referencesTable) Name() string {
 
 func (referencesTable) Schema() sql.Schema {
 	return sql.Schema{
+		{Name: "repository_id", Type: sql.Text, Nullable: false},
 		{Name: "name", Type: sql.Text, Nullable: false},
-		{Name: "type", Type: sql.Text, Nullable: false},
-		{Name: "hash", Type: sql.Text, Nullable: true},
-		{Name: "target", Type: sql.Text, Nullable: true},
-		{Name: "is_branch", Type: sql.Boolean, Nullable: false},
-		{Name: "is_note", Type: sql.Boolean, Nullable: false},
-		{Name: "is_remote", Type: sql.Boolean, Nullable: false},
-		{Name: "is_tag", Type: sql.Boolean, Nullable: false},
+		{Name: "hash", Type: sql.Text, Nullable: false},
 	}
 }
 
@@ -60,7 +55,8 @@ func (referencesTable) Children() []sql.Node {
 }
 
 type referenceIter struct {
-	iter storer.ReferenceIter
+	repositoryID string
+	iter         storer.ReferenceIter
 }
 
 func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -69,16 +65,30 @@ func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		return nil, err
 	}
 
-	return &referenceIter{iter: iter}, nil
+	return &referenceIter{
+		repositoryID: repo.ID,
+		iter:         iter,
+	}, nil
 }
 
 func (i *referenceIter) Next() (sql.Row, error) {
-	o, err := i.iter.Next()
-	if err != nil {
-		return nil, err
+	var (
+		o   *plumbing.Reference
+		err error
+	)
+
+	for {
+		o, err = i.iter.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		if o.Type() == plumbing.HashReference {
+			break
+		}
 	}
 
-	return referenceToRow(o), nil
+	return referenceToRow(i.repositoryID, o), nil
 }
 
 func (i *referenceIter) Close() error {
@@ -89,29 +99,12 @@ func (i *referenceIter) Close() error {
 	return nil
 }
 
-func referenceToRow(c *plumbing.Reference) sql.Row {
-	var (
-		target, hash interface{}
-		refType      string
-	)
-	switch c.Type() {
-	case plumbing.SymbolicReference:
-		target = c.Target().String()
-		refType = "symbolic-reference"
-	case plumbing.HashReference:
-		hash = c.Hash().String()
-		refType = "hash-reference"
-	case plumbing.InvalidReference:
-		refType = "invalid-reference"
-	}
+func referenceToRow(repositoryID string, c *plumbing.Reference) sql.Row {
+	hash := c.Hash().String()
+
 	return sql.NewRow(
+		repositoryID,
 		c.Name().String(),
-		refType,
 		hash,
-		target,
-		c.Name().IsBranch(),
-		c.Name().IsNote(),
-		c.Name().IsRemote(),
-		c.Name().IsTag(),
 	)
 }
