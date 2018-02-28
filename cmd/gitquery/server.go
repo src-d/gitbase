@@ -1,7 +1,8 @@
 package main
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/src-d/gitquery"
 	"github.com/src-d/gitquery/internal/function"
@@ -55,7 +56,7 @@ func (c *CmdServer) Execute(args []string) error {
 		{Password: c.Password},
 	}
 
-	hostString := fmt.Sprintf("%v:%v", c.Host, c.Port)
+	hostString := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	s, err := server.NewServer("tcp", hostString, auth, c.engine)
 	if err != nil {
 		return err
