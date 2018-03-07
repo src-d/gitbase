@@ -3,6 +3,7 @@ package gitquery
 import (
 	"context"
 
+	errors "gopkg.in/src-d/go-errors.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
@@ -28,3 +29,7 @@ func NewSessionBuilder(pool *RepositoryPool) server.SessionBuilder {
 		return NewSession(ctx, pool)
 	}
 }
+
+// ErrInvalidGitQuerySession is returned when some node expected a GitQuery
+// session but received something else.
+var ErrInvalidGitQuerySession = errors.NewKind("expecting gitquery session, but received: %T")
