@@ -10,7 +10,6 @@ const (
 	commitsTableName      = "commits"
 	blobsTableName        = "blobs"
 	treeEntriesTableName  = "tree_entries"
-	objectsTableName      = "objects"
 	repositoriesTableName = "repositories"
 	remotesTableName      = "remotes"
 )
@@ -22,7 +21,6 @@ type Database struct {
 	references   sql.Table
 	treeEntries  sql.Table
 	blobs        sql.Table
-	objects      sql.Table
 	repositories sql.Table
 	remotes      sql.Table
 }
@@ -36,7 +34,6 @@ func NewDatabase(name string, pool *RepositoryPool) sql.Database {
 		references:   newReferencesTable(pool),
 		blobs:        newBlobsTable(pool),
 		treeEntries:  newTreeEntriesTable(pool),
-		objects:      newObjectsTable(pool),
 		repositories: newRepositoriesTable(pool),
 		remotes:      newRemotesTable(pool),
 	}
@@ -54,7 +51,6 @@ func (d *Database) Tables() map[string]sql.Table {
 		referencesTableName:   d.references,
 		blobsTableName:        d.blobs,
 		treeEntriesTableName:  d.treeEntries,
-		objectsTableName:      d.objects,
 		repositoriesTableName: d.repositories,
 		remotesTableName:      d.remotes,
 	}
