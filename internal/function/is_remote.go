@@ -18,11 +18,9 @@ func NewIsRemote(e sql.Expression) sql.Expression {
 	return &IsRemote{expression.UnaryExpression{Child: e}}
 }
 
-var _ sql.Expression = (*IsRemote)(nil)
-
 // Eval implements the expression interface.
-func (f *IsRemote) Eval(row sql.Row) (interface{}, error) {
-	val, err := f.Child.Eval(row)
+func (f *IsRemote) Eval(session sql.Session, row sql.Row) (interface{}, error) {
+	val, err := f.Child.Eval(session, row)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +43,12 @@ func (IsRemote) Name() string {
 }
 
 // TransformUp implements the Expression interface.
-func (f IsRemote) TransformUp(fn func(sql.Expression) sql.Expression) sql.Expression {
-	return NewIsRemote(fn(f.Child))
+func (f IsRemote) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+	child, err := f.Child.TransformUp(fn)
+	if err != nil {
+		return nil, err
+	}
+	return fn(NewIsRemote(child))
 }
 
 // Type implements the Expression interface.

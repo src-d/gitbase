@@ -1,6 +1,7 @@
 package function
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestIsRemote(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			val, err := f.Eval(tt.row)
+			val, err := f.Eval(sql.NewBaseSession(context.TODO()), tt.row)
 			if tt.err {
 				require.Error(err)
 				require.True(sql.ErrInvalidType.Is(err))

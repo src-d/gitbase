@@ -1,6 +1,7 @@
 package gitquery
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,7 @@ func TestReferencesTable_RowIter(t *testing.T) {
 	f := fixtures.Basic().One()
 	table := getTable(require, f, referencesTableName)
 
-	rows, err := sql.NodeToRows(plan.NewSort(
+	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), plan.NewSort(
 		[]plan.SortField{{Column: expression.NewGetField(0, sql.Text, "name", false), Order: plan.Ascending}},
 		table))
 	require.Nil(err)

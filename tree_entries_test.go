@@ -1,6 +1,7 @@
 package gitquery
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func TestTreeEntriesTable_RowIter(t *testing.T) {
 	f := fixtures.Basic().One()
 	table := getTable(require, f, treeEntriesTableName)
 
-	rows, err := sql.NodeToRows(table)
+	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
 	require.Nil(err)
 	require.Len(rows, 49)
 

@@ -1,6 +1,7 @@
 package gitquery
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -47,7 +48,7 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	require.True(ok)
 	require.NotNil(table)
 
-	rows, err := sql.NodeToRows(table)
+	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
 	require.Nil(err)
 	require.Len(rows, len(repoIDs))
 

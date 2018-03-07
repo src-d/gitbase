@@ -35,15 +35,15 @@ func (commitsTable) Schema() sql.Schema {
 	}
 }
 
-func (r *commitsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *commitsTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
+func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+	return r, nil
 }
 
-func (r commitsTable) RowIter() (sql.RowIter, error) {
+func (r commitsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 	iter := &commitIter{}
 
 	repoIter, err := NewRowRepoIter(r.pool, iter)
