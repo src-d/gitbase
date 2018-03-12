@@ -22,6 +22,7 @@ type CmdServer struct {
 	Password string `short:"P" long:"password" default:"" description:"Password used for connection"`
 
 	engine *sqle.Engine
+	pool   *gitquery.RepositoryPool
 	name   string
 }
 
@@ -35,12 +36,13 @@ func (c *CmdServer) buildDatabase() error {
 	var err error
 
 	pool := gitquery.NewRepositoryPool()
-	err = pool.AddDir(c.Git)
+	c.pool = &pool
+	err = c.pool.AddDir(c.Git)
 	if err != nil {
 		return err
 	}
 
-	c.engine.AddDatabase(gitquery.NewDatabase(c.name, &pool))
+	c.engine.AddDatabase(gitquery.NewDatabase(c.name, c.pool))
 	function.Register(c.engine.Catalog)
 	return nil
 }
@@ -57,7 +59,13 @@ func (c *CmdServer) Execute(args []string) error {
 	}
 
 	hostString := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
-	s, err := server.NewServer("tcp", hostString, auth, c.engine)
+	s, err := server.NewServer(
+		"tcp",
+		hostString,
+		auth,
+		c.engine,
+		gitquery.NewSessionBuilder(c.pool),
+	)
 	if err != nil {
 		return err
 	}

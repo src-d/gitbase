@@ -1,6 +1,7 @@
 package gitquery
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -54,7 +55,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 	_, err := repo.CreateRemote(&config)
 	require.Nil(err)
 
-	rows, err := sql.NodeToRows(table)
+	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
 	require.Nil(err)
 	require.Len(rows, 3)
 

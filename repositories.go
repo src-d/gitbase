@@ -28,17 +28,15 @@ func (repositoriesTable) Schema() sql.Schema {
 	}
 }
 
-func (r *repositoriesTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *repositoriesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *repositoriesTable) TransformExpressionsUp(
-	f func(sql.Expression) sql.Expression) sql.Node {
-
-	return r
+func (r *repositoriesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+	return r, nil
 }
 
-func (r repositoriesTable) RowIter() (sql.RowIter, error) {
+func (r repositoriesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 	iter := &repositoriesIter{}
 
 	rowRepoIter, err := NewRowRepoIter(r.pool, iter)

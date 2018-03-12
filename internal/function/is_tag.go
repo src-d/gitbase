@@ -18,11 +18,9 @@ func NewIsTag(e sql.Expression) sql.Expression {
 	return &IsTag{expression.UnaryExpression{Child: e}}
 }
 
-var _ sql.Expression = (*IsTag)(nil)
-
 // Eval implements the expression interface.
-func (f *IsTag) Eval(row sql.Row) (interface{}, error) {
-	val, err := f.Child.Eval(row)
+func (f *IsTag) Eval(session sql.Session, row sql.Row) (interface{}, error) {
+	val, err := f.Child.Eval(session, row)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +43,12 @@ func (IsTag) Name() string {
 }
 
 // TransformUp implements the Expression interface.
-func (f IsTag) TransformUp(fn func(sql.Expression) sql.Expression) sql.Expression {
-	return NewIsTag(fn(f.Child))
+func (f IsTag) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+	child, err := f.Child.TransformUp(fn)
+	if err != nil {
+		return nil, err
+	}
+	return fn(NewIsTag(child))
 }
 
 // Type implements the Expression interface.

@@ -35,15 +35,15 @@ func (remotesTable) Schema() sql.Schema {
 	}
 }
 
-func (r *remotesTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *remotesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *remotesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
+func (r *remotesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+	return r, nil
 }
 
-func (r remotesTable) RowIter() (sql.RowIter, error) {
+func (r remotesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 	iter := &remotesIter{}
 
 	rowRepoIter, err := NewRowRepoIter(r.pool, iter)

@@ -31,15 +31,15 @@ func (referencesTable) Schema() sql.Schema {
 	}
 }
 
-func (r *referencesTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *referencesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
+func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+	return r, nil
 }
 
-func (r referencesTable) RowIter() (sql.RowIter, error) {
+func (r referencesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 	iter := &referenceIter{}
 
 	repoIter, err := NewRowRepoIter(r.pool, iter)

@@ -29,15 +29,15 @@ func (blobsTable) Schema() sql.Schema {
 	}
 }
 
-func (r *blobsTable) TransformUp(f func(sql.Node) sql.Node) sql.Node {
+func (r *blobsTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) sql.Expression) sql.Node {
-	return r
+func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+	return r, nil
 }
 
-func (r blobsTable) RowIter() (sql.RowIter, error) {
+func (r blobsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 	iter := &blobIter{}
 
 	repoIter, err := NewRowRepoIter(r.pool, iter)
