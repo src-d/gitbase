@@ -3,7 +3,7 @@ package gitquery
 import (
 	"context"
 
-	errors "gopkg.in/src-d/go-errors.v0"
+	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
