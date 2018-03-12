@@ -24,7 +24,7 @@ func (repositoriesTable) Name() string {
 
 func (repositoriesTable) Schema() sql.Schema {
 	return sql.Schema{
-		{Name: "id", Type: sql.Text, Nullable: false},
+		{Name: "id", Type: sql.Text, Nullable: false, Source: "repositories"},
 	}
 }
 

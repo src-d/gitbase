@@ -18,6 +18,11 @@ func TestReferencesTable_Name(t *testing.T) {
 	f := fixtures.Basic().One()
 	table := getTable(require, f, referencesTableName)
 	require.Equal(referencesTableName, table.Name())
+
+	// Check that each column source is the same as table name
+	for _, c := range table.Schema() {
+		require.Equal(referencesTableName, c.Source)
+	}
 }
 
 func TestReferencesTable_Children(t *testing.T) {

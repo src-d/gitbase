@@ -18,6 +18,11 @@ func TestRemotesTable_Name(t *testing.T) {
 	f := fixtures.Basic().One()
 	table := getTable(require, f, remotesTableName)
 	require.Equal(remotesTableName, table.Name())
+
+	// Check that each column source is the same as table name
+	for _, c := range table.Schema() {
+		require.Equal(remotesTableName, c.Source)
+	}
 }
 
 func TestRemotesTable_Children(t *testing.T) {

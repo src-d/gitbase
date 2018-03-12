@@ -26,12 +26,12 @@ func (remotesTable) Name() string {
 
 func (remotesTable) Schema() sql.Schema {
 	return sql.Schema{
-		{Name: "repository_id", Type: sql.Text, Nullable: false},
-		{Name: "name", Type: sql.Text, Nullable: false},
-		{Name: "push_url", Type: sql.Text, Nullable: false},
-		{Name: "fetch_url", Type: sql.Text, Nullable: false},
-		{Name: "push_refspec", Type: sql.Text, Nullable: false},
-		{Name: "fetch_refspec", Type: sql.Text, Nullable: false},
+		{Name: "repository_id", Type: sql.Text, Nullable: false, Source: remotesTableName},
+		{Name: "name", Type: sql.Text, Nullable: false, Source: remotesTableName},
+		{Name: "push_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
+		{Name: "fetch_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
+		{Name: "push_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
+		{Name: "fetch_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
 	}
 }
 

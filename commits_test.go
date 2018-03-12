@@ -16,6 +16,11 @@ func TestCommitsTable_Name(t *testing.T) {
 	f := fixtures.Basic().One()
 	table := getTable(require, f, commitsTableName)
 	require.Equal(commitsTableName, table.Name())
+
+	// Check that each column source is the same as table name
+	for _, c := range table.Schema() {
+		require.Equal(commitsTableName, c.Source)
+	}
 }
 
 func TestCommitsTable_Children(t *testing.T) {

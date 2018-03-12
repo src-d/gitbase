@@ -25,9 +25,9 @@ func (referencesTable) Name() string {
 
 func (referencesTable) Schema() sql.Schema {
 	return sql.Schema{
-		{Name: "repository_id", Type: sql.Text, Nullable: false},
-		{Name: "name", Type: sql.Text, Nullable: false},
-		{Name: "hash", Type: sql.Text, Nullable: false},
+		{Name: "repository_id", Type: sql.Text, Nullable: false, Source: referencesTableName},
+		{Name: "name", Type: sql.Text, Nullable: false, Source: referencesTableName},
+		{Name: "hash", Type: sql.Text, Nullable: false, Source: referencesTableName},
 	}
 }
 
