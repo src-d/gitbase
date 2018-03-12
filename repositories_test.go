@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
 func TestRepositoriesTable_Name(t *testing.T) {
@@ -68,4 +69,43 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 		err := schema.CheckRow(row)
 		require.Nil(err, "row %d doesn't conform to schema", idx)
 	}
+}
+
+func TestRepositoriesPushdown(t *testing.T) {
+	require := require.New(t)
+	session, path, cleanup := setup(t)
+	defer cleanup()
+
+	table := newRepositoriesTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
+
+	iter, err := table.WithProjectAndFilters(session, nil, nil)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 1)
+
+	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+		expression.NewEquals(
+			expression.NewGetField(0, sql.Text, "id", false),
+			expression.NewLiteral("foo", sql.Text),
+		),
+	})
+	require.NoError(err)
+
+	rows, err = sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 0)
+
+	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+		expression.NewEquals(
+			expression.NewGetField(0, sql.Text, "id", false),
+			expression.NewLiteral(path, sql.Text),
+		),
+	})
+	require.NoError(err)
+
+	rows, err = sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 1)
 }

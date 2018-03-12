@@ -13,6 +13,8 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
+	t.Skipf("waiting for a fix in go-mysql-server")
+
 	engine := sqle.New()
 	require.NoError(t, fixtures.Init())
 	defer func() {

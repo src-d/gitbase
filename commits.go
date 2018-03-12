@@ -1,14 +1,30 @@
 package gitquery
 
 import (
+	"io"
+
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type commitsTable struct {
 	pool *RepositoryPool
 }
+
+var commitsSchema = sql.Schema{
+	{Name: "hash", Type: sql.Text, Nullable: false, Source: commitsTableName},
+	{Name: "author_name", Type: sql.Text, Nullable: false, Source: commitsTableName},
+	{Name: "author_email", Type: sql.Text, Nullable: false, Source: commitsTableName},
+	{Name: "author_when", Type: sql.Timestamp, Nullable: false, Source: commitsTableName},
+	{Name: "committer_name", Type: sql.Text, Nullable: false, Source: commitsTableName},
+	{Name: "committer_email", Type: sql.Text, Nullable: false, Source: commitsTableName},
+	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: commitsTableName},
+	{Name: "message", Type: sql.Text, Nullable: false, Source: commitsTableName},
+}
+
+var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
 
 func newCommitsTable(pool *RepositoryPool) sql.Table {
 	return &commitsTable{pool: pool}
@@ -23,16 +39,7 @@ func (commitsTable) Name() string {
 }
 
 func (commitsTable) Schema() sql.Schema {
-	return sql.Schema{
-		{Name: "hash", Type: sql.Text, Nullable: false, Source: commitsTableName},
-		{Name: "author_name", Type: sql.Text, Nullable: false, Source: commitsTableName},
-		{Name: "author_email", Type: sql.Text, Nullable: false, Source: commitsTableName},
-		{Name: "author_when", Type: sql.Timestamp, Nullable: false, Source: commitsTableName},
-		{Name: "committer_name", Type: sql.Text, Nullable: false, Source: commitsTableName},
-		{Name: "committer_email", Type: sql.Text, Nullable: false, Source: commitsTableName},
-		{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: commitsTableName},
-		{Name: "message", Type: sql.Text, Nullable: false, Source: commitsTableName},
-	}
+	return commitsSchema
 }
 
 func (r *commitsTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
@@ -44,7 +51,7 @@ func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expres
 }
 
 func (r commitsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
-	iter := &commitIter{}
+	iter := new(commitIter)
 
 	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
@@ -55,7 +62,33 @@ func (r commitsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 }
 
 func (commitsTable) Children() []sql.Node {
-	return []sql.Node{}
+	return nil
+}
+
+func (commitsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
+	return handledFilters(commitsTableName, commitsSchema, filters)
+}
+
+func (r *commitsTable) WithProjectAndFilters(
+	session sql.Session,
+	_, filters []sql.Expression,
+) (sql.RowIter, error) {
+	return rowIterWithSelectors(
+		session, r.pool, commitsSchema, commitsTableName, filters,
+		[]string{"hash"},
+		func(selectors selectors) (RowRepoIter, error) {
+			if len(selectors["hash"]) == 0 {
+				return new(commitIter), nil
+			}
+
+			hashes, err := selectors.textValues("hash")
+			if err != nil {
+				return nil, err
+			}
+
+			return &commitsByHashIter{hashes: hashes}, nil
+		},
+	)
 }
 
 type commitIter struct {
@@ -85,6 +118,41 @@ func (i *commitIter) Close() error {
 		i.iter.Close()
 	}
 
+	return nil
+}
+
+type commitsByHashIter struct {
+	repo   *Repository
+	pos    int
+	hashes []string
+}
+
+func (i *commitsByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
+	return &commitsByHashIter{repo, 0, i.hashes}, nil
+}
+
+func (i *commitsByHashIter) Next() (sql.Row, error) {
+	for {
+		if i.pos >= len(i.hashes) {
+			return nil, io.EOF
+		}
+
+		hash := plumbing.NewHash(i.hashes[i.pos])
+		i.pos++
+		commit, err := i.repo.Repo.CommitObject(hash)
+		if err == plumbing.ErrObjectNotFound {
+			continue
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		return commitToRow(commit), nil
+	}
+}
+
+func (i *commitsByHashIter) Close() error {
 	return nil
 }
 

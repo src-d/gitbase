@@ -29,10 +29,7 @@ func NewSessionBuilder(pool *RepositoryPool) server.SessionBuilder {
 		return NewSession(ctx, pool)
 	}
 }
-<<<<<<< HEAD
 
 // ErrInvalidGitQuerySession is returned when some node expected a GitQuery
 // session but received something else.
 var ErrInvalidGitQuerySession = errors.NewKind("expecting gitquery session, but received: %T")
-=======
->>>>>>> gitquery: implement session
