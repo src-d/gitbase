@@ -91,6 +91,25 @@ func TestIntegration(t *testing.T) {
 			GROUP BY first_commit_year`,
 			[]sql.Row{{int32(1), int32(2015)}},
 		},
+		{
+			`SELECT COUNT(*) as num_commits, month, repo_id, committer_email
+			FROM (
+				SELECT
+					MONTH(committer_when) as month,
+					r.id as repo_id,
+					committer_email
+				FROM repositories r
+				INNER JOIN refs ON refs.repository_id = r.id AND refs.name = 'refs/heads/master'
+				INNER JOIN commits c ON history_idx(refs.hash, c.hash) >= 0
+				WHERE YEAR(committer_when) = 2015
+			) as t
+			GROUP BY committer_email, month, repo_id`,
+			[]sql.Row{
+				{int32(6), int32(3), path, "mcuadros@gmail.com"},
+				{int32(1), int32(4), path, "mcuadros@gmail.com"},
+				{int32(1), int32(3), path, "daniel@lordran.local"},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
