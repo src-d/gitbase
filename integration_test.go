@@ -76,6 +76,21 @@ func TestIntegration(t *testing.T) {
 				{"b029517f6300c2da0f4b651b8642506cd6aaf45d"},
 			},
 		},
+		{
+			`SELECT COUNT(first_commit_year), first_commit_year
+			FROM (
+				SELECT YEAR(c.author_when) AS first_commit_year
+				FROM repositories r
+				INNER JOIN refs 
+					ON r.id = refs.repository_id
+				INNER JOIN commits c 
+					ON history_idx(refs.hash, c.hash) >= 0
+				ORDER BY c.author_when 
+				LIMIT 1
+			) repo_years
+			GROUP BY first_commit_year`,
+			[]sql.Row{{int32(1), int32(2015)}},
+		},
 	}
 
 	for _, tt := range testCases {
