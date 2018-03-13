@@ -9,27 +9,27 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
-// CommitContains is a function that checks whether a blob is in a commit.
-type CommitContains struct {
+// CommitHasBlob is a function that checks whether a blob is in a commit.
+type CommitHasBlob struct {
 	commitHash sql.Expression
 	blob       sql.Expression
 }
 
-// NewCommitContains creates a new commit_contains function.
-func NewCommitContains(commitHash, blob sql.Expression) sql.Expression {
-	return &CommitContains{
+// NewCommitHasBlob creates a new commit_has_blob function.
+func NewCommitHasBlob(commitHash, blob sql.Expression) sql.Expression {
+	return &CommitHasBlob{
 		commitHash: commitHash,
 		blob:       blob,
 	}
 }
 
 // Type implements the Expression interface.
-func (CommitContains) Type() sql.Type {
+func (CommitHasBlob) Type() sql.Type {
 	return sql.Boolean
 }
 
 // Eval implements the Expression interface.
-func (f *CommitContains) Eval(session sql.Session, row sql.Row) (interface{}, error) {
+func (f *CommitHasBlob) Eval(session sql.Session, row sql.Row) (interface{}, error) {
 	s, ok := session.(*gitquery.Session)
 	if !ok {
 		return nil, gitquery.ErrInvalidGitQuerySession.New(session)
@@ -63,14 +63,14 @@ func (f *CommitContains) Eval(session sql.Session, row sql.Row) (interface{}, er
 		return nil, err
 	}
 
-	return f.commitContains(
+	return f.commitHasBlob(
 		s.Pool,
 		plumbing.NewHash(commitHash.(string)),
 		plumbing.NewHash(blob.(string)),
 	)
 }
 
-func (f *CommitContains) commitContains(
+func (f *CommitHasBlob) commitHasBlob(
 	pool *gitquery.RepositoryPool,
 	commitHash, blob plumbing.Hash,
 ) (bool, error) {
@@ -135,22 +135,22 @@ func hashInTree(hash plumbing.Hash, tree *object.Tree) (bool, error) {
 }
 
 // Name implements the Expression interface.
-func (CommitContains) Name() string {
-	return "commit_contains"
+func (CommitHasBlob) Name() string {
+	return "commit_has_blob"
 }
 
 // IsNullable implements the Expression interface.
-func (f CommitContains) IsNullable() bool {
+func (f CommitHasBlob) IsNullable() bool {
 	return f.commitHash.IsNullable() || f.blob.IsNullable()
 }
 
 // Resolved implements the Expression interface.
-func (f CommitContains) Resolved() bool {
+func (f CommitHasBlob) Resolved() bool {
 	return f.commitHash.Resolved() && f.blob.Resolved()
 }
 
 // TransformUp implements the Expression interface.
-func (f CommitContains) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+func (f CommitHasBlob) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
 	commitHash, err := f.commitHash.TransformUp(fn)
 	if err != nil {
 		return nil, err
@@ -161,5 +161,5 @@ func (f CommitContains) TransformUp(fn func(sql.Expression) (sql.Expression, err
 		return nil, err
 	}
 
-	return fn(NewCommitContains(commitHash, blob))
+	return fn(NewCommitHasBlob(commitHash, blob))
 }
