@@ -27,7 +27,7 @@ func TestRepositoriesTable_Children(t *testing.T) {
 
 	f := fixtures.Basic().One()
 	table := getTable(require, f, repositoriesTableName)
-	require.Equal(0, len(table.Children()))
+	require.Equal(1, len(table.Children()))
 }
 
 func TestRepositoriesTable_RowIter(t *testing.T) {

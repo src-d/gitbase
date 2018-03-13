@@ -15,7 +15,8 @@ install:
   - make dependencies
 
 script:
-  - make test-coverage codecov
+  - make test-coverage
+  - make codecov
 
 before_deploy:
   - make packages
