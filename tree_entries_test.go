@@ -16,6 +16,11 @@ func TestTreeEntriesTable_Name(t *testing.T) {
 	f := fixtures.Basic().One()
 	table := getTable(require, f, treeEntriesTableName)
 	require.Equal(treeEntriesTableName, table.Name())
+
+	// Check that each column source is the same as table name
+	for _, c := range table.Schema() {
+		require.Equal(treeEntriesTableName, c.Source)
+	}
 }
 
 func TestTreeEntriesTable_Children(t *testing.T) {
