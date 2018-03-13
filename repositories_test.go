@@ -15,6 +15,11 @@ func TestRepositoriesTable_Name(t *testing.T) {
 	f := fixtures.Basic().One()
 	table := getTable(require, f, repositoriesTableName)
 	require.Equal(repositoriesTableName, table.Name())
+
+	// Check that each column source is the same as table name
+	for _, c := range table.Schema() {
+		require.Equal(repositoriesTableName, c.Source)
+	}
 }
 
 func TestRepositoriesTable_Children(t *testing.T) {
