@@ -55,6 +55,7 @@ func (referencesTable) Children() []sql.Node {
 }
 
 type referenceIter struct {
+	head         *plumbing.Reference
 	repositoryID string
 	iter         storer.ReferenceIter
 }
@@ -65,7 +66,13 @@ func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		return nil, err
 	}
 
+	head, err := repo.Repo.Head()
+	if err != nil {
+		return nil, err
+	}
+
 	return &referenceIter{
+		head:         head,
 		repositoryID: repo.ID,
 		iter:         iter,
 	}, nil
@@ -78,6 +85,16 @@ func (i *referenceIter) Next() (sql.Row, error) {
 	)
 
 	for {
+		if i.head != nil {
+			o = i.head
+			i.head = nil
+			return sql.NewRow(
+				i.repositoryID,
+				"HEAD",
+				o.Hash().String(),
+			), nil
+		}
+
 		o, err = i.iter.Next()
 		if err != nil {
 			return nil, err
