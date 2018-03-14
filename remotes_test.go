@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git-fixtures.v3"
@@ -88,4 +89,43 @@ func TestRemotesTable_RowIter(t *testing.T) {
 			require.Equal("origin", row[1])
 		}
 	}
+}
+
+func TestRemotesPushdown(t *testing.T) {
+	require := require.New(t)
+	session, _, cleanup := setup(t)
+	defer cleanup()
+
+	table := newRemotesTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
+
+	iter, err := table.WithProjectAndFilters(session, nil, nil)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 1)
+
+	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+		expression.NewEquals(
+			expression.NewGetField(1, sql.Text, "name", false),
+			expression.NewLiteral("foo", sql.Text),
+		),
+	})
+	require.NoError(err)
+
+	rows, err = sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 0)
+
+	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+		expression.NewEquals(
+			expression.NewGetField(1, sql.Text, "name", false),
+			expression.NewLiteral("origin", sql.Text),
+		),
+	})
+	require.NoError(err)
+
+	rows, err = sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 1)
 }

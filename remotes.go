@@ -12,6 +12,17 @@ type remotesTable struct {
 	pool *RepositoryPool
 }
 
+var remotesSchema = sql.Schema{
+	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: remotesTableName},
+	{Name: "name", Type: sql.Text, Nullable: false, Source: remotesTableName},
+	{Name: "push_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
+	{Name: "fetch_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
+	{Name: "push_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
+	{Name: "fetch_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
+}
+
+var _ sql.PushdownProjectionAndFiltersTable = (*remotesTable)(nil)
+
 func newRemotesTable(pool *RepositoryPool) sql.Table {
 	return &remotesTable{pool: pool}
 }
@@ -25,14 +36,7 @@ func (remotesTable) Name() string {
 }
 
 func (remotesTable) Schema() sql.Schema {
-	return sql.Schema{
-		{Name: "repository_id", Type: sql.Text, Nullable: false, Source: remotesTableName},
-		{Name: "name", Type: sql.Text, Nullable: false, Source: remotesTableName},
-		{Name: "push_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
-		{Name: "fetch_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
-		{Name: "push_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
-		{Name: "fetch_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
-	}
+	return remotesSchema
 }
 
 func (r *remotesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
@@ -44,7 +48,7 @@ func (r *remotesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expres
 }
 
 func (r remotesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
-	iter := &remotesIter{}
+	iter := new(remotesIter)
 
 	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
@@ -55,7 +59,24 @@ func (r remotesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 }
 
 func (remotesTable) Children() []sql.Node {
-	return []sql.Node{}
+	return nil
+}
+
+func (remotesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
+	return handledFilters(remotesTableName, remotesSchema, filters)
+}
+
+func (r *remotesTable) WithProjectAndFilters(
+	session sql.Session,
+	_, filters []sql.Expression,
+) (sql.RowIter, error) {
+	return rowIterWithSelectors(
+		session, r.pool, remotesSchema, remotesTableName, filters, nil,
+		func(selectors) (RowRepoIter, error) {
+			// it's not worth to manually filter with the selectors
+			return new(remotesIter), nil
+		},
+	)
 }
 
 type remotesIter struct {

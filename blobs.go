@@ -1,14 +1,24 @@
 package gitquery
 
 import (
+	"io"
+
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 type blobsTable struct {
 	pool *RepositoryPool
 }
+
+var blobsSchema = sql.Schema{
+	{Name: "hash", Type: sql.Text, Nullable: false, Source: blobsTableName},
+	{Name: "size", Type: sql.Int64, Nullable: false, Source: blobsTableName},
+}
+
+var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
 
 func newBlobsTable(pool *RepositoryPool) sql.Table {
 	return &blobsTable{pool: pool}
@@ -23,10 +33,7 @@ func (blobsTable) Name() string {
 }
 
 func (blobsTable) Schema() sql.Schema {
-	return sql.Schema{
-		{Name: "hash", Type: sql.Text, Nullable: false, Source: blobsTableName},
-		{Name: "size", Type: sql.Int64, Nullable: false, Source: blobsTableName},
-	}
+	return blobsSchema
 }
 
 func (r *blobsTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
@@ -38,7 +45,7 @@ func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expressi
 }
 
 func (r blobsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
-	iter := &blobIter{}
+	iter := new(blobIter)
 
 	repoIter, err := NewRowRepoIter(r.pool, iter)
 	if err != nil {
@@ -49,7 +56,33 @@ func (r blobsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 }
 
 func (blobsTable) Children() []sql.Node {
-	return []sql.Node{}
+	return nil
+}
+
+func (blobsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
+	return handledFilters(blobsTableName, blobsSchema, filters)
+}
+
+func (r *blobsTable) WithProjectAndFilters(
+	session sql.Session,
+	_, filters []sql.Expression,
+) (sql.RowIter, error) {
+	return rowIterWithSelectors(
+		session, r.pool, blobsSchema, blobsTableName, filters,
+		[]string{"hash"},
+		func(selectors selectors) (RowRepoIter, error) {
+			if len(selectors["hash"]) == 0 {
+				return new(blobIter), nil
+			}
+
+			hashes, err := selectors.textValues("hash")
+			if err != nil {
+				return nil, err
+			}
+
+			return &blobsByHashIter{hashes: hashes}, nil
+		},
+	)
 }
 
 type blobIter struct {
@@ -79,6 +112,41 @@ func (i *blobIter) Close() error {
 		i.iter.Close()
 	}
 
+	return nil
+}
+
+type blobsByHashIter struct {
+	repo   *Repository
+	pos    int
+	hashes []string
+}
+
+func (i *blobsByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
+	return &blobsByHashIter{repo, 0, i.hashes}, nil
+}
+
+func (i *blobsByHashIter) Next() (sql.Row, error) {
+	for {
+		if i.pos >= len(i.hashes) {
+			return nil, io.EOF
+		}
+
+		hash := plumbing.NewHash(i.hashes[i.pos])
+		i.pos++
+		blob, err := i.repo.Repo.BlobObject(hash)
+		if err == plumbing.ErrObjectNotFound {
+			continue
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		return blobToRow(blob), nil
+	}
+}
+
+func (i *blobsByHashIter) Close() error {
 	return nil
 }
 

@@ -10,6 +10,12 @@ type repositoriesTable struct {
 	pool *RepositoryPool
 }
 
+var repositoriesSchema = sql.Schema{
+	{Name: "id", Type: sql.Text, Nullable: false, Source: repositoriesTableName},
+}
+
+var _ sql.PushdownProjectionAndFiltersTable = (*repositoriesTable)(nil)
+
 func newRepositoriesTable(pool *RepositoryPool) sql.Table {
 	return &repositoriesTable{pool: pool}
 }
@@ -23,9 +29,7 @@ func (repositoriesTable) Name() string {
 }
 
 func (repositoriesTable) Schema() sql.Schema {
-	return sql.Schema{
-		{Name: "id", Type: sql.Text, Nullable: false, Source: repositoriesTableName},
-	}
+	return repositoriesSchema
 }
 
 func (r *repositoriesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
@@ -49,6 +53,23 @@ func (r repositoriesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
 
 func (repositoriesTable) Children() []sql.Node {
 	return nil
+}
+
+func (repositoriesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
+	return handledFilters(repositoriesTableName, repositoriesSchema, filters)
+}
+
+func (r *repositoriesTable) WithProjectAndFilters(
+	session sql.Session,
+	_, filters []sql.Expression,
+) (sql.RowIter, error) {
+	return rowIterWithSelectors(
+		session, r.pool, repositoriesSchema, repositoriesTableName, filters, nil,
+		func(selectors) (RowRepoIter, error) {
+			// it's not worth to manually filter with the selectors
+			return new(repositoriesIter), nil
+		},
+	)
 }
 
 type repositoriesIter struct {
