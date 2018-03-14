@@ -38,7 +38,7 @@ func TestIntegration(t *testing.T) {
 				ON history_idx(r.hash, c.hash) >= 0
 			INNER JOIN blobs b
 				ON commit_contains(c.hash, b.hash)
-			WHERE r.name = 'refs/heads/master'
+			WHERE r.name = 'HEAD'
 			GROUP BY c.hash`,
 			[]sql.Row{
 				{int32(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
@@ -49,6 +49,15 @@ func TestIntegration(t *testing.T) {
 				{int32(6), "af2d6a6954d532f8ffb47615169c8fdf9d383a1a"},
 				{int32(2), "b029517f6300c2da0f4b651b8642506cd6aaf45d"},
 				{int32(3), "b8e471f58bcbca63b07bda20e428190409c2db47"},
+			},
+		},
+		{
+			`SELECT name FROM refs ORDER BY name`,
+			[]sql.Row{
+				{"HEAD"},
+				{"refs/heads/master"},
+				{"refs/remotes/origin/branch"},
+				{"refs/remotes/origin/master"},
 			},
 		},
 	}

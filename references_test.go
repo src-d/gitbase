@@ -45,6 +45,7 @@ func TestReferencesTable_RowIter(t *testing.T) {
 	require.Nil(err)
 
 	expected := []sql.Row{
+		sql.NewRow("repo", "HEAD", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
 		sql.NewRow("repo", "refs/heads/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
 		sql.NewRow("repo", "refs/heads/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
 		sql.NewRow("repo", "refs/remotes/origin/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
