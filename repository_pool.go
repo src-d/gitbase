@@ -159,6 +159,7 @@ type RowRepoIter interface {
 type rowRepoIter struct {
 	repositoryIter *RepositoryIter
 	iter           RowRepoIter
+	session        *Session
 
 	wg    sync.WaitGroup
 	done  chan bool
@@ -169,17 +170,22 @@ type rowRepoIter struct {
 
 // NewRowRepoIter initializes a new repository iterator.
 //
-// * pool: is a RepositoryPool we want to iterate
+// * session: it should be a gitquery.Session
 // * iter: specific RowRepoIter interface
 //     * NewIterator: called when a new repository is about to be iterated,
 //         returns a new RowRepoIter
 //     * Next: called for each row
 //     * Close: called when a repository finished iterating
 func NewRowRepoIter(
-	pool *RepositoryPool,
+	session sql.Session,
 	iter RowRepoIter,
 ) (*rowRepoIter, error) {
-	rIter, err := pool.RepoIter()
+	s, ok := session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitQuerySession.New(session)
+	}
+
+	rIter, err := s.Pool.RepoIter()
 	if err != nil {
 		return nil, err
 	}
@@ -187,6 +193,7 @@ func NewRowRepoIter(
 	repoIter := rowRepoIter{
 		repositoryIter: rIter,
 		iter:           iter,
+		session:        s,
 		done:           make(chan bool),
 		err:            make(chan error),
 		repos:          make(chan *Repository),

@@ -10,7 +10,6 @@ import (
 )
 
 type commitsTable struct {
-	pool *RepositoryPool
 }
 
 var commitsSchema = sql.Schema{
@@ -27,8 +26,8 @@ var commitsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
 
-func newCommitsTable(pool *RepositoryPool) sql.Table {
-	return &commitsTable{pool: pool}
+func newCommitsTable() sql.Table {
+	return new(commitsTable)
 }
 
 func (commitsTable) String() string {
@@ -55,10 +54,10 @@ func (r *commitsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node
 	return r, nil
 }
 
-func (r commitsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
+func (r commitsTable) RowIter(session sql.Session) (sql.RowIter, error) {
 	iter := new(commitIter)
 
-	repoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(session, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +78,7 @@ func (r *commitsTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, r.pool, commitsSchema, commitsTableName, filters,
+		session, commitsSchema, commitsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 {

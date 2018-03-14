@@ -6,9 +6,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
-type repositoriesTable struct {
-	pool *RepositoryPool
-}
+type repositoriesTable struct{}
 
 var repositoriesSchema = sql.Schema{
 	{Name: "id", Type: sql.Text, Nullable: false, Source: repositoriesTableName},
@@ -16,8 +14,8 @@ var repositoriesSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*repositoriesTable)(nil)
 
-func newRepositoriesTable(pool *RepositoryPool) sql.Table {
-	return &repositoriesTable{pool: pool}
+func newRepositoriesTable() sql.Table {
+	return new(repositoriesTable)
 }
 
 func (repositoriesTable) Resolved() bool {
@@ -44,10 +42,10 @@ func (r *repositoriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql
 	return r, nil
 }
 
-func (r repositoriesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
+func (r repositoriesTable) RowIter(session sql.Session) (sql.RowIter, error) {
 	iter := &repositoriesIter{}
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	rowRepoIter, err := NewRowRepoIter(session, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +66,7 @@ func (r *repositoriesTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, r.pool, repositoriesSchema, repositoriesTableName, filters, nil,
+		session, repositoriesSchema, repositoriesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(repositoriesIter), nil

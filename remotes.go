@@ -8,9 +8,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
-type remotesTable struct {
-	pool *RepositoryPool
-}
+type remotesTable struct{}
 
 var remotesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: remotesTableName},
@@ -23,8 +21,8 @@ var remotesSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*remotesTable)(nil)
 
-func newRemotesTable(pool *RepositoryPool) sql.Table {
-	return &remotesTable{pool: pool}
+func newRemotesTable() sql.Table {
+	return new(remotesTable)
 }
 
 func (remotesTable) Resolved() bool {
@@ -51,10 +49,10 @@ func (r *remotesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node
 	return r, nil
 }
 
-func (r remotesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
+func (r remotesTable) RowIter(session sql.Session) (sql.RowIter, error) {
 	iter := new(remotesIter)
 
-	rowRepoIter, err := NewRowRepoIter(r.pool, iter)
+	rowRepoIter, err := NewRowRepoIter(session, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +73,7 @@ func (r *remotesTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, r.pool, remotesSchema, remotesTableName, filters, nil,
+		session, remotesSchema, remotesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(remotesIter), nil

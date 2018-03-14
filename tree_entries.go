@@ -10,9 +10,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
-type treeEntriesTable struct {
-	pool *RepositoryPool
-}
+type treeEntriesTable struct{}
 
 var treeEntriesSchema = sql.Schema{
 	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: treeEntriesTableName},
@@ -23,8 +21,8 @@ var treeEntriesSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*treeEntriesTable)(nil)
 
-func newTreeEntriesTable(pool *RepositoryPool) sql.Table {
-	return &treeEntriesTable{pool: pool}
+func newTreeEntriesTable() sql.Table {
+	return new(treeEntriesTable)
 }
 
 func (treeEntriesTable) Resolved() bool {
@@ -47,10 +45,10 @@ func (r *treeEntriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.
 	return r, nil
 }
 
-func (r treeEntriesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
+func (r treeEntriesTable) RowIter(session sql.Session) (sql.RowIter, error) {
 	iter := new(treeEntryIter)
 
-	repoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(session, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +72,7 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	// projected. There would be no need to iterate files in this case, and
 	// it would be much faster.
 	return rowIterWithSelectors(
-		session, r.pool, treeEntriesSchema, treeEntriesTableName, filters,
+		session, treeEntriesSchema, treeEntriesTableName, filters,
 		[]string{"tree_hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["tree_hash"]) == 0 {

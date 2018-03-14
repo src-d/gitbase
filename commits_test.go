@@ -1,21 +1,17 @@
 package gitquery
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-
-	"gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestCommitsTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, commitsTableName)
+	table := getTable(require, commitsTableName)
 	require.Equal(commitsTableName, table.Name())
 
 	// Check that each column source is the same as table name
@@ -27,18 +23,18 @@ func TestCommitsTable_Name(t *testing.T) {
 func TestCommitsTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, commitsTableName)
+	table := getTable(require, commitsTableName)
 	require.Equal(0, len(table.Children()))
 }
 
 func TestCommitsTable_RowIter(t *testing.T) {
 	require := require.New(t)
+	session, _, cleanup := setup(t)
+	defer cleanup()
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, commitsTableName)
+	table := getTable(require, commitsTableName)
 
-	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
+	rows, err := sql.NodeToRows(session, table)
 	require.Nil(err)
 	require.Len(rows, 9)
 
@@ -54,7 +50,7 @@ func TestCommitsPushdown(t *testing.T) {
 	session, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newCommitsTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
+	table := newCommitsTable().(sql.PushdownProjectionAndFiltersTable)
 
 	iter, err := table.WithProjectAndFilters(session, nil, nil)
 	require.NoError(err)

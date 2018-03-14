@@ -22,7 +22,7 @@ func setup(t *testing.T) (sess *Session, path string, cleanup CleanupFunc) {
 	pool.AddGit(path)
 
 	engine := sqle.New()
-	engine.AddDatabase(NewDatabase("db", &pool))
+	engine.AddDatabase(NewDatabase("db"))
 
 	cleanup = func() {
 		t.Helper()

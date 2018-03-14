@@ -322,7 +322,6 @@ func unfoldOrs(or *expression.Or) []sql.Expression {
 //   )
 func rowIterWithSelectors(
 	session sql.Session,
-	pool *RepositoryPool,
 	schema sql.Schema,
 	tableName string,
 	filters []sql.Expression,
@@ -339,7 +338,12 @@ func rowIterWithSelectors(
 		return nil, err
 	}
 
-	iter, err := NewRowRepoIter(pool, rowRepoIter)
+	s, ok := session.(*Session)
+	if !ok {
+		return nil, ErrInvalidGitQuerySession.New(session)
+	}
+
+	iter, err := NewRowRepoIter(s, rowRepoIter)
 	if err != nil {
 		return nil, err
 	}

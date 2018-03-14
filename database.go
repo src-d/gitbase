@@ -27,15 +27,15 @@ type Database struct {
 
 // NewDatabase creates a new Database structure and initializes its
 // tables with the given pool
-func NewDatabase(name string, pool *RepositoryPool) sql.Database {
+func NewDatabase(name string) sql.Database {
 	return &Database{
 		name:         name,
-		commits:      newCommitsTable(pool),
-		references:   newReferencesTable(pool),
-		blobs:        newBlobsTable(pool),
-		treeEntries:  newTreeEntriesTable(pool),
-		repositories: newRepositoriesTable(pool),
-		remotes:      newRemotesTable(pool),
+		commits:      newCommitsTable(),
+		references:   newReferencesTable(),
+		blobs:        newBlobsTable(),
+		treeEntries:  newTreeEntriesTable(),
+		repositories: newRepositoriesTable(),
+		remotes:      newRemotesTable(),
 	}
 }
 
