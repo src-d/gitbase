@@ -2,6 +2,7 @@ package gitquery
 
 import (
 	"io"
+	"io/ioutil"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
@@ -16,6 +17,7 @@ type blobsTable struct {
 var blobsSchema = sql.Schema{
 	{Name: "hash", Type: sql.Text, Nullable: false, Source: blobsTableName},
 	{Name: "size", Type: sql.Int64, Nullable: false, Source: blobsTableName},
+	{Name: "content", Type: sql.Blob, Nullable: false, Source: blobsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
@@ -104,7 +106,7 @@ func (i *blobIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	return blobToRow(o), nil
+	return blobToRow(o)
 }
 
 func (i *blobIter) Close() error {
@@ -142,7 +144,7 @@ func (i *blobsByHashIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		return blobToRow(blob), nil
+		return blobToRow(blob)
 	}
 }
 
@@ -150,9 +152,20 @@ func (i *blobsByHashIter) Close() error {
 	return nil
 }
 
-func blobToRow(c *object.Blob) sql.Row {
+func blobToRow(c *object.Blob) (sql.Row, error) {
+	r, err := c.Reader()
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
 	return sql.NewRow(
 		c.Hash.String(),
 		c.Size,
-	)
+		content,
+	), nil
 }
