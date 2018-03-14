@@ -11,13 +11,13 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
-func TestCommitContains(t *testing.T) {
+func TestCommitHasBlob(t *testing.T) {
 	require.NoError(t, fixtures.Init())
 	defer func() {
 		require.NoError(t, fixtures.Clean())
 	}()
 
-	f := NewCommitContains(
+	f := NewCommitHasBlob(
 		expression.NewGetField(0, sql.Text, "commit_hash", true),
 		expression.NewGetField(1, sql.Text, "blob", true),
 	)
