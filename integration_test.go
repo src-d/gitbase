@@ -110,6 +110,25 @@ func TestIntegration(t *testing.T) {
 				{int32(1), int32(3), path, "daniel@lordran.local"},
 			},
 		},
+		{
+			`SELECT * FROM (
+				SELECT COUNT(c.hash) AS num, c.hash
+				FROM refs r
+				INNER JOIN commits c
+					ON history_idx(r.hash, c.hash) >= 0
+				GROUP BY c.hash
+			) t WHERE num > 1`,
+			[]sql.Row{
+				{int32(3), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
+				{int32(4), "918c48b83bd081e863dbe1b80f8998f058cd8294"},
+				{int32(4), "af2d6a6954d532f8ffb47615169c8fdf9d383a1a"},
+				{int32(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
+				{int32(4), "a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69"},
+				{int32(4), "b8e471f58bcbca63b07bda20e428190409c2db47"},
+				{int32(4), "35e85108805c84807bc66a02d91535e1e24b38b9"},
+				{int32(4), "b029517f6300c2da0f4b651b8642506cd6aaf45d"},
+			},
+		},
 	}
 
 	for _, tt := range testCases {
