@@ -1,11 +1,10 @@
 # GitQuery <a href="https://travis-ci.org/src-d/gitquery"><img alt="Build Status" src="https://travis-ci.org/src-d/gitquery.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitquery"><img alt="codecov" src="https://codecov.io/gh/src-d/gitquery/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitquery.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitquery.v0?status.svg" /></a>
 
-<div style="text-align:center"><img src ="assets/tty.gif"/></div>
+See a set of repositories as a standard database.
 
 ## Installation
 
-Check the [Releases](https://github.com/src-d/gitquery/releases) page to download
-the gitquery binary.
+Check the [Releases](https://github.com/src-d/gitquery/releases) page to download the gitquery binary.
 
 ## Usage
 
@@ -24,7 +23,7 @@ Available commands:
 A MySQL client is needed to connect to the server. For example:
 
 ```bash
-$ mysql -u root -h 127.0.0.1
+$ mysql -q -u root -h 127.0.0.1
 MySQL [(none)]> SELECT hash, author_email, author_name FROM commits LIMIT 2;
 SELECT hash, author_email, author_name FROM commits LIMIT 2;
 +------------------------------------------+---------------------+-----------------------+
@@ -38,26 +37,79 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 
 ## Tables
 
+You can execute the `SHOW TABLES` statement to get a list of the available tables.
+To get all the columns and types of a specific table, you can write `DESCRIBE TABLE [tablename]`.
+
 gitquery exposes the following tables:
 
 |     Name     |                                               Columns                                               |
 |:------------:|:---------------------------------------------------------------------------------------------------:|
-|    commits   | hash, author_name, author_email, author_time, comitter_name, comitter_email, comitter_time, message |
-|     blobs    | hash, size                                                                                          |
-|  refs        | name, type, hash, target, is_branch, is_note, is_remote, is_tag                                     |
-|     tags     | hash, name, tagger_email, tagger_name, tagger_when, message, target                                 |
+| repositories |id                                                                                                   |
+| remotes      |repository_id, name, push_url,fetch_url,push_refspec,fetch_refspec                                   | 
+|    commits   | hash, author_name, author_email, author_when, comitter_name, comitter_email, comitter_when, message, tree_hash |
+|     blobs    | hash, size, content                                                                                 |
+|  refs        | repository_id, name, hash                                                                           |
 | tree_entries | tree_hash, entry_hash, mode, name                                                                   |
 
-## SQL syntax
+## Functions
 
-We are continuously adding more functionality to gitquery. We support a subset of the SQL standard, currently including:
+To make some common tasks easier for the user, there are some functions to interact with the previous mentioned tables:
 
-|                        |                                     Supported                                     |
-|:----------------------:|:---------------------------------------------------------------------------------:|
-| Comparison expressions |                                !=, ==, >, <, >=,<=                                |
-|  Grouping expressions  |                                    COUNT, FIRST                                   |
-|  Standard expressions  |                              ALIAS, LITERAL, STAR (*)                             |
-|       Statements       | CROSS JOIN, DESCRIBE, FILTER (WHERE), GROUP BY, LIMIT, SELECT, SHOW TABLES, SORT  |
+|     Name     |                                               Description                                           |
+|:------------:|:---------------------------------------------------------------------------------------------------:|
+|commit_has_blob(commit_hash,blob_hash)bool| get if the specified commit contains the specified blob                 |
+|history_idx(start_hash, target_hash)int| get the index of a commit in the history of another commit                 |
+|is_remote(reference_name)bool| check if the given reference name is from a remote one                               |
+|is_tag(reference_name)bool| check if the given reference name is a tag                                              |
+
+## Examples
+
+### Get all the HEAD references from all the repositories
+```sql
+SELECT * FROM refs WHERE name = 'HEAD'
+
+```
+
+### Commits that appears in more than one reference
+
+```sql
+SELECT * FROM (
+				SELECT COUNT(c.hash) AS num, c.hash
+				FROM refs r
+				INNER JOIN commits c
+					ON history_idx(r.hash, c.hash) >= 0
+				GROUP BY c.hash
+			) t WHERE num > 1
+```
+
+###  Get the number of blobs per HEAD commit
+```sql
+SELECT COUNT(c.hash), c.hash
+			FROM refs r
+			INNER JOIN commits c
+				ON history_idx(r.hash, c.hash) >= 0
+			INNER JOIN blobs b
+				ON commit_has_blob(c.hash, b.hash)
+			WHERE r.name = 'HEAD'
+			GROUP BY c.hash
+```
+
+### Get commits per commiter, per month in 2015
+
+```sql
+SELECT COUNT(*) as num_commits, month, repo_id, committer_email
+			FROM (
+				SELECT
+					MONTH(committer_when) as month,
+					r.id as repo_id,
+					committer_email
+				FROM repositories r
+				INNER JOIN refs ON refs.repository_id = r.id AND refs.name = 'HEAD'
+				INNER JOIN commits c ON history_idx(refs.hash, c.hash) >= 0
+				WHERE YEAR(committer_when) = 2015
+			) as t
+			GROUP BY committer_email, month, repo_id
+```
 
 ## License
 
