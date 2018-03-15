@@ -16,7 +16,7 @@ import (
 func TestRemotesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, remotesTableName)
 	require.Equal(remotesTableName, table.Name())
 
@@ -29,7 +29,7 @@ func TestRemotesTable_Name(t *testing.T) {
 func TestRemotesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, remotesTableName)
 	require.Equal(0, len(table.Children()))
 }
@@ -37,15 +37,15 @@ func TestRemotesTable_Children(t *testing.T) {
 func TestRemotesTable_RowIter(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, remotesTableName)
 
 	remotes, ok := table.(*remotesTable)
 	require.True(ok)
 
 	pool := remotes.pool
-	repository, ok := pool.GetPos(0)
-	require.True(ok)
+	repository, err := pool.GetPos(0)
+	require.Nil(err)
 
 	repo := repository.Repo
 
@@ -58,7 +58,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 		},
 	}
 
-	_, err := repo.CreateRemote(&config)
+	_, err = repo.CreateRemote(&config)
 	require.Nil(err)
 
 	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)

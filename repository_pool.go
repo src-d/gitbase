@@ -25,34 +25,53 @@ func NewRepository(id string, repo *git.Repository) Repository {
 	}
 }
 
-// RepositoryPool holds a pool of initialized git repositories and
+// NewRepositoryFromPath creates and initializes a new Repository structure
+// and initializes a go-git repository
+func NewRepositoryFromPath(id, path string) (Repository, error) {
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return Repository{}, err
+	}
+
+	return NewRepository(id, repo), nil
+}
+
+// RepositoryPool holds a pool git repository paths and
 // functionality to open and iterate them.
 type RepositoryPool struct {
-	repositories []Repository
+	repositories map[string]string
+	idOrder      []string
 }
 
 // NewRepositoryPool initializes a new RepositoryPool
 func NewRepositoryPool() RepositoryPool {
-	return RepositoryPool{}
+	return RepositoryPool{
+		repositories: make(map[string]string),
+	}
 }
 
 // Add inserts a new repository in the pool
-func (p *RepositoryPool) Add(id string, repo *git.Repository) {
-	repository := NewRepository(id, repo)
-	p.repositories = append(p.repositories, repository)
+func (p *RepositoryPool) Add(id, path string) {
+	_, ok := p.repositories[id]
+	if !ok {
+		p.idOrder = append(p.idOrder, id)
+	}
+
+	p.repositories[id] = path
 }
 
-// AddGit opens a new git repository and adds it to the pool. It
+// AddGit checks if a git repository can be opened and adds it to the pool. It
 // also sets its path as ID.
 func (p *RepositoryPool) AddGit(path string) (string, error) {
-	repo, err := git.PlainOpen(path)
+	_, err := git.PlainOpen(path)
 	if err != nil {
 		return "", err
 	}
 
-	p.Add(path, repo)
+	id := filepath.Base(path)
+	p.Add(id, path)
 
-	return path, nil
+	return id, nil
 }
 
 // AddDir adds all direct subdirectories from path as repos
@@ -65,26 +84,33 @@ func (p *RepositoryPool) AddDir(path string) error {
 	for _, f := range dirs {
 		if f.IsDir() {
 			name := filepath.Join(path, f.Name())
-			repo, err := git.PlainOpen(name)
-			if err != nil {
-				// TODO: log that the repo could not be opened
-			} else {
-				p.Add(f.Name(), repo)
-			}
+			// TODO: log that the repo could not be opened
+			p.AddGit(name)
 		}
 	}
 
 	return nil
 }
 
-// GetPos retrieves a repository at a given position. It returns false
-// as second return value if the position is out of bounds.
-func (p *RepositoryPool) GetPos(pos int) (*Repository, bool) {
+// GetPos retrieves a repository at a given position. If the position is
+// out of bounds it returns io.EOF
+func (p *RepositoryPool) GetPos(pos int) (*Repository, error) {
 	if pos >= len(p.repositories) {
-		return nil, false
+		return nil, io.EOF
 	}
 
-	return &p.repositories[pos], true
+	id := p.idOrder[pos]
+	if id == "" {
+		return nil, io.EOF
+	}
+
+	path := p.repositories[id]
+	repo, err := NewRepositoryFromPath(id, path)
+	if err != nil {
+		return nil, err
+	}
+
+	return &repo, nil
 }
 
 // RepoIter creates a new Repository iterator
@@ -106,9 +132,9 @@ type RepositoryIter struct {
 // Next retrieves the next Repository. It returns io.EOF as error
 // when there are no more Repositories to retrieve.
 func (i *RepositoryIter) Next() (*Repository, error) {
-	r, ok := i.pool.GetPos(i.pos)
-	if !ok {
-		return nil, io.EOF
+	r, err := i.pool.GetPos(i.pos)
+	if err != nil {
+		return nil, err
 	}
 
 	i.pos++

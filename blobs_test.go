@@ -14,7 +14,7 @@ import (
 func TestBlobsTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, blobsTableName)
 	require.Equal(blobsTableName, table.Name())
 
@@ -27,7 +27,7 @@ func TestBlobsTable_Name(t *testing.T) {
 func TestBlobsTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, blobsTableName)
 	require.Equal(0, len(table.Children()))
 }
@@ -35,7 +35,7 @@ func TestBlobsTable_Children(t *testing.T) {
 func TestBlobsTable_RowIter(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, blobsTableName)
 
 	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
