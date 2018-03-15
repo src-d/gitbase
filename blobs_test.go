@@ -49,6 +49,50 @@ func TestBlobsTable_RowIter(t *testing.T) {
 	}
 }
 
+func TestBlobsLimit(t *testing.T) {
+	require := require.New(t)
+	session, _, cleanup := setup(t)
+	defer cleanup()
+
+	prev := blobsMaxSize
+	blobsMaxSize = 200000
+	defer func() {
+		blobsMaxSize = prev
+	}()
+
+	table := newBlobsTable(session.Pool)
+	iter, err := table.RowIter(session)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+
+	expected := []struct {
+		hash  string
+		bytes int64
+		empty bool
+	}{
+		{"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88", 189, false},
+		{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", 18, false},
+		{"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", 1072, false},
+		{"7e59600739c96546163833214c36459e324bad0a", 9, false},
+		{"d5c0f4ab811897cadf03aec358ae60d21f91c50d", 76110, true}, // is binary
+		{"880cd14280f4b9b6ed3986d6671f907d7cc2a198", 2780, false},
+		{"49c6bb89b17060d7b4deacb7b338fcc6ea2352a9", 217848, true}, // exceeds threshold
+		{"c8f1d8c61f9da76f4cb49fd86322b6e685dba956", 706, false},
+		{"9a48f23120e880dfbe41f7c9b7b708e9ee62a492", 11488, false},
+		{"9dea2395f5403188298c1dabe8bdafe562c491e3", 78, false},
+	}
+
+	require.Len(rows, len(expected))
+	for i, row := range rows {
+		e := expected[i]
+		require.Equal(e.hash, row[0].(string))
+		require.Equal(e.bytes, row[1].(int64))
+		require.Equal(e.empty, len(row[2].([]byte)) == 0)
+	}
+}
+
 func TestBlobsPushdown(t *testing.T) {
 	require := require.New(t)
 	session, _, cleanup := setup(t)

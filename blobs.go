@@ -1,12 +1,28 @@
 package gitquery
 
 import (
+	"bufio"
 	"io"
+	"io/ioutil"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
+)
+
+const (
+	blobsMaxSizeKey     = "GITQUERY_BLOBS_MAX_SIZE"
+	blobsAllowBinaryKey = "GITQUERY_BLOBS_ALLOW_BINARY"
+
+	b   = 1
+	kib = 1024 * b
+	mib = 1024 * kib
+)
+
+var (
+	blobsAllowBinary = getBoolEnv(blobsAllowBinaryKey, false)
+	blobsMaxSize     = getIntEnv(blobsMaxSizeKey, 5) * mib
 )
 
 type blobsTable struct {
@@ -16,6 +32,7 @@ type blobsTable struct {
 var blobsSchema = sql.Schema{
 	{Name: "hash", Type: sql.Text, Nullable: false, Source: blobsTableName},
 	{Name: "size", Type: sql.Int64, Nullable: false, Source: blobsTableName},
+	{Name: "content", Type: sql.Blob, Nullable: false, Source: blobsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
@@ -104,7 +121,7 @@ func (i *blobIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	return blobToRow(o), nil
+	return blobToRow(o)
 }
 
 func (i *blobIter) Close() error {
@@ -142,7 +159,7 @@ func (i *blobsByHashIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		return blobToRow(blob), nil
+		return blobToRow(blob)
 	}
 }
 
@@ -150,9 +167,67 @@ func (i *blobsByHashIter) Close() error {
 	return nil
 }
 
-func blobToRow(c *object.Blob) sql.Row {
+func blobToRow(c *object.Blob) (sql.Row, error) {
+	var content []byte
+	var isAllowed = blobsAllowBinary
+	if !isAllowed {
+		ok, err := isBinary(c)
+		if err != nil {
+			return nil, err
+		}
+		isAllowed = !ok
+	}
+
+	if c.Size <= int64(blobsMaxSize) && isAllowed {
+		r, err := c.Reader()
+		if err != nil {
+			return nil, err
+		}
+
+		content, err = ioutil.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return sql.NewRow(
 		c.Hash.String(),
 		c.Size,
-	)
+		content,
+	), nil
+}
+
+const sniffLen = 8000
+
+// isBinary detects if data is a binary value based on:
+// http://git.kernel.org/cgit/git/git.git/tree/xdiff-interface.c?id=HEAD#n198
+func isBinary(blob *object.Blob) (bool, error) {
+	r, err := blob.Reader()
+	if err != nil {
+		return false, err
+	}
+
+	defer r.Close()
+
+	rd := bufio.NewReader(r)
+	var i int
+	for {
+		if i >= sniffLen {
+			return false, nil
+		}
+		i++
+
+		b, err := rd.ReadByte()
+		if err == io.EOF {
+			return false, nil
+		}
+
+		if err != nil {
+			return false, err
+		}
+
+		if b == 0 {
+			return true, nil
+		}
+	}
 }
