@@ -22,6 +22,7 @@ var commitsSchema = sql.Schema{
 	{Name: "committer_email", Type: sql.Text, Nullable: false, Source: commitsTableName},
 	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: commitsTableName},
 	{Name: "message", Type: sql.Text, Nullable: false, Source: commitsTableName},
+	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: commitsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
@@ -166,5 +167,6 @@ func commitToRow(c *object.Commit) sql.Row {
 		c.Committer.Email,
 		c.Committer.When,
 		c.Message,
+		c.TreeHash.String(),
 	)
 }
