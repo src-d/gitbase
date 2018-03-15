@@ -13,8 +13,6 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
-	t.Skipf("waiting for a fix in go-mysql-server")
-
 	engine := sqle.New()
 	require.NoError(t, fixtures.Init())
 	defer func() {
@@ -37,10 +35,9 @@ func TestIntegration(t *testing.T) {
 			`SELECT COUNT(c.hash), c.hash
 			FROM refs r
 			INNER JOIN commits c
-				ON history_idx(r.hash, c.hash) >= 0
+				ON r.name = 'HEAD' AND history_idx(r.hash, c.hash) >= 0
 			INNER JOIN blobs b
-				ON commit_contains(c.hash, b.hash)
-			WHERE r.name = 'HEAD'
+				ON commit_has_blob(c.hash, b.hash)
 			GROUP BY c.hash`,
 			[]sql.Row{
 				{int32(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
@@ -60,6 +57,23 @@ func TestIntegration(t *testing.T) {
 				{"refs/heads/master"},
 				{"refs/remotes/origin/branch"},
 				{"refs/remotes/origin/master"},
+			},
+		},
+		{
+			`SELECT c.hash
+			FROM refs 
+			INNER JOIN commits c 
+				ON refs.name = 'HEAD' 
+				AND history_idx(refs.hash, c.hash) >= 0`,
+			[]sql.Row{
+				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
+				{"918c48b83bd081e863dbe1b80f8998f058cd8294"},
+				{"af2d6a6954d532f8ffb47615169c8fdf9d383a1a"},
+				{"1669dce138d9b841a518c64b10914d88f5e488ea"},
+				{"a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69"},
+				{"b8e471f58bcbca63b07bda20e428190409c2db47"},
+				{"35e85108805c84807bc66a02d91535e1e24b38b9"},
+				{"b029517f6300c2da0f4b651b8642506cd6aaf45d"},
 			},
 		},
 	}
