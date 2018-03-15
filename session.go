@@ -30,6 +30,9 @@ func NewSessionBuilder(pool *RepositoryPool) server.SessionBuilder {
 	}
 }
 
+// ErrSessionCanceled is returned when session context is canceled
+var ErrSessionCanceled = errors.NewKind("session canceled")
+
 // ErrInvalidGitQuerySession is returned when some node expected a GitQuery
 // session but received something else.
 var ErrInvalidGitQuerySession = errors.NewKind("expecting gitquery session, but received: %T")

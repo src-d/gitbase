@@ -163,7 +163,7 @@ type rowRepoIter struct {
 
 	wg    sync.WaitGroup
 	done  chan bool
-	err   chan error
+	err   error
 	repos chan *Repository
 	rows  chan sql.Row
 }
@@ -195,7 +195,7 @@ func NewRowRepoIter(
 		iter:           iter,
 		session:        s,
 		done:           make(chan bool),
-		err:            make(chan error),
+		err:            nil,
 		repos:          make(chan *Repository),
 		rows:           make(chan sql.Row),
 	}
@@ -218,10 +218,20 @@ func NewRowRepoIter(
 	return &repoIter, nil
 }
 
+func (i *rowRepoIter) setError(err error) {
+	i.err = err
+}
+
 func (i *rowRepoIter) fillRepoChannel() {
+	defer close(i.repos)
+
 	for {
 		select {
 		case <-i.done:
+			return
+
+		case <-i.session.Done():
+			close(i.done)
 			return
 
 		default:
@@ -229,18 +239,26 @@ func (i *rowRepoIter) fillRepoChannel() {
 
 			switch err {
 			case nil:
-				i.repos <- repo
-				continue
+				select {
+				case <-i.done:
+					return
+
+				case <-i.session.Done():
+					i.setError(ErrSessionCanceled.New())
+					close(i.done)
+					return
+
+				case i.repos <- repo:
+					continue
+				}
 
 			case io.EOF:
-				close(i.repos)
-				i.err <- io.EOF
+				i.setError(io.EOF)
 				return
 
 			default:
 				close(i.done)
-				close(i.repos)
-				i.err <- err
+				i.setError(err)
 				return
 			}
 		}
@@ -260,11 +278,20 @@ func (i *rowRepoIter) rowReader(num int) {
 				iter.Close()
 				return
 
+			case <-i.session.Done():
+				i.setError(ErrSessionCanceled.New())
+				return
+
 			default:
 				row, err := iter.Next()
 				switch err {
 				case nil:
-					i.rows <- row
+					select {
+					case <-i.done:
+						iter.Close()
+						return
+					case i.rows <- row:
+					}
 
 				case io.EOF:
 					iter.Close()
@@ -272,7 +299,7 @@ func (i *rowRepoIter) rowReader(num int) {
 
 				default:
 					iter.Close()
-					i.err <- err
+					i.setError(err)
 					close(i.done)
 					return
 				}
@@ -285,7 +312,7 @@ func (i *rowRepoIter) rowReader(num int) {
 func (i *rowRepoIter) Next() (sql.Row, error) {
 	row, ok := <-i.rows
 	if !ok {
-		return nil, <-i.err
+		return nil, i.err
 	}
 
 	return row, nil
