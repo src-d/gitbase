@@ -2,6 +2,7 @@ package gitquery_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/src-d/gitquery"
@@ -20,6 +21,8 @@ func TestIntegration(t *testing.T) {
 	}()
 
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
+	dirName := filepath.Base(path)
+
 	pool := gitquery.NewRepositoryPool()
 	_, err := pool.AddGit(path)
 	require.NoError(t, err)
@@ -105,9 +108,9 @@ func TestIntegration(t *testing.T) {
 			) as t
 			GROUP BY committer_email, month, repo_id`,
 			[]sql.Row{
-				{int32(6), int32(3), path, "mcuadros@gmail.com"},
-				{int32(1), int32(4), path, "mcuadros@gmail.com"},
-				{int32(1), int32(3), path, "daniel@lordran.local"},
+				{int32(6), int32(3), dirName, "mcuadros@gmail.com"},
+				{int32(1), int32(4), dirName, "mcuadros@gmail.com"},
+				{int32(1), int32(3), dirName, "daniel@lordran.local"},
 			},
 		},
 		{
