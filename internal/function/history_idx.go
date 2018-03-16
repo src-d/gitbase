@@ -125,6 +125,7 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 	// history. Because the frame keeps track of which was its index, we can
 	// return accurate indexes even if there are multiple branches.
 	stack := []*stackFrame{{0, 0, []plumbing.Hash{start}}}
+	visitedHashes := make(map[plumbing.Hash]struct{})
 
 	for {
 		if len(stack) == 0 {
@@ -133,7 +134,13 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 
 		frame := stack[len(stack)-1]
 
-		c, err := repo.CommitObject(frame.hashes[frame.pos])
+		h := frame.hashes[frame.pos]
+		_, ok := visitedHashes[h]
+		if !ok {
+			visitedHashes[h] = struct{}{}
+		}
+
+		c, err := repo.CommitObject(h)
 		if err == plumbing.ErrObjectNotFound {
 			return -1, nil
 		}
@@ -153,7 +160,17 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 		}
 
 		if c.NumParents() > 0 {
-			stack = append(stack, &stackFrame{frame.idx + 1, 0, c.ParentHashes})
+			newParents := make([]plumbing.Hash, 0, c.NumParents())
+			for _, h = range c.ParentHashes {
+				_, ok = visitedHashes[h]
+				if !ok {
+					newParents = append(newParents, h)
+				}
+			}
+
+			if len(newParents) > 0 {
+				stack = append(stack, &stackFrame{frame.idx + 1, 0, newParents})
+			}
 		}
 	}
 }
