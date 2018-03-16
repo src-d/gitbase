@@ -83,6 +83,68 @@ func TestCanHandleEquals(t *testing.T) {
 	}
 }
 
+func TestCanHandleIn(t *testing.T) {
+	testCases := []struct {
+		name string
+		expr *expression.In
+		ok   bool
+	}{
+		{
+			"left is not a GetField",
+			expression.NewIn(
+				expression.NewLiteral(1, sql.Int64),
+				expression.NewTuple(
+					expression.NewLiteral(1, sql.Int64),
+					expression.NewLiteral(2, sql.Int64),
+				),
+			),
+			false,
+		},
+		{
+			"right is not a tuple",
+			expression.NewIn(
+				expression.NewGetFieldWithTable(0, sql.Int64, "table", "field", false),
+				expression.NewLiteral(1, sql.Int64),
+			),
+			false,
+		},
+		{
+			"right does have a non-literal",
+			expression.NewIn(
+				expression.NewGetFieldWithTable(0, sql.Int64, "table", "field", false),
+				expression.NewTuple(
+					expression.NewLiteral(1, sql.Int64),
+					expression.NewTuple(),
+				),
+			),
+			false,
+		},
+		{
+			"left is GetField, right is tuple of literals",
+			expression.NewIn(
+				expression.NewGetFieldWithTable(0, sql.Int64, "table", "field", false),
+				expression.NewTuple(
+					expression.NewLiteral(1, sql.Int64),
+					expression.NewLiteral(2, sql.Int64),
+				),
+			),
+			true,
+		},
+	}
+
+	schema := sql.Schema{
+		{Name: "field", Source: "table"},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			require.Equal(tt.ok, canHandleIn(schema, "table", tt.expr))
+		})
+	}
+}
+
 func TestGetEqualityValues(t *testing.T) {
 	require := require.New(t)
 
@@ -101,6 +163,21 @@ func TestGetEqualityValues(t *testing.T) {
 	require.NoError(err)
 	require.Equal("foo", col)
 	require.Equal("bar", val)
+}
+
+func TestGetInValues(t *testing.T) {
+	require := require.New(t)
+
+	col, vals, err := getInValues(expression.NewIn(
+		expression.NewGetField(0, sql.Text, "foo", false),
+		expression.NewTuple(
+			expression.NewLiteral(int64(1), sql.Int64),
+			expression.NewLiteral(int64(2), sql.Int64),
+		),
+	))
+	require.NoError(err)
+	require.Equal("foo", col)
+	require.Equal([]interface{}{int64(1), int64(2)}, vals)
 }
 
 func TestHandledFilters(t *testing.T) {
@@ -166,73 +243,171 @@ func TestSelectors(t *testing.T) {
 
 func TestClassifyFilters(t *testing.T) {
 	require := require.New(t)
-	filters := []sql.Expression{
-		// can be used as selector
-		expression.NewEquals(
-			expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-			expression.NewLiteral(1, sql.Int64),
-		),
-		// can be used as selector but will not be because it's not a handled col
-		expression.NewEquals(
-			expression.NewGetFieldWithTable(1, sql.Int64, "foo", "b", false),
-			expression.NewLiteral(1, sql.Int64),
-		),
-		// it's not valid for selector
-		expression.NewGreaterThan(
-			expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-			expression.NewLiteral(0, sql.Int64),
-		),
-		// it's not valid for selector
-		expression.NewEquals(
-			expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-			expression.NewGetFieldWithTable(2, sql.Int64, "foo", "c", false),
-		),
-		// this or is valid for selectors
-		expression.NewOr(
-			expression.NewOr(
-				expression.NewEquals(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(1, sql.Int64),
-				),
-				expression.NewEquals(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(2, sql.Int64),
+	testCases := []struct {
+		filter     sql.Expression
+		isSelector bool
+	}{
+		{
+			expression.NewEquals(
+				expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				expression.NewLiteral(1, sql.Int64),
+			),
+			true,
+		},
+		{
+			expression.NewEquals(
+				expression.NewGetFieldWithTable(1, sql.Int64, "foo", "b", false),
+				expression.NewLiteral(1, sql.Int64),
+			),
+			false,
+		},
+		{
+			expression.NewGreaterThan(
+				expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				expression.NewLiteral(0, sql.Int64),
+			),
+			false,
+		},
+		{
+			expression.NewEquals(
+				expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				expression.NewGetFieldWithTable(2, sql.Int64, "foo", "c", false),
+			),
+			false,
+		},
+		{
+			expression.NewIn(
+				expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				expression.NewTuple(
+					expression.NewLiteral(5, sql.Int64),
+					expression.NewLiteral(6, sql.Int64),
+					expression.NewLiteral(7, sql.Int64),
 				),
 			),
-			expression.NewOr(
-				expression.NewEquals(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(3, sql.Int64),
-				),
-				expression.NewEquals(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(4, sql.Int64),
-				),
-			),
-		),
-		// this or is not valid for selectors
-		expression.NewOr(
-			expression.NewOr(
-				expression.NewEquals(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(1, sql.Int64),
-				),
-				expression.NewGreaterThan(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(2, sql.Int64),
+			true,
+		},
+		{
+			expression.NewIn(
+				expression.NewGetFieldWithTable(0, sql.Int64, "foo", "b", false),
+				expression.NewTuple(
+					expression.NewLiteral(5, sql.Int64),
+					expression.NewLiteral(6, sql.Int64),
+					expression.NewLiteral(7, sql.Int64),
 				),
 			),
-			expression.NewOr(
-				expression.NewEquals(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(3, sql.Int64),
-				),
-				expression.NewEquals(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewLiteral(4, sql.Int64),
+			false,
+		},
+		{
+			expression.NewIn(
+				expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				expression.NewTuple(
+					expression.NewGetFieldWithTable(2, sql.Int64, "foo", "c", false),
+					expression.NewLiteral(6, sql.Int64),
+					expression.NewLiteral(7, sql.Int64),
 				),
 			),
-		),
+			false,
+		},
+		{
+			expression.NewOr(
+				expression.NewOr(
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(1, sql.Int64),
+					),
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(2, sql.Int64),
+					),
+				),
+				expression.NewOr(
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(3, sql.Int64),
+					),
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(4, sql.Int64),
+					),
+				),
+			),
+			true,
+		},
+		{
+			expression.NewOr(
+				expression.NewIn(
+					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+					expression.NewTuple(
+						expression.NewLiteral(10, sql.Int64),
+						expression.NewLiteral(11, sql.Int64),
+					),
+				),
+				expression.NewOr(
+					expression.NewIn(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewTuple(
+							expression.NewLiteral(12, sql.Int64),
+							expression.NewLiteral(13, sql.Int64),
+						),
+					),
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(14, sql.Int64),
+					),
+				),
+			),
+			true,
+		},
+		{
+			expression.NewOr(
+				expression.NewOr(
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(1, sql.Int64),
+					),
+					expression.NewGreaterThan(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(2, sql.Int64),
+					),
+				),
+				expression.NewOr(
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(3, sql.Int64),
+					),
+					expression.NewEquals(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(4, sql.Int64),
+					),
+				),
+			),
+			false,
+		},
+		{
+			expression.NewOr(
+				expression.NewIn(
+					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+					expression.NewTuple(
+						expression.NewLiteral(10, sql.Int64),
+						expression.NewLiteral(11, sql.Int64),
+					),
+				),
+				expression.NewOr(
+					expression.NewIn(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewTuple(
+							expression.NewLiteral(12, sql.Int64),
+							expression.NewLiteral(13, sql.Int64),
+						),
+					),
+					expression.NewGreaterThan(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						expression.NewLiteral(2, sql.Int64),
+					),
+				),
+			),
+			false,
+		},
 	}
 	schema := sql.Schema{
 		{Name: "a", Source: "foo"},
@@ -240,18 +415,26 @@ func TestClassifyFilters(t *testing.T) {
 		{Name: "c", Source: "foo"},
 	}
 
+	var filters []sql.Expression
+	var notSelectors []sql.Expression
+
+	for _, tt := range testCases {
+		filters = append(filters, tt.filter)
+		if !tt.isSelector {
+			notSelectors = append(notSelectors, tt.filter)
+		}
+	}
+
 	sels, f, err := classifyFilters(schema, "foo", filters, "a")
 	require.NoError(err)
 	require.Equal(selectors{
 		"a": []selector{
 			selector{1},
+			selector{5, 6, 7},
 			selector{1, 2, 3, 4},
+			selector{10, 11, 12, 13, 14},
 		},
 	}, sels)
-	require.Equal([]sql.Expression{
-		filters[1],
-		filters[2],
-		filters[3],
-		filters[5],
-	}, f)
+
+	require.Equal(notSelectors, f)
 }
