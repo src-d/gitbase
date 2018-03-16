@@ -1,6 +1,7 @@
 package function
 
 import (
+	"fmt"
 	"reflect"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -37,9 +38,8 @@ func (f *IsTag) Eval(session sql.Session, row sql.Row) (interface{}, error) {
 	return plumbing.ReferenceName(name).IsTag(), nil
 }
 
-// Name implements the Expression interface.
-func (IsTag) Name() string {
-	return "is_tag"
+func (f IsTag) String() string {
+	return fmt.Sprintf("is_tag(%s)", f.Child)
 }
 
 // TransformUp implements the Expression interface.

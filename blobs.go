@@ -41,6 +41,10 @@ func newBlobsTable(pool *RepositoryPool) sql.Table {
 	return &blobsTable{pool: pool}
 }
 
+func (blobsTable) String() string {
+	return printTable(blobsTableName, blobsSchema)
+}
+
 func (blobsTable) Resolved() bool {
 	return true
 }

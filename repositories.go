@@ -32,6 +32,10 @@ func (repositoriesTable) Schema() sql.Schema {
 	return repositoriesSchema
 }
 
+func (r repositoriesTable) String() string {
+	return printTable(repositoriesTableName, repositoriesSchema)
+}
+
 func (r *repositoriesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
 	return f(r)
 }

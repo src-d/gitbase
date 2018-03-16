@@ -39,6 +39,10 @@ func (remotesTable) Schema() sql.Schema {
 	return remotesSchema
 }
 
+func (r remotesTable) String() string {
+	return printTable(remotesTableName, remotesSchema)
+}
+
 func (r *remotesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
 	return f(r)
 }

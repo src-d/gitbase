@@ -1,6 +1,7 @@
 package function
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/src-d/gitquery"
@@ -21,8 +22,9 @@ func NewHistoryIdx(start, target sql.Expression) sql.Expression {
 	return &HistoryIdx{expression.BinaryExpression{Left: start, Right: target}}
 }
 
-// Name implements the Expression interface.
-func (HistoryIdx) Name() string { return "history_idx" }
+func (f HistoryIdx) String() string {
+	return fmt.Sprintf("history_idx(%s, %s)", f.Left, f.Right)
+}
 
 // Eval implements the Expression interface.
 func (f *HistoryIdx) Eval(session sql.Session, row sql.Row) (interface{}, error) {
