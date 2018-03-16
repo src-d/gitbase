@@ -7,6 +7,7 @@ var functions = map[string]sql.Function{
 	"is_remote":       sql.Function1(NewIsRemote),
 	"commit_has_blob": sql.Function2(NewCommitHasBlob),
 	"history_idx":     sql.Function2(NewHistoryIdx),
+	"commit_has_tree": sql.Function2(NewCommitHasTree),
 }
 
 // Register all the gitquery functions in the SQL catalog.
