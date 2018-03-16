@@ -135,8 +135,7 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 		frame := stack[len(stack)-1]
 
 		h := frame.hashes[frame.pos]
-		_, ok := visitedHashes[h]
-		if !ok {
+		if _, ok := visitedHashes[h]; !ok {
 			visitedHashes[h] = struct{}{}
 		}
 
@@ -162,8 +161,7 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 		if c.NumParents() > 0 {
 			newParents := make([]plumbing.Hash, 0, c.NumParents())
 			for _, h = range c.ParentHashes {
-				_, ok = visitedHashes[h]
-				if !ok {
+				if _, ok := visitedHashes[h]; !ok {
 					newParents = append(newParents, h)
 				}
 			}
