@@ -82,25 +82,6 @@ func filtersToExpression(filters []sql.Expression) sql.Expression {
 	}
 }
 
-// fixFieldIndexes transforms the given expression setting correct indexes
-// for GetField expressions according to the schema of the row in the table
-// and not the one where the filter came from.
-func fixFieldIndexes(schema sql.Schema, exp sql.Expression) (sql.Expression, error) {
-	return exp.TransformUp(func(e sql.Expression) (sql.Expression, error) {
-		switch e := e.(type) {
-		case *expression.GetField:
-			// we need to rewrite the indexes for the table row
-			for i, col := range schema {
-				if e.Name() == col.Name {
-					return expression.NewGetField(i, e.Type(), e.Name(), e.IsNullable()), nil
-				}
-			}
-		}
-
-		return e, nil
-	})
-}
-
 // canHandleEquals returns whether the given equals expression can be handled
 // as a selector. For that to happen one of the sides must be a GetField expr
 // that exists in the given schema and the other must be a literal.
@@ -294,12 +275,7 @@ func rowIterWithSelectors(
 		return iter, nil
 	}
 
-	cond, err := fixFieldIndexes(blobsSchema, filtersToExpression(filters))
-	if err != nil {
-		return nil, err
-	}
-
-	return plan.NewFilterIter(session, cond, iter), nil
+	return plan.NewFilterIter(session, expression.JoinAnd(filters...), iter), nil
 }
 
 func stringContains(slice []string, target string) bool {
