@@ -69,15 +69,14 @@ func TestRepositoryPoolGit(t *testing.T) {
 	require := require.New(t)
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
-	dirName := filepath.Base(path)
 
 	pool := NewRepositoryPool()
 	id, err := pool.AddGit(path)
-	require.Equal(dirName, id)
+	require.Equal(path, id)
 	require.NoError(err)
 
 	repo, err := pool.GetPos(0)
-	require.Equal(dirName, repo.ID)
+	require.Equal(path, repo.ID)
 	require.NotNil(repo.Repo)
 	require.NoError(err)
 
@@ -239,7 +238,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 		repo, err := pool.GetPos(i)
 		require.NoError(err)
 		arrayID[i] = repo.ID
-		arrayExpected[i] = strconv.Itoa(i)
+		arrayExpected[i] = filepath.Join(tmpDir, strconv.Itoa(i))
 
 		iter, err := repo.Repo.CommitObjects()
 		require.NoError(err)

@@ -68,10 +68,9 @@ func (p *RepositoryPool) AddGit(path string) (string, error) {
 		return "", err
 	}
 
-	id := filepath.Base(path)
-	p.Add(id, path)
+	p.Add(path, path)
 
-	return id, nil
+	return path, nil
 }
 
 // AddDir adds all direct subdirectories from path as repos

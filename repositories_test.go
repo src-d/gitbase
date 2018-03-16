@@ -2,7 +2,6 @@ package gitquery
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -77,8 +76,6 @@ func TestRepositoriesPushdown(t *testing.T) {
 	session, path, cleanup := setup(t)
 	defer cleanup()
 
-	dirName := filepath.Base(path)
-
 	table := newRepositoriesTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
 
 	iter, err := table.WithProjectAndFilters(session, nil, nil)
@@ -103,7 +100,7 @@ func TestRepositoriesPushdown(t *testing.T) {
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
 			expression.NewGetField(0, sql.Text, "id", false),
-			expression.NewLiteral(dirName, sql.Text),
+			expression.NewLiteral(path, sql.Text),
 		),
 	})
 	require.NoError(err)
