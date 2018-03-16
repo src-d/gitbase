@@ -46,7 +46,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	pool.Add("0", "/directory/should/not/exist")
 	repo, err = pool.GetPos(0)
-	require.NotNil(err)
+	require.Error(err)
 
 	_, err = pool.GetPos(1)
 	require.Equal(io.EOF, err)
@@ -55,7 +55,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	pool.Add("1", path)
 	repo, err = pool.GetPos(1)
-	require.Nil(err)
+	require.NoError(err)
 	require.Equal("1", repo.ID)
 	require.NotNil(repo.Repo)
 
@@ -74,15 +74,15 @@ func TestRepositoryPoolGit(t *testing.T) {
 	pool := NewRepositoryPool()
 	id, err := pool.AddGit(path)
 	require.Equal(dirName, id)
-	require.Nil(err)
+	require.NoError(err)
 
 	repo, err := pool.GetPos(0)
 	require.Equal(dirName, repo.ID)
 	require.NotNil(repo.Repo)
-	require.Nil(err)
+	require.NoError(err)
 
 	iter, err := repo.Repo.CommitObjects()
-	require.Nil(err)
+	require.NoError(err)
 
 	count := 0
 
@@ -110,7 +110,7 @@ func TestRepositoryPoolIterator(t *testing.T) {
 	pool.Add("1", path)
 
 	iter, err := pool.RepoIter()
-	require.Nil(err)
+	require.NoError(err)
 
 	count := 0
 
@@ -162,7 +162,7 @@ func testRepoIter(num int, require *require.Assertions, pool *RepositoryPool) {
 	cIter := &testCommitIter{}
 
 	repoIter, err := NewRowRepoIter(pool, cIter)
-	require.Nil(err)
+	require.NoError(err)
 
 	count := 0
 	for {
@@ -214,7 +214,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	require := require.New(t)
 
 	tmpDir, err := ioutil.TempDir("", "gitquery-test")
-	require.Nil(err)
+	require.NoError(err)
 
 	max := 64
 
@@ -223,12 +223,12 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 		p := filepath.Join(tmpDir, strconv.Itoa(i))
 
 		err := os.Rename(orig, p)
-		require.Nil(err)
+		require.NoError(err)
 	}
 
 	pool := NewRepositoryPool()
 	err = pool.AddDir(tmpDir)
-	require.Nil(err)
+	require.NoError(err)
 
 	require.Equal(max, len(pool.repositories))
 
@@ -237,12 +237,12 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 
 	for i := 0; i < max; i++ {
 		repo, err := pool.GetPos(i)
-		require.Nil(err)
+		require.NoError(err)
 		arrayID[i] = repo.ID
 		arrayExpected[i] = strconv.Itoa(i)
 
 		iter, err := repo.Repo.CommitObjects()
-		require.Nil(err)
+		require.NoError(err)
 
 		counter := 0
 		for {
@@ -251,7 +251,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 				break
 			}
 
-			require.Nil(err)
+			require.NoError(err)
 			require.NotNil(commit)
 			counter++
 		}

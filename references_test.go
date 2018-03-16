@@ -42,7 +42,7 @@ func TestReferencesTable_RowIter(t *testing.T) {
 	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), plan.NewSort(
 		[]plan.SortField{{Column: expression.NewGetField(0, sql.Text, "name", false), Order: plan.Ascending}},
 		table))
-	require.Nil(err)
+	require.NoError(err)
 
 	expected := []sql.Row{
 		sql.NewRow("repo", "HEAD", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
@@ -55,7 +55,7 @@ func TestReferencesTable_RowIter(t *testing.T) {
 	schema := table.Schema()
 	for idx, row := range rows {
 		err := schema.CheckRow(row)
-		require.Nil(err, "row %d doesn't conform to schema", idx)
+		require.NoError(err, "row %d doesn't conform to schema", idx)
 	}
 }
 

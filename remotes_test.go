@@ -45,7 +45,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 
 	pool := remotes.pool
 	repository, err := pool.GetPos(0)
-	require.Nil(err)
+	require.NoError(err)
 
 	repo := repository.Repo
 
@@ -59,16 +59,16 @@ func TestRemotesTable_RowIter(t *testing.T) {
 	}
 
 	_, err = repo.CreateRemote(&config)
-	require.Nil(err)
+	require.NoError(err)
 
 	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
-	require.Nil(err)
+	require.NoError(err)
 	require.Len(rows, 3)
 
 	schema := table.Schema()
 	for idx, row := range rows {
 		err := schema.CheckRow(row)
-		require.Nil(err, "row %d doesn't conform to schema", idx)
+		require.NoError(err, "row %d doesn't conform to schema", idx)
 
 		if row[1] == "my_remote" {
 			urlstring, ok := row[2].(string)
