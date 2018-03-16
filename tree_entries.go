@@ -91,6 +91,10 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	)
 }
 
+func (r treeEntriesTable) String() string {
+	return printTable(treeEntriesTableName, treeEntriesSchema)
+}
+
 type treeEntryIter struct {
 	i  *object.TreeIter
 	fi *fileIter

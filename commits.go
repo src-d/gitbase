@@ -31,6 +31,10 @@ func newCommitsTable(pool *RepositoryPool) sql.Table {
 	return &commitsTable{pool: pool}
 }
 
+func (commitsTable) String() string {
+	return printTable(commitsTableName, commitsSchema)
+}
+
 func (commitsTable) Resolved() bool {
 	return true
 }

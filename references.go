@@ -25,6 +25,10 @@ func newReferencesTable(pool *RepositoryPool) sql.Table {
 	return &referencesTable{pool: pool}
 }
 
+func (r referencesTable) String() string {
+	return printTable(referencesTableName, refsSchema)
+}
+
 func (referencesTable) Resolved() bool {
 	return true
 }

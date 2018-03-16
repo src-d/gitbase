@@ -1,6 +1,7 @@
 package function
 
 import (
+	"fmt"
 	"reflect"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -37,9 +38,8 @@ func (f *IsRemote) Eval(session sql.Session, row sql.Row) (interface{}, error) {
 	return plumbing.ReferenceName(name).IsRemote(), nil
 }
 
-// Name implements the Expression interface.
-func (IsRemote) Name() string {
-	return "is_remote"
+func (f IsRemote) String() string {
+	return fmt.Sprintf("is_remote(%s)", f.Child)
 }
 
 // TransformUp implements the Expression interface.

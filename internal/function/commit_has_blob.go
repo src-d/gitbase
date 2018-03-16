@@ -1,6 +1,7 @@
 package function
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/src-d/gitquery"
@@ -134,11 +135,6 @@ func hashInTree(hash plumbing.Hash, tree *object.Tree) (bool, error) {
 	return contained, nil
 }
 
-// Name implements the Expression interface.
-func (CommitHasBlob) Name() string {
-	return "commit_has_blob"
-}
-
 // IsNullable implements the Expression interface.
 func (f CommitHasBlob) IsNullable() bool {
 	return f.commitHash.IsNullable() || f.blob.IsNullable()
@@ -162,4 +158,8 @@ func (f CommitHasBlob) TransformUp(fn func(sql.Expression) (sql.Expression, erro
 	}
 
 	return fn(NewCommitHasBlob(commitHash, blob))
+}
+
+func (f CommitHasBlob) String() string {
+	return fmt.Sprintf("commit_has_blob(%s, %s)", f.commitHash, f.blob)
 }

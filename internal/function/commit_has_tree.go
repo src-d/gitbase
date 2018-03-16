@@ -1,6 +1,7 @@
 package function
 
 import (
+	"fmt"
 	"io"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
@@ -27,8 +28,9 @@ func NewCommitHasTree(commit, tree sql.Expression) sql.Expression {
 	}}
 }
 
-// Name implements the Expression interface.
-func (CommitHasTree) Name() string { return "commit_has_tree" }
+func (f CommitHasTree) String() string {
+	return fmt.Sprintf("commit_has_tree(%s, %s)", f.Left, f.Right)
+}
 
 // Type implements the Expression interface.
 func (CommitHasTree) Type() sql.Type { return sql.Boolean }

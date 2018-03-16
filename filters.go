@@ -105,13 +105,13 @@ func fixFieldIndexes(schema sql.Schema, exp sql.Expression) (sql.Expression, err
 // as a selector. For that to happen one of the sides must be a GetField expr
 // that exists in the given schema and the other must be a literal.
 func canHandleEquals(schema sql.Schema, tableName string, eq *expression.Equals) bool {
-	switch left := eq.Left.(type) {
+	switch left := eq.Left().(type) {
 	case *expression.GetField:
-		if _, ok := eq.Right.(*expression.Literal); ok && left.Table() == tableName {
+		if _, ok := eq.Right().(*expression.Literal); ok && left.Table() == tableName {
 			return schema.Contains(left.Name())
 		}
 	case *expression.Literal:
-		if right, ok := eq.Right.(*expression.GetField); ok && right.Table() == tableName {
+		if right, ok := eq.Right().(*expression.GetField); ok && right.Table() == tableName {
 			return schema.Contains(right.Name())
 		}
 	}
@@ -121,9 +121,9 @@ func canHandleEquals(schema sql.Schema, tableName string, eq *expression.Equals)
 // getEqualityValues returns the field and value of the literal in the
 // given equality expression.
 func getEqualityValues(eq *expression.Equals) (string, interface{}, error) {
-	switch left := eq.Left.(type) {
+	switch left := eq.Left().(type) {
 	case *expression.GetField:
-		right, err := eq.Right.Eval(nil, nil)
+		right, err := eq.Right().Eval(nil, nil)
 		if err != nil {
 			return "", nil, err
 		}
@@ -133,7 +133,7 @@ func getEqualityValues(eq *expression.Equals) (string, interface{}, error) {
 		if err != nil {
 			return "", nil, err
 		}
-		return eq.Right.(*expression.GetField).Name(), l, nil
+		return eq.Right().(*expression.GetField).Name(), l, nil
 	}
 	return "", "", nil
 }
