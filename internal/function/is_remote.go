@@ -9,7 +9,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
-// IsRemote checks the given string is a tag name.
+// IsRemote checks the given string is a remote reference.
 type IsRemote struct {
 	expression.UnaryExpression
 }
