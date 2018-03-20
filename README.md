@@ -1,4 +1,4 @@
-# GitQuery <a href="https://travis-ci.org/src-d/gitquery"><img alt="Build Status" src="https://travis-ci.org/src-d/gitquery.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitquery"><img alt="codecov" src="https://codecov.io/gh/src-d/gitquery/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitquery.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitquery.v0?status.svg" /></a>
+# GitBase <a href="https://travis-ci.org/src-d/gitquery"><img alt="Build Status" src="https://travis-ci.org/src-d/gitquery.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitquery"><img alt="codecov" src="https://codecov.io/gh/src-d/gitquery/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitquery.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitquery.v0?status.svg" /></a>
 
 Query git repositories with a MySQL interface.
 
@@ -75,39 +75,39 @@ SELECT * FROM refs WHERE name = 'HEAD'
 
 ```sql
 SELECT * FROM (
-				SELECT COUNT(c.hash) AS num, c.hash
-				FROM refs r
-				INNER JOIN commits c
-					ON history_idx(r.hash, c.hash) >= 0
-				GROUP BY c.hash
-			) t WHERE num > 1
+	SELECT COUNT(c.hash) AS num, c.hash
+	FROM refs r
+	INNER JOIN commits c
+		ON history_idx(r.hash, c.hash) >= 0
+	GROUP BY c.hash
+) t WHERE num > 1
 ```
 
 ###  Get the number of blobs per HEAD commit
 ```sql
 SELECT COUNT(c.hash), c.hash
-			FROM refs r
-			INNER JOIN commits c
-				ON r.name = 'HEAD' AND history_idx(r.hash, c.hash) >= 0
-			INNER JOIN blobs b
-				ON commit_has_blob(c.hash, b.hash)
-			GROUP BY c.hash
+FROM refs r
+INNER JOIN commits c
+	ON r.name = 'HEAD' AND history_idx(r.hash, c.hash) >= 0
+INNER JOIN blobs b
+	ON commit_has_blob(c.hash, b.hash)
+GROUP BY c.hash
 ```
 
 ### Get commits per commiter, per month in 2015
 
 ```sql
 SELECT COUNT(*) as num_commits, month, repo_id, committer_email
-			FROM (
-				SELECT
-					MONTH(committer_when) as month,
-					r.id as repo_id,
-					committer_email
-				FROM repositories r
-				INNER JOIN refs ON refs.repository_id = r.id AND refs.name = 'HEAD'
-				INNER JOIN commits c ON YEAR(committer_when) = 2015 AND history_idx(refs.hash, c.hash) >= 0
-			) as t
-			GROUP BY committer_email, month, repo_id
+	FROM (
+		SELECT
+			MONTH(committer_when) as month,
+			r.id as repo_id,
+			committer_email
+		FROM repositories r
+		INNER JOIN refs ON refs.repository_id = r.id AND refs.name = 'HEAD'
+		INNER JOIN commits c ON YEAR(committer_when) = 2015 AND history_idx(refs.hash, c.hash) >= 0
+	) as t
+GROUP BY committer_email, month, repo_id
 ```
 
 ## License
