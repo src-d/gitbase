@@ -1,5 +1,6 @@
 # Package configuration
 PROJECT = gitquery
+COMMANDS = cmd/gitquery
 
 # Including ci Makefile
 CI_REPOSITORY ?= https://github.com/src-d/ci.git
