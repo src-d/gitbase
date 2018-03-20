@@ -448,6 +448,28 @@ func (s *RepositorySuite) TestPlainCloneWithRecurseSubmodules(c *C) {
 	c.Assert(cfg.Submodules, HasLen, 2)
 }
 
+func (s *RepositorySuite) TestPlainCloneNoCheckout(c *C) {
+	dir, err := ioutil.TempDir("", "plain-clone-no-checkout")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(dir)
+
+	path := fixtures.ByTag("submodule").One().Worktree().Root()
+	r, err := PlainClone(dir, false, &CloneOptions{
+		URL:               path,
+		NoCheckout:        true,
+		RecurseSubmodules: DefaultSubmoduleRecursionDepth,
+	})
+	c.Assert(err, IsNil)
+
+	h, err := r.Head()
+	c.Assert(err, IsNil)
+	c.Assert(h.Hash().String(), Equals, "b685400c1f9316f350965a5993d350bc746b0bf4")
+
+	fi, err := osfs.New(dir).ReadDir("")
+	c.Assert(err, IsNil)
+	c.Assert(fi, HasLen, 1) // .git
+}
+
 func (s *RepositorySuite) TestFetch(c *C) {
 	r, _ := Init(memory.NewStorage(), nil)
 	_, err := r.CreateRemote(&config.RemoteConfig{
@@ -848,7 +870,7 @@ func (s *RepositorySuite) TestLog(c *C) {
 	c.Assert(err, IsNil)
 
 	cIter, err := r.Log(&LogOptions{
-		plumbing.NewHash("b8e471f58bcbca63b07bda20e428190409c2db47"),
+		From: plumbing.NewHash("b8e471f58bcbca63b07bda20e428190409c2db47"),
 	})
 
 	c.Assert(err, IsNil)
@@ -908,7 +930,7 @@ func (s *RepositorySuite) TestLogError(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = r.Log(&LogOptions{
-		plumbing.NewHash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		From: plumbing.NewHash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 	})
 	c.Assert(err, NotNil)
 }

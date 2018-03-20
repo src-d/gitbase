@@ -8,22 +8,47 @@
   revision = "9c5fe88206d7765837fed3732a42ef88fc51f1a1"
 
 [[projects]]
-  name = "github.com/chzyer/readline"
-  packages = ["."]
-  revision = "62c6fe6193755f722b8b8788aa7357be55a50ff1"
-  version = "v1.4"
-
-[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
   version = "v1.1.0"
 
 [[projects]]
-  name = "github.com/fatih/color"
+  name = "github.com/emirpasic/gods"
+  packages = [
+    "containers",
+    "lists",
+    "lists/arraylist",
+    "trees",
+    "trees/binaryheap",
+    "utils"
+  ]
+  revision = "f6c17b524822278a87e3b3bd809fec33b51f5b46"
+  version = "v1.9.0"
+
+[[projects]]
+  name = "github.com/golang/protobuf"
+  packages = [
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
+  ]
+  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
+  version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/hashicorp/errwrap"
   packages = ["."]
-  revision = "507f6050b8568533fb3f5504de8e5205fa62a114"
-  version = "v1.6.0"
+  revision = "7554cd9344cec97297fa6649b055a8c98c2a1e55"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/hashicorp/go-multierror"
+  packages = ["."]
+  revision = "b7773ae218740a7be65057fc60b366a49b538a44"
 
 [[projects]]
   branch = "master"
@@ -40,20 +65,8 @@
 [[projects]]
   name = "github.com/kevinburke/ssh_config"
   packages = ["."]
-  revision = "0ff8514904a8ebfcfb3c32ad73e1f8498a7f81b4"
-  version = "0.3"
-
-[[projects]]
-  name = "github.com/mattn/go-colorable"
-  packages = ["."]
-  revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
-  version = "v0.0.9"
-
-[[projects]]
-  name = "github.com/mattn/go-isatty"
-  packages = ["."]
-  revision = "0360b2af4f38e8d38c7fce2a9f4e702702d73a39"
-  version = "v0.0.3"
+  revision = "9fc7bb800b555d63157c65a904c86a2cc7b4e795"
+  version = "0.4"
 
 [[projects]]
   name = "github.com/mattn/go-runewidth"
@@ -69,6 +82,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/mitchellh/hashstructure"
+  packages = ["."]
+  revision = "2bca23e0e452137f789efbc8610126fd8b94f73b"
+
+[[projects]]
+  branch = "master"
   name = "github.com/olekukonko/tablewriter"
   packages = ["."]
   revision = "b8a9be070da40449e501c3c4730a889e42d87a9e"
@@ -80,16 +99,39 @@
   version = "v0.2.0"
 
 [[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
+
+[[projects]]
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
+
+[[projects]]
   name = "github.com/sergi/go-diff"
   packages = ["diffmatchpatch"]
   revision = "1744e2970ca51c86172c8190fadad617561ed6e7"
   version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
+  version = "v1.0.5"
+
+[[projects]]
+  name = "github.com/spf13/cast"
+  packages = ["."]
+  revision = "8965335b8c7107321228e3e3702cab9832751bac"
+  version = "v1.2.0"
 
 [[projects]]
   name = "github.com/src-d/gcfg"
@@ -104,7 +146,10 @@
 
 [[projects]]
   name = "github.com/stretchr/testify"
-  packages = ["require"]
+  packages = [
+    "assert",
+    "require"
+  ]
   revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
   version = "v1.2.1"
 
@@ -132,16 +177,17 @@
     "poly1305",
     "ssh",
     "ssh/agent",
-    "ssh/knownhosts"
+    "ssh/knownhosts",
+    "ssh/terminal"
   ]
-  revision = "650f4a345ab4e5b245a3034b110ebc7299e68186"
+  revision = "c3a3ad6d03f7a915c0f7e194b7152974bb73d287"
   source = "github.com/golang/crypto"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "dc948dff8834a7fe1ca525f8d04e261c2b56e70d"
+  revision = "6078986fec03a1dcc236c34816c71b0e05018fda"
   source = "github.com/golang/net"
 
 [[projects]]
@@ -151,7 +197,7 @@
     "unix",
     "windows"
   ]
-  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
+  revision = "f8f1a95d4d780e4e1a82ed8289c8806e4dba7733"
   source = "github.com/golang/sys"
 
 [[projects]]
@@ -164,9 +210,24 @@
     "unicode/cldr",
     "unicode/norm"
   ]
-  revision = "c4d099d611ac3ded35360abf03581e13d91c828f"
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   source = "github.com/golang/text"
-  version = "v0.2.0"
+  version = "v0.3.0"
+
+[[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  revision = "f8c8703595236ae70fdf8789ecb656ea0bcdcf46"
+
+[[projects]]
+  name = "google.golang.org/grpc"
+  packages = [
+    "codes",
+    "status"
+  ]
+  revision = "8e4536a86ab602859c20df5ebfd0bd4228d08655"
+  version = "v1.10.0"
 
 [[projects]]
   branch = "v1"
@@ -180,12 +241,17 @@
     ".",
     "helper/chroot",
     "helper/polyfill",
-    "memfs",
     "osfs",
     "util"
   ]
   revision = "027dceab1aa836eb310d92c2eb2266e4dc9f4b81"
   version = "v4.1.0"
+
+[[projects]]
+  name = "gopkg.in/src-d/go-errors.v1"
+  packages = ["."]
+  revision = "8bbbeeb767dfdd053b9b45d5a16a4f4ce2c6f694"
+  version = "v1.0.0"
 
 [[projects]]
   name = "gopkg.in/src-d/go-git-fixtures.v3"
@@ -237,9 +303,46 @@
     "utils/merkletrie/internal/frame",
     "utils/merkletrie/noder"
   ]
-  revision = "e9247ce9c5ce12126f646ca3ddf0066e4829bd14"
+  revision = "1d28459504251497e0ce6132a0fadd5eb44ffd22"
   source = "github.com/src-d/go-git"
-  version = "v4.1.0"
+  version = "v4.2.0"
+
+[[projects]]
+  name = "gopkg.in/src-d/go-mysql-server.v0"
+  packages = [
+    ".",
+    "server",
+    "sql",
+    "sql/analyzer",
+    "sql/expression",
+    "sql/parse",
+    "sql/plan"
+  ]
+  revision = "d517220df27cf67ae67a21b69f5d96118464327c"
+
+[[projects]]
+  branch = "master"
+  name = "gopkg.in/src-d/go-vitess.v0"
+  packages = [
+    "bytes2",
+    "cache",
+    "hack",
+    "mysql",
+    "sqltypes",
+    "stats",
+    "sync2",
+    "tb",
+    "vt/proto/binlogdata",
+    "vt/proto/query",
+    "vt/proto/replicationdata",
+    "vt/proto/topodata",
+    "vt/proto/vtgate",
+    "vt/proto/vtrpc",
+    "vt/sqlparser",
+    "vt/vterrors",
+    "vt/vttls"
+  ]
+  revision = "2cb632cdef3c332f5cba7f035479213ca31dfe71"
 
 [[projects]]
   name = "gopkg.in/warnings.v0"
@@ -250,6 +353,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1fe8f603444c2230ce88e1b2a1d0855f8f58485b9142f0001ddbb56431b5eaca"
+  inputs-digest = "f8f325a2810c948896093e25b6b05dbc4176082b5948f6168403587981de846c"
   solver-name = "gps-cdcl"
   solver-version = 1

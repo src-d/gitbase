@@ -1,17 +1,6 @@
-ignored = [
-  "gopkg.in/src-d/go-mysql-server.v0",
-  "gopkg.in/src-d/go-mysql-server.v0/sql",
-  "gopkg.in/src-d/go-mysql-server.v0/sql/expression",
-  "gopkg.in/src-d/go-mysql-server.v0/sql/plan",
- ]
-
 [[constraint]]
-  name = "github.com/chzyer/readline"
-  version = "1.4.0"
-
-[[constraint]]
-  name = "github.com/fatih/color"
-  version = "1.5.0"
+  name = "gopkg.in/src-d/go-mysql-server.v0"
+  revision = "d517220df27cf67ae67a21b69f5d96118464327c"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -48,3 +37,7 @@ ignored = [
 [[override]]
   name = "golang.org/x/net"
   source = "github.com/golang/net"
+
+[[override]]
+  name = "github.com/satori/go.uuid"
+  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
