@@ -1,0 +1,104 @@
+package expression
+
+import (
+	"fmt"
+
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
+)
+
+// Between checks a value is between two given values.
+type Between struct {
+	Val   sql.Expression
+	Lower sql.Expression
+	Upper sql.Expression
+}
+
+// NewBetween creates a new Between expression.
+func NewBetween(val, lower, upper sql.Expression) *Between {
+	return &Between{val, lower, upper}
+}
+
+func (b Between) String() string {
+	return fmt.Sprintf("BETWEEN(%s, %s, %s)", b.Val, b.Lower, b.Upper)
+}
+
+// Type implements the Expression interface.
+func (Between) Type() sql.Type { return sql.Boolean }
+
+// IsNullable implements the Expression interface.
+func (b *Between) IsNullable() bool {
+	return b.Val.IsNullable() || b.Lower.IsNullable() || b.Upper.IsNullable()
+}
+
+// Resolved implements the Expression interface.
+func (b *Between) Resolved() bool {
+	return b.Val.Resolved() && b.Lower.Resolved() && b.Upper.Resolved()
+}
+
+// Eval implements the Expression interface.
+func (b *Between) Eval(session sql.Session, row sql.Row) (interface{}, error) {
+	typ := b.Val.Type()
+	val, err := b.Val.Eval(session, row)
+	if err != nil {
+		return nil, err
+	}
+
+	if val == nil {
+		return nil, nil
+	}
+
+	val, err = typ.Convert(val)
+	if err != nil {
+		return nil, err
+	}
+
+	lower, err := b.Lower.Eval(session, row)
+	if err != nil {
+		return nil, err
+	}
+
+	if lower == nil {
+		return nil, nil
+	}
+
+	lower, err = typ.Convert(lower)
+	if err != nil {
+		return nil, err
+	}
+
+	upper, err := b.Upper.Eval(session, row)
+	if err != nil {
+		return nil, err
+	}
+
+	if upper == nil {
+		return nil, nil
+	}
+
+	upper, err = typ.Convert(upper)
+	if err != nil {
+		return nil, err
+	}
+
+	return typ.Compare(val, lower) >= 0 && typ.Compare(val, upper) <= 0, nil
+}
+
+// TransformUp implements the Expression interface.
+func (b *Between) TransformUp(f func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+	val, err := b.Val.TransformUp(f)
+	if err != nil {
+		return nil, err
+	}
+
+	lower, err := b.Lower.TransformUp(f)
+	if err != nil {
+		return nil, err
+	}
+
+	upper, err := b.Upper.TransformUp(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return f(NewBetween(val, lower, upper))
+}
