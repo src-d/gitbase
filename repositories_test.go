@@ -13,7 +13,7 @@ import (
 func TestRepositoriesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, repositoriesTableName)
 	require.Equal(repositoriesTableName, table.Name())
 
@@ -26,7 +26,7 @@ func TestRepositoriesTable_Name(t *testing.T) {
 func TestRepositoriesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, repositoriesTableName)
 	require.Equal(0, len(table.Children()))
 }
@@ -42,7 +42,7 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	pool := NewRepositoryPool()
 
 	for _, id := range repoIDs {
-		pool.Add(id, nil)
+		pool.Add(id, "")
 	}
 
 	db := NewDatabase(repositoriesTableName, &pool)
@@ -55,7 +55,7 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	require.NotNil(table)
 
 	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
-	require.Nil(err)
+	require.NoError(err)
 	require.Len(rows, len(repoIDs))
 
 	idArray := make([]string, len(repoIDs))
@@ -67,7 +67,7 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	schema := table.Schema()
 	for idx, row := range rows {
 		err := schema.CheckRow(row)
-		require.Nil(err, "row %d doesn't conform to schema", idx)
+		require.NoError(err, "row %d doesn't conform to schema", idx)
 	}
 }
 

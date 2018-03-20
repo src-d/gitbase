@@ -14,7 +14,7 @@ import (
 func TestCommitsTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, commitsTableName)
 	require.Equal(commitsTableName, table.Name())
 
@@ -27,7 +27,7 @@ func TestCommitsTable_Name(t *testing.T) {
 func TestCommitsTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, commitsTableName)
 	require.Equal(0, len(table.Children()))
 }
@@ -35,7 +35,7 @@ func TestCommitsTable_Children(t *testing.T) {
 func TestCommitsTable_RowIter(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.Basic().One()
+	f := fixtures.ByTag("worktree").One()
 	table := getTable(require, f, commitsTableName)
 
 	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)

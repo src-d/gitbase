@@ -38,33 +38,31 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	// GetPos
 
-	repo, ok := pool.GetPos(0)
+	repo, err := pool.GetPos(0)
 	require.Nil(repo)
-	require.False(ok)
+	require.Equal(io.EOF, err)
 
 	// Add and GetPos
 
-	pool.Add("0", nil)
-	repo, ok = pool.GetPos(0)
-	require.Equal("0", repo.ID)
-	require.Nil(repo.Repo)
-	require.True(ok)
+	pool.Add("0", "/directory/should/not/exist")
+	repo, err = pool.GetPos(0)
+	require.Error(err)
 
-	_, ok = pool.GetPos(1)
-	require.False(ok)
+	_, err = pool.GetPos(1)
+	require.Equal(io.EOF, err)
 
-	gitRepo := &git.Repository{}
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool.Add("1", gitRepo)
-	repo, ok = pool.GetPos(1)
+	pool.Add("1", path)
+	repo, err = pool.GetPos(1)
+	require.NoError(err)
 	require.Equal("1", repo.ID)
-	require.Equal(gitRepo, repo.Repo)
-	require.True(ok)
+	require.NotNil(repo.Repo)
 
-	_, ok = pool.GetPos(0)
-	require.True(ok)
-	_, ok = pool.GetPos(2)
-	require.False(ok)
+	_, err = pool.GetPos(0)
+	require.Equal(git.ErrRepositoryNotExists, err)
+	_, err = pool.GetPos(2)
+	require.Equal(io.EOF, err)
 }
 
 func TestRepositoryPoolGit(t *testing.T) {
@@ -75,15 +73,15 @@ func TestRepositoryPoolGit(t *testing.T) {
 	pool := NewRepositoryPool()
 	id, err := pool.AddGit(path)
 	require.Equal(path, id)
-	require.Nil(err)
+	require.NoError(err)
 
-	repo, ok := pool.GetPos(0)
+	repo, err := pool.GetPos(0)
 	require.Equal(path, repo.ID)
 	require.NotNil(repo.Repo)
-	require.True(ok)
+	require.NoError(err)
 
 	iter, err := repo.Repo.CommitObjects()
-	require.Nil(err)
+	require.NoError(err)
 
 	count := 0
 
@@ -107,16 +105,11 @@ func TestRepositoryPoolIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	id, err := pool.AddGit(path)
-	require.Equal(path, id)
-	require.Nil(err)
-
-	id, err = pool.AddGit(path)
-	require.Equal(path, id)
-	require.Nil(err)
+	pool.Add("0", path)
+	pool.Add("1", path)
 
 	iter, err := pool.RepoIter()
-	require.Nil(err)
+	require.NoError(err)
 
 	count := 0
 
@@ -128,7 +121,7 @@ func TestRepositoryPoolIterator(t *testing.T) {
 		}
 
 		require.NotNil(repo)
-		require.Equal(path, repo.ID)
+		require.Equal(strconv.Itoa(count), repo.ID)
 
 		count++
 	}
@@ -168,7 +161,7 @@ func testRepoIter(num int, require *require.Assertions, pool *RepositoryPool) {
 	cIter := &testCommitIter{}
 
 	repoIter, err := NewRowRepoIter(pool, cIter)
-	require.Nil(err)
+	require.NoError(err)
 
 	count := 0
 	for {
@@ -196,9 +189,7 @@ func TestRepositoryRowIterator(t *testing.T) {
 	max := 64
 
 	for i := 0; i < max; i++ {
-		id, err := pool.AddGit(path)
-		require.Equal(path, id)
-		require.Nil(err)
+		pool.Add(strconv.Itoa(i), path)
 	}
 
 	testRepoIter(max, require, &pool)
@@ -222,7 +213,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	require := require.New(t)
 
 	tmpDir, err := ioutil.TempDir("", "gitquery-test")
-	require.Nil(err)
+	require.NoError(err)
 
 	max := 64
 
@@ -231,12 +222,12 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 		p := filepath.Join(tmpDir, strconv.Itoa(i))
 
 		err := os.Rename(orig, p)
-		require.Nil(err)
+		require.NoError(err)
 	}
 
 	pool := NewRepositoryPool()
 	err = pool.AddDir(tmpDir)
-	require.Nil(err)
+	require.NoError(err)
 
 	require.Equal(max, len(pool.repositories))
 
@@ -244,13 +235,13 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	arrayExpected := make([]string, max)
 
 	for i := 0; i < max; i++ {
-		repo, ok := pool.GetPos(i)
-		require.True(ok)
+		repo, err := pool.GetPos(i)
+		require.NoError(err)
 		arrayID[i] = repo.ID
-		arrayExpected[i] = strconv.Itoa(i)
+		arrayExpected[i] = filepath.Join(tmpDir, strconv.Itoa(i))
 
 		iter, err := repo.Repo.CommitObjects()
-		require.Nil(err)
+		require.NoError(err)
 
 		counter := 0
 		for {
@@ -259,7 +250,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 				break
 			}
 
-			require.Nil(err)
+			require.NoError(err)
 			require.NotNil(commit)
 			counter++
 		}

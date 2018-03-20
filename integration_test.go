@@ -20,6 +20,7 @@ func TestIntegration(t *testing.T) {
 	}()
 
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
+
 	pool := gitquery.NewRepositoryPool()
 	_, err := pool.AddGit(path)
 	require.NoError(t, err)
