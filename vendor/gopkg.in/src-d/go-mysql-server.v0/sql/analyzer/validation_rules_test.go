@@ -6,6 +6,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/mem"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression/function/aggregation"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func TestValidateOrderBy(t *testing.T) {
 	require.NoError(err)
 
 	err = vr.Apply(plan.NewSort(
-		[]plan.SortField{{Column: expression.NewCount(nil), Order: plan.Descending}},
+		[]plan.SortField{{Column: aggregation.NewCount(nil), Order: plan.Descending}},
 		nil,
 	))
 	require.Error(err)
@@ -66,7 +67,7 @@ func TestValidateGroupBy(t *testing.T) {
 		[]sql.Expression{
 			expression.NewAlias(expression.NewGetField(0, sql.Text, "col1", true), "alias"),
 			expression.NewGetField(0, sql.Text, "col1", true),
-			expression.NewCount(expression.NewGetField(1, sql.Int64, "col2", true)),
+			aggregation.NewCount(expression.NewGetField(1, sql.Int64, "col2", true)),
 		},
 		[]sql.Expression{
 			expression.NewGetField(0, sql.Text, "col1", true),
@@ -180,16 +181,91 @@ func TestValidateSchemaSource(t *testing.T) {
 	}
 }
 
+func TestValidateProjectTuples(t *testing.T) {
+	testCases := []struct {
+		name string
+		node sql.Node
+		ok   bool
+	}{
+		{
+			"project with no tuple",
+			plan.NewProject([]sql.Expression{
+				expression.NewLiteral(1, sql.Int64),
+			}, nil),
+			true,
+		},
+		{
+			"project with a 1 elem tuple",
+			plan.NewProject([]sql.Expression{
+				expression.NewTuple(
+					expression.NewLiteral(1, sql.Int64),
+				),
+			}, nil),
+			true,
+		},
+		{
+			"project with a 2 elem tuple",
+			plan.NewProject([]sql.Expression{
+				expression.NewTuple(
+					expression.NewLiteral(1, sql.Int64),
+					expression.NewLiteral(1, sql.Int64),
+				),
+			}, nil),
+			false,
+		},
+		{
+			"groupby with no tuple",
+			plan.NewGroupBy([]sql.Expression{
+				expression.NewLiteral(1, sql.Int64),
+			}, nil, nil),
+			true,
+		},
+		{
+			"groupby with a 1 elem tuple",
+			plan.NewGroupBy([]sql.Expression{
+				expression.NewTuple(
+					expression.NewLiteral(1, sql.Int64),
+				),
+			}, nil, nil),
+			true,
+		},
+		{
+			"groupby with a 2 elem tuple",
+			plan.NewGroupBy([]sql.Expression{
+				expression.NewTuple(
+					expression.NewLiteral(1, sql.Int64),
+					expression.NewLiteral(1, sql.Int64),
+				),
+			}, nil, nil),
+			false,
+		},
+	}
+
+	rule := getValidationRule(validateProjectTuplesRule)
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			err := rule.Apply(tt.node)
+			if tt.ok {
+				require.NoError(err)
+			} else {
+				require.Error(err)
+				require.True(ErrProjectTuple.Is(err))
+			}
+		})
+	}
+}
+
 type dummyNode struct{ resolved bool }
 
-func (n dummyNode) String() string                                               { return "dummynode" }
-func (n dummyNode) Resolved() bool                                               { return n.resolved }
-func (dummyNode) Schema() sql.Schema                                             { return sql.Schema{} }
-func (dummyNode) Children() []sql.Node                                           { return nil }
-func (dummyNode) RowIter(sql.Session) (sql.RowIter, error)                       { return nil, nil }
-func (dummyNode) TransformUp(func(sql.Node) (sql.Node, error)) (sql.Node, error) { return nil, nil }
+func (n dummyNode) String() string                                    { return "dummynode" }
+func (n dummyNode) Resolved() bool                                    { return n.resolved }
+func (dummyNode) Schema() sql.Schema                                  { return sql.Schema{} }
+func (dummyNode) Children() []sql.Node                                { return nil }
+func (dummyNode) RowIter(sql.Session) (sql.RowIter, error)            { return nil, nil }
+func (dummyNode) TransformUp(sql.TransformNodeFunc) (sql.Node, error) { return nil, nil }
 func (dummyNode) TransformExpressionsUp(
-	func(sql.Expression) (sql.Expression, error),
+	sql.TransformExprFunc,
 ) (sql.Node, error) {
 	return nil, nil
 }

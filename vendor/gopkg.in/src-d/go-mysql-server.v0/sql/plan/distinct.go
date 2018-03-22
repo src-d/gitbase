@@ -34,7 +34,7 @@ func (d *Distinct) RowIter(session sql.Session) (sql.RowIter, error) {
 }
 
 // TransformUp implements the Transformable interface.
-func (d *Distinct) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (d *Distinct) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	child, err := d.Child.TransformUp(f)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (d *Distinct) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, er
 }
 
 // TransformExpressionsUp implements the Transformable interface.
-func (d *Distinct) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (d *Distinct) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	child, err := d.Child.TransformExpressionsUp(f)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (d *OrderedDistinct) RowIter(session sql.Session) (sql.RowIter, error) {
 }
 
 // TransformUp implements the Transformable interface.
-func (d *OrderedDistinct) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (d *OrderedDistinct) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	child, err := d.Child.TransformUp(f)
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (d *OrderedDistinct) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.N
 }
 
 // TransformExpressionsUp implements the Transformable interface.
-func (d *OrderedDistinct) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (d *OrderedDistinct) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	child, err := d.Child.TransformExpressionsUp(f)
 	if err != nil {
 		return nil, err
@@ -171,12 +171,18 @@ func (di *orderedDistinctIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		if di.prevRow != nil && di.prevRow.Equals(row, di.schema) {
-			continue
+		if di.prevRow != nil {
+			ok, err := di.prevRow.Equals(row, di.schema)
+			if err != nil {
+				return nil, err
+			}
+
+			if ok {
+				continue
+			}
 		}
 
 		di.prevRow = row
-
 		return row, nil
 	}
 }
