@@ -179,7 +179,7 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 func (HistoryIdx) Type() sql.Type { return sql.Int64 }
 
 // TransformUp implements the Expression interface.
-func (f *HistoryIdx) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+func (f *HistoryIdx) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 	left, err := f.Left.TransformUp(fn)
 	if err != nil {
 		return nil, err

@@ -39,11 +39,11 @@ func (treeEntriesTable) Schema() sql.Schema {
 	return treeEntriesSchema
 }
 
-func (r *treeEntriesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (r *treeEntriesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *treeEntriesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (r *treeEntriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	return r, nil
 }
 

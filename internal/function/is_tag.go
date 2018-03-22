@@ -43,7 +43,7 @@ func (f IsTag) String() string {
 }
 
 // TransformUp implements the Expression interface.
-func (f IsTag) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+func (f IsTag) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 	child, err := f.Child.TransformUp(fn)
 	if err != nil {
 		return nil, err

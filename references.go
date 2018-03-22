@@ -41,11 +41,11 @@ func (referencesTable) Schema() sql.Schema {
 	return refsSchema
 }
 
-func (r *referencesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (r *referencesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *referencesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (r *referencesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	return r, nil
 }
 

@@ -158,7 +158,7 @@ func treeInEntries(
 }
 
 // TransformUp implements the Expression interface.
-func (f *CommitHasTree) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+func (f *CommitHasTree) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 	left, err := f.Left.TransformUp(fn)
 	if err != nil {
 		return nil, err

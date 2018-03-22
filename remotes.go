@@ -43,11 +43,11 @@ func (r remotesTable) String() string {
 	return printTable(remotesTableName, remotesSchema)
 }
 
-func (r *remotesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (r *remotesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *remotesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (r *remotesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	return r, nil
 }
 
