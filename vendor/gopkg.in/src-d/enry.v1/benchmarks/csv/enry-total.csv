@@ -1,0 +1,8 @@
+function,tool,iterations,ns/op
+GetLanguage(),enry,100,1915861259
+Classify(),enry,5,39977943775
+GetLanguagesByModeline(),enry,1000,196571071
+GetLanguagesByFilename(),enry,2000000,89774
+GetLanguagesByShebang(),enry,100000,1892569
+GetLanguagesByExtension(),enry,200000,921160
+GetLanguagesByContent(),enry,1000,286159159

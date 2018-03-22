@@ -1,0 +1,9 @@
+# Hardware and software used to run benchmarks
+
+Dell XPS 9360
+Linux 4.11.6-3-ARCH #1 SMP PREEMPT Thu Jun 22 12:21:46 CEST 2017 x86_64
+go version go1.8.3 linux/amd64
+ruby 2.4.1p111 (2017-03-22 revision 58053) [x86_64-linux]
+
+github/linguist/samples commit: d5c8db3fb91963c4b2762ca2ea2ff7cfac109f68
+

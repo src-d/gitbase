@@ -1,0 +1,6 @@
+timeInterval,enry,numberOfFiles
+1us-10us,enry,96
+10us-100us,enry,1244
+100us-1ms,enry,321
+1ms-10ms,enry,135
+10ms-100ms,enry,43

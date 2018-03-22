@@ -41,3 +41,7 @@
 [[override]]
   name = "github.com/satori/go.uuid"
   revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
+
+[[constraint]]
+  name = "gopkg.in/src-d/enry.v1"
+  version = "1.6.3"
