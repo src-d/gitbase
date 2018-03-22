@@ -53,7 +53,7 @@ func (Language) Type() sql.Type {
 }
 
 // TransformUp implements the Expression interface.
-func (f *Language) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+func (f *Language) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 	left, err := f.Left.TransformUp(fn)
 	if err != nil {
 		return nil, err
@@ -71,8 +71,8 @@ func (f *Language) TransformUp(fn func(sql.Expression) (sql.Expression, error)) 
 }
 
 // Eval implements the Expression interface.
-func (f *Language) Eval(session sql.Session, row sql.Row) (interface{}, error) {
-	left, err := f.Left.Eval(session, row)
+func (f *Language) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (f *Language) Eval(session sql.Session, row sql.Row) (interface{}, error) {
 	var blob []byte
 
 	if f.Right != nil {
-		right, err := f.Right.Eval(session, row)
+		right, err := f.Right.Eval(ctx, row)
 		if err != nil {
 			return nil, err
 		}
@@ -108,4 +108,13 @@ func (f *Language) Eval(session sql.Session, row sql.Row) (interface{}, error) {
 	}
 
 	return enry.GetLanguage(path, blob), nil
+}
+
+// Children implements the Expression interface.
+func (f *Language) Children() []sql.Expression {
+	if f.Right == nil {
+		return []sql.Expression{f.Left}
+	}
+
+	return []sql.Expression{f.Left, f.Right}
 }
