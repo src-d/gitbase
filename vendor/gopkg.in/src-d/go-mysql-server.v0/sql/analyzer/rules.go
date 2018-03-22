@@ -26,6 +26,9 @@ var (
 	// ErrColumnTableNotFound is returned when the column does not exist in a
 	// the table.
 	ErrColumnTableNotFound = errors.NewKind("table %q does not have column %q")
+	// ErrColumnNotFound is returned when the column does not exist in any
+	// table in scope.
+	ErrColumnNotFound = errors.NewKind("column %q could not be found in any table in scope")
 	// ErrAmbiguousColumnName is returned when there is a column reference that
 	// is present in more than one table.
 	ErrAmbiguousColumnName = errors.NewKind("ambiguous column name %q, it's present in all these tables: %v")
@@ -80,41 +83,52 @@ func qualifyColumns(a *Analyzer, n sql.Node) (sql.Node, error) {
 
 		return n.TransformExpressionsUp(func(e sql.Expression) (sql.Expression, error) {
 			a.Log("transforming expression of type: %T", e)
-			col, ok := e.(*expression.UnresolvedColumn)
-			if !ok {
-				return e, nil
+			switch col := e.(type) {
+			case *expression.UnresolvedColumn:
+				col = expression.NewUnresolvedQualifiedColumn(col.Table(), col.Name())
+
+				if col.Table() == "" {
+					tables := dedupStrings(colIndex[col.Name()])
+					switch len(tables) {
+					case 0:
+						return nil, ErrColumnNotFound.New(col.Name())
+					case 1:
+						col = expression.NewUnresolvedQualifiedColumn(
+							tables[0],
+							col.Name(),
+						)
+					default:
+						return nil, ErrAmbiguousColumnName.New(col.Name(), strings.Join(tables, ", "))
+					}
+				} else {
+					if real, ok := tableAliases[col.Table()]; ok {
+						col = expression.NewUnresolvedQualifiedColumn(
+							real,
+							col.Name(),
+						)
+					}
+
+					if _, ok := tables[col.Table()]; !ok {
+						return nil, sql.ErrTableNotFound.New(col.Table())
+					}
+				}
+
+				a.Log("column %q was qualified with table %q", col.Name(), col.Table())
+				return col, nil
+			case *expression.Star:
+				if col.Table != "" {
+					if real, ok := tableAliases[col.Table]; ok {
+						col = expression.NewQualifiedStar(real)
+					}
+
+					if _, ok := tables[col.Table]; !ok {
+						return nil, sql.ErrTableNotFound.New(col.Table)
+					}
+
+					return col, nil
+				}
 			}
-
-			col = expression.NewUnresolvedQualifiedColumn(col.Table(), col.Name())
-
-			if col.Table() == "" {
-				tables := dedupStrings(colIndex[col.Name()])
-				switch len(tables) {
-				case 0:
-					return nil, ErrColumnTableNotFound.New(col.Table(), col.Name())
-				case 1:
-					col = expression.NewUnresolvedQualifiedColumn(
-						tables[0],
-						col.Name(),
-					)
-				default:
-					return nil, ErrAmbiguousColumnName.New(col.Name(), strings.Join(tables, ", "))
-				}
-			} else {
-				if real, ok := tableAliases[col.Table()]; ok {
-					col = expression.NewUnresolvedQualifiedColumn(
-						real,
-						col.Name(),
-					)
-				}
-
-				if _, ok := tables[col.Table()]; !ok {
-					return nil, sql.ErrTableNotFound.New(col.Table())
-				}
-			}
-
-			a.Log("column %q was qualified with table %q", col.Name(), col.Table())
-			return col, nil
+			return e, nil
 		})
 	})
 }
@@ -181,23 +195,31 @@ func resolveStar(a *Analyzer, n sql.Node) (sql.Node, error) {
 			return n, nil
 		}
 
-		if len(p.Expressions) != 1 {
-			return n, nil
+		var expressions []sql.Expression
+		schema := p.Child.Schema()
+		for _, e := range p.Expressions {
+			if s, ok := e.(*expression.Star); ok {
+				var exprs []sql.Expression
+				for i, col := range schema {
+					if s.Table == "" || s.Table == col.Source {
+						exprs = append(exprs, expression.NewGetFieldWithTable(
+							i, col.Type, col.Source, col.Name, col.Nullable,
+						))
+					}
+				}
+
+				if len(exprs) == 0 && s.Table != "" {
+					return nil, sql.ErrTableNotFound.New(s.Table)
+				}
+
+				a.Log("%s replaced with %d fields", e, len(exprs))
+				expressions = append(expressions, exprs...)
+			} else {
+				expressions = append(expressions, e)
+			}
 		}
 
-		if _, ok := p.Expressions[0].(*expression.Star); !ok {
-			return n, nil
-		}
-
-		var exprs []sql.Expression
-		for i, e := range p.Child.Schema() {
-			gf := expression.NewGetField(i, e.Type, e.Name, e.Nullable)
-			exprs = append(exprs, gf)
-		}
-
-		a.Log("star replace with %d fields", len(exprs))
-
-		return plan.NewProject(exprs, p.Child), nil
+		return plan.NewProject(expressions, p.Child), nil
 	})
 }
 
@@ -240,7 +262,10 @@ func resolveColumns(a *Analyzer, n sql.Node) (sql.Node, error) {
 
 			columnsInfo, ok := colMap[uc.Name()]
 			if !ok {
-				return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
+				if uc.Table() != "" {
+					return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
+				}
+				return nil, ErrColumnNotFound.New(uc.Name())
 			}
 
 			var ci columnInfo
@@ -254,7 +279,10 @@ func resolveColumns(a *Analyzer, n sql.Node) (sql.Node, error) {
 			}
 
 			if !found {
-				return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
+				if uc.Table() != "" {
+					return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
+				}
+				return nil, ErrColumnNotFound.New(uc.Name())
 			}
 
 			a.Log("column resolved to %q.%q", ci.col.Source, ci.col.Name)

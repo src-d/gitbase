@@ -26,7 +26,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	engine.AddDatabase(gitquery.NewDatabase("foo", &pool))
-	function.Register(engine.Catalog)
+	engine.Catalog.RegisterFunctions(function.Functions)
 
 	testCases := []struct {
 		query  string

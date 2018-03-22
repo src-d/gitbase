@@ -43,7 +43,7 @@ func (f IsRemote) String() string {
 }
 
 // TransformUp implements the Expression interface.
-func (f IsRemote) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+func (f IsRemote) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 	child, err := f.Child.TransformUp(fn)
 	if err != nil {
 		return nil, err

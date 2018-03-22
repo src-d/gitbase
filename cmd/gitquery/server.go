@@ -43,7 +43,7 @@ func (c *CmdServer) buildDatabase() error {
 	}
 
 	c.engine.AddDatabase(gitquery.NewDatabase(c.name, c.pool))
-	function.Register(c.engine.Catalog)
+	c.engine.Catalog.RegisterFunctions(function.Functions)
 	return nil
 }
 

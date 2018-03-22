@@ -99,6 +99,30 @@ func canHandleEquals(schema sql.Schema, tableName string, eq *expression.Equals)
 	return false
 }
 
+// canHandleIn returns whether the given in expression can be handled as a selector.
+// For that to happen, the left side must be a GetField expression and the right
+// side must be a Tuple expression with only Literal expressions as children.
+// The GetField expr must exist in the schema and match the given table name.
+func canHandleIn(schema sql.Schema, tableName string, in *expression.In) bool {
+	left, ok := in.Left().(*expression.GetField)
+	if !ok || !schema.Contains(left.Name()) || left.Table() != tableName {
+		return false
+	}
+
+	right, ok := in.Right().(expression.Tuple)
+	if !ok {
+		return false
+	}
+
+	for _, elem := range right {
+		if _, ok := elem.(*expression.Literal); !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
 // getEqualityValues returns the field and value of the literal in the
 // given equality expression.
 func getEqualityValues(eq *expression.Equals) (string, interface{}, error) {
@@ -117,6 +141,36 @@ func getEqualityValues(eq *expression.Equals) (string, interface{}, error) {
 		return eq.Right().(*expression.GetField).Name(), l, nil
 	}
 	return "", "", nil
+}
+
+// getInValues returns the field and values of the literals in the
+// given in expression.
+func getInValues(in *expression.In) (string, []interface{}, error) {
+	left, ok := in.Left().(*expression.GetField)
+	if !ok {
+		return "", nil, nil
+	}
+
+	right, ok := in.Right().(expression.Tuple)
+	if !ok {
+		return "", nil, nil
+	}
+
+	var values = make([]interface{}, len(right))
+	for i, elem := range right {
+		lit, ok := elem.(*expression.Literal)
+		if !ok {
+			return "", nil, nil
+		}
+
+		var err error
+		values[i], err = lit.Eval(nil, nil)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+
+	return left.Name(), values, nil
 }
 
 // handledFilters returns the set of filters that can be handled with the given
@@ -174,15 +228,36 @@ func classifyFilters(
 					continue
 				}
 			}
-			// TODO: handle IN when it's implemented
+		case *expression.In:
+			if canHandleIn(schema, table, f) {
+				field, vals, err := getInValues(f)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				if stringContains(handledCols, field) {
+					selectors[field] = append(selectors[field], selector(vals))
+					continue
+				}
+			}
 		case *expression.Or:
 			exprs := unfoldOrs(f)
 			// check all unfolded exprs can be handled, if not we have to
 			// resort to treating them as conditions
 			valid := true
 			for _, e := range exprs {
-				f, ok := e.(*expression.Equals)
-				if !ok || !canHandleEquals(schema, table, f) {
+				switch e := e.(type) {
+				case *expression.Equals:
+					if !canHandleEquals(schema, table, e) {
+						valid = false
+						break
+					}
+				case *expression.In:
+					if !canHandleIn(schema, table, e) {
+						valid = false
+						break
+					}
+				default:
 					valid = false
 					break
 				}
@@ -200,11 +275,9 @@ func classifyFilters(
 			}
 
 			for k, v := range sels {
-				var values = make(selector, len(v))
-				for i, val := range v {
-					if len(val) > 0 {
-						values[i] = val[0]
-					}
+				var values selector
+				for _, vals := range v {
+					values = append(values, vals...)
 				}
 				selectors[k] = append(selectors[k], values)
 			}

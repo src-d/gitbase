@@ -36,11 +36,11 @@ func (r repositoriesTable) String() string {
 	return printTable(repositoriesTableName, repositoriesSchema)
 }
 
-func (r *repositoriesTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (r *repositoriesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *repositoriesTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (r *repositoriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	return r, nil
 }
 

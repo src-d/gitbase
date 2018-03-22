@@ -315,10 +315,12 @@
     "sql",
     "sql/analyzer",
     "sql/expression",
+    "sql/expression/function",
+    "sql/expression/function/aggregation",
     "sql/parse",
     "sql/plan"
   ]
-  revision = "d517220df27cf67ae67a21b69f5d96118464327c"
+  revision = "6a563e1a2bcdd038830ed6039fb770025fb325c8"
 
 [[projects]]
   branch = "master"
@@ -353,6 +355,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f8f325a2810c948896093e25b6b05dbc4176082b5948f6168403587981de846c"
+  inputs-digest = "1eb946afdd475a60079354604cd77352ebbc561299a6311de127bcdc874e1fe3"
   solver-name = "gps-cdcl"
   solver-version = 1

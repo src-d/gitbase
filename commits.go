@@ -47,11 +47,11 @@ func (commitsTable) Schema() sql.Schema {
 	return commitsSchema
 }
 
-func (r *commitsTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (r *commitsTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *commitsTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (r *commitsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	return r, nil
 }
 

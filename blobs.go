@@ -57,11 +57,11 @@ func (blobsTable) Schema() sql.Schema {
 	return blobsSchema
 }
 
-func (r *blobsTable) TransformUp(f func(sql.Node) (sql.Node, error)) (sql.Node, error) {
+func (r *blobsTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	return f(r)
 }
 
-func (r *blobsTable) TransformExpressionsUp(f func(sql.Expression) (sql.Expression, error)) (sql.Node, error) {
+func (r *blobsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
 	return r, nil
 }
 

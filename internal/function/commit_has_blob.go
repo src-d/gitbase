@@ -146,7 +146,7 @@ func (f CommitHasBlob) Resolved() bool {
 }
 
 // TransformUp implements the Expression interface.
-func (f CommitHasBlob) TransformUp(fn func(sql.Expression) (sql.Expression, error)) (sql.Expression, error) {
+func (f CommitHasBlob) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 	commitHash, err := f.commitHash.TransformUp(fn)
 	if err != nil {
 		return nil, err
