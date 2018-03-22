@@ -157,6 +157,8 @@ type RowRepoIter interface {
 // RowRepoIter is used as the base to iterate over all the repositories
 // in the pool
 type rowRepoIter struct {
+	mu sync.Mutex
+
 	repositoryIter *RepositoryIter
 	iter           RowRepoIter
 	session        *Session
@@ -219,6 +221,9 @@ func NewRowRepoIter(
 }
 
 func (i *rowRepoIter) setError(err error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	i.err = err
 }
 
@@ -312,6 +317,9 @@ func (i *rowRepoIter) rowReader(num int) {
 func (i *rowRepoIter) Next() (sql.Row, error) {
 	row, ok := <-i.rows
 	if !ok {
+		i.mu.Lock()
+		defer i.mu.Unlock()
+
 		return nil, i.err
 	}
 
