@@ -20,8 +20,8 @@ func NewIsRemote(e sql.Expression) sql.Expression {
 }
 
 // Eval implements the expression interface.
-func (f *IsRemote) Eval(session sql.Session, row sql.Row) (interface{}, error) {
-	val, err := f.Child.Eval(session, row)
+func (f *IsRemote) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	val, err := f.Child.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}

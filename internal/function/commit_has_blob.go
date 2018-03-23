@@ -30,13 +30,13 @@ func (CommitHasBlob) Type() sql.Type {
 }
 
 // Eval implements the Expression interface.
-func (f *CommitHasBlob) Eval(session sql.Session, row sql.Row) (interface{}, error) {
-	s, ok := session.(*gitquery.Session)
+func (f *CommitHasBlob) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	s, ok := ctx.Session.(*gitquery.Session)
 	if !ok {
-		return nil, gitquery.ErrInvalidGitQuerySession.New(session)
+		return nil, gitquery.ErrInvalidGitQuerySession.New(ctx.Session)
 	}
 
-	commitHash, err := f.commitHash.Eval(s, row)
+	commitHash, err := f.commitHash.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (f *CommitHasBlob) Eval(session sql.Session, row sql.Row) (interface{}, err
 		return nil, err
 	}
 
-	blob, err := f.blob.Eval(s, row)
+	blob, err := f.blob.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -162,4 +162,12 @@ func (f CommitHasBlob) TransformUp(fn sql.TransformExprFunc) (sql.Expression, er
 
 func (f CommitHasBlob) String() string {
 	return fmt.Sprintf("commit_has_blob(%s, %s)", f.commitHash, f.blob)
+}
+
+// Children implements the Expression interface.
+func (f CommitHasBlob) Children() []sql.Expression {
+	return []sql.Expression{
+		f.commitHash,
+		f.blob,
+	}
 }

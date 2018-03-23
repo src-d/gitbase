@@ -32,7 +32,7 @@ func TestRemotesTable_Children(t *testing.T) {
 
 func TestRemotesTable_RowIter(t *testing.T) {
 	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
 	table := getTable(require, remotesTableName)
@@ -40,6 +40,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 	_, ok := table.(*remotesTable)
 	require.True(ok)
 
+	session := ctx.Session.(*Session)
 	pool := session.Pool
 	repository, err := pool.GetPos(0)
 	require.NoError(err)
@@ -58,7 +59,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 	_, err = repo.CreateRemote(&config)
 	require.NoError(err)
 
-	rows, err := sql.NodeToRows(session, table)
+	rows, err := sql.NodeToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 3)
 

@@ -47,10 +47,10 @@ func (r *referencesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.N
 	return r, nil
 }
 
-func (r referencesTable) RowIter(session sql.Session) (sql.RowIter, error) {
+func (r referencesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	iter := new(referenceIter)
 
-	repoIter, err := NewRowRepoIter(session, iter)
+	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -67,11 +67,11 @@ func (referencesTable) HandledFilters(filters []sql.Expression) []sql.Expression
 }
 
 func (r *referencesTable) WithProjectAndFilters(
-	session sql.Session,
+	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, refsSchema, referencesTableName, filters,
+		ctx, refsSchema, referencesTableName, filters,
 		[]string{"hash", "name"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 && len(selectors["name"]) == 0 {

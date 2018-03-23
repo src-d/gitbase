@@ -162,6 +162,7 @@ type rowRepoIter struct {
 	repositoryIter *RepositoryIter
 	iter           RowRepoIter
 	session        *Session
+	ctx            *sql.Context
 
 	wg    sync.WaitGroup
 	done  chan bool
@@ -172,19 +173,19 @@ type rowRepoIter struct {
 
 // NewRowRepoIter initializes a new repository iterator.
 //
-// * session: it should be a gitquery.Session
+// * ctx: it should contain a gitquery.Session
 // * iter: specific RowRepoIter interface
 //     * NewIterator: called when a new repository is about to be iterated,
 //         returns a new RowRepoIter
 //     * Next: called for each row
 //     * Close: called when a repository finished iterating
 func NewRowRepoIter(
-	session sql.Session,
+	ctx *sql.Context,
 	iter RowRepoIter,
 ) (*rowRepoIter, error) {
-	s, ok := session.(*Session)
+	s, ok := ctx.Session.(*Session)
 	if !ok || s == nil {
-		return nil, ErrInvalidGitQuerySession.New(session)
+		return nil, ErrInvalidGitQuerySession.New(ctx.Session)
 	}
 
 	rIter, err := s.Pool.RepoIter()
@@ -196,6 +197,7 @@ func NewRowRepoIter(
 		repositoryIter: rIter,
 		iter:           iter,
 		session:        s,
+		ctx:            ctx,
 		done:           make(chan bool),
 		err:            nil,
 		repos:          make(chan *Repository),
@@ -235,7 +237,7 @@ func (i *rowRepoIter) fillRepoChannel() {
 		case <-i.done:
 			return
 
-		case <-i.session.Done():
+		case <-i.ctx.Done():
 			close(i.done)
 			return
 
@@ -248,7 +250,7 @@ func (i *rowRepoIter) fillRepoChannel() {
 				case <-i.done:
 					return
 
-				case <-i.session.Done():
+				case <-i.ctx.Done():
 					i.setError(ErrSessionCanceled.New())
 					close(i.done)
 					return
@@ -283,7 +285,7 @@ func (i *rowRepoIter) rowReader(num int) {
 				iter.Close()
 				return
 
-			case <-i.session.Done():
+			case <-i.ctx.Done():
 				i.setError(ErrSessionCanceled.New())
 				return
 

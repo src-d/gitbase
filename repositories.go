@@ -42,10 +42,10 @@ func (r *repositoriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql
 	return r, nil
 }
 
-func (r repositoriesTable) RowIter(session sql.Session) (sql.RowIter, error) {
+func (r repositoriesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	iter := &repositoriesIter{}
 
-	rowRepoIter, err := NewRowRepoIter(session, iter)
+	rowRepoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +62,11 @@ func (repositoriesTable) HandledFilters(filters []sql.Expression) []sql.Expressi
 }
 
 func (r *repositoriesTable) WithProjectAndFilters(
-	session sql.Session,
+	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, repositoriesSchema, repositoriesTableName, filters, nil,
+		ctx, repositoriesSchema, repositoriesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(repositoriesIter), nil

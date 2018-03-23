@@ -29,12 +29,12 @@ func TestBlobsTable_Children(t *testing.T) {
 
 func TestBlobsTable_RowIter(t *testing.T) {
 	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
 	table := getTable(require, blobsTableName)
 
-	rows, err := sql.NodeToRows(session, table)
+	rows, err := sql.NodeToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 10)
 

@@ -158,10 +158,10 @@ func (d *testCommitIter) Close() error {
 	return nil
 }
 
-func testRepoIter(num int, require *require.Assertions, session *Session) {
+func testRepoIter(num int, require *require.Assertions, ctx *sql.Context) {
 	cIter := &testCommitIter{}
 
-	repoIter, err := NewRowRepoIter(session, cIter)
+	repoIter, err := NewRowRepoIter(ctx, cIter)
 	require.NoError(err)
 
 	count := 0
@@ -187,14 +187,15 @@ func TestRepositoryRowIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	session := NewSession(context.TODO(), &pool)
+	session := NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session)
 	max := 64
 
 	for i := 0; i < max; i++ {
 		pool.Add(strconv.Itoa(i), path)
 	}
 
-	testRepoIter(max, require, session)
+	testRepoIter(max, require, ctx)
 
 	// Test multiple iterators at the same time
 
@@ -203,7 +204,7 @@ func TestRepositoryRowIterator(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		wg.Add(1)
 		go func() {
-			testRepoIter(max, require, session)
+			testRepoIter(max, require, ctx)
 			wg.Done()
 		}()
 	}

@@ -54,10 +54,10 @@ func (r *commitsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node
 	return r, nil
 }
 
-func (r commitsTable) RowIter(session sql.Session) (sql.RowIter, error) {
+func (r commitsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	iter := new(commitIter)
 
-	repoIter, err := NewRowRepoIter(session, iter)
+	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +74,11 @@ func (commitsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 }
 
 func (r *commitsTable) WithProjectAndFilters(
-	session sql.Session,
+	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, commitsSchema, commitsTableName, filters,
+		ctx, commitsSchema, commitsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 {

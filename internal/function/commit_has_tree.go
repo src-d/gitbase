@@ -36,13 +36,13 @@ func (f CommitHasTree) String() string {
 func (CommitHasTree) Type() sql.Type { return sql.Boolean }
 
 // Eval implements the Expression interface.
-func (f *CommitHasTree) Eval(s sql.Session, row sql.Row) (interface{}, error) {
-	session, ok := s.(*gitquery.Session)
+func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	s, ok := ctx.Session.(*gitquery.Session)
 	if !ok {
-		return nil, gitquery.ErrInvalidGitQuerySession.New(s)
+		return nil, gitquery.ErrInvalidGitQuerySession.New(ctx.Session)
 	}
 
-	left, err := f.Left.Eval(s, row)
+	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (f *CommitHasTree) Eval(s sql.Session, row sql.Row) (interface{}, error) {
 		return nil, err
 	}
 
-	right, err := f.Right.Eval(s, row)
+	right, err := f.Right.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (f *CommitHasTree) Eval(s sql.Session, row sql.Row) (interface{}, error) {
 	commitHash := plumbing.NewHash(left.(string))
 	treeHash := plumbing.NewHash(right.(string))
 
-	iter, err := session.Pool.RepoIter()
+	iter, err := s.Pool.RepoIter()
 	if err != nil {
 		return nil, err
 	}

@@ -42,7 +42,8 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 		pool.Add(id, "")
 	}
 
-	session := NewSession(context.TODO(), &pool)
+	session := NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session)
 
 	db := NewDatabase(repositoriesTableName)
 	require.NotNil(db)
@@ -53,7 +54,7 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	require.True(ok)
 	require.NotNil(table)
 
-	rows, err := sql.NodeToRows(session, table)
+	rows, err := sql.NodeToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, len(repoIDs))
 

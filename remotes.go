@@ -49,10 +49,10 @@ func (r *remotesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node
 	return r, nil
 }
 
-func (r remotesTable) RowIter(session sql.Session) (sql.RowIter, error) {
+func (r remotesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	iter := new(remotesIter)
 
-	rowRepoIter, err := NewRowRepoIter(session, iter)
+	rowRepoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +69,11 @@ func (remotesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 }
 
 func (r *remotesTable) WithProjectAndFilters(
-	session sql.Session,
+	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, remotesSchema, remotesTableName, filters, nil,
+		ctx, remotesSchema, remotesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(remotesIter), nil
@@ -89,8 +89,7 @@ type remotesIter struct {
 	urlPos       int
 }
 
-func (i *remotesIter) NewIterator(
-	repo *Repository) (RowRepoIter, error) {
+func (i *remotesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 
 	remotes, err := repo.Repo.Remotes()
 	if err != nil {

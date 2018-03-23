@@ -135,8 +135,11 @@ func TestIntegration(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.query, func(t *testing.T) {
 			require := require.New(t)
-			session := gitquery.NewSession(context.TODO(), &pool)
-			_, iter, err := engine.Query(session, tt.query)
+
+			session := gitquery.NewSession(&pool)
+			ctx := sql.NewContext(context.TODO(), session)
+
+			_, iter, err := engine.Query(ctx, tt.query)
 			require.NoError(err)
 			rows, err := sql.RowIterToRows(iter)
 			require.NoError(err)

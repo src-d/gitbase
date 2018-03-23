@@ -27,13 +27,13 @@ func (f HistoryIdx) String() string {
 }
 
 // Eval implements the Expression interface.
-func (f *HistoryIdx) Eval(session sql.Session, row sql.Row) (interface{}, error) {
-	s, ok := session.(*gitquery.Session)
+func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	s, ok := ctx.Session.(*gitquery.Session)
 	if !ok {
-		return nil, gitquery.ErrInvalidGitQuerySession.New(session)
+		return nil, gitquery.ErrInvalidGitQuerySession.New(ctx.Session)
 	}
 
-	left, err := f.Left.Eval(session, row)
+	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (f *HistoryIdx) Eval(session sql.Session, row sql.Row) (interface{}, error)
 		return nil, err
 	}
 
-	right, err := f.Right.Eval(session, row)
+	right, err := f.Right.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}

@@ -1,8 +1,6 @@
 package gitquery
 
 import (
-	"context"
-
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -16,17 +14,17 @@ type Session struct {
 }
 
 // NewSession creates a new Session.
-func NewSession(ctx context.Context, pool *RepositoryPool) *Session {
+func NewSession(pool *RepositoryPool) *Session {
 	return &Session{
-		Session: sql.NewBaseSession(ctx),
+		Session: sql.NewBaseSession(),
 		Pool:    pool,
 	}
 }
 
 // NewSessionBuilder creates a SessionBuilder with the given Repository Pool.
 func NewSessionBuilder(pool *RepositoryPool) server.SessionBuilder {
-	return func(ctx context.Context, _ *mysql.Conn) sql.Session {
-		return NewSession(ctx, pool)
+	return func(_ *mysql.Conn) sql.Session {
+		return NewSession(pool)
 	}
 }
 

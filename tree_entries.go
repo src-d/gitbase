@@ -45,10 +45,10 @@ func (r *treeEntriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.
 	return r, nil
 }
 
-func (r treeEntriesTable) RowIter(session sql.Session) (sql.RowIter, error) {
+func (r treeEntriesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	iter := new(treeEntryIter)
 
-	repoIter, err := NewRowRepoIter(session, iter)
+	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +65,14 @@ func (treeEntriesTable) HandledFilters(filters []sql.Expression) []sql.Expressio
 }
 
 func (r *treeEntriesTable) WithProjectAndFilters(
-	session sql.Session,
+	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	// TODO: could be optimized even more checking that only tree_hash is
 	// projected. There would be no need to iterate files in this case, and
 	// it would be much faster.
 	return rowIterWithSelectors(
-		session, treeEntriesSchema, treeEntriesTableName, filters,
+		ctx, treeEntriesSchema, treeEntriesTableName, filters,
 		[]string{"tree_hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["tree_hash"]) == 0 {
