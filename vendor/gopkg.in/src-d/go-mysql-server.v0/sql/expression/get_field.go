@@ -31,6 +31,11 @@ func NewGetFieldWithTable(index int, fieldType sql.Type, table, fieldName string
 	}
 }
 
+// Children implements the Expression interface.
+func (GetField) Children() []sql.Expression {
+	return nil
+}
+
 // Table returns the name of the field table.
 func (p GetField) Table() string { return p.table }
 
@@ -53,7 +58,7 @@ func (p GetField) Type() sql.Type {
 }
 
 // Eval implements the Expression interface.
-func (p GetField) Eval(session sql.Session, row sql.Row) (interface{}, error) {
+func (p GetField) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	return row[p.fieldIndex], nil
 }
 

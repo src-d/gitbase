@@ -25,9 +25,7 @@ var (
 	blobsMaxSize     = getIntEnv(blobsMaxSizeKey, 5) * mib
 )
 
-type blobsTable struct {
-	pool *RepositoryPool
-}
+type blobsTable struct{}
 
 var blobsSchema = sql.Schema{
 	{Name: "hash", Type: sql.Text, Nullable: false, Source: blobsTableName},
@@ -37,8 +35,8 @@ var blobsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
 
-func newBlobsTable(pool *RepositoryPool) sql.Table {
-	return &blobsTable{pool: pool}
+func newBlobsTable() sql.Table {
+	return new(blobsTable)
 }
 
 func (blobsTable) String() string {
@@ -65,10 +63,10 @@ func (r *blobsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, 
 	return r, nil
 }
 
-func (r blobsTable) RowIter(_ sql.Session) (sql.RowIter, error) {
+func (r blobsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	iter := new(blobIter)
 
-	repoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -85,11 +83,11 @@ func (blobsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 }
 
 func (r *blobsTable) WithProjectAndFilters(
-	session sql.Session,
+	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, r.pool, blobsSchema, blobsTableName, filters,
+		ctx, blobsSchema, blobsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 {

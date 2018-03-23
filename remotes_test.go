@@ -1,7 +1,6 @@
 package gitquery
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -9,15 +8,13 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-git-fixtures.v3"
 	gitconfig "gopkg.in/src-d/go-git.v4/config"
 )
 
 func TestRemotesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, remotesTableName)
+	table := getTable(require, remotesTableName)
 	require.Equal(remotesTableName, table.Name())
 
 	// Check that each column source is the same as table name
@@ -29,21 +26,22 @@ func TestRemotesTable_Name(t *testing.T) {
 func TestRemotesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, remotesTableName)
+	table := getTable(require, remotesTableName)
 	require.Equal(0, len(table.Children()))
 }
 
 func TestRemotesTable_RowIter(t *testing.T) {
 	require := require.New(t)
+	ctx, _, cleanup := setup(t)
+	defer cleanup()
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, remotesTableName)
+	table := getTable(require, remotesTableName)
 
-	remotes, ok := table.(*remotesTable)
+	_, ok := table.(*remotesTable)
 	require.True(ok)
 
-	pool := remotes.pool
+	session := ctx.Session.(*Session)
+	pool := session.Pool
 	repository, err := pool.GetPos(0)
 	require.NoError(err)
 
@@ -61,7 +59,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 	_, err = repo.CreateRemote(&config)
 	require.NoError(err)
 
-	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
+	rows, err := sql.NodeToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 3)
 
@@ -96,7 +94,7 @@ func TestRemotesPushdown(t *testing.T) {
 	session, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newRemotesTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
+	table := newRemotesTable().(sql.PushdownProjectionAndFiltersTable)
 
 	iter, err := table.WithProjectAndFilters(session, nil, nil)
 	require.NoError(err)

@@ -27,7 +27,8 @@ func TestHistoryIdx(t *testing.T) {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := gitquery.NewSession(context.TODO(), &pool)
+	session := gitquery.NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session)
 
 	testCases := []struct {
 		name     string
@@ -52,7 +53,7 @@ func TestHistoryIdx(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			val, err := f.Eval(session, tt.row)
+			val, err := f.Eval(ctx, tt.row)
 			if tt.err {
 				require.Error(err)
 			} else {

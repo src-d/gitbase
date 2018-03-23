@@ -28,6 +28,11 @@ func (Star) Resolved() bool {
 	return false
 }
 
+// Children implements the Expression interface.
+func (Star) Children() []sql.Expression {
+	return nil
+}
+
 // IsNullable implements the Expression interface.
 func (Star) IsNullable() bool {
 	panic("star is just a placeholder node, but IsNullable was called")
@@ -46,7 +51,7 @@ func (s Star) String() string {
 }
 
 // Eval implements the Expression interface.
-func (Star) Eval(session sql.Session, r sql.Row) (interface{}, error) {
+func (Star) Eval(ctx *sql.Context, r sql.Row) (interface{}, error) {
 	panic("star is just a placeholder node, but Eval was called")
 }
 

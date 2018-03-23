@@ -9,9 +9,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 )
 
-type referencesTable struct {
-	pool *RepositoryPool
-}
+type referencesTable struct{}
 
 var refsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: referencesTableName},
@@ -21,8 +19,8 @@ var refsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*referencesTable)(nil)
 
-func newReferencesTable(pool *RepositoryPool) sql.Table {
-	return &referencesTable{pool: pool}
+func newReferencesTable() sql.Table {
+	return new(referencesTable)
 }
 
 func (r referencesTable) String() string {
@@ -49,10 +47,10 @@ func (r *referencesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.N
 	return r, nil
 }
 
-func (r referencesTable) RowIter(_ sql.Session) (sql.RowIter, error) {
+func (r referencesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	iter := new(referenceIter)
 
-	repoIter, err := NewRowRepoIter(r.pool, iter)
+	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +67,11 @@ func (referencesTable) HandledFilters(filters []sql.Expression) []sql.Expression
 }
 
 func (r *referencesTable) WithProjectAndFilters(
-	session sql.Session,
+	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		session, r.pool, refsSchema, referencesTableName, filters,
+		ctx, refsSchema, referencesTableName, filters,
 		[]string{"hash", "name"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 && len(selectors["name"]) == 0 {

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -13,8 +12,7 @@ import (
 func TestRepositoriesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, repositoriesTableName)
+	table := getTable(require, repositoriesTableName)
 	require.Equal(repositoriesTableName, table.Name())
 
 	// Check that each column source is the same as table name
@@ -26,8 +24,7 @@ func TestRepositoriesTable_Name(t *testing.T) {
 func TestRepositoriesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, repositoriesTableName)
+	table := getTable(require, repositoriesTableName)
 	require.Equal(0, len(table.Children()))
 }
 
@@ -45,7 +42,10 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 		pool.Add(id, "")
 	}
 
-	db := NewDatabase(repositoriesTableName, &pool)
+	session := NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session)
+
+	db := NewDatabase(repositoriesTableName)
 	require.NotNil(db)
 
 	tables := db.Tables()
@@ -54,7 +54,7 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	require.True(ok)
 	require.NotNil(table)
 
-	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
+	rows, err := sql.NodeToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, len(repoIDs))
 
@@ -76,7 +76,7 @@ func TestRepositoriesPushdown(t *testing.T) {
 	session, path, cleanup := setup(t)
 	defer cleanup()
 
-	table := newRepositoriesTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
+	table := newRepositoriesTable().(sql.PushdownProjectionAndFiltersTable)
 
 	iter, err := table.WithProjectAndFilters(session, nil, nil)
 	require.NoError(err)

@@ -10,21 +10,21 @@ import (
 type Project struct {
 	UnaryNode
 	// Expression projected.
-	Expressions []sql.Expression
+	Projections []sql.Expression
 }
 
 // NewProject creates a new projection.
 func NewProject(expressions []sql.Expression, child sql.Node) *Project {
 	return &Project{
 		UnaryNode:   UnaryNode{child},
-		Expressions: expressions,
+		Projections: expressions,
 	}
 }
 
 // Schema implements the Node interface.
 func (p *Project) Schema() sql.Schema {
-	var s = make(sql.Schema, len(p.Expressions))
-	for i, e := range p.Expressions {
+	var s = make(sql.Schema, len(p.Projections))
+	for i, e := range p.Projections {
 		var name string
 		if n, ok := e.(sql.Nameable); ok {
 			name = n.Name()
@@ -43,16 +43,16 @@ func (p *Project) Schema() sql.Schema {
 // Resolved implements the Resolvable interface.
 func (p *Project) Resolved() bool {
 	return p.UnaryNode.Child.Resolved() &&
-		expressionsResolved(p.Expressions...)
+		expressionsResolved(p.Projections...)
 }
 
 // RowIter implements the Node interface.
-func (p *Project) RowIter(session sql.Session) (sql.RowIter, error) {
-	i, err := p.Child.RowIter(session)
+func (p *Project) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	i, err := p.Child.RowIter(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &iter{p, i, session}, nil
+	return &iter{p, i, ctx}, nil
 }
 
 // TransformUp implements the Transformable interface.
@@ -61,12 +61,12 @@ func (p *Project) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return f(NewProject(p.Expressions, child))
+	return f(NewProject(p.Projections, child))
 }
 
 // TransformExpressionsUp implements the Transformable interface.
 func (p *Project) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	exprs, err := transformExpressionsUp(f, p.Expressions)
+	exprs, err := transformExpressionsUp(f, p.Projections)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +81,8 @@ func (p *Project) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, err
 
 func (p Project) String() string {
 	pr := sql.NewTreePrinter()
-	var exprs = make([]string, len(p.Expressions))
-	for i, expr := range p.Expressions {
+	var exprs = make([]string, len(p.Projections))
+	for i, expr := range p.Projections {
 		exprs[i] = expr.String()
 	}
 	_ = pr.WriteNode("Project(%s)", strings.Join(exprs, ", "))
@@ -90,10 +90,15 @@ func (p Project) String() string {
 	return pr.String()
 }
 
+// Expressions implements the Expressioner interface.
+func (p Project) Expressions() []sql.Expression {
+	return p.Projections
+}
+
 type iter struct {
 	p         *Project
 	childIter sql.RowIter
-	session   sql.Session
+	ctx       *sql.Context
 }
 
 func (i *iter) Next() (sql.Row, error) {
@@ -101,7 +106,7 @@ func (i *iter) Next() (sql.Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	return filterRow(i.session, i.p.Expressions, childRow)
+	return filterRow(i.ctx, i.p.Projections, childRow)
 }
 
 func (i *iter) Close() error {
@@ -109,7 +114,7 @@ func (i *iter) Close() error {
 }
 
 func filterRow(
-	s sql.Session,
+	s *sql.Context,
 	expressions []sql.Expression,
 	row sql.Row,
 ) (sql.Row, error) {

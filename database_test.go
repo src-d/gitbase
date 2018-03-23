@@ -21,8 +21,7 @@ const (
 func TestDatabase_Tables(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	db := getDB(require, f, testDBName)
+	db := getDB(require, testDBName)
 
 	tables := db.Tables()
 	var tableNames []string
@@ -47,32 +46,19 @@ func TestDatabase_Tables(t *testing.T) {
 func TestDatabase_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	db := getDB(require, f, testDBName)
+	db := getDB(require, testDBName)
 	require.Equal(testDBName, db.Name())
 }
 
-func getDB(
-	require *require.Assertions,
-	fixture *fixtures.Fixture,
-	name string,
-) sql.Database {
-
-	fixtures.Init()
-
-	pool := NewRepositoryPool()
-	pool.Add("repo", fixture.Worktree().Root())
-
-	db := NewDatabase(name, &pool)
+func getDB(require *require.Assertions, name string) sql.Database {
+	db := NewDatabase(name)
 	require.NotNil(db)
 
 	return db
 }
 
-func getTable(require *require.Assertions, fixture *fixtures.Fixture,
-	name string) sql.Table {
-
-	db := getDB(require, fixture, "foo")
+func getTable(require *require.Assertions, name string) sql.Table {
+	db := getDB(require, "foo")
 	require.NotNil(db)
 	require.Equal(db.Name(), "foo")
 

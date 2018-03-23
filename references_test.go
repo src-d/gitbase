@@ -1,22 +1,18 @@
 package gitquery
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
-
-	"gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestReferencesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, referencesTableName)
+	table := getTable(require, referencesTableName)
 	require.Equal(referencesTableName, table.Name())
 
 	// Check that each column source is the same as table name
@@ -28,27 +24,31 @@ func TestReferencesTable_Name(t *testing.T) {
 func TestReferencesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, referencesTableName)
+	table := getTable(require, referencesTableName)
 	require.Equal(0, len(table.Children()))
 }
 
 func TestReferencesTable_RowIter(t *testing.T) {
 	require := require.New(t)
+	session, _, cleanup := setup(t)
+	defer cleanup()
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, referencesTableName)
+	table := getTable(require, referencesTableName)
 
-	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), plan.NewSort(
+	rows, err := sql.NodeToRows(session, plan.NewSort(
 		[]plan.SortField{{Column: expression.NewGetField(0, sql.Text, "name", false), Order: plan.Ascending}},
 		table))
 	require.NoError(err)
 
+	require.NotEqual(0, len(rows))
+	repoName, ok := rows[0][0].(string)
+	require.True(ok)
+
 	expected := []sql.Row{
-		sql.NewRow("repo", "HEAD", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
-		sql.NewRow("repo", "refs/heads/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
-		sql.NewRow("repo", "refs/remotes/origin/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
-		sql.NewRow("repo", "refs/remotes/origin/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow(repoName, "HEAD", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow(repoName, "refs/heads/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow(repoName, "refs/remotes/origin/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
+		sql.NewRow(repoName, "refs/remotes/origin/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
 	}
 	require.ElementsMatch(expected, rows)
 
@@ -64,7 +64,7 @@ func TestReferencesPushdown(t *testing.T) {
 	session, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newReferencesTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
+	table := newReferencesTable().(sql.PushdownProjectionAndFiltersTable)
 
 	iter, err := table.WithProjectAndFilters(session, nil, nil)
 	require.NoError(err)

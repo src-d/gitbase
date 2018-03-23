@@ -1,21 +1,17 @@
 package gitquery
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-
-	"gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestBlobsTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, blobsTableName)
+	table := getTable(require, blobsTableName)
 	require.Equal(blobsTableName, table.Name())
 
 	// Check that each column source is the same as table name
@@ -27,18 +23,18 @@ func TestBlobsTable_Name(t *testing.T) {
 func TestBlobsTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, blobsTableName)
+	table := getTable(require, blobsTableName)
 	require.Equal(0, len(table.Children()))
 }
 
 func TestBlobsTable_RowIter(t *testing.T) {
 	require := require.New(t)
+	ctx, _, cleanup := setup(t)
+	defer cleanup()
 
-	f := fixtures.ByTag("worktree").One()
-	table := getTable(require, f, blobsTableName)
+	table := getTable(require, blobsTableName)
 
-	rows, err := sql.NodeToRows(sql.NewBaseSession(context.TODO()), table)
+	rows, err := sql.NodeToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 10)
 
@@ -60,7 +56,7 @@ func TestBlobsLimit(t *testing.T) {
 		blobsMaxSize = prev
 	}()
 
-	table := newBlobsTable(session.Pool)
+	table := newBlobsTable()
 	iter, err := table.RowIter(session)
 	require.NoError(err)
 
@@ -98,7 +94,7 @@ func TestBlobsPushdown(t *testing.T) {
 	session, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newBlobsTable(session.Pool).(sql.PushdownProjectionAndFiltersTable)
+	table := newBlobsTable().(sql.PushdownProjectionAndFiltersTable)
 
 	iter, err := table.WithProjectAndFilters(session, nil, nil)
 	require.NoError(err)

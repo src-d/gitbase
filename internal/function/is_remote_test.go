@@ -28,7 +28,11 @@ func TestIsRemote(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			val, err := f.Eval(sql.NewBaseSession(context.TODO()), tt.row)
+
+			session := sql.NewBaseSession()
+			ctx := sql.NewContext(context.TODO(), session)
+
+			val, err := f.Eval(ctx, tt.row)
 			if tt.err {
 				require.Error(err)
 				require.True(sql.ErrInvalidType.Is(err))

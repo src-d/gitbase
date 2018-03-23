@@ -36,7 +36,7 @@ func (p Literal) Type() sql.Type {
 }
 
 // Eval implements the Expression interface.
-func (p Literal) Eval(session sql.Session, row sql.Row) (interface{}, error) {
+func (p Literal) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	return p.value, nil
 }
 
@@ -55,4 +55,9 @@ func (p Literal) String() string {
 func (p *Literal) TransformUp(f sql.TransformExprFunc) (sql.Expression, error) {
 	n := *p
 	return f(&n)
+}
+
+// Children implements the Expression interface.
+func (Literal) Children() []sql.Expression {
+	return nil
 }

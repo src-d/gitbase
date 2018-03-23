@@ -157,29 +157,38 @@ type RowRepoIter interface {
 // RowRepoIter is used as the base to iterate over all the repositories
 // in the pool
 type rowRepoIter struct {
+	mu sync.Mutex
+
 	repositoryIter *RepositoryIter
 	iter           RowRepoIter
+	session        *Session
+	ctx            *sql.Context
 
 	wg    sync.WaitGroup
 	done  chan bool
-	err   chan error
+	err   error
 	repos chan *Repository
 	rows  chan sql.Row
 }
 
 // NewRowRepoIter initializes a new repository iterator.
 //
-// * pool: is a RepositoryPool we want to iterate
+// * ctx: it should contain a gitquery.Session
 // * iter: specific RowRepoIter interface
 //     * NewIterator: called when a new repository is about to be iterated,
 //         returns a new RowRepoIter
 //     * Next: called for each row
 //     * Close: called when a repository finished iterating
 func NewRowRepoIter(
-	pool *RepositoryPool,
+	ctx *sql.Context,
 	iter RowRepoIter,
 ) (*rowRepoIter, error) {
-	rIter, err := pool.RepoIter()
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitQuerySession.New(ctx.Session)
+	}
+
+	rIter, err := s.Pool.RepoIter()
 	if err != nil {
 		return nil, err
 	}
@@ -187,8 +196,10 @@ func NewRowRepoIter(
 	repoIter := rowRepoIter{
 		repositoryIter: rIter,
 		iter:           iter,
+		session:        s,
+		ctx:            ctx,
 		done:           make(chan bool),
-		err:            make(chan error),
+		err:            nil,
 		repos:          make(chan *Repository),
 		rows:           make(chan sql.Row),
 	}
@@ -211,10 +222,23 @@ func NewRowRepoIter(
 	return &repoIter, nil
 }
 
+func (i *rowRepoIter) setError(err error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.err = err
+}
+
 func (i *rowRepoIter) fillRepoChannel() {
+	defer close(i.repos)
+
 	for {
 		select {
 		case <-i.done:
+			return
+
+		case <-i.ctx.Done():
+			close(i.done)
 			return
 
 		default:
@@ -222,18 +246,26 @@ func (i *rowRepoIter) fillRepoChannel() {
 
 			switch err {
 			case nil:
-				i.repos <- repo
-				continue
+				select {
+				case <-i.done:
+					return
+
+				case <-i.ctx.Done():
+					i.setError(ErrSessionCanceled.New())
+					close(i.done)
+					return
+
+				case i.repos <- repo:
+					continue
+				}
 
 			case io.EOF:
-				close(i.repos)
-				i.err <- io.EOF
+				i.setError(io.EOF)
 				return
 
 			default:
 				close(i.done)
-				close(i.repos)
-				i.err <- err
+				i.setError(err)
 				return
 			}
 		}
@@ -253,11 +285,20 @@ func (i *rowRepoIter) rowReader(num int) {
 				iter.Close()
 				return
 
+			case <-i.ctx.Done():
+				i.setError(ErrSessionCanceled.New())
+				return
+
 			default:
 				row, err := iter.Next()
 				switch err {
 				case nil:
-					i.rows <- row
+					select {
+					case <-i.done:
+						iter.Close()
+						return
+					case i.rows <- row:
+					}
 
 				case io.EOF:
 					iter.Close()
@@ -265,7 +306,7 @@ func (i *rowRepoIter) rowReader(num int) {
 
 				default:
 					iter.Close()
-					i.err <- err
+					i.setError(err)
 					close(i.done)
 					return
 				}
@@ -278,7 +319,10 @@ func (i *rowRepoIter) rowReader(num int) {
 func (i *rowRepoIter) Next() (sql.Row, error) {
 	row, ok := <-i.rows
 	if !ok {
-		return nil, <-i.err
+		i.mu.Lock()
+		defer i.mu.Unlock()
+
+		return nil, i.err
 	}
 
 	return row, nil

@@ -20,8 +20,8 @@ func NewIsTag(e sql.Expression) sql.Expression {
 }
 
 // Eval implements the expression interface.
-func (f *IsTag) Eval(session sql.Session, row sql.Row) (interface{}, error) {
-	val, err := f.Child.Eval(session, row)
+func (f *IsTag) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	val, err := f.Child.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}

@@ -315,14 +315,13 @@ func unfoldOrs(or *expression.Or) []sql.Expression {
 // All remaining filters will also be applied here.
 // Example:
 //   rowIterWithSelectors(
-//   	session, pool, someSchema, someTable, filters, []string{"somecol"},
+//   	ctx, someSchema, someTable, filters, []string{"somecol"},
 //   	func(selectors selectors) (RowRepoIter, error) {
 //   		// return an iter based on the selectors
 //   	},
 //   )
 func rowIterWithSelectors(
-	session sql.Session,
-	pool *RepositoryPool,
+	ctx *sql.Context,
 	schema sql.Schema,
 	tableName string,
 	filters []sql.Expression,
@@ -339,7 +338,12 @@ func rowIterWithSelectors(
 		return nil, err
 	}
 
-	iter, err := NewRowRepoIter(pool, rowRepoIter)
+	_, ok := ctx.Session.(*Session)
+	if !ok {
+		return nil, ErrInvalidGitQuerySession.New(ctx.Session)
+	}
+
+	iter, err := NewRowRepoIter(ctx, rowRepoIter)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +352,7 @@ func rowIterWithSelectors(
 		return iter, nil
 	}
 
-	return plan.NewFilterIter(session, expression.JoinAnd(filters...), iter), nil
+	return plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter), nil
 }
 
 func stringContains(slice []string, target string) bool {
