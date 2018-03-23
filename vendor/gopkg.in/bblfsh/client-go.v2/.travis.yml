@@ -1,0 +1,40 @@
+language: go
+
+go:
+  - 1.9
+  - tip
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
+go_import_path: gopkg.in/bblfsh/client-go.v2
+
+sudo: required
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-6
+    - g++-6
+
+services:
+  - docker
+
+before_install:
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
+  - docker run --privileged -d -p 9432:9432 --name bblfsh bblfsh/bblfshd
+  - docker exec -it bblfsh bblfshctl driver install python bblfsh/python-driver
+  - make dependencies
+
+script:
+  - go test
+  - go test ./tools
+  - make test-coverage
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

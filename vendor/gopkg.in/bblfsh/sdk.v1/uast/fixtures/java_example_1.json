@@ -1,0 +1,3547 @@
+{
+   "CompilationUnit" : {
+      "types" : [
+         {
+            "interface" : "false",
+            "line" : 22,
+            "modifiers" : [
+               {
+                  "internalClass" : "Modifier",
+                  "keyword" : "public",
+                  "line" : "22",
+                  "startPosition" : 809
+               }
+            ],
+            "internalClass" : "TypeDeclaration",
+            "startPosition" : "809",
+            "name" : {
+               "startPosition" : "822",
+               "identifier" : "EclipseParser",
+               "line" : "22",
+               "internalClass" : "SimpleName"
+            },
+            "bodyDeclarations" : [
+               {
+                  "internalClass" : "FieldDeclaration",
+                  "modifiers" : [
+                     {
+                        "internalClass" : "Modifier",
+                        "line" : "24",
+                        "keyword" : "final",
+                        "startPosition" : "843"
+                     },
+                     {
+                        "internalClass" : "Modifier",
+                        "keyword" : "private",
+                        "line" : "24",
+                        "startPosition" : "849"
+                     }
+                  ],
+                  "fragments" : [
+                     {
+                        "name" : {
+                           "startPosition" : "867",
+                           "identifier" : "parser",
+                           "line" : "24",
+                           "internalClass" : "SimpleName"
+                        },
+                        "internalClass" : "VariableDeclarationFragment"
+                     }
+                  ],
+                  "type" : {
+                     "name" : {
+                        "line" : "24",
+                        "internalClass" : "SimpleName",
+                        "startPosition" : "857",
+                        "identifier" : "ASTParser"
+                     },
+                     "internalClass" : "SimpleType"
+                  }
+               },
+               {
+                  "internalClass" : "FieldDeclaration",
+                  "modifiers" : [
+                     {
+                        "startPosition" : "879",
+                        "keyword" : "private",
+                        "line" : "25",
+                        "internalClass" : "Modifier"
+                     }
+                  ],
+                  "fragments" : [
+                     {
+                        "internalClass" : "VariableDeclarationFragment",
+                        "initializer" : {
+                           "token" : "0",
+                           "startPosition" : "900",
+                           "internalClass" : "NumberLiteral",
+                           "line" : "25"
+                        },
+                        "name" : {
+                           "internalClass" : "SimpleName",
+                           "line" : "25",
+                           "identifier" : "nCount",
+                           "startPosition" : "891"
+                        }
+                     }
+                  ],
+                  "type" : {
+                     "startPosition" : "887",
+                     "primitiveTypeCode" : "int",
+                     "line" : "25",
+                     "internalClass" : "PrimitiveType"
+                  }
+               },
+               {
+                  "internalClass" : "FieldDeclaration",
+                  "fragments" : [
+                     {
+                        "internalClass" : "VariableDeclarationFragment",
+                        "name" : {
+                           "startPosition" : "929",
+                           "identifier" : "jG",
+                           "line" : "26",
+                           "internalClass" : "SimpleName"
+                        }
+                     }
+                  ],
+                  "modifiers" : [
+                     {
+                        "internalClass" : "Modifier",
+                        "line" : "26",
+                        "keyword" : "private",
+                        "startPosition" : "907"
+                     }
+                  ],
+                  "type" : {
+                     "name" : {
+                        "line" : "26",
+                        "internalClass" : "SimpleName",
+                        "startPosition" : "915",
+                        "identifier" : "JsonGenerator"
+                     },
+                     "internalClass" : "SimpleType"
+                  }
+               },
+               {
+                  "type" : {
+                     "internalClass" : "SimpleType",
+                     "name" : {
+                        "identifier" : "ObjectMapper",
+                        "startPosition" : "951",
+                        "internalClass" : "SimpleName",
+                        "line" : "27"
+                     }
+                  },
+                  "fragments" : [
+                     {
+                        "initializer" : {
+                           "internalClass" : "ClassInstanceCreation",
+                           "type" : {
+                              "name" : {
+                                 "identifier" : "ObjectMapper",
+                                 "startPosition" : "977",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "27"
+                              },
+                              "internalClass" : "SimpleType"
+                           }
+                        },
+                        "internalClass" : "VariableDeclarationFragment",
+                        "name" : {
+                           "line" : "27",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "964",
+                           "identifier" : "mapper"
+                        }
+                     }
+                  ],
+                  "modifiers" : [
+                     {
+                        "internalClass" : "Modifier",
+                        "line" : "27",
+                        "keyword" : "final",
+                        "startPosition" : "937"
+                     },
+                     {
+                        "line" : "27",
+                        "keyword" : "private",
+                        "internalClass" : "Modifier",
+                        "startPosition" : "943"
+                     }
+                  ],
+                  "internalClass" : "FieldDeclaration"
+               },
+               {
+                  "line" : "29",
+                  "body" : {
+                     "internalClass" : "Block",
+                     "statements" : [
+                        {
+                           "fragments" : [
+                              {
+                                 "name" : {
+                                    "line" : "38",
+                                    "internalClass" : "SimpleName",
+                                    "startPosition" : "1348",
+                                    "identifier" : "file"
+                                 },
+                                 "internalClass" : "VariableDeclarationFragment",
+                                 "initializer" : {
+                                    "type" : {
+                                       "internalClass" : "SimpleType",
+                                       "name" : {
+                                          "identifier" : "File",
+                                          "startPosition" : "1359",
+                                          "internalClass" : "SimpleName",
+                                          "line" : "38"
+                                       }
+                                    },
+                                    "arguments" : [
+                                       {
+                                          "startPosition" : "1364",
+                                          "identifier" : "sourceFile",
+                                          "line" : "38",
+                                          "internalClass" : "SimpleName"
+                                       }
+                                    ],
+                                    "internalClass" : "ClassInstanceCreation"
+                                 }
+                              }
+                           ],
+                           "internalClass" : "VariableDeclarationStatement",
+                           "type" : {
+                              "name" : {
+                                 "line" : "38",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "1343",
+                                 "identifier" : "File"
+                              },
+                              "internalClass" : "SimpleType"
+                           }
+                        },
+                        {
+                           "fragments" : [
+                              {
+                                 "internalClass" : "VariableDeclarationFragment",
+                                 "initializer" : {
+                                    "type" : {
+                                       "name" : {
+                                          "internalClass" : "SimpleName",
+                                          "line" : "39",
+                                          "identifier" : "BufferedReader",
+                                          "startPosition" : "1419"
+                                       },
+                                       "internalClass" : "SimpleType"
+                                    },
+                                    "arguments" : [
+                                       {
+                                          "internalClass" : "ClassInstanceCreation",
+                                          "arguments" : [
+                                             {
+                                                "identifier" : "file",
+                                                "startPosition" : "1449",
+                                                "internalClass" : "SimpleName",
+                                                "line" : "39"
+                                             }
+                                          ],
+                                          "type" : {
+                                             "internalClass" : "SimpleType",
+                                             "name" : {
+                                                "line" : "39",
+                                                "internalClass" : "SimpleName",
+                                                "startPosition" : "1438",
+                                                "identifier" : "FileReader"
+                                             }
+                                          }
+                                       }
+                                    ],
+                                    "internalClass" : "ClassInstanceCreation"
+                                 },
+                                 "name" : {
+                                    "line" : "39",
+                                    "internalClass" : "SimpleName",
+                                    "startPosition" : "1406",
+                                    "identifier" : "reader"
+                                 }
+                              }
+                           ],
+                           "modifiers" : [
+                              {
+                                 "startPosition" : "1385",
+                                 "internalClass" : "Modifier",
+                                 "line" : "39",
+                                 "keyword" : "final"
+                              }
+                           ],
+                           "internalClass" : "VariableDeclarationStatement",
+                           "type" : {
+                              "internalClass" : "SimpleType",
+                              "name" : {
+                                 "identifier" : "BufferedReader",
+                                 "startPosition" : "1391",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "39"
+                              }
+                           }
+                        },
+                        {
+                           "type" : {
+                              "internalClass" : "ArrayType",
+                              "elementType" : {
+                                 "startPosition" : "1465",
+                                 "primitiveTypeCode" : "char",
+                                 "line" : "40",
+                                 "internalClass" : "PrimitiveType"
+                              },
+                              "dimensions" : [
+                                 {
+                                    "internalClass" : "Dimension"
+                                 }
+                              ]
+                           },
+                           "fragments" : [
+                              {
+                                 "name" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "40",
+                                    "identifier" : "source",
+                                    "startPosition" : "1472"
+                                 },
+                                 "internalClass" : "VariableDeclarationFragment",
+                                 "initializer" : {
+                                    "internalClass" : "MethodInvocation",
+                                    "expression" : {
+                                       "startPosition" : "1481",
+                                       "identifier" : "IOUtils",
+                                       "line" : "40",
+                                       "internalClass" : "SimpleName"
+                                    },
+                                    "name" : {
+                                       "startPosition" : "1489",
+                                       "identifier" : "toCharArray",
+                                       "line" : "40",
+                                       "internalClass" : "SimpleName"
+                                    },
+                                    "arguments" : [
+                                       {
+                                          "identifier" : "reader",
+                                          "startPosition" : "1501",
+                                          "internalClass" : "SimpleName",
+                                          "line" : "40"
+                                       }
+                                    ]
+                                 }
+                              }
+                           ],
+                           "internalClass" : "VariableDeclarationStatement"
+                        },
+                        {
+                           "expression" : {
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "41",
+                                 "identifier" : "close",
+                                 "startPosition" : "1525"
+                              },
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "line" : "41",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "1518",
+                                 "identifier" : "reader"
+                              }
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "expression" : {
+                              "startPosition" : "1542",
+                              "rightHandSide" : {
+                                 "internalClass" : "MethodInvocation",
+                                 "expression" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "42",
+                                    "identifier" : "ASTParser",
+                                    "startPosition" : "1556"
+                                 },
+                                 "name" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "42",
+                                    "identifier" : "newParser",
+                                    "startPosition" : "1566"
+                                 },
+                                 "arguments" : [
+                                    {
+                                       "name" : {
+                                          "line" : "42",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "1580",
+                                          "identifier" : "JLS8"
+                                       },
+                                       "qualifier" : {
+                                          "startPosition" : "1576",
+                                          "identifier" : "AST",
+                                          "line" : "42",
+                                          "internalClass" : "SimpleName"
+                                       },
+                                       "internalClass" : "QualifiedName"
+                                    }
+                                 ]
+                              },
+                              "line" : "42",
+                              "leftHandSide" : {
+                                 "internalClass" : "FieldAccess",
+                                 "expression" : {
+                                    "internalClass" : "ThisExpression"
+                                 },
+                                 "name" : {
+                                    "line" : "42",
+                                    "internalClass" : "SimpleName",
+                                    "startPosition" : "1547",
+                                    "identifier" : "parser"
+                                 }
+                              },
+                              "operator" : "=",
+                              "internalClass" : "Assignment"
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "expression" : {
+                              "arguments" : [
+                                 {
+                                    "line" : "43",
+                                    "internalClass" : "SimpleName",
+                                    "startPosition" : "1612",
+                                    "identifier" : "source"
+                                 }
+                              ],
+                              "name" : {
+                                 "identifier" : "setSource",
+                                 "startPosition" : "1602",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "43"
+                              },
+                              "expression" : {
+                                 "identifier" : "parser",
+                                 "startPosition" : "1595",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "43"
+                              },
+                              "internalClass" : "MethodInvocation"
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "identifier" : "parser",
+                                 "startPosition" : "1629",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "44"
+                              },
+                              "name" : {
+                                 "identifier" : "setKind",
+                                 "startPosition" : "1636",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "44"
+                              },
+                              "arguments" : [
+                                 {
+                                    "name" : {
+                                       "line" : "44",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "1654",
+                                       "identifier" : "K_COMPILATION_UNIT"
+                                    },
+                                    "internalClass" : "QualifiedName",
+                                    "qualifier" : {
+                                       "internalClass" : "SimpleName",
+                                       "line" : "44",
+                                       "identifier" : "ASTParser",
+                                       "startPosition" : "1644"
+                                    }
+                                 }
+                              ]
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "type" : {
+                              "internalClass" : "SimpleType",
+                              "name" : {
+                                 "line" : "46",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "1690",
+                                 "identifier" : "JsonFactory"
+                              }
+                           },
+                           "internalClass" : "VariableDeclarationStatement",
+                           "fragments" : [
+                              {
+                                 "internalClass" : "VariableDeclarationFragment",
+                                 "initializer" : {
+                                    "internalClass" : "ClassInstanceCreation",
+                                    "type" : {
+                                       "name" : {
+                                          "line" : "46",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "1714",
+                                          "identifier" : "JsonFactory"
+                                       },
+                                       "internalClass" : "SimpleType"
+                                    }
+                                 },
+                                 "name" : {
+                                    "startPosition" : "1702",
+                                    "identifier" : "jsonF",
+                                    "line" : "46",
+                                    "internalClass" : "SimpleName"
+                                 }
+                              }
+                           ],
+                           "modifiers" : [
+                              {
+                                 "internalClass" : "Modifier",
+                                 "line" : "46",
+                                 "keyword" : "final",
+                                 "startPosition" : "1684"
+                              }
+                           ]
+                        },
+                        {
+                           "expression" : {
+                              "startPosition" : "1737",
+                              "rightHandSide" : {
+                                 "internalClass" : "MethodInvocation",
+                                 "expression" : {
+                                    "startPosition" : "1742",
+                                    "identifier" : "jsonF",
+                                    "line" : "47",
+                                    "internalClass" : "SimpleName"
+                                 },
+                                 "name" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "47",
+                                    "identifier" : "createGenerator",
+                                    "startPosition" : "1748"
+                                 },
+                                 "arguments" : [
+                                    {
+                                       "line" : "47",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "1764",
+                                       "identifier" : "outJ"
+                                    }
+                                 ]
+                              },
+                              "leftHandSide" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "47",
+                                 "identifier" : "jG",
+                                 "startPosition" : "1737"
+                              },
+                              "line" : "47",
+                              "operator" : "=",
+                              "internalClass" : "Assignment"
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "thenStatement" : {
+                              "internalClass" : "Block",
+                              "statements" : [
+                                 {
+                                    "internalClass" : "ExpressionStatement",
+                                    "expression" : {
+                                       "internalClass" : "MethodInvocation",
+                                       "expression" : {
+                                          "internalClass" : "SimpleName",
+                                          "line" : "49",
+                                          "identifier" : "jG",
+                                          "startPosition" : "1810"
+                                       },
+                                       "name" : {
+                                          "line" : "49",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "1813",
+                                          "identifier" : "setPrettyPrinter"
+                                       },
+                                       "arguments" : [
+                                          {
+                                             "internalClass" : "ClassInstanceCreation",
+                                             "type" : {
+                                                "name" : {
+                                                   "startPosition" : "1834",
+                                                   "identifier" : "DefaultPrettyPrinter",
+                                                   "line" : "49",
+                                                   "internalClass" : "SimpleName"
+                                                },
+                                                "internalClass" : "SimpleType"
+                                             }
+                                          }
+                                       ]
+                                    }
+                                 },
+                                 {
+                                    "internalClass" : "ExpressionStatement",
+                                    "expression" : {
+                                       "internalClass" : "MethodInvocation",
+                                       "expression" : {
+                                          "identifier" : "mapper",
+                                          "startPosition" : "1871",
+                                          "internalClass" : "SimpleName",
+                                          "line" : "50"
+                                       },
+                                       "name" : {
+                                          "identifier" : "enable",
+                                          "startPosition" : "1878",
+                                          "internalClass" : "SimpleName",
+                                          "line" : "50"
+                                       },
+                                       "arguments" : [
+                                          {
+                                             "qualifier" : {
+                                                "identifier" : "SerializationFeature",
+                                                "startPosition" : "1885",
+                                                "internalClass" : "SimpleName",
+                                                "line" : "50"
+                                             },
+                                             "internalClass" : "QualifiedName",
+                                             "name" : {
+                                                "identifier" : "INDENT_OUTPUT",
+                                                "startPosition" : "1906",
+                                                "internalClass" : "SimpleName",
+                                                "line" : "50"
+                                             }
+                                          }
+                                       ]
+                                    }
+                                 }
+                              ]
+                           },
+                           "expression" : {
+                              "internalClass" : "SimpleName",
+                              "line" : "48",
+                              "identifier" : "prettyprint",
+                              "startPosition" : "1783"
+                           },
+                           "internalClass" : "IfStatement"
+                        },
+                        {
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "identifier" : "mapper",
+                                 "startPosition" : "1940",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "52"
+                              },
+                              "name" : {
+                                 "line" : "52",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "1947",
+                                 "identifier" : "disable"
+                              },
+                              "arguments" : [
+                                 {
+                                    "qualifier" : {
+                                       "identifier" : "SerializationFeature",
+                                       "startPosition" : "1955",
+                                       "internalClass" : "SimpleName",
+                                       "line" : "52"
+                                    },
+                                    "internalClass" : "QualifiedName",
+                                    "name" : {
+                                       "startPosition" : "1976",
+                                       "identifier" : "FAIL_ON_EMPTY_BEANS",
+                                       "line" : "52",
+                                       "internalClass" : "SimpleName"
+                                    }
+                                 }
+                              ]
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "startPosition" : "2006",
+                                 "identifier" : "mapper",
+                                 "line" : "53",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "name" : {
+                                 "startPosition" : "2013",
+                                 "identifier" : "disable",
+                                 "line" : "53",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "arguments" : [
+                                 {
+                                    "name" : {
+                                       "line" : "53",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "2044",
+                                       "identifier" : "FAIL_ON_UNKNOWN_PROPERTIES"
+                                    },
+                                    "internalClass" : "QualifiedName",
+                                    "qualifier" : {
+                                       "line" : "53",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "2021",
+                                       "identifier" : "DeserializationFeature"
+                                    }
+                                 }
+                              ]
+                           }
+                        },
+                        {
+                           "expression" : {
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "54",
+                                 "identifier" : "enable",
+                                 "startPosition" : "2088"
+                              },
+                              "arguments" : [
+                                 {
+                                    "internalClass" : "QualifiedName",
+                                    "qualifier" : {
+                                       "internalClass" : "SimpleName",
+                                       "line" : "54",
+                                       "identifier" : "DeserializationFeature",
+                                       "startPosition" : "2095"
+                                    },
+                                    "name" : {
+                                       "startPosition" : "2118",
+                                       "identifier" : "ACCEPT_EMPTY_STRING_AS_NULL_OBJECT",
+                                       "line" : "54",
+                                       "internalClass" : "SimpleName"
+                                    }
+                                 }
+                              ],
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "54",
+                                 "identifier" : "mapper",
+                                 "startPosition" : "2081"
+                              }
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "internalClass" : "VariableDeclarationStatement",
+                           "fragments" : [
+                              {
+                                 "initializer" : {
+                                    "internalClass" : "ClassInstanceCreation",
+                                    "type" : {
+                                       "internalClass" : "SimpleType",
+                                       "name" : {
+                                          "startPosition" : "2189",
+                                          "identifier" : "SimpleModule",
+                                          "line" : "55",
+                                          "internalClass" : "SimpleName"
+                                       }
+                                    }
+                                 },
+                                 "internalClass" : "VariableDeclarationFragment",
+                                 "name" : {
+                                    "identifier" : "module",
+                                    "startPosition" : "2176",
+                                    "internalClass" : "SimpleName",
+                                    "line" : "55"
+                                 }
+                              }
+                           ],
+                           "type" : {
+                              "internalClass" : "SimpleType",
+                              "name" : {
+                                 "identifier" : "SimpleModule",
+                                 "startPosition" : "2163",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "55"
+                              }
+                           }
+                        },
+                        {
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "identifier" : "module",
+                                 "startPosition" : "2213",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "56"
+                              },
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "56",
+                                 "identifier" : "addSerializer",
+                                 "startPosition" : "2220"
+                              },
+                              "arguments" : [
+                                 {
+                                    "internalClass" : "TypeLiteral",
+                                    "type" : {
+                                       "name" : {
+                                          "line" : "56",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "2234",
+                                          "identifier" : "ASTNode"
+                                       },
+                                       "internalClass" : "SimpleType"
+                                    }
+                                 },
+                                 {
+                                    "type" : {
+                                       "internalClass" : "SimpleType",
+                                       "name" : {
+                                          "identifier" : "NodeSerializer",
+                                          "startPosition" : "2253",
+                                          "internalClass" : "SimpleName",
+                                          "line" : "56"
+                                       }
+                                    },
+                                    "internalClass" : "ClassInstanceCreation"
+                                 }
+                              ]
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "57",
+                                 "identifier" : "mapper",
+                                 "startPosition" : "2280"
+                              },
+                              "name" : {
+                                 "startPosition" : "2287",
+                                 "identifier" : "registerModule",
+                                 "line" : "57",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "arguments" : [
+                                 {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "57",
+                                    "identifier" : "module",
+                                    "startPosition" : "2302"
+                                 }
+                              ]
+                           }
+                        }
+                     ]
+                  },
+                  "internalClass" : "MethodDeclaration",
+                  "name" : {
+                     "startPosition" : "1241",
+                     "identifier" : "EclipseParser",
+                     "line" : "36",
+                     "internalClass" : "SimpleName"
+                  },
+                  "thrownExceptionTypes" : [
+                     {
+                        "internalClass" : "SimpleType",
+                        "name" : {
+                           "internalClass" : "SimpleName",
+                           "line" : "36",
+                           "identifier" : "IOException",
+                           "startPosition" : "1320"
+                        }
+                     }
+                  ],
+                  "modifiers" : [
+                     {
+                        "line" : "36",
+                        "keyword" : "public",
+                        "internalClass" : "Modifier",
+                        "startPosition" : "1234"
+                     }
+                  ],
+                  "parameters" : [
+                     {
+                        "type" : {
+                           "internalClass" : "SimpleType",
+                           "name" : {
+                              "identifier" : "String",
+                              "startPosition" : "1255",
+                              "internalClass" : "SimpleName",
+                              "line" : "36"
+                           }
+                        },
+                        "name" : {
+                           "line" : "36",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "1262",
+                           "identifier" : "sourceFile"
+                        },
+                        "startPosition" : "1255",
+                        "varargs" : "false",
+                        "internalClass" : "SingleVariableDeclaration",
+                        "line" : "36"
+                     },
+                     {
+                        "line" : "36",
+                        "varargs" : "false",
+                        "internalClass" : "SingleVariableDeclaration",
+                        "startPosition" : "1274",
+                        "type" : {
+                           "name" : {
+                              "line" : "36",
+                              "internalClass" : "SimpleName",
+                              "startPosition" : "1274",
+                              "identifier" : "PrintStream"
+                           },
+                           "internalClass" : "SimpleType"
+                        },
+                        "name" : {
+                           "identifier" : "outJ",
+                           "startPosition" : "1286",
+                           "internalClass" : "SimpleName",
+                           "line" : "36"
+                        }
+                     },
+                     {
+                        "varargs" : "false",
+                        "internalClass" : "SingleVariableDeclaration",
+                        "line" : "36",
+                        "type" : {
+                           "startPosition" : "1292",
+                           "primitiveTypeCode" : "boolean",
+                           "internalClass" : "PrimitiveType",
+                           "line" : "36"
+                        },
+                        "name" : {
+                           "startPosition" : "1300",
+                           "identifier" : "prettyprint",
+                           "line" : "36",
+                           "internalClass" : "SimpleName"
+                        },
+                        "startPosition" : "1292"
+                     }
+                  ],
+                  "javadoc" : {
+                     "tags" : [
+                        {
+                           "internalClass" : "TagElement",
+                           "fragments" : [
+                              {
+                                 "startPosition" : "1009",
+                                 "internalClass" : "TextElement",
+                                 "text" : "Creates a new EclipseParser",
+                                 "line" : "30"
+                              }
+                           ]
+                        },
+                        {
+                           "fragments" : [
+                              {
+                                 "startPosition" : "1058",
+                                 "identifier" : "sourceFile",
+                                 "line" : "32",
+                                 "internalClass" : "SimpleName"
+                              },
+                              {
+                                 "internalClass" : "TextElement",
+                                 "text" : " String of source file to read",
+                                 "line" : "32",
+                                 "startPosition" : "1068"
+                              }
+                           ],
+                           "line" : "32",
+                           "internalClass" : "TagElement",
+                           "tagName" : "@param",
+                           "startPosition" : "1051"
+                        },
+                        {
+                           "line" : "33",
+                           "fragments" : [
+                              {
+                                 "startPosition" : "1113",
+                                 "identifier" : "outJ",
+                                 "line" : "33",
+                                 "internalClass" : "SimpleName"
+                              },
+                              {
+                                 "startPosition" : "1117",
+                                 "internalClass" : "TextElement",
+                                 "text" : "       JSON parsed out",
+                                 "line" : "33"
+                              }
+                           ],
+                           "internalClass" : "TagElement",
+                           "startPosition" : "1106",
+                           "tagName" : "@param"
+                        },
+                        {
+                           "tagName" : "@throws",
+                           "startPosition" : "1147",
+                           "internalClass" : "TagElement",
+                           "fragments" : [
+                              {
+                                 "line" : "34",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "1155",
+                                 "identifier" : "IOException"
+                              },
+                              {
+                                 "startPosition" : "1166",
+                                 "internalClass" : "TextElement",
+                                 "text" : " when file can't be opened or errors in reading/writing",
+                                 "line" : "34"
+                              }
+                           ],
+                           "line" : "34"
+                        }
+                     ],
+                     "internalClass" : "Javadoc"
+                  },
+                  "startPosition" : "998",
+                  "constructor" : "true"
+               },
+               {
+                  "line" : "60",
+                  "body" : {
+                     "statements" : [
+                        {
+                           "type" : {
+                              "internalClass" : "SimpleType",
+                              "name" : {
+                                 "line" : "68",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "2595",
+                                 "identifier" : "ASTNode"
+                              }
+                           },
+                           "internalClass" : "VariableDeclarationStatement",
+                           "fragments" : [
+                              {
+                                 "name" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "68",
+                                    "identifier" : "cu",
+                                    "startPosition" : "2603"
+                                 },
+                                 "internalClass" : "VariableDeclarationFragment",
+                                 "initializer" : {
+                                    "name" : {
+                                       "startPosition" : "2615",
+                                       "identifier" : "createAST",
+                                       "line" : "68",
+                                       "internalClass" : "SimpleName"
+                                    },
+                                    "arguments" : [
+                                       {
+                                          "internalClass" : "NullLiteral"
+                                       }
+                                    ],
+                                    "internalClass" : "MethodInvocation",
+                                    "expression" : {
+                                       "startPosition" : "2608",
+                                       "identifier" : "parser",
+                                       "line" : "68",
+                                       "internalClass" : "SimpleName"
+                                    }
+                                 }
+                              }
+                           ],
+                           "modifiers" : [
+                              {
+                                 "internalClass" : "Modifier",
+                                 "line" : "68",
+                                 "keyword" : "final",
+                                 "startPosition" : "2589"
+                              }
+                           ]
+                        },
+                        {
+                           "expression" : {
+                              "name" : {
+                                 "identifier" : "setHeader",
+                                 "startPosition" : "2641",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "70"
+                              },
+                              "internalClass" : "MethodInvocation"
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "71",
+                                 "identifier" : "writeFieldName",
+                                 "startPosition" : "2665"
+                              },
+                              "arguments" : [
+                                 {
+                                    "startPosition" : "2680",
+                                    "escapedValue" : "\"CompilationUnit\"",
+                                    "internalClass" : "StringLiteral",
+                                    "line" : "71"
+                                 }
+                              ],
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "71",
+                                 "identifier" : "jG",
+                                 "startPosition" : "2662"
+                              }
+                           }
+                        },
+                        {
+                           "expression" : {
+                              "arguments" : [
+                                 {
+                                    "startPosition" : "2727",
+                                    "identifier" : "jG",
+                                    "line" : "73",
+                                    "internalClass" : "SimpleName"
+                                 },
+                                 {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "73",
+                                    "identifier" : "cu",
+                                    "startPosition" : "2731"
+                                 }
+                              ],
+                              "name" : {
+                                 "startPosition" : "2716",
+                                 "identifier" : "writeValue",
+                                 "line" : "73",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "expression" : {
+                                 "startPosition" : "2709",
+                                 "identifier" : "mapper",
+                                 "line" : "73",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "internalClass" : "MethodInvocation"
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "name" : {
+                                 "startPosition" : "2745",
+                                 "identifier" : "setEnd",
+                                 "line" : "75",
+                                 "internalClass" : "SimpleName"
+                              }
+                           }
+                        },
+                        {
+                           "internalClass" : "ReturnStatement",
+                           "expression" : {
+                              "internalClass" : "SimpleName",
+                              "line" : "76",
+                              "identifier" : "nCount",
+                              "startPosition" : "2770"
+                           }
+                        }
+                     ],
+                     "internalClass" : "Block"
+                  },
+                  "returnType2" : {
+                     "startPosition" : "2546",
+                     "primitiveTypeCode" : "int",
+                     "internalClass" : "PrimitiveType",
+                     "line" : "66"
+                  },
+                  "internalClass" : "MethodDeclaration",
+                  "thrownExceptionTypes" : [
+                     {
+                        "name" : {
+                           "identifier" : "IOException",
+                           "startPosition" : "2566",
+                           "internalClass" : "SimpleName",
+                           "line" : "66"
+                        },
+                        "internalClass" : "SimpleType"
+                     }
+                  ],
+                  "name" : {
+                     "internalClass" : "SimpleName",
+                     "line" : "66",
+                     "identifier" : "getAST",
+                     "startPosition" : "2550"
+                  },
+                  "modifiers" : [
+                     {
+                        "startPosition" : "2539",
+                        "internalClass" : "Modifier",
+                        "line" : "66",
+                        "keyword" : "public"
+                     }
+                  ],
+                  "javadoc" : {
+                     "tags" : [
+                        {
+                           "internalClass" : "TagElement",
+                           "fragments" : [
+                              {
+                                 "startPosition" : "2333",
+                                 "text" : "Parse the code and generate the JSON in outJ",
+                                 "line" : "61",
+                                 "internalClass" : "TextElement"
+                              }
+                           ]
+                        },
+                        {
+                           "tagName" : "@return",
+                           "startPosition" : "2392",
+                           "fragments" : [
+                              {
+                                 "startPosition" : "2399",
+                                 "internalClass" : "TextElement",
+                                 "text" : " nNodes visited while the serialization process",
+                                 "line" : "63"
+                              }
+                           ],
+                           "line" : "63",
+                           "internalClass" : "TagElement"
+                        },
+                        {
+                           "fragments" : [
+                              {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "64",
+                                 "identifier" : "IOException",
+                                 "startPosition" : "2462"
+                              },
+                              {
+                                 "startPosition" : "2473",
+                                 "line" : "64",
+                                 "text" : " if anything related to I/O or Json generation failed",
+                                 "internalClass" : "TextElement"
+                              }
+                           ],
+                           "line" : "64",
+                           "internalClass" : "TagElement",
+                           "tagName" : "@throws",
+                           "startPosition" : "2454"
+                        }
+                     ],
+                     "internalClass" : "Javadoc"
+                  },
+                  "startPosition" : "2322",
+                  "constructor" : "false"
+               },
+               {
+                  "body" : {
+                     "internalClass" : "Block",
+                     "statements" : [
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "expression" : {
+                                 "startPosition" : "2843",
+                                 "identifier" : "jG",
+                                 "line" : "80",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "internalClass" : "MethodInvocation",
+                              "name" : {
+                                 "line" : "80",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "2846",
+                                 "identifier" : "writeStartObject"
+                              }
+                           }
+                        },
+                        {
+                           "expression" : {
+                              "arguments" : [
+                                 {
+                                    "startPosition" : "2892",
+                                    "escapedValue" : "\"driver\"",
+                                    "line" : "81",
+                                    "internalClass" : "StringLiteral"
+                                 }
+                              ],
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "81",
+                                 "identifier" : "writeFieldName",
+                                 "startPosition" : "2877"
+                              },
+                              "expression" : {
+                                 "startPosition" : "2874",
+                                 "identifier" : "jG",
+                                 "line" : "81",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "internalClass" : "MethodInvocation"
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "arguments" : [
+                                 {
+                                    "escapedValue" : "\"Java8:1.0.0\"",
+                                    "startPosition" : "2926",
+                                    "line" : "82",
+                                    "internalClass" : "StringLiteral"
+                                 }
+                              ],
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "82",
+                                 "identifier" : "writeString",
+                                 "startPosition" : "2914"
+                              },
+                              "expression" : {
+                                 "startPosition" : "2911",
+                                 "identifier" : "jG",
+                                 "line" : "82",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "internalClass" : "MethodInvocation"
+                           }
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "identifier" : "jG",
+                                 "startPosition" : "2950",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "83"
+                              },
+                              "name" : {
+                                 "line" : "83",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "2953",
+                                 "identifier" : "writeFieldName"
+                              },
+                              "arguments" : [
+                                 {
+                                    "line" : "83",
+                                    "internalClass" : "StringLiteral",
+                                    "startPosition" : "2968",
+                                    "escapedValue" : "\"ast\""
+                                 }
+                              ]
+                           }
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "name" : {
+                                 "startPosition" : "2987",
+                                 "identifier" : "writeStartObject",
+                                 "line" : "84",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "expression" : {
+                                 "identifier" : "jG",
+                                 "startPosition" : "2984",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "84"
+                              },
+                              "internalClass" : "MethodInvocation"
+                           }
+                        }
+                     ]
+                  },
+                  "line" : "79",
+                  "returnType2" : {
+                     "internalClass" : "PrimitiveType",
+                     "line" : "79",
+                     "startPosition" : "2797",
+                     "primitiveTypeCode" : "void"
+                  },
+                  "internalClass" : "MethodDeclaration",
+                  "thrownExceptionTypes" : [
+                     {
+                        "name" : {
+                           "startPosition" : "2821",
+                           "identifier" : "IOException",
+                           "line" : "79",
+                           "internalClass" : "SimpleName"
+                        },
+                        "internalClass" : "SimpleType"
+                     }
+                  ],
+                  "name" : {
+                     "startPosition" : "2802",
+                     "identifier" : "setHeader",
+                     "line" : "79",
+                     "internalClass" : "SimpleName"
+                  },
+                  "modifiers" : [
+                     {
+                        "keyword" : "private",
+                        "line" : "79",
+                        "internalClass" : "Modifier",
+                        "startPosition" : "2789"
+                     }
+                  ],
+                  "startPosition" : "2789",
+                  "constructor" : "false"
+               },
+               {
+                  "internalClass" : "MethodDeclaration",
+                  "returnType2" : {
+                     "line" : "88",
+                     "internalClass" : "PrimitiveType",
+                     "primitiveTypeCode" : "void",
+                     "startPosition" : "3027"
+                  },
+                  "body" : {
+                     "statements" : [
+                        {
+                           "expression" : {
+                              "expression" : {
+                                 "identifier" : "jG",
+                                 "startPosition" : "3070",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "89"
+                              },
+                              "internalClass" : "MethodInvocation",
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "89",
+                                 "identifier" : "writeEndObject",
+                                 "startPosition" : "3073"
+                              }
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "expression" : {
+                              "expression" : {
+                                 "startPosition" : "3099",
+                                 "identifier" : "jG",
+                                 "line" : "90",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "internalClass" : "MethodInvocation",
+                              "name" : {
+                                 "line" : "90",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "3102",
+                                 "identifier" : "writeEndObject"
+                              }
+                           },
+                           "internalClass" : "ExpressionStatement"
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "internalClass" : "MethodInvocation",
+                              "expression" : {
+                                 "identifier" : "jG",
+                                 "startPosition" : "3128",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "91"
+                              },
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "91",
+                                 "identifier" : "flush",
+                                 "startPosition" : "3131"
+                              }
+                           }
+                        },
+                        {
+                           "internalClass" : "ExpressionStatement",
+                           "expression" : {
+                              "name" : {
+                                 "identifier" : "close",
+                                 "startPosition" : "3151",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "92"
+                              },
+                              "expression" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "92",
+                                 "identifier" : "jG",
+                                 "startPosition" : "3148"
+                              },
+                              "internalClass" : "MethodInvocation"
+                           }
+                        }
+                     ],
+                     "internalClass" : "Block"
+                  },
+                  "line" : "88",
+                  "name" : {
+                     "internalClass" : "SimpleName",
+                     "line" : "88",
+                     "identifier" : "setEnd",
+                     "startPosition" : "3032"
+                  },
+                  "thrownExceptionTypes" : [
+                     {
+                        "internalClass" : "SimpleType",
+                        "name" : {
+                           "identifier" : "IOException",
+                           "startPosition" : "3048",
+                           "internalClass" : "SimpleName",
+                           "line" : "88"
+                        }
+                     }
+                  ],
+                  "modifiers" : [
+                     {
+                        "internalClass" : "Modifier",
+                        "line" : "88",
+                        "keyword" : "private",
+                        "startPosition" : "3019"
+                     }
+                  ],
+                  "constructor" : "false",
+                  "startPosition" : "3019"
+               },
+               {
+                  "modifiers" : [
+                     {
+                        "line" : "98",
+                        "keyword" : "private",
+                        "internalClass" : "Modifier",
+                        "startPosition" : "3224"
+                     }
+                  ],
+                  "superclassType" : {
+                     "type" : {
+                        "internalClass" : "SimpleType",
+                        "name" : {
+                           "startPosition" : "3261",
+                           "identifier" : "StdSerializer",
+                           "line" : "98",
+                           "internalClass" : "SimpleName"
+                        }
+                     },
+                     "typeArguments" : [
+                        {
+                           "name" : {
+                              "identifier" : "ASTNode",
+                              "startPosition" : "3275",
+                              "internalClass" : "SimpleName",
+                              "line" : "98"
+                           },
+                           "internalClass" : "SimpleType"
+                        }
+                     ],
+                     "internalClass" : "ParameterizedType"
+                  },
+                  "javadoc" : {
+                     "internalClass" : "Javadoc",
+                     "tags" : [
+                        {
+                           "fragments" : [
+                              {
+                                 "startPosition" : "3182",
+                                 "text" : "Customized ASTNode serializer",
+                                 "line" : "96",
+                                 "internalClass" : "TextElement"
+                              }
+                           ],
+                           "internalClass" : "TagElement"
+                        }
+                     ]
+                  },
+                  "startPosition" : "3171",
+                  "bodyDeclarations" : [
+                     {
+                        "internalClass" : "MethodDeclaration",
+                        "body" : {
+                           "internalClass" : "Block",
+                           "statements" : [
+                              {
+                                 "arguments" : [
+                                    {
+                                       "internalClass" : "NullLiteral"
+                                    }
+                                 ],
+                                 "internalClass" : "ConstructorInvocation"
+                              }
+                           ]
+                        },
+                        "modifiers" : [
+                           {
+                              "startPosition" : "3295",
+                              "line" : "100",
+                              "keyword" : "private",
+                              "internalClass" : "Modifier"
+                           }
+                        ],
+                        "line" : "100",
+                        "name" : {
+                           "internalClass" : "SimpleName",
+                           "line" : "100",
+                           "identifier" : "NodeSerializer",
+                           "startPosition" : "3303"
+                        },
+                        "constructor" : "true",
+                        "startPosition" : "3295"
+                     },
+                     {
+                        "parameters" : [
+                           {
+                              "line" : "104",
+                              "varargs" : "false",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "startPosition" : "3388",
+                              "type" : {
+                                 "typeArguments" : [
+                                    {
+                                       "internalClass" : "SimpleType",
+                                       "name" : {
+                                          "line" : "104",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "3394",
+                                          "identifier" : "ASTNode"
+                                       }
+                                    }
+                                 ],
+                                 "internalClass" : "ParameterizedType",
+                                 "type" : {
+                                    "name" : {
+                                       "identifier" : "Class",
+                                       "startPosition" : "3388",
+                                       "internalClass" : "SimpleName",
+                                       "line" : "104"
+                                    },
+                                    "internalClass" : "SimpleType"
+                                 }
+                              },
+                              "name" : {
+                                 "line" : "104",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "3403",
+                                 "identifier" : "t"
+                              }
+                           }
+                        ],
+                        "modifiers" : [
+                           {
+                              "startPosition" : "3365",
+                              "internalClass" : "Modifier",
+                              "line" : "104",
+                              "keyword" : "private"
+                           }
+                        ],
+                        "constructor" : "true",
+                        "startPosition" : "3365",
+                        "internalClass" : "MethodDeclaration",
+                        "line" : "104",
+                        "body" : {
+                           "statements" : [
+                              {
+                                 "internalClass" : "SuperConstructorInvocation",
+                                 "arguments" : [
+                                    {
+                                       "startPosition" : "3426",
+                                       "identifier" : "t",
+                                       "line" : "105",
+                                       "internalClass" : "SimpleName"
+                                    }
+                                 ]
+                              }
+                           ],
+                           "internalClass" : "Block"
+                        },
+                        "name" : {
+                           "line" : "104",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "3373",
+                           "identifier" : "NodeSerializer"
+                        }
+                     },
+                     {
+                        "startPosition" : "3449",
+                        "constructor" : "false",
+                        "modifiers" : [
+                           {
+                              "typeName" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "108",
+                                 "identifier" : "Override",
+                                 "startPosition" : "3450"
+                              },
+                              "internalClass" : "MarkerAnnotation"
+                           },
+                           {
+                              "internalClass" : "Modifier",
+                              "keyword" : "public",
+                              "line" : "109",
+                              "startPosition" : "3467"
+                           }
+                        ],
+                        "parameters" : [
+                           {
+                              "internalClass" : "SingleVariableDeclaration",
+                              "varargs" : "false",
+                              "line" : "109",
+                              "type" : {
+                                 "internalClass" : "SimpleType",
+                                 "name" : {
+                                    "identifier" : "ASTNode",
+                                    "startPosition" : "3489",
+                                    "internalClass" : "SimpleName",
+                                    "line" : "109"
+                                 }
+                              },
+                              "name" : {
+                                 "startPosition" : "3497",
+                                 "identifier" : "node",
+                                 "line" : "109",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "startPosition" : "3489"
+                           },
+                           {
+                              "line" : "109",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "varargs" : "false",
+                              "startPosition" : "3503",
+                              "type" : {
+                                 "name" : {
+                                    "identifier" : "JsonGenerator",
+                                    "startPosition" : "3503",
+                                    "internalClass" : "SimpleName",
+                                    "line" : "109"
+                                 },
+                                 "internalClass" : "SimpleType"
+                              },
+                              "name" : {
+                                 "startPosition" : "3517",
+                                 "identifier" : "jG",
+                                 "line" : "109",
+                                 "internalClass" : "SimpleName"
+                              }
+                           },
+                           {
+                              "internalClass" : "SingleVariableDeclaration",
+                              "varargs" : "false",
+                              "line" : "109",
+                              "type" : {
+                                 "name" : {
+                                    "identifier" : "SerializerProvider",
+                                    "startPosition" : "3521",
+                                    "internalClass" : "SimpleName",
+                                    "line" : "109"
+                                 },
+                                 "internalClass" : "SimpleType"
+                              },
+                              "name" : {
+                                 "startPosition" : "3540",
+                                 "identifier" : "provider",
+                                 "line" : "109",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "startPosition" : "3521"
+                           }
+                        ],
+                        "name" : {
+                           "identifier" : "serialize",
+                           "startPosition" : "3479",
+                           "internalClass" : "SimpleName",
+                           "line" : "109"
+                        },
+                        "thrownExceptionTypes" : [
+                           {
+                              "internalClass" : "SimpleType",
+                              "name" : {
+                                 "identifier" : "IOException",
+                                 "startPosition" : "3557",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "109"
+                              }
+                           }
+                        ],
+                        "line" : "108",
+                        "body" : {
+                           "internalClass" : "Block",
+                           "statements" : [
+                              {
+                                 "fragments" : [
+                                    {
+                                       "internalClass" : "VariableDeclarationFragment",
+                                       "initializer" : {
+                                          "name" : {
+                                             "line" : "110",
+                                             "internalClass" : "SimpleName",
+                                             "startPosition" : "3640",
+                                             "identifier" : "structuralPropertiesForType"
+                                          },
+                                          "internalClass" : "MethodInvocation",
+                                          "expression" : {
+                                             "line" : "110",
+                                             "internalClass" : "SimpleName",
+                                             "startPosition" : "3635",
+                                             "identifier" : "node"
+                                          }
+                                       },
+                                       "name" : {
+                                          "internalClass" : "SimpleName",
+                                          "line" : "110",
+                                          "identifier" : "descriptorList",
+                                          "startPosition" : "3618"
+                                       }
+                                    }
+                                 ],
+                                 "internalClass" : "VariableDeclarationStatement",
+                                 "type" : {
+                                    "internalClass" : "ParameterizedType",
+                                    "typeArguments" : [
+                                       {
+                                          "internalClass" : "SimpleType",
+                                          "name" : {
+                                             "identifier" : "StructuralPropertyDescriptor",
+                                             "startPosition" : "3588",
+                                             "internalClass" : "SimpleName",
+                                             "line" : "110"
+                                          }
+                                       }
+                                    ],
+                                    "type" : {
+                                       "name" : {
+                                          "startPosition" : "3583",
+                                          "identifier" : "List",
+                                          "line" : "110",
+                                          "internalClass" : "SimpleName"
+                                       },
+                                       "internalClass" : "SimpleType"
+                                    }
+                                 }
+                              },
+                              {
+                                 "internalClass" : "ExpressionStatement",
+                                 "expression" : {
+                                    "operator" : "++",
+                                    "internalClass" : "PostfixExpression",
+                                    "line" : "111",
+                                    "operand" : {
+                                       "startPosition" : "3683",
+                                       "identifier" : "nCount",
+                                       "line" : "111",
+                                       "internalClass" : "SimpleName"
+                                    },
+                                    "startPosition" : "3683"
+                                 }
+                              },
+                              {
+                                 "internalClass" : "ExpressionStatement",
+                                 "expression" : {
+                                    "name" : {
+                                       "line" : "112",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "3708",
+                                       "identifier" : "writeStartObject"
+                                    },
+                                    "expression" : {
+                                       "identifier" : "jG",
+                                       "startPosition" : "3705",
+                                       "internalClass" : "SimpleName",
+                                       "line" : "112"
+                                    },
+                                    "internalClass" : "MethodInvocation"
+                                 }
+                              },
+                              {
+                                 "parameter" : {
+                                    "startPosition" : "3746",
+                                    "type" : {
+                                       "internalClass" : "SimpleType",
+                                       "name" : {
+                                          "startPosition" : "3746",
+                                          "identifier" : "StructuralPropertyDescriptor",
+                                          "line" : "114",
+                                          "internalClass" : "SimpleName"
+                                       }
+                                    },
+                                    "name" : {
+                                       "startPosition" : "3775",
+                                       "identifier" : "descriptor",
+                                       "line" : "114",
+                                       "internalClass" : "SimpleName"
+                                    },
+                                    "line" : "114",
+                                    "varargs" : "false",
+                                    "internalClass" : "SingleVariableDeclaration"
+                                 },
+                                 "body" : {
+                                    "statements" : [
+                                       {
+                                          "type" : {
+                                             "internalClass" : "SimpleType",
+                                             "name" : {
+                                                "startPosition" : "3822",
+                                                "identifier" : "Object",
+                                                "line" : "115",
+                                                "internalClass" : "SimpleName"
+                                             }
+                                          },
+                                          "fragments" : [
+                                             {
+                                                "name" : {
+                                                   "identifier" : "child",
+                                                   "startPosition" : "3829",
+                                                   "internalClass" : "SimpleName",
+                                                   "line" : "115"
+                                                },
+                                                "internalClass" : "VariableDeclarationFragment",
+                                                "initializer" : {
+                                                   "internalClass" : "MethodInvocation",
+                                                   "expression" : {
+                                                      "internalClass" : "SimpleName",
+                                                      "line" : "115",
+                                                      "identifier" : "node",
+                                                      "startPosition" : "3837"
+                                                   },
+                                                   "name" : {
+                                                      "identifier" : "getStructuralProperty",
+                                                      "startPosition" : "3842",
+                                                      "internalClass" : "SimpleName",
+                                                      "line" : "115"
+                                                   },
+                                                   "arguments" : [
+                                                      {
+                                                         "internalClass" : "SimpleName",
+                                                         "line" : "115",
+                                                         "identifier" : "descriptor",
+                                                         "startPosition" : "3864"
+                                                      }
+                                                   ]
+                                                }
+                                             }
+                                          ],
+                                          "internalClass" : "VariableDeclarationStatement"
+                                       },
+                                       {
+                                          "elseStatement" : {
+                                             "thenStatement" : {
+                                                "statements" : [
+                                                   {
+                                                      "expression" : {
+                                                         "internalClass" : "MethodInvocation",
+                                                         "arguments" : [
+                                                            {
+                                                               "expression" : {
+                                                                  "internalClass" : "SimpleName",
+                                                                  "line" : "119",
+                                                                  "identifier" : "child",
+                                                                  "startPosition" : "4107"
+                                                               },
+                                                               "internalClass" : "CastExpression",
+                                                               "type" : {
+                                                                  "internalClass" : "SimpleType",
+                                                                  "name" : {
+                                                                     "startPosition" : "4098",
+                                                                     "identifier" : "ASTNode",
+                                                                     "line" : "119",
+                                                                     "internalClass" : "SimpleName"
+                                                                  }
+                                                               }
+                                                            },
+                                                            {
+                                                               "startPosition" : "4114",
+                                                               "identifier" : "descriptor",
+                                                               "line" : "119",
+                                                               "internalClass" : "SimpleName"
+                                                            },
+                                                            {
+                                                               "internalClass" : "SimpleName",
+                                                               "line" : "119",
+                                                               "identifier" : "provider",
+                                                               "startPosition" : "4126"
+                                                            }
+                                                         ],
+                                                         "name" : {
+                                                            "internalClass" : "SimpleName",
+                                                            "line" : "119",
+                                                            "identifier" : "serializeChild",
+                                                            "startPosition" : "4082"
+                                                         }
+                                                      },
+                                                      "internalClass" : "ExpressionStatement"
+                                                   }
+                                                ],
+                                                "internalClass" : "Block"
+                                             },
+                                             "expression" : {
+                                                "leftOperand" : {
+                                                   "identifier" : "child",
+                                                   "startPosition" : "4034",
+                                                   "internalClass" : "SimpleName",
+                                                   "line" : "118"
+                                                },
+                                                "internalClass" : "InstanceofExpression",
+                                                "rightOperand" : {
+                                                   "internalClass" : "SimpleType",
+                                                   "name" : {
+                                                      "identifier" : "ASTNode",
+                                                      "startPosition" : "4051",
+                                                      "internalClass" : "SimpleName",
+                                                      "line" : "118"
+                                                   }
+                                                }
+                                             },
+                                             "internalClass" : "IfStatement",
+                                             "elseStatement" : {
+                                                "internalClass" : "IfStatement",
+                                                "expression" : {
+                                                   "internalClass" : "InfixExpression",
+                                                   "operator" : "!=",
+                                                   "rightOperand" : {
+                                                      "internalClass" : "NullLiteral"
+                                                   },
+                                                   "line" : "120",
+                                                   "startPosition" : "4164",
+                                                   "leftOperand" : {
+                                                      "line" : "120",
+                                                      "internalClass" : "SimpleName",
+                                                      "startPosition" : "4164",
+                                                      "identifier" : "child"
+                                                   }
+                                                },
+                                                "thenStatement" : {
+                                                   "internalClass" : "Block",
+                                                   "statements" : [
+                                                      {
+                                                         "internalClass" : "ExpressionStatement",
+                                                         "expression" : {
+                                                            "name" : {
+                                                               "line" : "121",
+                                                               "internalClass" : "SimpleName",
+                                                               "startPosition" : "4204",
+                                                               "identifier" : "writeFieldName"
+                                                            },
+                                                            "arguments" : [
+                                                               {
+                                                                  "internalClass" : "MethodInvocation",
+                                                                  "expression" : {
+                                                                     "internalClass" : "SimpleName",
+                                                                     "line" : "121",
+                                                                     "identifier" : "descriptor",
+                                                                     "startPosition" : "4219"
+                                                                  },
+                                                                  "name" : {
+                                                                     "identifier" : "getId",
+                                                                     "startPosition" : "4230",
+                                                                     "internalClass" : "SimpleName",
+                                                                     "line" : "121"
+                                                                  }
+                                                               }
+                                                            ],
+                                                            "internalClass" : "MethodInvocation",
+                                                            "expression" : {
+                                                               "line" : "121",
+                                                               "internalClass" : "SimpleName",
+                                                               "startPosition" : "4201",
+                                                               "identifier" : "jG"
+                                                            }
+                                                         }
+                                                      },
+                                                      {
+                                                         "internalClass" : "ExpressionStatement",
+                                                         "expression" : {
+                                                            "internalClass" : "MethodInvocation",
+                                                            "expression" : {
+                                                               "identifier" : "jG",
+                                                               "startPosition" : "4260",
+                                                               "internalClass" : "SimpleName",
+                                                               "line" : "122"
+                                                            },
+                                                            "name" : {
+                                                               "startPosition" : "4263",
+                                                               "identifier" : "writeString",
+                                                               "line" : "122",
+                                                               "internalClass" : "SimpleName"
+                                                            },
+                                                            "arguments" : [
+                                                               {
+                                                                  "internalClass" : "MethodInvocation",
+                                                                  "expression" : {
+                                                                     "line" : "122",
+                                                                     "internalClass" : "SimpleName",
+                                                                     "startPosition" : "4275",
+                                                                     "identifier" : "child"
+                                                                  },
+                                                                  "name" : {
+                                                                     "internalClass" : "SimpleName",
+                                                                     "line" : "122",
+                                                                     "identifier" : "toString",
+                                                                     "startPosition" : "4281"
+                                                                  }
+                                                               }
+                                                            ]
+                                                         }
+                                                      }
+                                                   ]
+                                                }
+                                             }
+                                          },
+                                          "thenStatement" : {
+                                             "internalClass" : "Block",
+                                             "statements" : [
+                                                {
+                                                   "expression" : {
+                                                      "arguments" : [
+                                                         {
+                                                            "internalClass" : "CastExpression",
+                                                            "expression" : {
+                                                               "internalClass" : "SimpleName",
+                                                               "line" : "117",
+                                                               "identifier" : "child",
+                                                               "startPosition" : "3977"
+                                                            },
+                                                            "type" : {
+                                                               "typeArguments" : [
+                                                                  {
+                                                                     "internalClass" : "SimpleType",
+                                                                     "name" : {
+                                                                        "identifier" : "ASTNode",
+                                                                        "startPosition" : "3967",
+                                                                        "internalClass" : "SimpleName",
+                                                                        "line" : "117"
+                                                                     }
+                                                                  }
+                                                               ],
+                                                               "internalClass" : "ParameterizedType",
+                                                               "type" : {
+                                                                  "name" : {
+                                                                     "line" : "117",
+                                                                     "internalClass" : "SimpleName",
+                                                                     "startPosition" : "3962",
+                                                                     "identifier" : "List"
+                                                                  },
+                                                                  "internalClass" : "SimpleType"
+                                                               }
+                                                            }
+                                                         },
+                                                         {
+                                                            "line" : "117",
+                                                            "internalClass" : "SimpleName",
+                                                            "startPosition" : "3984",
+                                                            "identifier" : "descriptor"
+                                                         },
+                                                         {
+                                                            "internalClass" : "SimpleName",
+                                                            "line" : "117",
+                                                            "identifier" : "provider",
+                                                            "startPosition" : "3996"
+                                                         }
+                                                      ],
+                                                      "name" : {
+                                                         "startPosition" : "3942",
+                                                         "identifier" : "serializeChildList",
+                                                         "line" : "117",
+                                                         "internalClass" : "SimpleName"
+                                                      },
+                                                      "internalClass" : "MethodInvocation"
+                                                   },
+                                                   "internalClass" : "ExpressionStatement"
+                                                }
+                                             ]
+                                          },
+                                          "expression" : {
+                                             "leftOperand" : {
+                                                "identifier" : "child",
+                                                "startPosition" : "3897",
+                                                "internalClass" : "SimpleName",
+                                                "line" : "116"
+                                             },
+                                             "rightOperand" : {
+                                                "internalClass" : "SimpleType",
+                                                "name" : {
+                                                   "internalClass" : "SimpleName",
+                                                   "line" : "116",
+                                                   "identifier" : "List",
+                                                   "startPosition" : "3914"
+                                                }
+                                             },
+                                             "internalClass" : "InstanceofExpression"
+                                          },
+                                          "internalClass" : "IfStatement"
+                                       }
+                                    ],
+                                    "internalClass" : "Block"
+                                 },
+                                 "internalClass" : "EnhancedForStatement",
+                                 "expression" : {
+                                    "identifier" : "descriptorList",
+                                    "startPosition" : "3788",
+                                    "internalClass" : "SimpleName",
+                                    "line" : "114"
+                                 }
+                              },
+                              {
+                                 "expression" : {
+                                    "name" : {
+                                       "internalClass" : "SimpleName",
+                                       "line" : "125",
+                                       "identifier" : "writeEndObject",
+                                       "startPosition" : "4341"
+                                    },
+                                    "expression" : {
+                                       "line" : "125",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "4338",
+                                       "identifier" : "jG"
+                                    },
+                                    "internalClass" : "MethodInvocation"
+                                 },
+                                 "internalClass" : "ExpressionStatement"
+                              }
+                           ]
+                        },
+                        "internalClass" : "MethodDeclaration",
+                        "returnType2" : {
+                           "startPosition" : "3474",
+                           "primitiveTypeCode" : "void",
+                           "internalClass" : "PrimitiveType",
+                           "line" : "109"
+                        }
+                     },
+                     {
+                        "name" : {
+                           "identifier" : "serializeChildList",
+                           "startPosition" : "4391",
+                           "internalClass" : "SimpleName",
+                           "line" : "128"
+                        },
+                        "thrownExceptionTypes" : [
+                           {
+                              "internalClass" : "SimpleType",
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "128",
+                                 "identifier" : "IOException",
+                                 "startPosition" : "4511"
+                              }
+                           }
+                        ],
+                        "body" : {
+                           "internalClass" : "Block",
+                           "statements" : [
+                              {
+                                 "thenStatement" : {
+                                    "statements" : [
+                                       {
+                                          "internalClass" : "ReturnStatement"
+                                       }
+                                    ],
+                                    "internalClass" : "Block"
+                                 },
+                                 "expression" : {
+                                    "leftOperand" : {
+                                       "expression" : {
+                                          "startPosition" : "4541",
+                                          "identifier" : "children",
+                                          "line" : "129",
+                                          "internalClass" : "SimpleName"
+                                       },
+                                       "internalClass" : "MethodInvocation",
+                                       "name" : {
+                                          "line" : "129",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "4550",
+                                          "identifier" : "size"
+                                       }
+                                    },
+                                    "startPosition" : "4541",
+                                    "internalClass" : "InfixExpression",
+                                    "operator" : "<",
+                                    "rightOperand" : {
+                                       "token" : "1",
+                                       "startPosition" : "4559",
+                                       "internalClass" : "NumberLiteral",
+                                       "line" : "129"
+                                    },
+                                    "line" : "129"
+                                 },
+                                 "internalClass" : "IfStatement"
+                              },
+                              {
+                                 "expression" : {
+                                    "internalClass" : "MethodInvocation",
+                                    "expression" : {
+                                       "identifier" : "jG",
+                                       "startPosition" : "4615",
+                                       "internalClass" : "SimpleName",
+                                       "line" : "133"
+                                    },
+                                    "name" : {
+                                       "line" : "133",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "4618",
+                                       "identifier" : "writeFieldName"
+                                    },
+                                    "arguments" : [
+                                       {
+                                          "expression" : {
+                                             "line" : "133",
+                                             "internalClass" : "SimpleName",
+                                             "startPosition" : "4633",
+                                             "identifier" : "descriptor"
+                                          },
+                                          "internalClass" : "MethodInvocation",
+                                          "name" : {
+                                             "startPosition" : "4644",
+                                             "identifier" : "getId",
+                                             "line" : "133",
+                                             "internalClass" : "SimpleName"
+                                          }
+                                       }
+                                    ]
+                                 },
+                                 "internalClass" : "ExpressionStatement"
+                              },
+                              {
+                                 "internalClass" : "ExpressionStatement",
+                                 "expression" : {
+                                    "internalClass" : "MethodInvocation",
+                                    "expression" : {
+                                       "line" : "134",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "4666",
+                                       "identifier" : "jG"
+                                    },
+                                    "name" : {
+                                       "identifier" : "writeStartArray",
+                                       "startPosition" : "4669",
+                                       "internalClass" : "SimpleName",
+                                       "line" : "134"
+                                    }
+                                 }
+                              },
+                              {
+                                 "internalClass" : "EnhancedForStatement",
+                                 "expression" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "136",
+                                    "identifier" : "children",
+                                    "startPosition" : "4721"
+                                 },
+                                 "body" : {
+                                    "internalClass" : "Block",
+                                    "statements" : [
+                                       {
+                                          "internalClass" : "ExpressionStatement",
+                                          "expression" : {
+                                             "name" : {
+                                                "internalClass" : "SimpleName",
+                                                "line" : "137",
+                                                "identifier" : "serialize",
+                                                "startPosition" : "4749"
+                                             },
+                                             "arguments" : [
+                                                {
+                                                   "line" : "137",
+                                                   "internalClass" : "SimpleName",
+                                                   "startPosition" : "4759",
+                                                   "identifier" : "node"
+                                                },
+                                                {
+                                                   "identifier" : "jG",
+                                                   "startPosition" : "4765",
+                                                   "internalClass" : "SimpleName",
+                                                   "line" : "137"
+                                                },
+                                                {
+                                                   "line" : "137",
+                                                   "internalClass" : "SimpleName",
+                                                   "startPosition" : "4769",
+                                                   "identifier" : "provider"
+                                                }
+                                             ],
+                                             "internalClass" : "MethodInvocation"
+                                          }
+                                       }
+                                    ]
+                                 },
+                                 "parameter" : {
+                                    "line" : "136",
+                                    "varargs" : "false",
+                                    "internalClass" : "SingleVariableDeclaration",
+                                    "startPosition" : "4706",
+                                    "type" : {
+                                       "name" : {
+                                          "identifier" : "ASTNode",
+                                          "startPosition" : "4706",
+                                          "internalClass" : "SimpleName",
+                                          "line" : "136"
+                                       },
+                                       "internalClass" : "SimpleType"
+                                    },
+                                    "name" : {
+                                       "internalClass" : "SimpleName",
+                                       "line" : "136",
+                                       "identifier" : "node",
+                                       "startPosition" : "4714"
+                                    }
+                                 }
+                              },
+                              {
+                                 "expression" : {
+                                    "internalClass" : "MethodInvocation",
+                                    "expression" : {
+                                       "startPosition" : "4806",
+                                       "identifier" : "jG",
+                                       "line" : "139",
+                                       "internalClass" : "SimpleName"
+                                    },
+                                    "name" : {
+                                       "internalClass" : "SimpleName",
+                                       "line" : "139",
+                                       "identifier" : "writeEndArray",
+                                       "startPosition" : "4809"
+                                    }
+                                 },
+                                 "internalClass" : "ExpressionStatement"
+                              }
+                           ]
+                        },
+                        "line" : "128",
+                        "internalClass" : "MethodDeclaration",
+                        "returnType2" : {
+                           "startPosition" : "4386",
+                           "primitiveTypeCode" : "void",
+                           "internalClass" : "PrimitiveType",
+                           "line" : "128"
+                        },
+                        "startPosition" : "4378",
+                        "constructor" : "false",
+                        "modifiers" : [
+                           {
+                              "startPosition" : "4378",
+                              "line" : "128",
+                              "keyword" : "private",
+                              "internalClass" : "Modifier"
+                           }
+                        ],
+                        "parameters" : [
+                           {
+                              "varargs" : "false",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "line" : "128",
+                              "type" : {
+                                 "type" : {
+                                    "internalClass" : "SimpleType",
+                                    "name" : {
+                                       "line" : "128",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "4410",
+                                       "identifier" : "List"
+                                    }
+                                 },
+                                 "typeArguments" : [
+                                    {
+                                       "internalClass" : "SimpleType",
+                                       "name" : {
+                                          "line" : "128",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "4415",
+                                          "identifier" : "ASTNode"
+                                       }
+                                    }
+                                 ],
+                                 "internalClass" : "ParameterizedType"
+                              },
+                              "name" : {
+                                 "line" : "128",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "4424",
+                                 "identifier" : "children"
+                              },
+                              "startPosition" : "4410"
+                           },
+                           {
+                              "type" : {
+                                 "name" : {
+                                    "line" : "128",
+                                    "internalClass" : "SimpleName",
+                                    "startPosition" : "4434",
+                                    "identifier" : "StructuralPropertyDescriptor"
+                                 },
+                                 "internalClass" : "SimpleType"
+                              },
+                              "name" : {
+                                 "identifier" : "descriptor",
+                                 "startPosition" : "4463",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "128"
+                              },
+                              "startPosition" : "4434",
+                              "varargs" : "false",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "line" : "128"
+                           },
+                           {
+                              "line" : "128",
+                              "varargs" : "false",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "startPosition" : "4475",
+                              "name" : {
+                                 "startPosition" : "4494",
+                                 "identifier" : "provider",
+                                 "line" : "128",
+                                 "internalClass" : "SimpleName"
+                              },
+                              "type" : {
+                                 "internalClass" : "SimpleType",
+                                 "name" : {
+                                    "line" : "128",
+                                    "internalClass" : "SimpleName",
+                                    "startPosition" : "4475",
+                                    "identifier" : "SerializerProvider"
+                                 }
+                              }
+                           }
+                        ]
+                     },
+                     {
+                        "internalClass" : "MethodDeclaration",
+                        "returnType2" : {
+                           "startPosition" : "4853",
+                           "primitiveTypeCode" : "void",
+                           "internalClass" : "PrimitiveType",
+                           "line" : "142"
+                        },
+                        "line" : "142",
+                        "body" : {
+                           "internalClass" : "Block",
+                           "statements" : [
+                              {
+                                 "internalClass" : "ExpressionStatement",
+                                 "expression" : {
+                                    "expression" : {
+                                       "line" : "148",
+                                       "internalClass" : "SimpleName",
+                                       "startPosition" : "5147",
+                                       "identifier" : "jG"
+                                    },
+                                    "internalClass" : "MethodInvocation",
+                                    "arguments" : [
+                                       {
+                                          "internalClass" : "MethodInvocation",
+                                          "expression" : {
+                                             "internalClass" : "SimpleName",
+                                             "line" : "148",
+                                             "identifier" : "descriptor",
+                                             "startPosition" : "5165"
+                                          },
+                                          "name" : {
+                                             "internalClass" : "SimpleName",
+                                             "line" : "148",
+                                             "identifier" : "getId",
+                                             "startPosition" : "5176"
+                                          }
+                                       }
+                                    ],
+                                    "name" : {
+                                       "internalClass" : "SimpleName",
+                                       "line" : "148",
+                                       "identifier" : "writeFieldName",
+                                       "startPosition" : "5150"
+                                    }
+                                 }
+                              },
+                              {
+                                 "expression" : {
+                                    "internalClass" : "MethodInvocation",
+                                    "name" : {
+                                       "startPosition" : "5198",
+                                       "identifier" : "serialize",
+                                       "line" : "149",
+                                       "internalClass" : "SimpleName"
+                                    },
+                                    "arguments" : [
+                                       {
+                                          "startPosition" : "5208",
+                                          "identifier" : "child",
+                                          "line" : "149",
+                                          "internalClass" : "SimpleName"
+                                       },
+                                       {
+                                          "internalClass" : "SimpleName",
+                                          "line" : "149",
+                                          "identifier" : "jG",
+                                          "startPosition" : "5215"
+                                       },
+                                       {
+                                          "line" : "149",
+                                          "internalClass" : "SimpleName",
+                                          "startPosition" : "5219",
+                                          "identifier" : "provider"
+                                       }
+                                    ]
+                                 },
+                                 "internalClass" : "ExpressionStatement"
+                              }
+                           ]
+                        },
+                        "name" : {
+                           "internalClass" : "SimpleName",
+                           "line" : "142",
+                           "identifier" : "serializeChild",
+                           "startPosition" : "4858"
+                        },
+                        "thrownExceptionTypes" : [
+                           {
+                              "name" : {
+                                 "line" : "142",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "4965",
+                                 "identifier" : "IOException"
+                              },
+                              "internalClass" : "SimpleType"
+                           }
+                        ],
+                        "parameters" : [
+                           {
+                              "line" : "142",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "varargs" : "false",
+                              "startPosition" : "4873",
+                              "type" : {
+                                 "name" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "142",
+                                    "identifier" : "ASTNode",
+                                    "startPosition" : "4873"
+                                 },
+                                 "internalClass" : "SimpleType"
+                              },
+                              "name" : {
+                                 "internalClass" : "SimpleName",
+                                 "line" : "142",
+                                 "identifier" : "child",
+                                 "startPosition" : "4881"
+                              }
+                           },
+                           {
+                              "line" : "142",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "varargs" : "false",
+                              "startPosition" : "4888",
+                              "type" : {
+                                 "name" : {
+                                    "internalClass" : "SimpleName",
+                                    "line" : "142",
+                                    "identifier" : "StructuralPropertyDescriptor",
+                                    "startPosition" : "4888"
+                                 },
+                                 "internalClass" : "SimpleType"
+                              },
+                              "name" : {
+                                 "startPosition" : "4917",
+                                 "identifier" : "descriptor",
+                                 "line" : "142",
+                                 "internalClass" : "SimpleName"
+                              }
+                           },
+                           {
+                              "name" : {
+                                 "line" : "142",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "4948",
+                                 "identifier" : "provider"
+                              },
+                              "type" : {
+                                 "name" : {
+                                    "startPosition" : "4929",
+                                    "identifier" : "SerializerProvider",
+                                    "line" : "142",
+                                    "internalClass" : "SimpleName"
+                                 },
+                                 "internalClass" : "SimpleType"
+                              },
+                              "startPosition" : "4929",
+                              "internalClass" : "SingleVariableDeclaration",
+                              "varargs" : "false",
+                              "line" : "142"
+                           }
+                        ],
+                        "modifiers" : [
+                           {
+                              "startPosition" : "4845",
+                              "line" : "142",
+                              "keyword" : "private",
+                              "internalClass" : "Modifier"
+                           }
+                        ],
+                        "constructor" : "false",
+                        "startPosition" : "4845"
+                     }
+                  ],
+                  "line" : "95",
+                  "interface" : "false",
+                  "internalClass" : "TypeDeclaration",
+                  "name" : {
+                     "identifier" : "NodeSerializer",
+                     "startPosition" : "3238",
+                     "internalClass" : "SimpleName",
+                     "line" : "98"
+                  }
+               }
+            ]
+         }
+      ],
+      "internalClass" : "CompilationUnit",
+      "specificToken": "SomeSpecificToken",
+      "package" : {
+         "name" : {
+            "qualifier" : {
+               "name" : {
+                  "startPosition" : "13",
+                  "identifier" : "sourced",
+                  "line" : "1",
+                  "internalClass" : "SimpleName"
+               },
+               "qualifier" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "1",
+                  "identifier" : "tech",
+                  "startPosition" : "8"
+               },
+               "internalClass" : "QualifiedName"
+            },
+            "internalClass" : "QualifiedName",
+            "name" : {
+               "internalClass" : "SimpleName",
+               "line" : "1",
+               "identifier" : "langparsers",
+               "startPosition" : "21"
+            }
+         },
+         "internalClass" : "PackageDeclaration"
+      },
+      "imports" : [
+         {
+            "startPosition" : "35",
+            "static" : "false",
+            "name" : {
+               "qualifier" : {
+                  "qualifier" : {
+                     "name" : {
+                        "identifier" : "jackson",
+                        "startPosition" : "56",
+                        "internalClass" : "SimpleName",
+                        "line" : "3"
+                     },
+                     "internalClass" : "QualifiedName",
+                     "qualifier" : {
+                        "name" : {
+                           "internalClass" : "SimpleName",
+                           "line" : "3",
+                           "identifier" : "fasterxml",
+                           "startPosition" : "46"
+                        },
+                        "qualifier" : {
+                           "identifier" : "com",
+                           "startPosition" : "42",
+                           "internalClass" : "SimpleName",
+                           "line" : "3"
+                        },
+                        "internalClass" : "QualifiedName"
+                     }
+                  },
+                  "internalClass" : "QualifiedName",
+                  "name" : {
+                     "line" : "3",
+                     "internalClass" : "SimpleName",
+                     "startPosition" : "64",
+                     "identifier" : "core"
+                  }
+               },
+               "internalClass" : "QualifiedName",
+               "name" : {
+                  "line" : "3",
+                  "internalClass" : "SimpleName",
+                  "startPosition" : "69",
+                  "identifier" : "JsonFactory"
+               }
+            },
+            "onDemand" : "false",
+            "line" : "3",
+            "internalClass" : "ImportDeclaration"
+         },
+         {
+            "internalClass" : "ImportDeclaration",
+            "line" : "4",
+            "onDemand" : "false",
+            "name" : {
+               "internalClass" : "QualifiedName",
+               "qualifier" : {
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "name" : {
+                        "identifier" : "jackson",
+                        "startPosition" : "103",
+                        "internalClass" : "SimpleName",
+                        "line" : "4"
+                     },
+                     "internalClass" : "QualifiedName",
+                     "qualifier" : {
+                        "qualifier" : {
+                           "internalClass" : "SimpleName",
+                           "line" : "4",
+                           "identifier" : "com",
+                           "startPosition" : "89"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "name" : {
+                           "identifier" : "fasterxml",
+                           "startPosition" : "93",
+                           "internalClass" : "SimpleName",
+                           "line" : "4"
+                        }
+                     }
+                  },
+                  "name" : {
+                     "internalClass" : "SimpleName",
+                     "line" : "4",
+                     "identifier" : "core",
+                     "startPosition" : "111"
+                  }
+               },
+               "name" : {
+                  "line" : "4",
+                  "internalClass" : "SimpleName",
+                  "startPosition" : "116",
+                  "identifier" : "JsonGenerator"
+               }
+            },
+            "static" : "false",
+            "startPosition" : "82"
+         },
+         {
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "5",
+                  "identifier" : "DefaultPrettyPrinter",
+                  "startPosition" : "170"
+               },
+               "qualifier" : {
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "name" : {
+                        "line" : "5",
+                        "internalClass" : "SimpleName",
+                        "startPosition" : "160",
+                        "identifier" : "core"
+                     },
+                     "qualifier" : {
+                        "name" : {
+                           "line" : "5",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "152",
+                           "identifier" : "jackson"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "qualifier" : {
+                           "name" : {
+                              "internalClass" : "SimpleName",
+                              "line" : "5",
+                              "identifier" : "fasterxml",
+                              "startPosition" : "142"
+                           },
+                           "qualifier" : {
+                              "line" : "5",
+                              "internalClass" : "SimpleName",
+                              "startPosition" : "138",
+                              "identifier" : "com"
+                           },
+                           "internalClass" : "QualifiedName"
+                        }
+                     },
+                     "internalClass" : "QualifiedName"
+                  },
+                  "name" : {
+                     "startPosition" : "165",
+                     "identifier" : "util",
+                     "line" : "5",
+                     "internalClass" : "SimpleName"
+                  }
+               },
+               "internalClass" : "QualifiedName"
+            },
+            "static" : "false",
+            "startPosition" : "131",
+            "internalClass" : "ImportDeclaration",
+            "line" : "5"
+         },
+         {
+            "internalClass" : "ImportDeclaration",
+            "line" : "6",
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "line" : "6",
+                  "internalClass" : "SimpleName",
+                  "startPosition" : "230",
+                  "identifier" : "DeserializationFeature"
+               },
+               "qualifier" : {
+                  "name" : {
+                     "identifier" : "databind",
+                     "startPosition" : "221",
+                     "internalClass" : "SimpleName",
+                     "line" : "6"
+                  },
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "name" : {
+                        "startPosition" : "213",
+                        "identifier" : "jackson",
+                        "line" : "6",
+                        "internalClass" : "SimpleName"
+                     },
+                     "qualifier" : {
+                        "name" : {
+                           "startPosition" : "203",
+                           "identifier" : "fasterxml",
+                           "line" : "6",
+                           "internalClass" : "SimpleName"
+                        },
+                        "qualifier" : {
+                           "startPosition" : "199",
+                           "identifier" : "com",
+                           "line" : "6",
+                           "internalClass" : "SimpleName"
+                        },
+                        "internalClass" : "QualifiedName"
+                     },
+                     "internalClass" : "QualifiedName"
+                  }
+               },
+               "internalClass" : "QualifiedName"
+            },
+            "startPosition" : "192",
+            "static" : "false"
+         },
+         {
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "identifier" : "ObjectMapper",
+                  "startPosition" : "292",
+                  "internalClass" : "SimpleName",
+                  "line" : "7"
+               },
+               "qualifier" : {
+                  "name" : {
+                     "identifier" : "databind",
+                     "startPosition" : "283",
+                     "internalClass" : "SimpleName",
+                     "line" : "7"
+                  },
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "internalClass" : "QualifiedName",
+                     "qualifier" : {
+                        "qualifier" : {
+                           "startPosition" : "261",
+                           "identifier" : "com",
+                           "line" : "7",
+                           "internalClass" : "SimpleName"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "name" : {
+                           "startPosition" : "265",
+                           "identifier" : "fasterxml",
+                           "line" : "7",
+                           "internalClass" : "SimpleName"
+                        }
+                     },
+                     "name" : {
+                        "identifier" : "jackson",
+                        "startPosition" : "275",
+                        "internalClass" : "SimpleName",
+                        "line" : "7"
+                     }
+                  }
+               },
+               "internalClass" : "QualifiedName"
+            },
+            "static" : "false",
+            "startPosition" : "254",
+            "internalClass" : "ImportDeclaration",
+            "line" : "7"
+         },
+         {
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "identifier" : "SerializationFeature",
+                  "startPosition" : "344",
+                  "internalClass" : "SimpleName",
+                  "line" : "8"
+               },
+               "internalClass" : "QualifiedName",
+               "qualifier" : {
+                  "name" : {
+                     "startPosition" : "335",
+                     "identifier" : "databind",
+                     "line" : "8",
+                     "internalClass" : "SimpleName"
+                  },
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "qualifier" : {
+                        "qualifier" : {
+                           "line" : "8",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "313",
+                           "identifier" : "com"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "name" : {
+                           "identifier" : "fasterxml",
+                           "startPosition" : "317",
+                           "internalClass" : "SimpleName",
+                           "line" : "8"
+                        }
+                     },
+                     "internalClass" : "QualifiedName",
+                     "name" : {
+                        "line" : "8",
+                        "internalClass" : "SimpleName",
+                        "startPosition" : "327",
+                        "identifier" : "jackson"
+                     }
+                  }
+               }
+            },
+            "startPosition" : "306",
+            "static" : "false",
+            "internalClass" : "ImportDeclaration",
+            "line" : "8"
+         },
+         {
+            "internalClass" : "ImportDeclaration",
+            "line" : "9",
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "startPosition" : "404",
+                  "identifier" : "SerializerProvider",
+                  "line" : "9",
+                  "internalClass" : "SimpleName"
+               },
+               "qualifier" : {
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "name" : {
+                        "internalClass" : "SimpleName",
+                        "line" : "9",
+                        "identifier" : "jackson",
+                        "startPosition" : "387"
+                     },
+                     "qualifier" : {
+                        "internalClass" : "QualifiedName",
+                        "qualifier" : {
+                           "line" : "9",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "373",
+                           "identifier" : "com"
+                        },
+                        "name" : {
+                           "startPosition" : "377",
+                           "identifier" : "fasterxml",
+                           "line" : "9",
+                           "internalClass" : "SimpleName"
+                        }
+                     },
+                     "internalClass" : "QualifiedName"
+                  },
+                  "name" : {
+                     "line" : "9",
+                     "internalClass" : "SimpleName",
+                     "startPosition" : "395",
+                     "identifier" : "databind"
+                  }
+               },
+               "internalClass" : "QualifiedName"
+            },
+            "static" : "false",
+            "startPosition" : "366"
+         },
+         {
+            "static" : "false",
+            "startPosition" : "424",
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "10",
+                  "identifier" : "SimpleModule",
+                  "startPosition" : "469"
+               },
+               "internalClass" : "QualifiedName",
+               "qualifier" : {
+                  "name" : {
+                     "line" : "10",
+                     "internalClass" : "SimpleName",
+                     "startPosition" : "462",
+                     "identifier" : "module"
+                  },
+                  "qualifier" : {
+                     "qualifier" : {
+                        "name" : {
+                           "startPosition" : "445",
+                           "identifier" : "jackson",
+                           "line" : "10",
+                           "internalClass" : "SimpleName"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "qualifier" : {
+                           "name" : {
+                              "line" : "10",
+                              "internalClass" : "SimpleName",
+                              "startPosition" : "435",
+                              "identifier" : "fasterxml"
+                           },
+                           "qualifier" : {
+                              "identifier" : "com",
+                              "startPosition" : "431",
+                              "internalClass" : "SimpleName",
+                              "line" : "10"
+                           },
+                           "internalClass" : "QualifiedName"
+                        }
+                     },
+                     "internalClass" : "QualifiedName",
+                     "name" : {
+                        "startPosition" : "453",
+                        "identifier" : "databind",
+                        "line" : "10",
+                        "internalClass" : "SimpleName"
+                     }
+                  },
+                  "internalClass" : "QualifiedName"
+               }
+            },
+            "line" : "10",
+            "internalClass" : "ImportDeclaration"
+         },
+         {
+            "line" : "11",
+            "internalClass" : "ImportDeclaration",
+            "startPosition" : "483",
+            "static" : "false",
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "startPosition" : "529",
+                  "identifier" : "StdSerializer",
+                  "line" : "11",
+                  "internalClass" : "SimpleName"
+               },
+               "internalClass" : "QualifiedName",
+               "qualifier" : {
+                  "qualifier" : {
+                     "qualifier" : {
+                        "name" : {
+                           "startPosition" : "512",
+                           "identifier" : "databind",
+                           "line" : "11",
+                           "internalClass" : "SimpleName"
+                        },
+                        "qualifier" : {
+                           "name" : {
+                              "line" : "11",
+                              "internalClass" : "SimpleName",
+                              "startPosition" : "504",
+                              "identifier" : "jackson"
+                           },
+                           "qualifier" : {
+                              "name" : {
+                                 "line" : "11",
+                                 "internalClass" : "SimpleName",
+                                 "startPosition" : "494",
+                                 "identifier" : "fasterxml"
+                              },
+                              "qualifier" : {
+                                 "identifier" : "com",
+                                 "startPosition" : "490",
+                                 "internalClass" : "SimpleName",
+                                 "line" : "11"
+                              },
+                              "internalClass" : "QualifiedName"
+                           },
+                           "internalClass" : "QualifiedName"
+                        },
+                        "internalClass" : "QualifiedName"
+                     },
+                     "internalClass" : "QualifiedName",
+                     "name" : {
+                        "internalClass" : "SimpleName",
+                        "line" : "11",
+                        "identifier" : "ser",
+                        "startPosition" : "521"
+                     }
+                  },
+                  "internalClass" : "QualifiedName",
+                  "name" : {
+                     "startPosition" : "525",
+                     "identifier" : "std",
+                     "line" : "11",
+                     "internalClass" : "SimpleName"
+                  }
+               }
+            }
+         },
+         {
+            "internalClass" : "ImportDeclaration",
+            "line" : "12",
+            "onDemand" : "false",
+            "name" : {
+               "name" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "12",
+                  "identifier" : "IOUtils",
+                  "startPosition" : "573"
+               },
+               "qualifier" : {
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "name" : {
+                        "identifier" : "commons",
+                        "startPosition" : "562",
+                        "internalClass" : "SimpleName",
+                        "line" : "12"
+                     },
+                     "internalClass" : "QualifiedName",
+                     "qualifier" : {
+                        "name" : {
+                           "identifier" : "apache",
+                           "startPosition" : "555",
+                           "internalClass" : "SimpleName",
+                           "line" : "12"
+                        },
+                        "qualifier" : {
+                           "startPosition" : "551",
+                           "identifier" : "org",
+                           "line" : "12",
+                           "internalClass" : "SimpleName"
+                        },
+                        "internalClass" : "QualifiedName"
+                     }
+                  },
+                  "name" : {
+                     "identifier" : "io",
+                     "startPosition" : "570",
+                     "internalClass" : "SimpleName",
+                     "line" : "12"
+                  }
+               },
+               "internalClass" : "QualifiedName"
+            },
+            "static" : "false",
+            "startPosition" : "544"
+         },
+         {
+            "line" : "13",
+            "internalClass" : "ImportDeclaration",
+            "startPosition" : "582",
+            "static" : "false",
+            "name" : {
+               "name" : {
+                  "line" : "13",
+                  "internalClass" : "SimpleName",
+                  "startPosition" : "614",
+                  "identifier" : "AST"
+               },
+               "internalClass" : "QualifiedName",
+               "qualifier" : {
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "internalClass" : "QualifiedName",
+                     "qualifier" : {
+                        "name" : {
+                           "line" : "13",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "601",
+                           "identifier" : "jdt"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "qualifier" : {
+                           "qualifier" : {
+                              "line" : "13",
+                              "internalClass" : "SimpleName",
+                              "startPosition" : "589",
+                              "identifier" : "org"
+                           },
+                           "internalClass" : "QualifiedName",
+                           "name" : {
+                              "internalClass" : "SimpleName",
+                              "line" : "13",
+                              "identifier" : "eclipse",
+                              "startPosition" : "593"
+                           }
+                        }
+                     },
+                     "name" : {
+                        "startPosition" : "605",
+                        "identifier" : "core",
+                        "line" : "13",
+                        "internalClass" : "SimpleName"
+                     }
+                  },
+                  "name" : {
+                     "line" : "13",
+                     "internalClass" : "SimpleName",
+                     "startPosition" : "610",
+                     "identifier" : "dom"
+                  }
+               }
+            },
+            "onDemand" : "false"
+         },
+         {
+            "name" : {
+               "name" : {
+                  "identifier" : "ASTNode",
+                  "startPosition" : "651",
+                  "internalClass" : "SimpleName",
+                  "line" : "14"
+               },
+               "qualifier" : {
+                  "qualifier" : {
+                     "qualifier" : {
+                        "qualifier" : {
+                           "name" : {
+                              "line" : "14",
+                              "internalClass" : "SimpleName",
+                              "startPosition" : "630",
+                              "identifier" : "eclipse"
+                           },
+                           "qualifier" : {
+                              "line" : "14",
+                              "internalClass" : "SimpleName",
+                              "startPosition" : "626",
+                              "identifier" : "org"
+                           },
+                           "internalClass" : "QualifiedName"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "name" : {
+                           "line" : "14",
+                           "internalClass" : "SimpleName",
+                           "startPosition" : "638",
+                           "identifier" : "jdt"
+                        }
+                     },
+                     "internalClass" : "QualifiedName",
+                     "name" : {
+                        "line" : "14",
+                        "internalClass" : "SimpleName",
+                        "startPosition" : "642",
+                        "identifier" : "core"
+                     }
+                  },
+                  "internalClass" : "QualifiedName",
+                  "name" : {
+                     "identifier" : "dom",
+                     "startPosition" : "647",
+                     "internalClass" : "SimpleName",
+                     "line" : "14"
+                  }
+               },
+               "internalClass" : "QualifiedName"
+            },
+            "onDemand" : "false",
+            "static" : "false",
+            "startPosition" : "619",
+            "internalClass" : "ImportDeclaration",
+            "line" : "14"
+         },
+         {
+            "internalClass" : "ImportDeclaration",
+            "line" : "15",
+            "name" : {
+               "internalClass" : "QualifiedName",
+               "qualifier" : {
+                  "qualifier" : {
+                     "name" : {
+                        "internalClass" : "SimpleName",
+                        "line" : "15",
+                        "identifier" : "core",
+                        "startPosition" : "683"
+                     },
+                     "internalClass" : "QualifiedName",
+                     "qualifier" : {
+                        "qualifier" : {
+                           "name" : {
+                              "internalClass" : "SimpleName",
+                              "line" : "15",
+                              "identifier" : "eclipse",
+                              "startPosition" : "671"
+                           },
+                           "qualifier" : {
+                              "internalClass" : "SimpleName",
+                              "line" : "15",
+                              "identifier" : "org",
+                              "startPosition" : "667"
+                           },
+                           "internalClass" : "QualifiedName"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "name" : {
+                           "internalClass" : "SimpleName",
+                           "line" : "15",
+                           "identifier" : "jdt",
+                           "startPosition" : "679"
+                        }
+                     }
+                  },
+                  "internalClass" : "QualifiedName",
+                  "name" : {
+                     "line" : "15",
+                     "internalClass" : "SimpleName",
+                     "startPosition" : "688",
+                     "identifier" : "dom"
+                  }
+               },
+               "name" : {
+                  "line" : "15",
+                  "internalClass" : "SimpleName",
+                  "startPosition" : "692",
+                  "identifier" : "ASTParser"
+               }
+            },
+            "onDemand" : "false",
+            "static" : "false",
+            "startPosition" : "660"
+         },
+         {
+            "static" : "false",
+            "startPosition" : "703",
+            "name" : {
+               "qualifier" : {
+                  "name" : {
+                     "identifier" : "dom",
+                     "startPosition" : "731",
+                     "internalClass" : "SimpleName",
+                     "line" : "16"
+                  },
+                  "internalClass" : "QualifiedName",
+                  "qualifier" : {
+                     "qualifier" : {
+                        "name" : {
+                           "identifier" : "jdt",
+                           "startPosition" : "722",
+                           "internalClass" : "SimpleName",
+                           "line" : "16"
+                        },
+                        "internalClass" : "QualifiedName",
+                        "qualifier" : {
+                           "internalClass" : "QualifiedName",
+                           "qualifier" : {
+                              "startPosition" : "710",
+                              "identifier" : "org",
+                              "line" : "16",
+                              "internalClass" : "SimpleName"
+                           },
+                           "name" : {
+                              "identifier" : "eclipse",
+                              "startPosition" : "714",
+                              "internalClass" : "SimpleName",
+                              "line" : "16"
+                           }
+                        }
+                     },
+                     "internalClass" : "QualifiedName",
+                     "name" : {
+                        "identifier" : "core",
+                        "startPosition" : "726",
+                        "internalClass" : "SimpleName",
+                        "line" : "16"
+                     }
+                  }
+               },
+               "internalClass" : "QualifiedName",
+               "name" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "16",
+                  "identifier" : "StructuralPropertyDescriptor",
+                  "startPosition" : "735"
+               }
+            },
+            "onDemand" : "false",
+            "line" : "16",
+            "internalClass" : "ImportDeclaration"
+         },
+         {
+            "static" : "false",
+            "startPosition" : "766",
+            "name" : {
+               "qualifier" : {
+                  "name" : {
+                     "identifier" : "util",
+                     "startPosition" : "778",
+                     "internalClass" : "SimpleName",
+                     "line" : "18"
+                  },
+                  "qualifier" : {
+                     "line" : "18",
+                     "internalClass" : "SimpleName",
+                     "startPosition" : "773",
+                     "identifier" : "java"
+                  },
+                  "internalClass" : "QualifiedName"
+               },
+               "internalClass" : "QualifiedName",
+               "name" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "18",
+                  "identifier" : "List",
+                  "startPosition" : "783"
+               }
+            },
+            "onDemand" : "false",
+            "line" : "18",
+            "internalClass" : "ImportDeclaration"
+         },
+         {
+            "startPosition" : "790",
+            "static" : "false",
+            "onDemand" : "true",
+            "name" : {
+               "qualifier" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "20",
+                  "identifier" : "java",
+                  "startPosition" : "797"
+               },
+               "internalClass" : "QualifiedName",
+               "name" : {
+                  "internalClass" : "SimpleName",
+                  "line" : "20",
+                  "identifier" : "io",
+                  "startPosition" : "802"
+               }
+            },
+            "line" : "20",
+            "internalClass" : "ImportDeclaration"
+         }
+      ]
+   }
+}

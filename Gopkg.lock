@@ -39,6 +39,18 @@
   version = "v1.9.0"
 
 [[projects]]
+  name = "github.com/gogo/protobuf"
+  packages = [
+    "gogoproto",
+    "proto",
+    "protoc-gen-gogo/descriptor",
+    "sortkeys",
+    "types"
+  ]
+  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
@@ -94,6 +106,12 @@
   packages = ["."]
   revision = "9e777a8366cce605130a531d2cd6363d07ad7317"
   version = "v0.0.2"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mcuadros/go-lookup"
+  packages = ["."]
+  revision = "5650f26be7675b629fff8356a50d906fa03e9c8b"
 
 [[projects]]
   branch = "master"
@@ -246,7 +264,15 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["context"]
+  packages = [
+    "context",
+    "http2",
+    "http2/hpack",
+    "idna",
+    "internal/timeseries",
+    "lex/httplex",
+    "trace"
+  ]
   revision = "6078986fec03a1dcc236c34816c71b0e05018fda"
   source = "github.com/golang/net"
 
@@ -263,12 +289,20 @@
 [[projects]]
   name = "golang.org/x/text"
   packages = [
+    "collate",
+    "collate/build",
+    "internal/colltab",
     "internal/gen",
+    "internal/tag",
     "internal/triegen",
     "internal/ucd",
+    "language",
+    "secure/bidirule",
     "transform",
+    "unicode/bidi",
     "unicode/cldr",
-    "unicode/norm"
+    "unicode/norm",
+    "unicode/rangetable"
   ]
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   source = "github.com/golang/text"
@@ -283,11 +317,47 @@
 [[projects]]
   name = "google.golang.org/grpc"
   packages = [
+    ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
     "codes",
-    "status"
+    "connectivity",
+    "credentials",
+    "encoding",
+    "encoding/proto",
+    "grpclb/grpc_lb_v1/messages",
+    "grpclog",
+    "internal",
+    "keepalive",
+    "metadata",
+    "naming",
+    "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
+    "stats",
+    "status",
+    "tap",
+    "transport"
   ]
   revision = "8e4536a86ab602859c20df5ebfd0bd4228d08655"
   version = "v1.10.0"
+
+[[projects]]
+  name = "gopkg.in/bblfsh/client-go.v2"
+  packages = ["."]
+  revision = "274b551eb1e5a7a3e4aff84d8ee1a56feb799107"
+  version = "v2.4.1"
+
+[[projects]]
+  name = "gopkg.in/bblfsh/sdk.v1"
+  packages = [
+    "protocol",
+    "uast"
+  ]
+  revision = "19e77f414dbb893a34f67fc435e5011b99ba6a1f"
+  version = "v1.15.2"
 
 [[projects]]
   branch = "v1"

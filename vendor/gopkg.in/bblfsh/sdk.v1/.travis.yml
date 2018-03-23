@@ -1,0 +1,30 @@
+language: go
+
+go:
+  - 1.9
+  - tip
+
+go_import_path: gopkg.in/bblfsh/sdk.v1
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libxml2-dev
+  - go get -v gopkg.in/bblfsh/client-go.v1/... || true
+  - cd $GOPATH/src/gopkg.in/bblfsh/client-go.v1
+  - make dependencies
+
+  - cd $GOPATH/src/gopkg.in/bblfsh/sdk.v1
+  - make validate-commit
+  - go get -t -v ./...
+
+script:
+  - make test-coverage
+
+after_success:
+- bash <(curl -s https://codecov.io/bash)
