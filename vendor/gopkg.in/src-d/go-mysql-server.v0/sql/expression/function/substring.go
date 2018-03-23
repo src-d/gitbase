@@ -37,12 +37,20 @@ func NewSubstring(args ...sql.Expression) (sql.Expression, error) {
 	return &Substring{str, start, ln}, nil
 }
 
+// Children implements the Expression interface.
+func (s Substring) Children() []sql.Expression {
+	if s.len == nil {
+		return []sql.Expression{s.str, s.start}
+	}
+	return []sql.Expression{s.str, s.start, s.len}
+}
+
 // Eval implements the Expression interface.
 func (s *Substring) Eval(
-	session sql.Session,
+	ctx *sql.Context,
 	row sql.Row,
 ) (interface{}, error) {
-	str, err := s.str.Eval(session, row)
+	str, err := s.str.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +67,7 @@ func (s *Substring) Eval(
 		return nil, sql.ErrInvalidType.New(reflect.TypeOf(str).String())
 	}
 
-	start, err := s.start.Eval(session, row)
+	start, err := s.start.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +84,7 @@ func (s *Substring) Eval(
 	var length int64
 	runeCount := int64(len(text))
 	if s.len != nil {
-		len, err := s.len.Eval(session, row)
+		len, err := s.len.Eval(ctx, row)
 		if err != nil {
 			return nil, err
 		}

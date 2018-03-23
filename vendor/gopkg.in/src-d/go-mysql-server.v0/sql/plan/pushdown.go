@@ -57,8 +57,8 @@ func (t *PushdownProjectionTable) TransformExpressionsUp(
 }
 
 // RowIter implements the Node interface.
-func (t *PushdownProjectionTable) RowIter(session sql.Session) (sql.RowIter, error) {
-	return t.WithProject(session, t.columns)
+func (t *PushdownProjectionTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	return t.WithProject(ctx, t.columns)
 }
 
 func (t PushdownProjectionTable) String() string {
@@ -109,8 +109,8 @@ func (t *PushdownProjectionAndFiltersTable) TransformExpressionsUp(
 }
 
 // RowIter implements the Node interface.
-func (t *PushdownProjectionAndFiltersTable) RowIter(session sql.Session) (sql.RowIter, error) {
-	return t.WithProjectAndFilters(session, t.columns, t.filters)
+func (t *PushdownProjectionAndFiltersTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	return t.WithProjectAndFilters(ctx, t.columns, t.filters)
 }
 
 func (t PushdownProjectionAndFiltersTable) String() string {
@@ -134,4 +134,12 @@ func (t PushdownProjectionAndFiltersTable) String() string {
 	)
 
 	return pr.String()
+}
+
+// Expressions implements the Expressioner interface.
+func (t PushdownProjectionAndFiltersTable) Expressions() []sql.Expression {
+	var exprs []sql.Expression
+	exprs = append(exprs, t.columns...)
+	exprs = append(exprs, t.filters...)
+	return exprs
 }

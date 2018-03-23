@@ -30,9 +30,13 @@ var (
 
 	// ErrNotTuple is retuned when the value is not a tuple.
 	ErrNotTuple = errors.NewKind("value of type %T is not a tuple")
+
 	// ErrInvalidColumnNumber is returned when a tuple has an invalid number of
 	// arguments.
 	ErrInvalidColumnNumber = errors.NewKind("tuple should contain %d column(s), but has %d")
+
+	// ErrNotArray is returned when the value is not an array.
+	ErrNotArray = errors.NewKind("value of type %T is not an array")
 )
 
 // Schema is the definition of a table.
@@ -146,6 +150,11 @@ var (
 // Tuple returns a new tuple type with the given element types.
 func Tuple(types ...Type) Type {
 	return tupleT(types)
+}
+
+// Array returns a new Array type of the given underlying type.
+func Array(underlying Type) Type {
+	return arrayT{underlying}
 }
 
 // MysqlTypeToType gets the column type using the mysql type
@@ -557,6 +566,68 @@ func (t tupleT) Compare(a, b interface{}) (int, error) {
 	return 0, nil
 }
 
+type arrayT struct {
+	underlying Type
+}
+
+func (t arrayT) Type() query.Type {
+	return sqltypes.TypeJSON
+}
+
+func (t arrayT) SQL(v interface{}) sqltypes.Value {
+	return JSON.SQL(v)
+}
+
+func (t arrayT) Convert(v interface{}) (interface{}, error) {
+	if vals, ok := v.([]interface{}); ok {
+		var result = make([]interface{}, len(vals))
+		for i, v := range vals {
+			var err error
+			result[i], err = t.underlying.Convert(v)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return result, nil
+	}
+	return nil, ErrNotArray.New(v)
+}
+
+func (t arrayT) Compare(a, b interface{}) (int, error) {
+	a, err := t.Convert(a)
+	if err != nil {
+		return 0, err
+	}
+
+	b, err = t.Convert(b)
+	if err != nil {
+		return 0, err
+	}
+
+	left := a.([]interface{})
+	right := b.([]interface{})
+
+	if len(left) < len(right) {
+		return -1, nil
+	} else if len(left) > len(right) {
+		return 1, nil
+	}
+
+	for i := range left {
+		cmp, err := t.underlying.Compare(left[i], right[i])
+		if err != nil {
+			return 0, err
+		}
+
+		if cmp != 0 {
+			return cmp, nil
+		}
+	}
+
+	return 0, nil
+}
+
 // MustConvert calls the Convert function from a given Type, it err panics.
 func MustConvert(t Type, v interface{}) interface{} {
 	c, err := t.Convert(v)
@@ -598,6 +669,12 @@ func IsText(t Type) bool {
 func IsTuple(t Type) bool {
 	v, ok := t.(tupleT)
 	return ok && len(v) > 1
+}
+
+// IsArray returns whether the given type is an array.
+func IsArray(t Type) bool {
+	_, ok := t.(arrayT)
+	return ok
 }
 
 // NumColumns returns the number of columns in a type. This is one for all

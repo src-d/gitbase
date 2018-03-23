@@ -83,8 +83,8 @@ func (s *Sort) expressionsResolved() bool {
 }
 
 // RowIter implements the Node interface.
-func (s *Sort) RowIter(session sql.Session) (sql.RowIter, error) {
-	i, err := s.UnaryNode.Child.RowIter(session)
+func (s *Sort) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	i, err := s.UnaryNode.Child.RowIter(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +128,15 @@ func (s Sort) String() string {
 	_ = pr.WriteNode("Sort(%s)", strings.Join(fields, ", "))
 	_ = pr.WriteChildren(s.Child.String())
 	return pr.String()
+}
+
+// Expressions implements the Expressioner interface.
+func (s Sort) Expressions() []sql.Expression {
+	var exprs = make([]sql.Expression, len(s.SortFields))
+	for i, f := range s.SortFields {
+		exprs[i] = f.Column
+	}
+	return exprs
 }
 
 type sortIter struct {
@@ -197,7 +206,7 @@ type sorter struct {
 	sortFields []SortField
 	rows       []sql.Row
 	lastError  error
-	session    sql.Session
+	ctx        *sql.Context
 }
 
 func (s *sorter) Len() int {
@@ -217,13 +226,13 @@ func (s *sorter) Less(i, j int) bool {
 	b := s.rows[j]
 	for _, sf := range s.sortFields {
 		typ := sf.Column.Type()
-		av, err := sf.Column.Eval(s.session, a)
+		av, err := sf.Column.Eval(s.ctx, a)
 		if err != nil {
 			s.lastError = ErrUnableSort.Wrap(err)
 			return false
 		}
 
-		bv, err := sf.Column.Eval(s.session, b)
+		bv, err := sf.Column.Eval(s.ctx, b)
 		if err != nil {
 			s.lastError = ErrUnableSort.Wrap(err)
 			return false

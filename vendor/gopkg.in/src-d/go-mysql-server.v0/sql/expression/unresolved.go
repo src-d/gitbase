@@ -26,6 +26,11 @@ func NewUnresolvedQualifiedColumn(table, name string) *UnresolvedColumn {
 	return &UnresolvedColumn{name: name, table: table}
 }
 
+// Children implements the Expression interface.
+func (UnresolvedColumn) Children() []sql.Expression {
+	return nil
+}
+
 // Resolved implements the Expression interface.
 func (UnresolvedColumn) Resolved() bool {
 	return false
@@ -55,7 +60,7 @@ func (uc UnresolvedColumn) String() string {
 }
 
 // Eval implements the Expression interface.
-func (UnresolvedColumn) Eval(s sql.Session, r sql.Row) (interface{}, error) {
+func (UnresolvedColumn) Eval(ctx *sql.Context, r sql.Row) (interface{}, error) {
 	panic("unresolved column is a placeholder node, but Eval was called")
 }
 
@@ -73,16 +78,21 @@ type UnresolvedFunction struct {
 	// IsAggregate or not.
 	IsAggregate bool
 	// Children of the expression.
-	Children []sql.Expression
+	Arguments []sql.Expression
 }
 
 // NewUnresolvedFunction creates a new UnresolvedFunction expression.
 func NewUnresolvedFunction(
 	name string,
 	agg bool,
-	children ...sql.Expression,
+	arguments ...sql.Expression,
 ) *UnresolvedFunction {
-	return &UnresolvedFunction{name, agg, children}
+	return &UnresolvedFunction{name, agg, arguments}
+}
+
+// Children implements the Expression interface.
+func (uf UnresolvedFunction) Children() []sql.Expression {
+	return uf.Arguments
 }
 
 // Resolved implements the Expression interface.
@@ -104,22 +114,22 @@ func (UnresolvedFunction) Type() sql.Type {
 func (uf UnresolvedFunction) Name() string { return uf.name }
 
 func (uf UnresolvedFunction) String() string {
-	var exprs = make([]string, len(uf.Children))
-	for i, e := range uf.Children {
+	var exprs = make([]string, len(uf.Arguments))
+	for i, e := range uf.Arguments {
 		exprs[i] = e.String()
 	}
 	return fmt.Sprintf("%s(%s)", uf.name, strings.Join(exprs, ", "))
 }
 
 // Eval implements the Expression interface.
-func (UnresolvedFunction) Eval(s sql.Session, r sql.Row) (interface{}, error) {
+func (UnresolvedFunction) Eval(ctx *sql.Context, r sql.Row) (interface{}, error) {
 	panic("unresolved function is a placeholder node, but Eval was called")
 }
 
 // TransformUp implements the Expression interface.
 func (uf *UnresolvedFunction) TransformUp(f sql.TransformExprFunc) (sql.Expression, error) {
 	var rc []sql.Expression
-	for _, c := range uf.Children {
+	for _, c := range uf.Arguments {
 		c, err := c.TransformUp(f)
 		if err != nil {
 			return nil, err
