@@ -17,14 +17,14 @@ import (
 // of another commit.
 type HistoryIdx struct {
 	expression.BinaryExpression
-	cache *lru.ARCCache
+	cache *lru.TwoQueueCache
 }
 
 const historyIdxCacheSize = 300
 
 // NewHistoryIdx creates a new HistoryIdx udf.
 func NewHistoryIdx(start, target sql.Expression) sql.Expression {
-	cache, _ := lru.NewARC(historyIdxCacheSize)
+	cache, _ := lru.New2Q(historyIdxCacheSize)
 	return &HistoryIdx{expression.BinaryExpression{Left: start, Right: target}, cache}
 }
 

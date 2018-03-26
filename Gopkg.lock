@@ -52,6 +52,15 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/hashicorp/golang-lru"
+  packages = [
+    ".",
+    "simplelru"
+  ]
+  revision = "0fb14efe8c47ae851c0034ed7a448854d3d34cf3"
+
+[[projects]]
+  branch = "master"
   name = "github.com/jbenet/go-context"
   packages = ["io"]
   revision = "d14ea06fba99483203c19d92cfcd13ebe73135f4"
@@ -377,6 +386,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e416a3f7e1bac3a8e47d58166543ab89fe960a76af82f5f5263dd11b34c77e5b"
+  inputs-digest = "6926f0f3f5a7e414fd23f08679492bdf878afea7c01dba122f66fc702031e897"
   solver-name = "gps-cdcl"
   solver-version = 1
