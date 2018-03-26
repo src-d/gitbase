@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/hashicorp/golang-lru"
+
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 
@@ -18,14 +20,21 @@ import (
 // or not.
 type CommitHasTree struct {
 	expression.BinaryExpression
+	cache *lru.ARCCache
 }
+
+// TODO: set as config
+const commitHasTreeCacheSize = 100
 
 // NewCommitHasTree creates a new CommitHasTree function.
 func NewCommitHasTree(commit, tree sql.Expression) sql.Expression {
+	// NewARC can only fail if size is negative, and we know it is not,
+	// so it is safe to ignore the error here.
+	cache, _ := lru.NewARC(commitHasTreeCacheSize)
 	return &CommitHasTree{expression.BinaryExpression{
 		Left:  commit,
 		Right: tree,
-	}}
+	}, cache}
 }
 
 func (f CommitHasTree) String() string {
@@ -73,6 +82,10 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 	commitHash := plumbing.NewHash(left.(string))
 	treeHash := plumbing.NewHash(right.(string))
 
+	if val, ok := f.cache.Get(cacheKey{commitHash, treeHash}); ok {
+		return val.(bool), nil
+	}
+
 	iter, err := s.Pool.RepoIter()
 	if err != nil {
 		return nil, err
@@ -88,7 +101,7 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 			return nil, err
 		}
 
-		ok, err := commitHasTree(repo.Repo, commitHash, treeHash)
+		ok, err := f.commitHasTree(repo.Repo, commitHash, treeHash)
 		if err == plumbing.ErrObjectNotFound {
 			continue
 		}
@@ -97,7 +110,12 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 	}
 }
 
-func commitHasTree(
+type cacheKey struct {
+	commit plumbing.Hash
+	tree   plumbing.Hash
+}
+
+func (f *CommitHasTree) commitHasTree(
 	repo *git.Repository,
 	commitHash, treeHash plumbing.Hash,
 ) (bool, error) {
@@ -105,6 +123,8 @@ func commitHasTree(
 	if err != nil {
 		return false, err
 	}
+
+	f.cache.Add(cacheKey{commitHash, commit.TreeHash}, true)
 
 	if commit.TreeHash == treeHash {
 		return true, nil
@@ -115,13 +135,13 @@ func commitHasTree(
 		return false, err
 	}
 
-	return treeInEntries(repo, tree.Entries, treeHash)
+	return f.treeInEntries(repo, tree.Entries, commitHash, treeHash)
 }
 
-func treeInEntries(
+func (f *CommitHasTree) treeInEntries(
 	repo *git.Repository,
 	entries []object.TreeEntry,
-	hash plumbing.Hash,
+	commitHash, hash plumbing.Hash,
 ) (bool, error) {
 	type stackFrame struct {
 		pos     int
@@ -131,6 +151,7 @@ func treeInEntries(
 
 	for {
 		if len(stack) == 0 {
+			f.cache.Add(cacheKey{commitHash, hash}, false)
 			return false, nil
 		}
 
@@ -143,6 +164,7 @@ func treeInEntries(
 		entry := frame.entries[frame.pos]
 		frame.pos++
 		if entry.Mode == filemode.Dir {
+			f.cache.Add(cacheKey{commitHash, entry.Hash}, true)
 			if entry.Hash == hash {
 				return true, nil
 			}

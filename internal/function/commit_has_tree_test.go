@@ -56,3 +56,44 @@ func TestCommitHasTree(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkCommitHasTree(b *testing.B) {
+	require.NoError(b, fixtures.Init())
+	defer func() {
+		require.NoError(b, fixtures.Clean())
+	}()
+
+	f := NewCommitHasTree(
+		expression.NewGetField(0, sql.Text, "commit_hash", true),
+		expression.NewGetField(1, sql.Text, "tree_hash", true),
+	)
+
+	pool := gitquery.NewRepositoryPool()
+	for _, f := range fixtures.ByTag("worktree") {
+		pool.AddGit(f.Worktree().Root())
+	}
+
+	session := gitquery.NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session)
+
+	rows := []sql.Row{
+		// tree is not on commit
+		sql.NewRow("6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "c2d30fa8ef288618f65f6eed6e168e0d514886f4"),
+		// subtree is on commit
+		sql.NewRow("6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "5a877e6a906a2743ad6e45d99c1793642aaf8eda"),
+	}
+
+	b.Run("commit_has_tree", func(b *testing.B) {
+		require := require.New(b)
+
+		for i := 0; i < b.N; i++ {
+			val, err := f.Eval(ctx, rows[i%2])
+			require.NoError(err)
+			if i%2 == 1 {
+				require.Equal(true, val)
+			} else {
+				require.Equal(false, val)
+			}
+		}
+	})
+}
