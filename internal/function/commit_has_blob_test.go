@@ -55,3 +55,44 @@ func TestCommitHasBlob(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkCommitHasBlob(b *testing.B) {
+	require.NoError(b, fixtures.Init())
+	defer func() {
+		require.NoError(b, fixtures.Clean())
+	}()
+
+	f := NewCommitHasBlob(
+		expression.NewGetField(0, sql.Text, "commit_hash", true),
+		expression.NewGetField(1, sql.Text, "blob_hash", true),
+	)
+
+	pool := gitquery.NewRepositoryPool()
+	for _, f := range fixtures.ByTag("worktree") {
+		pool.AddGit(f.Worktree().Root())
+	}
+
+	session := gitquery.NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session)
+
+	rows := []sql.Row{
+		// blob is not on commit
+		sql.NewRow("35e85108805c84807bc66a02d91535e1e24b38b9", "9dea2395f5403188298c1dabe8bdafe562c491e3"),
+		// blob is on commit
+		sql.NewRow("6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "9dea2395f5403188298c1dabe8bdafe562c491e3"),
+	}
+
+	b.Run("commit_has_blob", func(b *testing.B) {
+		require := require.New(b)
+
+		for i := 0; i < b.N; i++ {
+			val, err := f.Eval(ctx, rows[i%2])
+			require.NoError(err)
+			if i%2 == 1 {
+				require.Equal(true, val)
+			} else {
+				require.Equal(false, val)
+			}
+		}
+	})
+}

@@ -20,7 +20,7 @@ import (
 // or not.
 type CommitHasTree struct {
 	expression.BinaryExpression
-	cache *lru.ARCCache
+	cache *lru.TwoQueueCache
 }
 
 // TODO: set as config
@@ -30,7 +30,7 @@ const commitHasTreeCacheSize = 100
 func NewCommitHasTree(commit, tree sql.Expression) sql.Expression {
 	// NewARC can only fail if size is negative, and we know it is not,
 	// so it is safe to ignore the error here.
-	cache, _ := lru.NewARC(commitHasTreeCacheSize)
+	cache, _ := lru.New2Q(commitHasTreeCacheSize)
 	return &CommitHasTree{expression.BinaryExpression{
 		Left:  commit,
 		Right: tree,
@@ -82,7 +82,7 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 	commitHash := plumbing.NewHash(left.(string))
 	treeHash := plumbing.NewHash(right.(string))
 
-	if val, ok := f.cache.Get(cacheKey{commitHash, treeHash}); ok {
+	if val, ok := f.cache.Get(commitTreeKey{commitHash, treeHash}); ok {
 		return val.(bool), nil
 	}
 
@@ -110,7 +110,7 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 	}
 }
 
-type cacheKey struct {
+type commitTreeKey struct {
 	commit plumbing.Hash
 	tree   plumbing.Hash
 }
@@ -124,7 +124,7 @@ func (f *CommitHasTree) commitHasTree(
 		return false, err
 	}
 
-	f.cache.Add(cacheKey{commitHash, commit.TreeHash}, true)
+	f.cache.Add(commitTreeKey{commitHash, commit.TreeHash}, true)
 
 	if commit.TreeHash == treeHash {
 		return true, nil
@@ -151,7 +151,7 @@ func (f *CommitHasTree) treeInEntries(
 
 	for {
 		if len(stack) == 0 {
-			f.cache.Add(cacheKey{commitHash, hash}, false)
+			f.cache.Add(commitTreeKey{commitHash, hash}, false)
 			return false, nil
 		}
 
@@ -164,7 +164,7 @@ func (f *CommitHasTree) treeInEntries(
 		entry := frame.entries[frame.pos]
 		frame.pos++
 		if entry.Mode == filemode.Dir {
-			f.cache.Add(cacheKey{commitHash, entry.Hash}, true)
+			f.cache.Add(commitTreeKey{commitHash, entry.Hash}, true)
 			if entry.Hash == hash {
 				return true, nil
 			}
