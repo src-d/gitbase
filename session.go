@@ -68,9 +68,9 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 		}
 	}
 
-	var attempts int
+	var attempts, totalAttempts int
 	for {
-		if attempts > bblfshMaxAttempts {
+		if attempts > bblfshMaxAttempts || totalAttempts > 3*bblfshMaxAttempts {
 			return nil, ErrBblfshConnection.New()
 		}
 
@@ -78,6 +78,7 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 		case connectivity.Ready, connectivity.Idle:
 			return s.bblfshClient, nil
 		case connectivity.Connecting:
+			attempts = 0
 			time.Sleep(100 * time.Millisecond)
 		default:
 			if err := s.bblfshClient.Close(); err != nil {
@@ -91,6 +92,7 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 		}
 
 		attempts++
+		totalAttempts++
 	}
 }
 

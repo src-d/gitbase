@@ -5,14 +5,10 @@ go:
   - 1.9
   - tip
 
-<<<<<<< HEAD
-go_import_path: github.com/src-d/gitbase
-=======
 services:
   - docker
 
 go_import_path: github.com/src-d/gitbase
->>>>>>> internal/function: implement uast and uast_xpath functions
 
 matrix:
   fast_finish: true

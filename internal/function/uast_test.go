@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/bblfsh/client-go.v2/tools"
@@ -192,7 +193,7 @@ func setup(t *testing.T) (*sql.Context, func()) {
 	}
 
 	session := gitbase.NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session)
+	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
 
 	return ctx, func() {
 		require.NoError(t, fixtures.Clean())
