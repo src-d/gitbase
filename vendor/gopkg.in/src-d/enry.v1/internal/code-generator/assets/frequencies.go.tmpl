@@ -1,0 +1,24 @@
+package data
+
+// CODE GENERATED AUTOMATICALLY WITH gopkg.in/src-d/enry.v1/internal/code-generator
+// THIS FILE SHOULD NOT BE EDITED BY HAND
+// Extracted from github/linguist commit: {{ getCommit }}
+
+var LanguagesLogProbabilities = map[string]float64{
+	{{ $freqs := . -}}
+	{{range $index, $language := orderKeys .Languages -}}
+		"{{ $language }}":	{{ languageLogProbability $language -}},
+	{{end -}}
+}
+
+var TokensLogProbabilities = map[string]map[string]float64{
+	{{range $index, $language := orderMapMapKeys .Tokens -}}
+		"{{ $language }}": map[string]float64{
+		{{range $i, $token := index $freqs.Tokens $language | orderKeys -}}
+			{{ quote $token }}: {{ tokenLogProbability $language $token }},
+		{{end -}}
+		},
+	{{end -}}
+}
+
+var TokensTotal = {{ toFloat64 .TokensTotal -}}

@@ -1,0 +1,6 @@
+timeInterval,linguist,numberOfFiles
+1us-10us,linguist,0
+10us-100us,linguist,74
+100us-1ms,linguist,920
+1ms-10ms,linguist,788
+10ms-100ms,linguist,57

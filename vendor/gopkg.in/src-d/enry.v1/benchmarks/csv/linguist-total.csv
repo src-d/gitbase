@@ -1,0 +1,8 @@
+function,tool,iterations,ns/op
+GetLanguage(),linguist,5,3979096800
+Classify(),linguist,5,178253431800
+GetLanguagesByModeline(),linguist,5,2582204000
+GetLanguagesByFilename(),linguist,5,2688800
+GetLanguagesByShebang(),linguist,5,77155200
+GetLanguagesByExtension(),linguist,5,6688800
+GetLanguagesByContent(),linguist,5,161719000

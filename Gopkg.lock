@@ -155,6 +155,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/toqueteos/trie"
+  packages = ["."]
+  revision = "56fed4a05683322f125e2d78ee269bb102280392"
+
+[[projects]]
+  branch = "master"
   name = "github.com/xanzy/ssh-agent"
   packages = ["."]
   revision = "ba9c9e33906f58169366275e3450db66139a31a9"
@@ -234,6 +240,16 @@
   name = "gopkg.in/check.v1"
   packages = ["."]
   revision = "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec"
+
+[[projects]]
+  name = "gopkg.in/src-d/enry.v1"
+  packages = [
+    ".",
+    "data",
+    "internal/tokenizer"
+  ]
+  revision = "0db3b4b5536e6dc4d9109d42897c00a5d92af0a7"
+  version = "v1.6.3"
 
 [[projects]]
   name = "gopkg.in/src-d/go-billy.v4"
@@ -347,6 +363,12 @@
   revision = "2cb632cdef3c332f5cba7f035479213ca31dfe71"
 
 [[projects]]
+  name = "gopkg.in/toqueteos/substring.v1"
+  packages = ["."]
+  revision = "c5f61671513240ddf5563635cc4a90e9f3ae4710"
+  version = "v1.0.2"
+
+[[projects]]
   name = "gopkg.in/warnings.v0"
   packages = ["."]
   revision = "ec4a0fea49c7b46c2aeb0b51aac55779c607e52b"
@@ -355,6 +377,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b8d10024b06f5ff4a62881120cebb22b4640d8ab28edaf5bbd87fd6fd1ff520c"
+  inputs-digest = "e416a3f7e1bac3a8e47d58166543ab89fe960a76af82f5f5263dd11b34c77e5b"
   solver-name = "gps-cdcl"
   solver-version = 1
