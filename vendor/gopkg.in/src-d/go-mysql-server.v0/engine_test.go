@@ -3,6 +3,7 @@ package sqle_test
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	"gopkg.in/src-d/go-mysql-server.v0"
@@ -11,6 +12,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/parse"
 
 	"github.com/stretchr/testify/require"
+	jaeger "github.com/uber/jaeger-client-go"
 )
 
 const driverName = "engine_tests"
@@ -213,6 +215,26 @@ func TestQueries(t *testing.T) {
 	)
 }
 
+func TestOrderByColumns(t *testing.T) {
+	require := require.New(t)
+	e := newEngine(t)
+
+	_, iter, err := e.Query(sql.NewEmptyContext(), "SELECT s, i FROM mytable ORDER BY 2 DESC")
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+
+	require.Equal(
+		[]sql.Row{
+			{"third row", int64(3)},
+			{"second row", int64(2)},
+			{"first row", int64(1)},
+		},
+		rows,
+	)
+}
+
 func TestInsertInto(t *testing.T) {
 	e := newEngine(t)
 	testQuery(t, e,
@@ -257,7 +279,7 @@ func TestAmbiguousColumnResolution(t *testing.T) {
 	e.AddDatabase(db)
 
 	q := `SELECT f.a, bar.b, f.b FROM foo f INNER JOIN bar ON f.a = bar.c`
-	ctx := sql.NewContext(context.TODO(), sql.NewBaseSession())
+	ctx := sql.NewEmptyContext()
 
 	_, rows, err := e.Query(ctx, q)
 	require.NoError(err)
@@ -313,7 +335,7 @@ func TestDDL(t *testing.T) {
 func testQuery(t *testing.T, e *sqle.Engine, q string, r [][]interface{}) {
 	t.Run(q, func(t *testing.T) {
 		require := require.New(t)
-		session := sql.NewContext(context.TODO(), sql.NewBaseSession())
+		session := sql.NewEmptyContext()
 
 		_, rows, err := e.Query(session, q)
 		require.NoError(err)
@@ -386,7 +408,7 @@ const expectedTree = `Offset(2)
 
 func TestPrintTree(t *testing.T) {
 	require := require.New(t)
-	node, err := parse.Parse(nil, `
+	node, err := parse.Parse(sql.NewEmptyContext(), `
 		SELECT t.foo, bar.baz 
 		FROM tbl t 
 		INNER JOIN bar 
@@ -396,4 +418,57 @@ func TestPrintTree(t *testing.T) {
 		OFFSET 2`)
 	require.NoError(err)
 	require.Equal(expectedTree, node.String())
+}
+
+func TestTracing(t *testing.T) {
+	require := require.New(t)
+	e := newEngine(t)
+
+	reporter := jaeger.NewInMemoryReporter()
+	tracer, closer := jaeger.NewTracer("go-mysql-server", jaeger.NewConstSampler(true), reporter)
+	defer func() {
+		require.NoError(closer.Close())
+	}()
+
+	ctx := sql.NewContext(context.TODO(), sql.NewBaseSession(), tracer)
+
+	_, iter, err := e.Query(ctx, `SELECT DISTINCT i 
+		FROM mytable 
+		WHERE s = 'first row' 
+		ORDER BY i DESC 
+		LIMIT 1`)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.Len(rows, 1)
+	require.NoError(err)
+
+	spans := reporter.GetSpans()
+
+	var expectedSpans = []string{
+		"expression.Equals",
+		"expression.Equals",
+		"expression.Equals",
+		"plan.Filter",
+		"plan.Limit",
+		"plan.Distinct",
+		"plan.Project",
+		"plan.Sort",
+	}
+
+	require.Len(spans, 76)
+
+	var spanOperations []string
+	for _, s := range spans {
+		name := s.(*jaeger.Span).OperationName()
+		// only check the ones inside the execution tree
+		if strings.HasPrefix(name, "plan.") ||
+			strings.HasPrefix(name, "expression.") ||
+			strings.HasPrefix(name, "function.") ||
+			strings.HasPrefix(name, "aggregation.") {
+			spanOperations = append(spanOperations, name)
+		}
+	}
+
+	require.Equal(expectedSpans, spanOperations)
 }

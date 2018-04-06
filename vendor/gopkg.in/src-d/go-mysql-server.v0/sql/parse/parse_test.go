@@ -1,7 +1,6 @@
 package parse
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -479,13 +478,34 @@ var fixtures = map[string]sql.Node{
 			plan.NewUnresolvedTable("foo"),
 		),
 	),
+	`SELECT a, b FROM t ORDER BY 2, 1`: plan.NewProject(
+		[]sql.Expression{
+			expression.NewUnresolvedColumn("a"),
+			expression.NewUnresolvedColumn("b"),
+		},
+		plan.NewSort(
+			[]plan.SortField{
+				{
+					Column:       expression.NewLiteral(int64(2), sql.Int64),
+					Order:        plan.Ascending,
+					NullOrdering: plan.NullsFirst,
+				},
+				{
+					Column:       expression.NewLiteral(int64(1), sql.Int64),
+					Order:        plan.Ascending,
+					NullOrdering: plan.NullsFirst,
+				},
+			},
+			plan.NewUnresolvedTable("t"),
+		),
+	),
 }
 
 func TestParse(t *testing.T) {
 	for query, expectedPlan := range fixtures {
 		t.Run(query, func(t *testing.T) {
 			require := require.New(t)
-			ctx := sql.NewContext(context.TODO(), sql.NewBaseSession())
+			ctx := sql.NewEmptyContext()
 			p, err := Parse(ctx, query)
 			require.Nil(err, "error for query '%s'", query)
 			require.Exactly(expectedPlan, p,
@@ -503,7 +523,7 @@ func TestParseErrors(t *testing.T) {
 	for query, expectedError := range fixturesErrors {
 		t.Run(query, func(t *testing.T) {
 			require := require.New(t)
-			ctx := sql.NewContext(context.TODO(), sql.NewBaseSession())
+			ctx := sql.NewEmptyContext()
 			_, err := Parse(ctx, query)
 			require.Error(err)
 			require.Equal(expectedError.Error(), err.Error())
