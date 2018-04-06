@@ -12,11 +12,12 @@ import (
 
 type treeEntriesTable struct{}
 
-var treeEntriesSchema = sql.Schema{
-	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: treeEntriesTableName},
-	{Name: "entry_hash", Type: sql.Text, Nullable: false, Source: treeEntriesTableName},
-	{Name: "mode", Type: sql.Text, Nullable: false, Source: treeEntriesTableName},
-	{Name: "name", Type: sql.Text, Nullable: false, Source: treeEntriesTableName},
+// TreeEntriesSchema is the schema for the tree entries table.
+var TreeEntriesSchema = sql.Schema{
+	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "entry_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "name", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*treeEntriesTable)(nil)
@@ -25,16 +26,20 @@ func newTreeEntriesTable() sql.Table {
 	return new(treeEntriesTable)
 }
 
+var _ Table = (*treeEntriesTable)(nil)
+
+func (treeEntriesTable) isGitbaseTable() {}
+
 func (treeEntriesTable) Resolved() bool {
 	return true
 }
 
 func (treeEntriesTable) Name() string {
-	return treeEntriesTableName
+	return TreeEntriesTableName
 }
 
 func (treeEntriesTable) Schema() sql.Schema {
-	return treeEntriesSchema
+	return TreeEntriesSchema
 }
 
 func (r *treeEntriesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
@@ -61,7 +66,7 @@ func (treeEntriesTable) Children() []sql.Node {
 }
 
 func (treeEntriesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(treeEntriesTableName, treeEntriesSchema, filters)
+	return handledFilters(TreeEntriesTableName, TreeEntriesSchema, filters)
 }
 
 func (r *treeEntriesTable) WithProjectAndFilters(
@@ -72,7 +77,7 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	// projected. There would be no need to iterate files in this case, and
 	// it would be much faster.
 	return rowIterWithSelectors(
-		ctx, treeEntriesSchema, treeEntriesTableName, filters,
+		ctx, TreeEntriesSchema, TreeEntriesTableName, filters,
 		[]string{"tree_hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["tree_hash"]) == 0 {
@@ -90,7 +95,7 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 }
 
 func (r treeEntriesTable) String() string {
-	return printTable(treeEntriesTableName, treeEntriesSchema)
+	return printTable(TreeEntriesTableName, TreeEntriesSchema)
 }
 
 type treeEntryIter struct {

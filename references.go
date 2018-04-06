@@ -11,10 +11,11 @@ import (
 
 type referencesTable struct{}
 
-var refsSchema = sql.Schema{
-	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: referencesTableName},
-	{Name: "name", Type: sql.Text, Nullable: false, Source: referencesTableName},
-	{Name: "hash", Type: sql.Text, Nullable: false, Source: referencesTableName},
+// RefsSchema is the schema for the refs table.
+var RefsSchema = sql.Schema{
+	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
+	{Name: "name", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
+	{Name: "hash", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*referencesTable)(nil)
@@ -23,8 +24,12 @@ func newReferencesTable() sql.Table {
 	return new(referencesTable)
 }
 
+var _ Table = (*referencesTable)(nil)
+
+func (referencesTable) isGitbaseTable() {}
+
 func (r referencesTable) String() string {
-	return printTable(referencesTableName, refsSchema)
+	return printTable(ReferencesTableName, RefsSchema)
 }
 
 func (referencesTable) Resolved() bool {
@@ -32,11 +37,11 @@ func (referencesTable) Resolved() bool {
 }
 
 func (referencesTable) Name() string {
-	return referencesTableName
+	return ReferencesTableName
 }
 
 func (referencesTable) Schema() sql.Schema {
-	return refsSchema
+	return RefsSchema
 }
 
 func (r *referencesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
@@ -63,7 +68,7 @@ func (referencesTable) Children() []sql.Node {
 }
 
 func (referencesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(referencesTableName, refsSchema, filters)
+	return handledFilters(ReferencesTableName, RefsSchema, filters)
 }
 
 func (r *referencesTable) WithProjectAndFilters(
@@ -71,7 +76,7 @@ func (r *referencesTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		ctx, refsSchema, referencesTableName, filters,
+		ctx, RefsSchema, ReferencesTableName, filters,
 		[]string{"hash", "name"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 && len(selectors["name"]) == 0 {

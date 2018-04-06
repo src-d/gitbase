@@ -5,13 +5,18 @@ import (
 )
 
 const (
-	// TODO 'references' is a reserved keyword into the parser
-	referencesTableName   = "refs"
-	commitsTableName      = "commits"
-	blobsTableName        = "blobs"
-	treeEntriesTableName  = "tree_entries"
-	repositoriesTableName = "repositories"
-	remotesTableName      = "remotes"
+	// ReferencesTableName is the name of the refs table.
+	ReferencesTableName = "refs"
+	// CommitsTableName is the name of the commits table.
+	CommitsTableName = "commits"
+	// BlobsTableName is the name of the blobs table.
+	BlobsTableName = "blobs"
+	// TreeEntriesTableName is the name of the tree entries table.
+	TreeEntriesTableName = "tree_entries"
+	// RepositoriesTableName is the name of the repositories table.
+	RepositoriesTableName = "repositories"
+	// RemotesTableName is the name of the remotes table.
+	RemotesTableName = "remotes"
 )
 
 // Database holds all git repository tables
@@ -47,11 +52,11 @@ func (d *Database) Name() string {
 // Tables returns a map with all initialized tables
 func (d *Database) Tables() map[string]sql.Table {
 	return map[string]sql.Table{
-		commitsTableName:      d.commits,
-		referencesTableName:   d.references,
-		blobsTableName:        d.blobs,
-		treeEntriesTableName:  d.treeEntries,
-		repositoriesTableName: d.repositories,
-		remotesTableName:      d.remotes,
+		CommitsTableName:      d.commits,
+		ReferencesTableName:   d.references,
+		BlobsTableName:        d.blobs,
+		TreeEntriesTableName:  d.treeEntries,
+		RepositoriesTableName: d.repositories,
+		RemotesTableName:      d.remotes,
 	}
 }

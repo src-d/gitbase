@@ -12,16 +12,17 @@ import (
 type commitsTable struct {
 }
 
-var commitsSchema = sql.Schema{
-	{Name: "hash", Type: sql.Text, Nullable: false, Source: commitsTableName},
-	{Name: "author_name", Type: sql.Text, Nullable: false, Source: commitsTableName},
-	{Name: "author_email", Type: sql.Text, Nullable: false, Source: commitsTableName},
-	{Name: "author_when", Type: sql.Timestamp, Nullable: false, Source: commitsTableName},
-	{Name: "committer_name", Type: sql.Text, Nullable: false, Source: commitsTableName},
-	{Name: "committer_email", Type: sql.Text, Nullable: false, Source: commitsTableName},
-	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: commitsTableName},
-	{Name: "message", Type: sql.Text, Nullable: false, Source: commitsTableName},
-	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: commitsTableName},
+// CommitsSchema is the schema for the commits table.
+var CommitsSchema = sql.Schema{
+	{Name: "hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "author_name", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "author_email", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "author_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
+	{Name: "committer_name", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "committer_email", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
+	{Name: "message", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
@@ -30,8 +31,12 @@ func newCommitsTable() sql.Table {
 	return new(commitsTable)
 }
 
+var _ Table = (*commitsTable)(nil)
+
+func (commitsTable) isGitbaseTable() {}
+
 func (commitsTable) String() string {
-	return printTable(commitsTableName, commitsSchema)
+	return printTable(CommitsTableName, CommitsSchema)
 }
 
 func (commitsTable) Resolved() bool {
@@ -39,11 +44,11 @@ func (commitsTable) Resolved() bool {
 }
 
 func (commitsTable) Name() string {
-	return commitsTableName
+	return CommitsTableName
 }
 
 func (commitsTable) Schema() sql.Schema {
-	return commitsSchema
+	return CommitsSchema
 }
 
 func (r *commitsTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
@@ -70,7 +75,7 @@ func (commitsTable) Children() []sql.Node {
 }
 
 func (commitsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(commitsTableName, commitsSchema, filters)
+	return handledFilters(CommitsTableName, CommitsSchema, filters)
 }
 
 func (r *commitsTable) WithProjectAndFilters(
@@ -78,7 +83,7 @@ func (r *commitsTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		ctx, commitsSchema, commitsTableName, filters,
+		ctx, CommitsSchema, CommitsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 {

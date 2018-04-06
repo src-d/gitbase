@@ -14,19 +14,19 @@ import (
 func TestRemotesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	table := getTable(require, remotesTableName)
-	require.Equal(remotesTableName, table.Name())
+	table := getTable(require, RemotesTableName)
+	require.Equal(RemotesTableName, table.Name())
 
 	// Check that each column source is the same as table name
 	for _, c := range table.Schema() {
-		require.Equal(remotesTableName, c.Source)
+		require.Equal(RemotesTableName, c.Source)
 	}
 }
 
 func TestRemotesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	table := getTable(require, remotesTableName)
+	table := getTable(require, RemotesTableName)
 	require.Equal(0, len(table.Children()))
 }
 
@@ -35,7 +35,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := getTable(require, remotesTableName)
+	table := getTable(require, RemotesTableName)
 
 	_, ok := table.(*remotesTable)
 	require.True(ok)

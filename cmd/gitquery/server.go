@@ -2,14 +2,22 @@ package main
 
 import (
 	"net"
+	"os"
 	"strconv"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
+	"github.com/src-d/gitbase/internal/rule"
+
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 )
+
+// Squashing tables and pushing down join conditions is still a work in
+// progress and unstable. To enable it, the UNSTABLE_SQUASH_ENABLE must
+// not be empty.
+var enableUnstableSquash = os.Getenv("UNSTABLE_SQUASH_ENABLE") != ""
 
 // CmdServer defines server command
 type CmdServer struct {
@@ -44,6 +52,11 @@ func (c *CmdServer) buildDatabase() error {
 
 	c.engine.AddDatabase(gitbase.NewDatabase(c.name))
 	c.engine.Catalog.RegisterFunctions(function.Functions)
+
+	if enableUnstableSquash {
+		c.engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+	}
+
 	return nil
 }
 

@@ -4,19 +4,19 @@ import (
 	"io"
 
 	git "gopkg.in/src-d/go-git.v4"
-	gitconfig "gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 type remotesTable struct{}
 
-var remotesSchema = sql.Schema{
-	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: remotesTableName},
-	{Name: "name", Type: sql.Text, Nullable: false, Source: remotesTableName},
-	{Name: "push_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
-	{Name: "fetch_url", Type: sql.Text, Nullable: false, Source: remotesTableName},
-	{Name: "push_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
-	{Name: "fetch_refspec", Type: sql.Text, Nullable: false, Source: remotesTableName},
+// RemotesSchema is the schema for the remotes table.
+var RemotesSchema = sql.Schema{
+	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "name", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "push_url", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "fetch_url", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "push_refspec", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "fetch_refspec", Type: sql.Text, Nullable: false, Source: RemotesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*remotesTable)(nil)
@@ -25,20 +25,24 @@ func newRemotesTable() sql.Table {
 	return new(remotesTable)
 }
 
+var _ Table = (*remotesTable)(nil)
+
+func (remotesTable) isGitbaseTable() {}
+
 func (remotesTable) Resolved() bool {
 	return true
 }
 
 func (remotesTable) Name() string {
-	return remotesTableName
+	return RemotesTableName
 }
 
 func (remotesTable) Schema() sql.Schema {
-	return remotesSchema
+	return RemotesSchema
 }
 
 func (r remotesTable) String() string {
-	return printTable(remotesTableName, remotesSchema)
+	return printTable(RemotesTableName, RemotesSchema)
 }
 
 func (r *remotesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
@@ -65,7 +69,7 @@ func (remotesTable) Children() []sql.Node {
 }
 
 func (remotesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(remotesTableName, remotesSchema, filters)
+	return handledFilters(RemotesTableName, RemotesSchema, filters)
 }
 
 func (r *remotesTable) WithProjectAndFilters(
@@ -73,7 +77,7 @@ func (r *remotesTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		ctx, remotesSchema, remotesTableName, filters, nil,
+		ctx, RemotesSchema, RemotesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(remotesIter), nil
@@ -84,7 +88,6 @@ func (r *remotesTable) WithProjectAndFilters(
 type remotesIter struct {
 	repositoryID string
 	remotes      []*git.Remote
-	conf         *gitconfig.RemoteConfig
 	remotePos    int
 	urlPos       int
 }

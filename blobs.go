@@ -27,10 +27,11 @@ var (
 
 type blobsTable struct{}
 
-var blobsSchema = sql.Schema{
-	{Name: "hash", Type: sql.Text, Nullable: false, Source: blobsTableName},
-	{Name: "size", Type: sql.Int64, Nullable: false, Source: blobsTableName},
-	{Name: "content", Type: sql.Blob, Nullable: false, Source: blobsTableName},
+// BlobsSchema is the schema for the blobs table.
+var BlobsSchema = sql.Schema{
+	{Name: "hash", Type: sql.Text, Nullable: false, Source: BlobsTableName},
+	{Name: "size", Type: sql.Int64, Nullable: false, Source: BlobsTableName},
+	{Name: "content", Type: sql.Blob, Nullable: false, Source: BlobsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
@@ -39,8 +40,12 @@ func newBlobsTable() sql.Table {
 	return new(blobsTable)
 }
 
+var _ Table = (*blobsTable)(nil)
+
+func (blobsTable) isGitbaseTable() {}
+
 func (blobsTable) String() string {
-	return printTable(blobsTableName, blobsSchema)
+	return printTable(BlobsTableName, BlobsSchema)
 }
 
 func (blobsTable) Resolved() bool {
@@ -48,11 +53,11 @@ func (blobsTable) Resolved() bool {
 }
 
 func (blobsTable) Name() string {
-	return blobsTableName
+	return BlobsTableName
 }
 
 func (blobsTable) Schema() sql.Schema {
-	return blobsSchema
+	return BlobsSchema
 }
 
 func (r *blobsTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
@@ -79,7 +84,7 @@ func (blobsTable) Children() []sql.Node {
 }
 
 func (blobsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(blobsTableName, blobsSchema, filters)
+	return handledFilters(BlobsTableName, BlobsSchema, filters)
 }
 
 func (r *blobsTable) WithProjectAndFilters(
@@ -87,7 +92,7 @@ func (r *blobsTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		ctx, blobsSchema, blobsTableName, filters,
+		ctx, BlobsSchema, BlobsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 {
