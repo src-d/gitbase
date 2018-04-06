@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -30,7 +31,7 @@ func TestIsTag(t *testing.T) {
 			require := require.New(t)
 
 			session := sql.NewBaseSession()
-			ctx := sql.NewContext(context.TODO(), session)
+			ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
 
 			val, err := f.Eval(ctx, tt.row)
 			if tt.err {

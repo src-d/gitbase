@@ -60,9 +60,11 @@ func (c *CmdServer) Execute(args []string) error {
 
 	hostString := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	s, err := server.NewServer(
-		"tcp",
-		hostString,
-		auth,
+		server.Config{
+			Protocol: "tcp",
+			Address:  hostString,
+			Auth:     auth,
+		},
 		c.engine,
 		gitbase.NewSessionBuilder(c.pool),
 	)

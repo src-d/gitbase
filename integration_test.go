@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/stretchr/testify/require"
@@ -137,7 +138,7 @@ func TestIntegration(t *testing.T) {
 			require := require.New(t)
 
 			session := gitbase.NewSession(&pool)
-			ctx := sql.NewContext(context.TODO(), session)
+			ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
 
 			_, iter, err := engine.Query(ctx, tt.query)
 			require.NoError(err)
