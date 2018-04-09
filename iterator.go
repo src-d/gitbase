@@ -2,9 +2,12 @@ package gitbase
 
 import (
 	"io"
+	"path/filepath"
+	"strings"
 
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -935,9 +938,6 @@ type TreeEntry struct {
 	*object.File
 }
 
-// FIXME: just like the regular tree_entries table, this returns
-// way more returns than it should. So, AllTreeEntriesIter and
-// CommitTreeEntriesIter yield different results.
 type treeEntriesIter struct {
 	ctx     *sql.Context
 	filters sql.Expression
@@ -1029,7 +1029,7 @@ func (i *treeEntriesIter) Advance() error {
 }
 func (i *treeEntriesIter) Schema() sql.Schema { return TreeEntriesSchema }
 
-type commitTreeEntriesIter struct {
+type commitMainTreeEntriesIter struct {
 	ctx     *sql.Context
 	commits CommitsIter
 	filters sql.Expression
@@ -1040,23 +1040,23 @@ type commitTreeEntriesIter struct {
 	virtual bool
 }
 
-// NewCommitTreeEntriesIter returns an iterator that will return all tree
-// entries for the commits returned by the given commit iterator that match
-// the given filters.
-func NewCommitTreeEntriesIter(
+// NewCommitMainTreeEntriesIter returns an iterator that will return all tree
+// entries for the main tree of the commits returned by the given commit
+// iterator that match the given filters.
+func NewCommitMainTreeEntriesIter(
 	commitsIter CommitsIter,
 	filters sql.Expression,
 	virtual bool,
 ) TreeEntriesIter {
-	return &commitTreeEntriesIter{
+	return &commitMainTreeEntriesIter{
 		commits: commitsIter,
 		virtual: virtual,
 		filters: filters,
 	}
 }
 
-func (i *commitTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
-func (i *commitTreeEntriesIter) Close() error {
+func (i *commitMainTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
+func (i *commitMainTreeEntriesIter) Close() error {
 	if i.files != nil {
 		i.files.Close()
 	}
@@ -1067,21 +1067,21 @@ func (i *commitTreeEntriesIter) Close() error {
 
 	return nil
 }
-func (i *commitTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+func (i *commitMainTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
 	iter, err := i.commits.New(ctx, repo)
 	if err != nil {
 		return nil, err
 	}
 
-	return &commitTreeEntriesIter{
+	return &commitMainTreeEntriesIter{
 		ctx:     ctx,
 		commits: iter.(CommitsIter),
 		filters: i.filters,
 		virtual: i.virtual,
 	}, nil
 }
-func (i *commitTreeEntriesIter) Row() sql.Row { return i.row }
-func (i *commitTreeEntriesIter) Advance() error {
+func (i *commitMainTreeEntriesIter) Row() sql.Row { return i.row }
+func (i *commitMainTreeEntriesIter) Advance() error {
 	for {
 		if i.commits == nil {
 			return io.EOF
@@ -1138,12 +1138,217 @@ func (i *commitTreeEntriesIter) Advance() error {
 		return nil
 	}
 }
+func (i *commitMainTreeEntriesIter) Schema() sql.Schema {
+	if i.virtual {
+		return i.commits.Schema()
+	}
+	return append(i.commits.Schema(), TreeEntriesSchema...)
+}
+
+type commitTreeEntriesIter struct {
+	ctx     *sql.Context
+	commits CommitsIter
+	filters sql.Expression
+	repo    *git.Repository
+	files   *recursiveTreeFileIter
+	entry   *TreeEntry
+	row     sql.Row
+	virtual bool
+}
+
+// NewCommitTreeEntriesIter returns an iterator that will return all tree
+// entries for all trees of the commits returned by the given commit
+// iterator that match the given filters.
+func NewCommitTreeEntriesIter(
+	commitsIter CommitsIter,
+	filters sql.Expression,
+	virtual bool,
+) TreeEntriesIter {
+	return &commitTreeEntriesIter{
+		commits: commitsIter,
+		virtual: virtual,
+		filters: filters,
+	}
+}
+
+func (i *commitTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
+func (i *commitTreeEntriesIter) Close() error {
+	if i.files != nil {
+		i.files.Close()
+	}
+
+	if i.commits != nil {
+		return i.commits.Close()
+	}
+
+	return nil
+}
+func (i *commitTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.commits.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &commitTreeEntriesIter{
+		ctx:     ctx,
+		commits: iter.(CommitsIter),
+		repo:    repo.Repo,
+		filters: i.filters,
+		virtual: i.virtual,
+	}, nil
+}
+func (i *commitTreeEntriesIter) Row() sql.Row { return i.row }
+func (i *commitTreeEntriesIter) Advance() error {
+	for {
+		if i.commits == nil {
+			return io.EOF
+		}
+
+		if i.files == nil {
+			err := i.commits.Advance()
+			if err == io.EOF {
+				i.commits = nil
+				return io.EOF
+			}
+
+			if err != nil {
+				return err
+			}
+
+			tree, err := i.commits.Commit().Tree()
+			if err != nil {
+				return err
+			}
+
+			i.files = newRecursiveTreeFileIter(i.repo, tree)
+		}
+
+		file, tree, err := i.files.Next()
+		if err == io.EOF {
+			i.files = nil
+			continue
+		}
+
+		if err != nil {
+			return err
+		}
+
+		i.entry = &TreeEntry{tree.Hash, file}
+
+		if i.virtual {
+			i.row = i.commits.Row()
+		} else {
+			i.row = append(i.commits.Row(), fileToRow(tree, file)...)
+		}
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
 func (i *commitTreeEntriesIter) Schema() sql.Schema {
 	if i.virtual {
 		return i.commits.Schema()
 	}
 	return append(i.commits.Schema(), TreeEntriesSchema...)
 }
+
+type recursiveTreeFileIter struct {
+	repo         *git.Repository
+	tree         *object.Tree
+	pendingTrees []*object.Tree
+	stack        []*recursiveTreeFileStackFrame
+	seen         map[plumbing.Hash]struct{}
+}
+
+type recursiveTreeFileStackFrame struct {
+	tree *object.Tree
+	pos  int
+}
+
+func newRecursiveTreeFileIter(
+	repo *git.Repository,
+	tree *object.Tree,
+) *recursiveTreeFileIter {
+	return &recursiveTreeFileIter{
+		repo:         repo,
+		tree:         tree,
+		pendingTrees: nil,
+		stack: []*recursiveTreeFileStackFrame{
+			{tree, 0},
+		},
+		seen: map[plumbing.Hash]struct{}{
+			tree.Hash: struct{}{},
+		},
+	}
+}
+
+func (i *recursiveTreeFileIter) Next() (*object.File, *object.Tree, error) {
+	for {
+		if i.tree == nil {
+			if len(i.pendingTrees) == 0 {
+				return nil, nil, io.EOF
+			}
+
+			i.tree = i.pendingTrees[0]
+			i.pendingTrees = i.pendingTrees[1:]
+			i.stack = []*recursiveTreeFileStackFrame{
+				{i.tree, 0},
+			}
+		}
+
+		if len(i.stack) == 0 {
+			i.tree = nil
+			continue
+		}
+
+		frame := i.stack[len(i.stack)-1]
+		if frame.pos >= len(frame.tree.Entries) {
+			i.stack = i.stack[:len(i.stack)-1]
+			continue
+		}
+
+		entry := frame.tree.Entries[frame.pos]
+		frame.pos++
+		if entry.Mode == filemode.Dir {
+			tree, err := i.repo.TreeObject(entry.Hash)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if _, ok := i.seen[tree.Hash]; !ok {
+				i.pendingTrees = append(i.pendingTrees, tree)
+				i.seen[tree.Hash] = struct{}{}
+			}
+			i.stack = append(i.stack, &recursiveTreeFileStackFrame{tree, 0})
+			continue
+		} else if entry.Mode == filemode.Submodule {
+			continue
+		}
+
+		var path []string
+		for j := 0; j < len(i.stack); j++ {
+			path = append(path, i.stack[j].tree.Entries[i.stack[j].pos-1].Name)
+		}
+
+		return &object.File{
+			Name: strings.Join(path, string(filepath.Separator)),
+			Mode: entry.Mode,
+			Blob: object.Blob{Hash: entry.Hash},
+		}, i.tree, nil
+	}
+}
+
+func (i *recursiveTreeFileIter) Close() error { return nil }
 
 // BlobsIter is a chainable iterator that operates on blobs.
 type BlobsIter interface {

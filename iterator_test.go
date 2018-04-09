@@ -2,11 +2,14 @@ package gitbase
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -311,6 +314,23 @@ func TestCommitTreeEntriesIter(t *testing.T) {
 		),
 	)
 
+	require.Len(rows, 67)
+}
+
+func TestCommitMainTreeEntriesIter(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	rows := chainableIterRows(
+		t, ctx,
+		NewCommitMainTreeEntriesIter(
+			NewAllCommitsIter(nil),
+			nil,
+			false,
+		),
+	)
+
 	require.Len(rows, 52)
 }
 
@@ -322,8 +342,6 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 	rows := chainableIterRows(
 		t, ctx,
 		NewTreeEntryBlobsIter(
-			// FIXME: instead of using NewAllTreeEntriesIter, use the chained
-			// one with commits, since the implementation of the other is wrong.
 			NewCommitTreeEntriesIter(
 				NewAllCommitsIter(nil),
 				nil,
@@ -333,18 +351,11 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 		),
 	)
 
-	for i := range rows {
-		rows[i] = rows[i][len(CommitsSchema):]
-		require.Equal(rows[i][1], rows[i][4])
-	}
-
-	require.Len(rows, 52)
+	require.Len(rows, 67)
 
 	rows = chainableIterRows(
 		t, ctx,
 		NewTreeEntryBlobsIter(
-			// FIXME: instead of using NewAllTreeEntriesIter, use the chained
-			// one with commits, since the implementation of the other is wrong.
 			NewCommitTreeEntriesIter(
 				NewAllCommitsIter(nil),
 				nil,
@@ -357,12 +368,56 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 		),
 	)
 
-	for i := range rows {
-		rows[i] = rows[i][len(CommitsSchema):]
-		require.Equal(rows[i][1], rows[i][4])
+	require.Len(rows, 12)
+}
+
+func TestRecursiveTreeFileIter(t *testing.T) {
+	require := require.New(t)
+	require.NoError(fixtures.Init())
+	defer func() {
+		require.NoError(fixtures.Clean())
+	}()
+
+	repo, err := git.PlainOpen(fixtures.ByTag("worktree").One().Worktree().Root())
+	require.NoError(err)
+
+	hash := plumbing.NewHash("a8d315b2b1c615d43042c3a62402b8a54288cf5c")
+	tree, err := repo.TreeObject(hash)
+	require.NoError(err)
+
+	iter := newRecursiveTreeFileIter(repo, tree)
+
+	var result [][]interface{}
+	for {
+		f, t, err := iter.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(err)
+
+		result = append(result, []interface{}{
+			f.Name, f.Hash.String(), t.Hash.String(),
+		})
 	}
 
-	require.Len(rows, 11)
+	expected := [][]interface{}{
+		{".gitignore", "32858aad3c383ed1ff0a0f9bdf231d54a00c9e88", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"CHANGELOG", "d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"binary.jpg", "d5c0f4ab811897cadf03aec358ae60d21f91c50d", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"go/example.go", "880cd14280f4b9b6ed3986d6671f907d7cc2a198", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"json/long.json", "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"json/short.json", "c8f1d8c61f9da76f4cb49fd86322b6e685dba956", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"php/crappy.php", "9a48f23120e880dfbe41f7c9b7b708e9ee62a492", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"vendor/foo.go", "9dea2395f5403188298c1dabe8bdafe562c491e3", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+		{"example.go", "880cd14280f4b9b6ed3986d6671f907d7cc2a198", "a39771a7651f97faf5c72e08224d857fc35133db"},
+		{"long.json", "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9", "5a877e6a906a2743ad6e45d99c1793642aaf8eda"},
+		{"short.json", "c8f1d8c61f9da76f4cb49fd86322b6e685dba956", "5a877e6a906a2743ad6e45d99c1793642aaf8eda"},
+		{"crappy.php", "9a48f23120e880dfbe41f7c9b7b708e9ee62a492", "586af567d0bb5e771e49bdd9434f5e0fb76d25fa"},
+		{"foo.go", "9dea2395f5403188298c1dabe8bdafe562c491e3", "cf4aa3b38974fb7d81f367c0830f7d78d65ab86b"},
+	}
+
+	require.Equal(expected, result)
 }
 
 func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql.Row {

@@ -277,6 +277,7 @@ func buildSquashedTable(
 					false,
 				)
 			case gitbase.CommitsIter:
+				onlyMainTree := hasMainTreeFilter(filters)
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
 					gitbase.CommitsTableName,
@@ -288,7 +289,11 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewCommitTreeEntriesIter(it, f, false)
+				if onlyMainTree {
+					iter = gitbase.NewCommitMainTreeEntriesIter(it, f, false)
+				} else {
+					iter = gitbase.NewCommitTreeEntriesIter(it, f, false)
+				}
 			case nil:
 				var f sql.Expression
 				f, filters, err = filtersForTable(
@@ -342,7 +347,7 @@ func buildSquashedTable(
 				}
 
 				iter = gitbase.NewTreeEntryBlobsIter(
-					gitbase.NewCommitTreeEntriesIter(
+					gitbase.NewCommitMainTreeEntriesIter(
 						it,
 						nil,
 						true,
@@ -737,6 +742,19 @@ func hasRefHEADFilter(filters []sql.Expression) bool {
 		ok := isEq(
 			isCol(gitbase.ReferencesTableName, "hash"),
 			isCol(gitbase.CommitsTableName, "hash"),
+		)(f)
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMainTreeFilter(filters []sql.Expression) bool {
+	for _, f := range filters {
+		ok := isEq(
+			isCol(gitbase.CommitsTableName, "tree_hash"),
+			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
 		)(f)
 		if ok {
 			return true

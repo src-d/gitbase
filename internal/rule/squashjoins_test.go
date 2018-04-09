@@ -330,7 +330,12 @@ func TestBuildSquashedTable(t *testing.T) {
 		col(0, gitbase.TreeEntriesTableName, "entry_hash"),
 	)
 
-	commitTreeEntriesRedundantFilter := eq(
+	commitTreeEntriesRedundantFilter := commitHasTree(
+		col(0, gitbase.CommitsTableName, "hash"),
+		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
+	)
+
+	commitMainTreeEntriesRedundantFilter := eq(
 		col(0, gitbase.CommitsTableName, "tree_hash"),
 		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
 	)
@@ -527,6 +532,32 @@ func TestBuildSquashedTable(t *testing.T) {
 				commitFilter,
 				treeEntryFilter,
 				commitTreeEntriesFilter,
+				commitMainTreeEntriesRedundantFilter,
+			},
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitMainTreeEntriesIter(
+					gitbase.NewAllCommitsIter(
+						fixIdx(t, commitFilter, gitbase.CommitsSchema),
+					),
+					and(
+						fixIdx(t, treeEntryFilter, commitTreeEntriesSchema),
+						fixIdx(t, commitTreeEntriesFilter, commitTreeEntriesSchema),
+					),
+					false,
+				),
+				nil,
+				gitbase.CommitsTableName,
+				gitbase.TreeEntriesTableName,
+			),
+		},
+		{
+			"commits with tree entries using commit_has_tree",
+			[]sql.Table{commits, treeEntries},
+			[]sql.Expression{
+				commitFilter,
+				treeEntryFilter,
+				commitTreeEntriesFilter,
 				commitTreeEntriesRedundantFilter,
 			},
 			nil,
@@ -674,7 +705,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			newSquashedTable(
 				gitbase.NewTreeEntryBlobsIter(
-					gitbase.NewCommitTreeEntriesIter(
+					gitbase.NewCommitMainTreeEntriesIter(
 						gitbase.NewAllCommitsIter(
 							fixIdx(t, commitFilter, commitBlobsSchema),
 						),
