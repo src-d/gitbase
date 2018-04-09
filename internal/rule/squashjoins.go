@@ -612,10 +612,11 @@ func (t *squashedTable) Resolved() bool {
 	return true
 }
 func (t *squashedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	return &schemaMapperIter{
-		gitbase.NewChainableRowRepoIter(ctx, t.iter),
-		t.schemaMappings,
-	}, nil
+	iter, err := gitbase.NewRowRepoIter(ctx, gitbase.NewChainableRowRepoIter(ctx, t.iter))
+	if err != nil {
+		return nil, err
+	}
+	return &schemaMapperIter{iter, t.schemaMappings}, nil
 }
 func (t *squashedTable) String() string {
 	return fmt.Sprintf("SquashedTable(%s)", strings.Join(t.tables, ", "))
