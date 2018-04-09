@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/src-d/gitbase/internal/rule"
+
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
@@ -133,18 +135,140 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	for _, tt := range testCases {
-		t.Run(tt.query, func(t *testing.T) {
-			require := require.New(t)
+	runTests := func(t *testing.T) {
+		for _, tt := range testCases {
+			t.Run(tt.query, func(t *testing.T) {
+				require := require.New(t)
 
-			session := gitbase.NewSession(&pool)
-			ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+				session := gitbase.NewSession(&pool)
+				ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
 
-			_, iter, err := engine.Query(ctx, tt.query)
-			require.NoError(err)
-			rows, err := sql.RowIterToRows(iter)
-			require.NoError(err)
-			require.ElementsMatch(tt.result, rows)
+				_, iter, err := engine.Query(ctx, tt.query)
+				require.NoError(err)
+				rows, err := sql.RowIterToRows(iter)
+				require.NoError(err)
+				require.ElementsMatch(tt.result, rows)
+			})
+		}
+	}
+
+	t.Run("without squash", runTests)
+
+	engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+	t.Run("with squash", runTests)
+}
+
+func BenchmarkQueries(b *testing.B) {
+	queries := []struct {
+		name  string
+		query string
+	}{
+		{
+			"simple query",
+			`SELECT * FROM repositories r 
+			INNER JOIN refs rr 
+			ON r.id = rr.repository_id`,
+		},
+		{
+			"query with commit_has_blob",
+			`SELECT COUNT(c.hash), c.hash
+			FROM refs r
+			INNER JOIN commits c
+				ON r.name = 'HEAD' AND history_idx(r.hash, c.hash) >= 0
+			INNER JOIN blobs b
+				ON commit_has_blob(c.hash, b.hash)
+			GROUP BY c.hash`,
+		},
+		{
+			"query with history_idx and 3 joins",
+			`SELECT COUNT(first_commit_year), first_commit_year
+			FROM (
+				SELECT YEAR(c.author_when) AS first_commit_year
+				FROM repositories r
+				INNER JOIN refs 
+					ON r.id = refs.repository_id
+				INNER JOIN commits c 
+					ON history_idx(refs.hash, c.hash) >= 0
+				ORDER BY c.author_when 
+				LIMIT 1
+			) repo_years
+			GROUP BY first_commit_year`,
+		},
+		{
+			"query with history_idx",
+			`SELECT * FROM (
+				SELECT COUNT(c.hash) AS num, c.hash
+				FROM refs r
+				INNER JOIN commits c
+					ON history_idx(r.hash, c.hash) >= 0
+				GROUP BY c.hash
+			) t WHERE num > 1`,
+		},
+		{
+			"join tree entries and blobs",
+			`SELECT * FROM tree_entries te 
+			INNER JOIN blobs b 
+			ON te.entry_hash = b.hash`,
+		},
+		{
+			"join tree entries and blobs with filters",
+			`SELECT * FROM tree_entries te 
+			INNER JOIN blobs b 
+			ON te.entry_hash = b.hash
+			WHERE te.name = 'LICENSE'`,
+		},
+		{
+			"join refs and blobs",
+			`SELECT * FROM refs r
+			INNER JOIN blobs b
+			ON commit_has_blob(r.hash, b.hash)`,
+		},
+		{
+			"join refs and blobs with filters",
+			`SELECT * FROM refs r
+			INNER JOIN blobs b
+			ON commit_has_blob(r.hash, b.hash)
+			WHERE r.name = 'refs/heads/master'`,
+		},
+	}
+
+	for _, qq := range queries {
+		b.Run(qq.name, func(b *testing.B) {
+			benchmarkQuery(b, qq.query)
 		})
 	}
+}
+
+func benchmarkQuery(b *testing.B, query string) {
+	engine := sqle.New()
+	require.NoError(b, fixtures.Init())
+	defer func() {
+		require.NoError(b, fixtures.Clean())
+	}()
+
+	path := fixtures.ByTag("worktree").One().Worktree().Root()
+
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
+	engine.Catalog.RegisterFunctions(function.Functions)
+
+	pool := gitbase.NewRepositoryPool()
+	_, err := pool.AddGit(path)
+	require.NoError(b, err)
+	session := gitbase.NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+
+	run := func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, rows, err := engine.Query(ctx, query)
+			require.NoError(b, err)
+
+			_, err = sql.RowIterToRows(rows)
+			require.NoError(b, err)
+		}
+	}
+
+	b.Run("no squash", run)
+
+	engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+	b.Run("squash", run)
 }
