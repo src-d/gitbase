@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/hashicorp/golang-lru"
+
 	"github.com/src-d/gitquery"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -14,13 +16,18 @@ import (
 type CommitHasBlob struct {
 	commitHash sql.Expression
 	blob       sql.Expression
+	cache      *lru.TwoQueueCache
 }
+
+const commitHasBlobCacheSize = 200
 
 // NewCommitHasBlob creates a new commit_has_blob function.
 func NewCommitHasBlob(commitHash, blob sql.Expression) sql.Expression {
+	cache, _ := lru.New2Q(commitHasBlobCacheSize)
 	return &CommitHasBlob{
 		commitHash: commitHash,
 		blob:       blob,
+		cache:      cache,
 	}
 }
 
@@ -71,10 +78,18 @@ func (f *CommitHasBlob) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 	)
 }
 
+type commitBlobKey struct {
+	commit, blob plumbing.Hash
+}
+
 func (f *CommitHasBlob) commitHasBlob(
 	pool *gitquery.RepositoryPool,
 	commitHash, blob plumbing.Hash,
 ) (bool, error) {
+	if val, ok := f.cache.Get(commitBlobKey{commitHash, blob}); ok {
+		return val.(bool), nil
+	}
+
 	iter, err := pool.RepoIter()
 	if err != nil {
 		return false, err
@@ -105,7 +120,7 @@ func (f *CommitHasBlob) commitHasBlob(
 			return false, err
 		}
 
-		contained, err := hashInTree(blob, tree)
+		contained, err := f.hashInTree(blob, commitHash, tree)
 		if err != nil {
 			return false, err
 		}
@@ -113,15 +128,21 @@ func (f *CommitHasBlob) commitHasBlob(
 		if contained {
 			return true, nil
 		}
+		f.cache.Add(commitBlobKey{commitHash, blob}, false)
 	}
 
 	return false, nil
 }
 
-func hashInTree(hash plumbing.Hash, tree *object.Tree) (bool, error) {
+func (f *CommitHasBlob) hashInTree(
+	hash plumbing.Hash,
+	commit plumbing.Hash,
+	tree *object.Tree,
+) (bool, error) {
 	var contained bool
-	err := tree.Files().ForEach(func(f *object.File) error {
-		if f.Blob.Hash == hash {
+	err := tree.Files().ForEach(func(fi *object.File) error {
+		f.cache.Add(commitBlobKey{commit, fi.Blob.Hash}, true)
+		if fi.Blob.Hash == hash {
 			contained = true
 			return io.EOF
 		}
