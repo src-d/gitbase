@@ -586,11 +586,8 @@ func newSquashedTable(iter gitbase.ChainableIter, mapping []int, tables ...strin
 	return &squashedTable{iter, tables, mapping, nil}
 }
 
-var _ sql.Table = (*squashedTable)(nil)
+var _ sql.Node = (*squashedTable)(nil)
 
-func (t *squashedTable) Name() string {
-	return "SquashedTable"
-}
 func (t *squashedTable) Schema() sql.Schema {
 	if len(t.schemaMappings) == 0 {
 		return t.iter.Schema()
