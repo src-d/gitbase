@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/hashicorp/golang-lru"
+
 	"github.com/src-d/gitquery"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -15,15 +17,23 @@ import (
 // of another commit.
 type HistoryIdx struct {
 	expression.BinaryExpression
+	cache *lru.TwoQueueCache
 }
+
+const historyIdxCacheSize = 300
 
 // NewHistoryIdx creates a new HistoryIdx udf.
 func NewHistoryIdx(start, target sql.Expression) sql.Expression {
-	return &HistoryIdx{expression.BinaryExpression{Left: start, Right: target}}
+	cache, _ := lru.New2Q(historyIdxCacheSize)
+	return &HistoryIdx{expression.BinaryExpression{Left: start, Right: target}, cache}
 }
 
 func (f HistoryIdx) String() string {
 	return fmt.Sprintf("history_idx(%s, %s)", f.Left, f.Right)
+}
+
+type historyKey struct {
+	start, target plumbing.Hash
 }
 
 // Eval implements the Expression interface.
@@ -63,6 +73,10 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	start := plumbing.NewHash(left.(string))
 	target := plumbing.NewHash(right.(string))
+
+	if val, ok := f.cache.Get(historyKey{start, target}); ok {
+		return val.(int64), nil
+	}
 
 	// fast path for equal hashes
 	if start == target {
@@ -131,6 +145,7 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 
 	for {
 		if len(stack) == 0 {
+			f.cache.Add(historyKey{start, target}, int64(-1))
 			return -1, nil
 		}
 
@@ -151,6 +166,8 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 		}
 
 		frame.pos++
+
+		f.cache.Add(historyKey{start, c.Hash}, frame.idx)
 
 		if c.Hash == target {
 			return frame.idx, nil

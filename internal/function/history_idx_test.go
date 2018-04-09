@@ -63,3 +63,57 @@ func TestHistoryIdx(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkHistoryIdx(b *testing.B) {
+	require.NoError(b, fixtures.Init())
+	defer func() {
+		require.NoError(b, fixtures.Clean())
+	}()
+
+	f := NewHistoryIdx(
+		expression.NewGetField(0, sql.Text, "start", true),
+		expression.NewGetField(1, sql.Text, "target", true),
+	)
+
+	pool := gitquery.NewRepositoryPool()
+	for _, f := range fixtures.ByTag("worktree") {
+		pool.AddGit(f.Worktree().Root())
+	}
+
+	session := gitquery.NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), session)
+
+	cases := []struct {
+		row sql.Row
+		idx int64
+	}{
+		{
+			sql.NewRow("b029517f6300c2da0f4b651b8642506cd6aaf45d", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+			-1,
+		},
+		{
+			sql.NewRow("6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "b029517f6300c2da0f4b651b8642506cd6aaf45d"),
+			5,
+		},
+		{
+			sql.NewRow("6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "b8e471f58bcbca63b07bda20e428190409c2db47"),
+			5,
+		},
+		{
+			sql.NewRow("b685400c1f9316f350965a5993d350bc746b0bf4", "c7431b5bc9d45fb64a87d4a895ce3d1073c898d2"),
+			3,
+		},
+	}
+
+	n := len(cases)
+	b.Run("history_idx", func(b *testing.B) {
+		require := require.New(b)
+
+		for i := 0; i < b.N; i++ {
+			cs := cases[i%n]
+			val, err := f.Eval(ctx, cs.row)
+			require.NoError(err)
+			require.Equal(cs.idx, val)
+		}
+	})
+}
