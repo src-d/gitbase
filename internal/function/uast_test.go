@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/bblfsh/client-go.v2/tools"
@@ -166,7 +165,7 @@ func bblfshFixtures(t *testing.T, ctx *sql.Context) (uast []interface{}, filtere
 		Language("python").
 		Do()
 	require.NoError(t, err)
-	require.Equal(t, protocol.Ok, resp.Status)
+	require.Equal(t, protocol.Ok, resp.Status, "errors: %v", resp.Errors)
 	testUAST, err := resp.UAST.Marshal()
 	require.NoError(t, err)
 
@@ -193,7 +192,7 @@ func setup(t *testing.T) (*sql.Context, func()) {
 	}
 
 	session := gitbase.NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	return ctx, func() {
 		require.NoError(t, fixtures.Clean())

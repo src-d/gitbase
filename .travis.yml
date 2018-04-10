@@ -33,7 +33,8 @@ install:
 
 before_script:
   - docker run -d --name bblfshd --privileged -p 9432:9432 -v /var/lib/bblfshd:/var/lib/bblfshd bblfsh/bblfshd
-  - docker exec -it bblfshd bblfshctl driver install --all
+  - docker exec -it bblfshd bblfshctl driver install python bblfsh/python-driver
+  - docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
 
 script:
   - make test-coverage codecov

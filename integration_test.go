@@ -157,6 +157,38 @@ func TestIntegration(t *testing.T) {
 	t.Run("with squash", runTests)
 }
 
+func TestUastQueries(t *testing.T) {
+	require := require.New(t)
+	engine := sqle.New()
+	require.NoError(fixtures.Init())
+	defer func() {
+		require.NoError(fixtures.Clean())
+	}()
+
+	pool := gitbase.NewRepositoryPool()
+	for _, f := range fixtures.ByTag("worktree") {
+		pool.AddGit(f.Worktree().Root())
+	}
+
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
+	engine.Catalog.RegisterFunctions(function.Functions)
+
+	session := gitbase.NewSession(&pool)
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+	_, iter, err := engine.Query(ctx, `
+		SELECT uast_xpath(uast(content, 'php'), '//*[@roleIdentifier]') as uast, name 
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.hash = te.entry_hash
+		WHERE te.name = 'php/crappy.php'`,
+	)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 3)
+}
+
 func BenchmarkQueries(b *testing.B) {
 	queries := []struct {
 		name  string
