@@ -1,4 +1,4 @@
-package gitquery
+package gitbase
 
 import (
 	errors "gopkg.in/src-d/go-errors.v1"
@@ -7,7 +7,7 @@ import (
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 )
 
-// Session is the custom implementation of a gitquery session.
+// Session is the custom implementation of a gitbase session.
 type Session struct {
 	sql.Session
 	Pool *RepositoryPool
@@ -31,6 +31,6 @@ func NewSessionBuilder(pool *RepositoryPool) server.SessionBuilder {
 // ErrSessionCanceled is returned when session context is canceled
 var ErrSessionCanceled = errors.NewKind("session canceled")
 
-// ErrInvalidGitQuerySession is returned when some node expected a GitQuery
+// ErrInvalidGitbaseSession is returned when some node expected a GitQuery
 // session but received something else.
-var ErrInvalidGitQuerySession = errors.NewKind("expecting gitquery session, but received: %T")
+var ErrInvalidGitbaseSession = errors.NewKind("expecting gitbase session, but received: %T")

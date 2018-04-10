@@ -4,8 +4,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/src-d/gitquery"
-	"github.com/src-d/gitquery/internal/function"
+	"github.com/src-d/gitbase"
+	"github.com/src-d/gitbase/internal/function"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
@@ -22,7 +22,7 @@ type CmdServer struct {
 	Password string `short:"P" long:"password" default:"" description:"Password used for connection"`
 
 	engine *sqle.Engine
-	pool   *gitquery.RepositoryPool
+	pool   *gitbase.RepositoryPool
 	name   string
 }
 
@@ -35,14 +35,14 @@ func (c *CmdServer) buildDatabase() error {
 
 	var err error
 
-	pool := gitquery.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool()
 	c.pool = &pool
 	err = c.pool.AddDir(c.Git)
 	if err != nil {
 		return err
 	}
 
-	c.engine.AddDatabase(gitquery.NewDatabase(c.name))
+	c.engine.AddDatabase(gitbase.NewDatabase(c.name))
 	c.engine.Catalog.RegisterFunctions(function.Functions)
 	return nil
 }
@@ -64,7 +64,7 @@ func (c *CmdServer) Execute(args []string) error {
 		hostString,
 		auth,
 		c.engine,
-		gitquery.NewSessionBuilder(c.pool),
+		gitbase.NewSessionBuilder(c.pool),
 	)
 	if err != nil {
 		return err

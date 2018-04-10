@@ -1,11 +1,11 @@
-package gitquery_test
+package gitbase_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/src-d/gitquery"
-	"github.com/src-d/gitquery/internal/function"
+	"github.com/src-d/gitbase"
+	"github.com/src-d/gitbase/internal/function"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
@@ -21,11 +21,11 @@ func TestIntegration(t *testing.T) {
 
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
 
-	pool := gitquery.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool()
 	_, err := pool.AddGit(path)
 	require.NoError(t, err)
 
-	engine.AddDatabase(gitquery.NewDatabase("foo"))
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
 	engine.Catalog.RegisterFunctions(function.Functions)
 
 	testCases := []struct {
@@ -136,7 +136,7 @@ func TestIntegration(t *testing.T) {
 		t.Run(tt.query, func(t *testing.T) {
 			require := require.New(t)
 
-			session := gitquery.NewSession(&pool)
+			session := gitbase.NewSession(&pool)
 			ctx := sql.NewContext(context.TODO(), session)
 
 			_, iter, err := engine.Query(ctx, tt.query)

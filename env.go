@@ -1,4 +1,4 @@
-package gitquery
+package gitbase
 
 import (
 	"os"

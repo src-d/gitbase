@@ -1,4 +1,4 @@
-package gitquery
+package gitbase
 
 import (
 	"reflect"
@@ -340,7 +340,7 @@ func rowIterWithSelectors(
 
 	_, ok := ctx.Session.(*Session)
 	if !ok {
-		return nil, ErrInvalidGitQuerySession.New(ctx.Session)
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
 	iter, err := NewRowRepoIter(ctx, rowRepoIter)

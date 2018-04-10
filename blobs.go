@@ -1,4 +1,4 @@
-package gitquery
+package gitbase
 
 import (
 	"bufio"
@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	blobsMaxSizeKey     = "GITQUERY_BLOBS_MAX_SIZE"
-	blobsAllowBinaryKey = "GITQUERY_BLOBS_ALLOW_BINARY"
+	blobsMaxSizeKey     = "GITBASE_BLOBS_MAX_SIZE"
+	blobsAllowBinaryKey = "GITBASE_BLOBS_ALLOW_BINARY"
 
 	b   = 1
 	kib = 1024 * b

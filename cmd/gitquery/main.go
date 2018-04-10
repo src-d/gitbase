@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	name = "gitquery"
+	name = "gitbase"
 )
 
 func main() {
