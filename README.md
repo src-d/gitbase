@@ -1,4 +1,4 @@
-# GitBase <a href="https://travis-ci.org/src-d/gitbase"><img alt="Build Status" src="https://travis-ci.org/src-d/gitbase.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitbase"><img alt="codecov" src="https://codecov.io/gh/src-d/gitbase/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitbase.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitbase.v0?status.svg" /></a>
+# gitbase <a href="https://travis-ci.org/src-d/gitbase"><img alt="Build Status" src="https://travis-ci.org/src-d/gitbase.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitbase"><img alt="codecov" src="https://codecov.io/gh/src-d/gitbase/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitbase.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitbase.v0?status.svg" /></a>
 
 Query git repositories with a MySQL interface.
 
