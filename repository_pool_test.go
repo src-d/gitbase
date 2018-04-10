@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4"
@@ -188,7 +189,7 @@ func TestRepositoryRowIterator(t *testing.T) {
 
 	pool := NewRepositoryPool()
 	session := NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session)
+	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
 	max := 64
 
 	for i := 0; i < max; i++ {

@@ -6,6 +6,12 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
+// Table represents a gitbase table.
+type Table interface {
+	sql.Table
+	isGitbaseTable()
+}
+
 func printTable(name string, tableSchema sql.Schema) string {
 	p := sql.NewTreePrinter()
 	_ = p.WriteNode("Table(%s)", name)

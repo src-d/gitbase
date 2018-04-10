@@ -63,6 +63,10 @@ To make some common tasks easier for the user, there are some functions to inter
 |is_remote(reference_name)bool| check if the given reference name is from a remote one                               |
 |is_tag(reference_name)bool| check if the given reference name is a tag                                              |
 
+## Unstable features
+
+- **Table squashing:** there is an optimization that collects inner joins between tables with a set of supported conditions and converts them into a single node that retrieves the data in chained steps (getting first the commits and then the blobs of every commit instead of joinin all commits and all blobs, for example). It can be enabled with the environment variable `UNSTABLE_SQUASH_ENABLE`.
+
 ## Examples
 
 ### Get all the HEAD references from all the repositories

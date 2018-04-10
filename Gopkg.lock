@@ -8,6 +8,18 @@
   revision = "9c5fe88206d7765837fed3732a42ef88fc51f1a1"
 
 [[projects]]
+  name = "github.com/apache/thrift"
+  packages = ["lib/go/thrift"]
+  revision = "b2a4d4ae21c789b689dd162deb819665567f481c"
+  version = "0.10.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/codahale/hdrhistogram"
+  packages = ["."]
+  revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
@@ -102,6 +114,16 @@
   revision = "b8a9be070da40449e501c3c4730a889e42d87a9e"
 
 [[projects]]
+  name = "github.com/opentracing/opentracing-go"
+  packages = [
+    ".",
+    "ext",
+    "log"
+  ]
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
+
+[[projects]]
   name = "github.com/pelletier/go-buffruneio"
   packages = ["."]
   revision = "c37440a7cf42ac63b919c752ca73a85067e05992"
@@ -167,6 +189,29 @@
   name = "github.com/toqueteos/trie"
   packages = ["."]
   revision = "56fed4a05683322f125e2d78ee269bb102280392"
+
+[[projects]]
+  name = "github.com/uber/jaeger-client-go"
+  packages = [
+    ".",
+    "internal/baggage",
+    "internal/spanlog",
+    "internal/throttler",
+    "log",
+    "thrift-gen/agent",
+    "thrift-gen/jaeger",
+    "thrift-gen/sampling",
+    "thrift-gen/zipkincore",
+    "utils"
+  ]
+  revision = "c107110d057826281414cb964f167bce5be17588"
+  version = "v2.12.0"
+
+[[projects]]
+  name = "github.com/uber/jaeger-lib"
+  packages = ["metrics"]
+  revision = "4267858c0679cd4e47cefed8d7f70fd386cfb567"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"
@@ -345,7 +390,7 @@
     "sql/parse",
     "sql/plan"
   ]
-  revision = "d48a5ee361f27bb4ad3e135b7435e02e8e5baaa2"
+  revision = "59b23db1ee89794aa6de1778e8dbb93accff5611"
 
 [[projects]]
   branch = "master"
@@ -386,6 +431,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6926f0f3f5a7e414fd23f08679492bdf878afea7c01dba122f66fc702031e897"
+  inputs-digest = "b9648d0bb042f26f75e2ef28357c7d553bd924540b0a961aba24e5531caa57c3"
   solver-name = "gps-cdcl"
   solver-version = 1

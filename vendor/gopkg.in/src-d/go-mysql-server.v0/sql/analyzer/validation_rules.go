@@ -41,7 +41,10 @@ var DefaultValidationRules = []ValidationRule{
 	{validateProjectTuplesRule, validateProjectTuples},
 }
 
-func validateIsResolved(n sql.Node) error {
+func validateIsResolved(ctx *sql.Context, n sql.Node) error {
+	span, ctx := ctx.Span("validate_is_resolved")
+	defer span.Finish()
+
 	if !n.Resolved() {
 		return ErrValidationResolved.New(n)
 	}
@@ -49,7 +52,10 @@ func validateIsResolved(n sql.Node) error {
 	return nil
 }
 
-func validateOrderBy(n sql.Node) error {
+func validateOrderBy(ctx *sql.Context, n sql.Node) error {
+	span, ctx := ctx.Span("validate_order_by")
+	defer span.Finish()
+
 	switch n := n.(type) {
 	case *plan.Sort:
 		for _, field := range n.SortFields {
@@ -63,7 +69,10 @@ func validateOrderBy(n sql.Node) error {
 	return nil
 }
 
-func validateGroupBy(n sql.Node) error {
+func validateGroupBy(ctx *sql.Context, n sql.Node) error {
+	span, ctx := ctx.Span("validate_order_by")
+	defer span.Finish()
+
 	switch n := n.(type) {
 	case *plan.GroupBy:
 		// Allow the parser use the GroupBy node to eval the aggregation functions
@@ -105,7 +114,10 @@ func isValidAgg(validAggs []string, expr sql.Expression) bool {
 	}
 }
 
-func validateSchemaSource(n sql.Node) error {
+func validateSchemaSource(ctx *sql.Context, n sql.Node) error {
+	span, ctx := ctx.Span("validate_schema_source")
+	defer span.Finish()
+
 	switch n := n.(type) {
 	case *plan.TableAlias:
 		// table aliases should not be validated
@@ -128,7 +140,10 @@ func validateSchema(t sql.Table) error {
 	return nil
 }
 
-func validateProjectTuples(n sql.Node) error {
+func validateProjectTuples(ctx *sql.Context, n sql.Node) error {
+	span, ctx := ctx.Span("validate_project_tuples")
+	defer span.Finish()
+
 	switch n := n.(type) {
 	case *plan.Project:
 		for i, e := range n.Projections {

@@ -12,19 +12,19 @@ import (
 func TestReferencesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	table := getTable(require, referencesTableName)
-	require.Equal(referencesTableName, table.Name())
+	table := getTable(require, ReferencesTableName)
+	require.Equal(ReferencesTableName, table.Name())
 
 	// Check that each column source is the same as table name
 	for _, c := range table.Schema() {
-		require.Equal(referencesTableName, c.Source)
+		require.Equal(ReferencesTableName, c.Source)
 	}
 }
 
 func TestReferencesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	table := getTable(require, referencesTableName)
+	table := getTable(require, ReferencesTableName)
 	require.Equal(0, len(table.Children()))
 }
 
@@ -33,7 +33,7 @@ func TestReferencesTable_RowIter(t *testing.T) {
 	session, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := getTable(require, referencesTableName)
+	table := getTable(require, ReferencesTableName)
 
 	rows, err := sql.NodeToRows(session, plan.NewSort(
 		[]plan.SortField{{Column: expression.NewGetField(0, sql.Text, "name", false), Order: plan.Ascending}},
@@ -75,7 +75,7 @@ func TestReferencesPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(2, sql.Text, referencesTableName, "hash", false),
+			expression.NewGetFieldWithTable(2, sql.Text, ReferencesTableName, "hash", false),
 			expression.NewLiteral("e8d3ffab552895c19b9fcf7aa264d277cde33881", sql.Text),
 		),
 	})
@@ -87,7 +87,7 @@ func TestReferencesPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(1, sql.Text, repositoriesTableName, "name", false),
+			expression.NewGetFieldWithTable(1, sql.Text, RepositoriesTableName, "name", false),
 			expression.NewLiteral("refs/remotes/origin/master", sql.Text),
 		),
 	})
@@ -100,7 +100,7 @@ func TestReferencesPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(1, sql.Text, referencesTableName, "name", false),
+			expression.NewGetFieldWithTable(1, sql.Text, ReferencesTableName, "name", false),
 			expression.NewLiteral("refs/remotes/origin/develop", sql.Text),
 		),
 	})

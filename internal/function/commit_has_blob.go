@@ -10,13 +10,13 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
 // CommitHasBlob is a function that checks whether a blob is in a commit.
 type CommitHasBlob struct {
-	commitHash sql.Expression
-	blob       sql.Expression
-	cache      *lru.TwoQueueCache
+	expression.BinaryExpression
+	cache *lru.TwoQueueCache
 }
 
 const commitHasBlobCacheSize = 200
@@ -25,9 +25,11 @@ const commitHasBlobCacheSize = 200
 func NewCommitHasBlob(commitHash, blob sql.Expression) sql.Expression {
 	cache, _ := lru.New2Q(commitHasBlobCacheSize)
 	return &CommitHasBlob{
-		commitHash: commitHash,
-		blob:       blob,
-		cache:      cache,
+		expression.BinaryExpression{
+			Left:  commitHash,
+			Right: blob,
+		},
+		cache,
 	}
 }
 
@@ -43,7 +45,7 @@ func (f *CommitHasBlob) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	commitHash, err := f.commitHash.Eval(ctx, row)
+	commitHash, err := f.Left.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +59,7 @@ func (f *CommitHasBlob) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 		return nil, err
 	}
 
-	blob, err := f.blob.Eval(ctx, row)
+	blob, err := f.Right.Eval(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -158,22 +160,22 @@ func (f *CommitHasBlob) hashInTree(
 
 // IsNullable implements the Expression interface.
 func (f CommitHasBlob) IsNullable() bool {
-	return f.commitHash.IsNullable() || f.blob.IsNullable()
+	return f.Left.IsNullable() || f.Right.IsNullable()
 }
 
 // Resolved implements the Expression interface.
 func (f CommitHasBlob) Resolved() bool {
-	return f.commitHash.Resolved() && f.blob.Resolved()
+	return f.Left.Resolved() && f.Right.Resolved()
 }
 
 // TransformUp implements the Expression interface.
 func (f CommitHasBlob) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	commitHash, err := f.commitHash.TransformUp(fn)
+	commitHash, err := f.Left.TransformUp(fn)
 	if err != nil {
 		return nil, err
 	}
 
-	blob, err := f.blob.TransformUp(fn)
+	blob, err := f.Right.TransformUp(fn)
 	if err != nil {
 		return nil, err
 	}
@@ -182,13 +184,13 @@ func (f CommitHasBlob) TransformUp(fn sql.TransformExprFunc) (sql.Expression, er
 }
 
 func (f CommitHasBlob) String() string {
-	return fmt.Sprintf("commit_has_blob(%s, %s)", f.commitHash, f.blob)
+	return fmt.Sprintf("commit_has_blob(%s, %s)", f.Left, f.Right)
 }
 
 // Children implements the Expression interface.
 func (f CommitHasBlob) Children() []sql.Expression {
 	return []sql.Expression{
-		f.commitHash,
-		f.blob,
+		f.Left,
+		f.Right,
 	}
 }

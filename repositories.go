@@ -8,8 +8,9 @@ import (
 
 type repositoriesTable struct{}
 
-var repositoriesSchema = sql.Schema{
-	{Name: "id", Type: sql.Text, Nullable: false, Source: repositoriesTableName},
+// RepositoriesSchema is the schema for the repositories table.
+var RepositoriesSchema = sql.Schema{
+	{Name: "id", Type: sql.Text, Nullable: false, Source: RepositoriesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*repositoriesTable)(nil)
@@ -18,20 +19,24 @@ func newRepositoriesTable() sql.Table {
 	return new(repositoriesTable)
 }
 
+var _ Table = (*repositoriesTable)(nil)
+
+func (repositoriesTable) isGitbaseTable() {}
+
 func (repositoriesTable) Resolved() bool {
 	return true
 }
 
 func (repositoriesTable) Name() string {
-	return repositoriesTableName
+	return RepositoriesTableName
 }
 
 func (repositoriesTable) Schema() sql.Schema {
-	return repositoriesSchema
+	return RepositoriesSchema
 }
 
 func (r repositoriesTable) String() string {
-	return printTable(repositoriesTableName, repositoriesSchema)
+	return printTable(RepositoriesTableName, RepositoriesSchema)
 }
 
 func (r *repositoriesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
@@ -58,7 +63,7 @@ func (repositoriesTable) Children() []sql.Node {
 }
 
 func (repositoriesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(repositoriesTableName, repositoriesSchema, filters)
+	return handledFilters(RepositoriesTableName, RepositoriesSchema, filters)
 }
 
 func (r *repositoriesTable) WithProjectAndFilters(
@@ -66,7 +71,7 @@ func (r *repositoriesTable) WithProjectAndFilters(
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	return rowIterWithSelectors(
-		ctx, repositoriesSchema, repositoriesTableName, filters, nil,
+		ctx, RepositoriesSchema, RepositoriesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(repositoriesIter), nil

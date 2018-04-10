@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -12,19 +13,19 @@ import (
 func TestRepositoriesTable_Name(t *testing.T) {
 	require := require.New(t)
 
-	table := getTable(require, repositoriesTableName)
-	require.Equal(repositoriesTableName, table.Name())
+	table := getTable(require, RepositoriesTableName)
+	require.Equal(RepositoriesTableName, table.Name())
 
 	// Check that each column source is the same as table name
 	for _, c := range table.Schema() {
-		require.Equal(repositoriesTableName, c.Source)
+		require.Equal(RepositoriesTableName, c.Source)
 	}
 }
 
 func TestRepositoriesTable_Children(t *testing.T) {
 	require := require.New(t)
 
-	table := getTable(require, repositoriesTableName)
+	table := getTable(require, RepositoriesTableName)
 	require.Equal(0, len(table.Children()))
 }
 
@@ -43,13 +44,13 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	}
 
 	session := NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session)
+	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
 
-	db := NewDatabase(repositoriesTableName)
+	db := NewDatabase(RepositoriesTableName)
 	require.NotNil(db)
 
 	tables := db.Tables()
-	table, ok := tables[repositoriesTableName]
+	table, ok := tables[RepositoriesTableName]
 
 	require.True(ok)
 	require.NotNil(table)

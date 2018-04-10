@@ -31,12 +31,12 @@ func TestDatabase_Tables(t *testing.T) {
 
 	sort.Strings(tableNames)
 	expected := []string{
-		commitsTableName,
-		referencesTableName,
-		treeEntriesTableName,
-		blobsTableName,
-		repositoriesTableName,
-		remotesTableName,
+		CommitsTableName,
+		ReferencesTableName,
+		TreeEntriesTableName,
+		BlobsTableName,
+		RepositoriesTableName,
+		RemotesTableName,
 	}
 	sort.Strings(expected)
 
