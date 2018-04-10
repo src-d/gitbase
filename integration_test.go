@@ -6,7 +6,6 @@ import (
 
 	"github.com/src-d/gitbase/internal/rule"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/stretchr/testify/require"
@@ -141,7 +140,7 @@ func TestIntegration(t *testing.T) {
 				require := require.New(t)
 
 				session := gitbase.NewSession(&pool)
-				ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+				ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 				_, iter, err := engine.Query(ctx, tt.query)
 				require.NoError(err)
@@ -255,7 +254,7 @@ func benchmarkQuery(b *testing.B, query string) {
 	_, err := pool.AddGit(path)
 	require.NoError(b, err)
 	session := gitbase.NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	run := func(b *testing.B) {
 		for i := 0; i < b.N; i++ {

@@ -5,7 +5,6 @@ import (
 	"io"
 	"testing"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	git "gopkg.in/src-d/go-git.v4"
@@ -437,7 +436,7 @@ func setupIter(t *testing.T) (*sql.Context, func()) {
 	}
 
 	session := NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())
 	}

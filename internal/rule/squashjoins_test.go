@@ -1,10 +1,8 @@
 package rule
 
 import (
-	"context"
 	"testing"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/stretchr/testify/require"
@@ -83,11 +81,7 @@ func TestSquashJoins(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewContext(
-		context.TODO(),
-		sql.NewBaseSession(),
-		opentracing.NoopTracer{},
-	), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -112,11 +106,7 @@ func TestSquashJoinsUnsquashable(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewContext(
-		context.TODO(),
-		sql.NewBaseSession(),
-		opentracing.NoopTracer{},
-	), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
 	require.NoError(err)
 	require.Equal(node, result)
 }
@@ -174,11 +164,7 @@ func TestSquashJoinsPartial(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewContext(
-		context.TODO(),
-		sql.NewBaseSession(),
-		opentracing.NoopTracer{},
-	), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -219,11 +205,7 @@ func TestSquashJoinsSchema(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewContext(
-		context.TODO(),
-		sql.NewBaseSession(),
-		opentracing.NoopTracer{},
-	), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
 	require.NoError(err)
 
 	expected := node.Schema()

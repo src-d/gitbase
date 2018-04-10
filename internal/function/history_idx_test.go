@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
@@ -29,7 +28,7 @@ func TestHistoryIdx(t *testing.T) {
 	}
 
 	session := gitbase.NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	testCases := []struct {
 		name     string
@@ -82,7 +81,7 @@ func BenchmarkHistoryIdx(b *testing.B) {
 	}
 
 	session := gitbase.NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	cases := []struct {
 		row sql.Row
