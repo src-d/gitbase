@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/golang-lru"
 
-	"github.com/src-d/gitquery"
+	"github.com/src-d/gitbase"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -38,9 +38,9 @@ func (CommitHasBlob) Type() sql.Type {
 
 // Eval implements the Expression interface.
 func (f *CommitHasBlob) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
-	s, ok := ctx.Session.(*gitquery.Session)
+	s, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
-		return nil, gitquery.ErrInvalidGitQuerySession.New(ctx.Session)
+		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
 	commitHash, err := f.commitHash.Eval(ctx, row)
@@ -83,7 +83,7 @@ type commitBlobKey struct {
 }
 
 func (f *CommitHasBlob) commitHasBlob(
-	pool *gitquery.RepositoryPool,
+	pool *gitbase.RepositoryPool,
 	commitHash, blob plumbing.Hash,
 ) (bool, error) {
 	if val, ok := f.cache.Get(commitBlobKey{commitHash, blob}); ok {

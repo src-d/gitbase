@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/golang-lru"
 
-	"github.com/src-d/gitquery"
+	"github.com/src-d/gitbase"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -38,9 +38,9 @@ type historyKey struct {
 
 // Eval implements the Expression interface.
 func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
-	s, ok := ctx.Session.(*gitquery.Session)
+	s, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
-		return nil, gitquery.ErrInvalidGitQuerySession.New(ctx.Session)
+		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
 	left, err := f.Left.Eval(ctx, row)
@@ -86,7 +86,7 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	return f.historyIdx(s.Pool, start, target)
 }
 
-func (f *HistoryIdx) historyIdx(pool *gitquery.RepositoryPool, start, target plumbing.Hash) (int64, error) {
+func (f *HistoryIdx) historyIdx(pool *gitbase.RepositoryPool, start, target plumbing.Hash) (int64, error) {
 	iter, err := pool.RepoIter()
 	if err != nil {
 		return 0, err

@@ -1,16 +1,16 @@
-# GitBase <a href="https://travis-ci.org/src-d/gitquery"><img alt="Build Status" src="https://travis-ci.org/src-d/gitquery.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitquery"><img alt="codecov" src="https://codecov.io/gh/src-d/gitquery/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitquery.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitquery.v0?status.svg" /></a>
+# GitBase <a href="https://travis-ci.org/src-d/gitbase"><img alt="Build Status" src="https://travis-ci.org/src-d/gitbase.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitbase"><img alt="codecov" src="https://codecov.io/gh/src-d/gitbase/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitbase.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitbase.v0?status.svg" /></a>
 
 Query git repositories with a MySQL interface.
 
 ## Installation
 
-Check the [Releases](https://github.com/src-d/gitquery/releases) page to download the gitquery binary.
+Check the [Releases](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
 ## Usage
 
 ```bash
 Usage:
-  gitquery [OPTIONS] <server | version>
+  gitbase [OPTIONS] <server | version>
 
 Help Options:
   -h, --help  Show this help message
@@ -40,7 +40,7 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 You can execute the `SHOW TABLES` statement to get a list of the available tables.
 To get all the columns and types of a specific table, you can write `DESCRIBE TABLE [tablename]`.
 
-gitquery exposes the following tables:
+gitbase exposes the following tables:
 
 |     Name     |                                               Columns                                               |
 |:------------:|:---------------------------------------------------------------------------------------------------:|
@@ -112,4 +112,4 @@ GROUP BY committer_email, month, repo_id
 
 ## License
 
-gitquery is licensed under the [MIT License](/LICENSE).
+gitbase is licensed under the [MIT License](/LICENSE).

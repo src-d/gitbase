@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/src-d/gitquery"
+	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -22,12 +22,12 @@ func TestCommitHasTree(t *testing.T) {
 		expression.NewGetField(1, sql.Text, "tree_hash", true),
 	)
 
-	pool := gitquery.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool()
 	for _, f := range fixtures.ByTag("worktree") {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := gitquery.NewSession(&pool)
+	session := gitbase.NewSession(&pool)
 	ctx := sql.NewContext(context.TODO(), session)
 
 	testCases := []struct {
@@ -68,12 +68,12 @@ func BenchmarkCommitHasTree(b *testing.B) {
 		expression.NewGetField(1, sql.Text, "tree_hash", true),
 	)
 
-	pool := gitquery.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool()
 	for _, f := range fixtures.ByTag("worktree") {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := gitquery.NewSession(&pool)
+	session := gitbase.NewSession(&pool)
 	ctx := sql.NewContext(context.TODO(), session)
 
 	rows := []sql.Row{

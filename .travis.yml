@@ -4,7 +4,7 @@ go:
   - 1.9
   - tip
 
-go_import_path: github.com/src-d/gitquery
+go_import_path: github.com/src-d/gitbase
 
 matrix:
   fast_finish: true

@@ -9,7 +9,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 
-	"github.com/src-d/gitquery"
+	"github.com/src-d/gitbase"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -46,9 +46,9 @@ func (CommitHasTree) Type() sql.Type { return sql.Boolean }
 
 // Eval implements the Expression interface.
 func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
-	s, ok := ctx.Session.(*gitquery.Session)
+	s, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
-		return nil, gitquery.ErrInvalidGitQuerySession.New(ctx.Session)
+		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
 	left, err := f.Left.Eval(ctx, row)

@@ -1,4 +1,4 @@
-package gitquery
+package gitbase
 
 import (
 	"context"
@@ -215,7 +215,7 @@ func TestRepositoryRowIterator(t *testing.T) {
 func TestRepositoryPoolAddDir(t *testing.T) {
 	require := require.New(t)
 
-	tmpDir, err := ioutil.TempDir("", "gitquery-test")
+	tmpDir, err := ioutil.TempDir("", "gitbase-test")
 	require.NoError(err)
 
 	max := 64

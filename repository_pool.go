@@ -1,4 +1,4 @@
-package gitquery
+package gitbase
 
 import (
 	"io"
@@ -173,7 +173,7 @@ type rowRepoIter struct {
 
 // NewRowRepoIter initializes a new repository iterator.
 //
-// * ctx: it should contain a gitquery.Session
+// * ctx: it should contain a gitbase.Session
 // * iter: specific RowRepoIter interface
 //     * NewIterator: called when a new repository is about to be iterated,
 //         returns a new RowRepoIter
@@ -185,7 +185,7 @@ func NewRowRepoIter(
 ) (*rowRepoIter, error) {
 	s, ok := ctx.Session.(*Session)
 	if !ok || s == nil {
-		return nil, ErrInvalidGitQuerySession.New(ctx.Session)
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
 	rIter, err := s.Pool.RepoIter()
