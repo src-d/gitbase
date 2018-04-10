@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
@@ -32,7 +31,7 @@ func setup(t *testing.T) (ctx *sql.Context, path string, cleanup CleanupFunc) {
 	}
 
 	session := NewSession(&pool)
-	ctx = sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+	ctx = sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	return ctx, path, cleanup
 }

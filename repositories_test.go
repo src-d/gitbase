@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -44,7 +43,7 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	}
 
 	session := NewSession(&pool)
-	ctx := sql.NewContext(context.TODO(), session, opentracing.NoopTracer{})
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	db := NewDatabase(RepositoriesTableName)
 	require.NotNil(db)

@@ -390,7 +390,7 @@
     "sql/parse",
     "sql/plan"
   ]
-  revision = "59b23db1ee89794aa6de1778e8dbb93accff5611"
+  revision = "1e7464048d3a5f5261d26526d3500d9a560b2c08"
 
 [[projects]]
   branch = "master"
@@ -431,6 +431,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b9648d0bb042f26f75e2ef28357c7d553bd924540b0a961aba24e5531caa57c3"
+  inputs-digest = "435dc9dc4ca08313470b1c87096b39311f43142b550f50e0c6791e701d508479"
   solver-name = "gps-cdcl"
   solver-version = 1
