@@ -12,3 +12,6 @@ $(MAKEFILE):
 	git clone --quiet --branch $(CI_VERSION) --depth 1 $(CI_REPOSITORY) $(CI_PATH);
 
 -include $(MAKEFILE)
+
+dependencies:
+	cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies

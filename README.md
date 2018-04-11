@@ -6,6 +6,16 @@ Query git repositories with a MySQL interface.
 
 Check the [Releases](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
+### Installing from source
+
+Because gitbase uses [bblfsh's client-go](https://github.com/bblfsh/client-go), which uses cgo, you need to install some dependencies by hand instead of just using `go get`.
+
+```
+go get github.com/src-d/gitbase/...
+cd $GOPATH/src/github.com/src-d/gitbase
+make dependencies
+```
+
 ## Usage
 
 ```bash
@@ -45,7 +55,7 @@ gitbase exposes the following tables:
 |     Name     |                                               Columns                                               |
 |:------------:|:---------------------------------------------------------------------------------------------------:|
 | repositories |id                                                                                                   |
-| remotes      |repository_id, name, push_url,fetch_url,push_refspec,fetch_refspec                                   | 
+| remotes      |repository_id, name, push_url,fetch_url,push_refspec,fetch_refspec                                   |
 |    commits   | hash, author_name, author_email, author_when, comitter_name, comitter_email, comitter_when, message, tree_hash |
 |     blobs    | hash, size, content                                                                                 |
 |  refs        | repository_id, name, hash                                                                           |
