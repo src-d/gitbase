@@ -653,14 +653,10 @@ func TestBuildSquashedTable(t *testing.T) {
 			},
 			nil,
 			newSquashedTable(
-				gitbase.NewTreeEntryBlobsIter(
-					gitbase.NewCommitTreeEntriesIter(
-						gitbase.NewRefHEADCommitsIter(
-							gitbase.NewAllRefsIter(
-								fixIdx(t, refFilter, refsBlobsSchema),
-							),
-							nil,
-							true,
+				gitbase.NewCommitBlobsIter(
+					gitbase.NewRefHEADCommitsIter(
+						gitbase.NewAllRefsIter(
+							fixIdx(t, refFilter, refsBlobsSchema),
 						),
 						nil,
 						true,

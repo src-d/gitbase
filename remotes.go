@@ -130,8 +130,8 @@ func (i *remotesIter) Next() (sql.Row, error) {
 		config.Name,
 		config.URLs[i.urlPos],
 		config.URLs[i.urlPos],
-		config.Fetch[i.urlPos],
-		config.Fetch[i.urlPos],
+		config.Fetch[i.urlPos].String(),
+		config.Fetch[i.urlPos].String(),
 	)
 
 	i.urlPos++
