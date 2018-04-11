@@ -19,9 +19,16 @@ ENV GITBASE_USER=gitbase
 ENV GITBASE_PASSWORD=""
 EXPOSE 3306
 
-RUN apt-get update && apt-get install libxml2-dev git -y \
+ENV TINI_VERSION v0.17.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
+RUN apt-get update \
+    && apt-get install libxml2-dev git -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ENTRYPOINT ["/tini", "--"]
 
 CMD gitbase server -v \
     --host=0.0.0.0 \
