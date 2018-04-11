@@ -50,3 +50,6 @@ deploy:
   skip_cleanup: true
   on:
     tags: true
+
+after_deploy:
+  - DOCKER_PUSH_LATEST=1 make docker-push
