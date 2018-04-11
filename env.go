@@ -25,3 +25,11 @@ func getBoolEnv(key string, defaultValue bool) bool {
 
 	return defaultValue
 }
+
+func getStringEnv(key string, defaultValue string) string {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return defaultValue
+	}
+	return v
+}

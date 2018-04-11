@@ -1,8 +1,12 @@
 language: go
+sudo: required
 
 go:
   - 1.9
   - tip
+
+services:
+  - docker
 
 go_import_path: github.com/src-d/gitbase
 
@@ -11,8 +15,26 @@ matrix:
   allow_failures:
     - go: tip
 
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-6
+    - g++-6
+
 install:
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
+  - cd ./vendor/gopkg.in/bblfsh/client-go.v2
   - make dependencies
+  - cd ./../../../..
+  - make dependencies
+
+before_script:
+  - docker run -d --name bblfshd --privileged -p 9432:9432 -v /var/lib/bblfshd:/var/lib/bblfshd bblfsh/bblfshd
+  - docker exec -it bblfshd bblfshctl driver install python bblfsh/python-driver
+  - docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
 
 script:
   - make test-coverage codecov
