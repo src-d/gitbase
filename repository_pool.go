@@ -242,13 +242,9 @@ type RepositoryIter struct {
 // when there are no more Repositories to retrieve.
 func (i *RepositoryIter) Next() (*Repository, error) {
 	r, err := i.pool.GetPos(i.pos)
-	if err != nil {
-		return nil, err
-	}
-
 	i.pos++
 
-	return r, nil
+	return r, err
 }
 
 // Close finished iterator. It's no-op.
@@ -330,6 +326,7 @@ func NewRowRepoIter(
 	go func() {
 		repoIter.wg.Wait()
 		close(repoIter.rows)
+		closeIter(&repoIter)
 	}()
 
 	return &repoIter, nil
@@ -387,9 +384,11 @@ func (i *rowRepoIter) fillRepoChannel() {
 				return
 
 			default:
-				closeIter(i)
-				i.setError(err)
-				return
+				if !i.session.SkipGitErrors {
+					closeIter(i)
+					i.setError(err)
+					return
+				}
 			}
 		}
 	}
@@ -439,10 +438,14 @@ func (i *rowRepoIter) rowReader(num int) {
 					break loop
 
 				default:
-					iter.Close()
-					i.setError(err)
-					closeIter(i)
-					return
+					if !i.session.SkipGitErrors {
+						iter.Close()
+						i.setError(err)
+						closeIter(i)
+						return
+					} else {
+						break loop
+					}
 				}
 			}
 		}
