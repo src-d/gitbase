@@ -312,6 +312,14 @@ func buildSquashedTable(
 				return nil, errInvalidIteratorChain.New("tree_entries", iter)
 			}
 		case gitbase.BlobsTableName:
+			var readContent bool
+			for _, e := range columns {
+				if containsField(e, gitbase.BlobsTableName, "content") {
+					readContent = true
+					break
+				}
+			}
+
 			switch it := iter.(type) {
 			case gitbase.RefsIter:
 				var f sql.Expression
@@ -328,6 +336,7 @@ func buildSquashedTable(
 				iter = gitbase.NewCommitBlobsIter(
 					gitbase.NewRefHEADCommitsIter(it, nil, true),
 					f,
+					readContent,
 				)
 			case gitbase.CommitsIter:
 				var f sql.Expression
@@ -341,13 +350,10 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewTreeEntryBlobsIter(
-					gitbase.NewCommitMainTreeEntriesIter(
-						it,
-						nil,
-						true,
-					),
+				iter = gitbase.NewCommitBlobsIter(
+					it,
 					f,
+					readContent,
 				)
 			case gitbase.TreeEntriesIter:
 				var f sql.Expression
@@ -361,7 +367,7 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewTreeEntryBlobsIter(it, f)
+				iter = gitbase.NewTreeEntryBlobsIter(it, f, readContent)
 			default:
 				return nil, errInvalidIteratorChain.New("blobs", iter)
 			}
@@ -934,6 +940,19 @@ func isNum(n int64) validator {
 
 		return num == n
 	}
+}
+
+func containsField(e sql.Expression, table, name string) bool {
+	var found bool
+	expression.Inspect(e, func(e sql.Expression) bool {
+		gf, ok := e.(*expression.GetField)
+		if ok && gf.Table() == table && gf.Name() == name {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 func fixFieldIndexes(e sql.Expression, schema sql.Schema) (sql.Expression, error) {
