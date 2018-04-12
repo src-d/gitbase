@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ChainableIter is an iterator meant to have a chaining-friendly API.
@@ -391,6 +394,10 @@ func (i *refIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
+			logrus.WithFields(logrus.Fields{
+				"type": ref.Type(),
+				"ref":  ref.Name(),
+			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -507,6 +514,10 @@ func (i *repoRefsIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
+			logrus.WithFields(logrus.Fields{
+				"type": ref.Type(),
+				"ref":  ref.Name(),
+			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -630,6 +641,10 @@ func (i *remoteRefsIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
+			logrus.WithFields(logrus.Fields{
+				"type": ref.Type(),
+				"ref":  ref.Name(),
+			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -799,6 +814,10 @@ func (i *refCommitsIter) Advance() error {
 			_, err = resolveCommit(i.repo, i.refs.Ref().Hash())
 			if err != nil {
 				if errInvalidCommit.Is(err) {
+					logrus.WithFields(logrus.Fields{
+						"ref":  i.refs.Ref().Name(),
+						"hash": i.refs.Ref().Hash(),
+					}).Debug("skipping reference, it's not pointing to a commit")
 					continue
 				}
 
@@ -904,6 +923,10 @@ func (i *refHeadCommitsIter) Advance() error {
 		i.commit, err = resolveCommit(i.repo, i.refs.Ref().Hash())
 		if err != nil {
 			if errInvalidCommit.Is(err) {
+				logrus.WithFields(logrus.Fields{
+					"ref":  i.refs.Ref().Name(),
+					"hash": i.refs.Ref().Hash(),
+				}).Debug("skipping reference, it's not pointing to a commit")
 				continue
 			}
 			return err
@@ -1619,6 +1642,10 @@ func resolveCommit(repo *git.Repository, hash plumbing.Hash) (*object.Commit, er
 	case *object.Tag:
 		return resolveCommit(repo, obj.Target)
 	default:
+		logrus.WithFields(logrus.Fields{
+			"hash": hash,
+			"type": fmt.Sprintf("%T", obj),
+		}).Debug("expecting hash to belong to a commit object")
 		return nil, errInvalidCommit.New(obj)
 	}
 }

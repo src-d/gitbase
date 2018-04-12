@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/src-d/gitbase/internal/rule"
@@ -19,9 +21,8 @@ import (
 // not be empty.
 var enableUnstableSquash = os.Getenv("UNSTABLE_SQUASH_ENABLE") != ""
 
-// CmdServer defines server command
-type CmdServer struct {
-	cmd
+type cmdServer struct {
+	Verbose bool `short:"v" description:"Activates the verbose mode"`
 
 	Git      string `short:"g" long:"git" description:"Path where the git repositories are located, one per dir"`
 	Host     string `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
@@ -34,12 +35,14 @@ type CmdServer struct {
 	name   string
 }
 
-func (c *CmdServer) buildDatabase() error {
+func (c *cmdServer) buildDatabase() error {
 	if c.engine == nil {
 		c.engine = sqle.New()
 	}
 
-	c.print("opening %q repository...\n", c.Git)
+	if c.Git != "" {
+		logrus.WithField("dir", c.Git).Debug("added folder containing git repositories")
+	}
 
 	var err error
 
@@ -51,18 +54,25 @@ func (c *CmdServer) buildDatabase() error {
 	}
 
 	c.engine.AddDatabase(gitbase.NewDatabase(c.name))
+	logrus.WithField("db", c.name).Debug("registered database to catalog")
 	c.engine.Catalog.RegisterFunctions(function.Functions)
+	logrus.Debug("registered all available functions in catalog")
 
 	if enableUnstableSquash {
+		logrus.Warn("unstable squash tables rule is enabled")
 		c.engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
 	}
 
 	return nil
 }
 
-// Execute starts the server
-func (c *CmdServer) Execute(args []string) error {
+func (c *cmdServer) Execute(args []string) error {
+	if c.Verbose {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
 	if err := c.buildDatabase(); err != nil {
+		logrus.WithField("error", err).Fatal("unable to start database server")
 		return err
 	}
 
@@ -84,6 +94,8 @@ func (c *CmdServer) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	logrus.Debug("starting server")
 
 	return s.Start()
 }

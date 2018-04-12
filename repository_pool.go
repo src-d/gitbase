@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
@@ -83,8 +84,11 @@ func (p *RepositoryPool) AddDir(path string) error {
 	for _, f := range dirs {
 		if f.IsDir() {
 			name := filepath.Join(path, f.Name())
-			// TODO: log that the repo could not be opened
-			p.AddGit(name)
+			if _, err := p.AddGit(name); err != nil {
+				logrus.WithField("path", name).Error("repository could not be opened")
+			} else {
+				logrus.WithField("path", name).Debug("repository added")
+			}
 		}
 	}
 
