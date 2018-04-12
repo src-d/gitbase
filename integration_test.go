@@ -139,7 +139,7 @@ func TestIntegration(t *testing.T) {
 			t.Run(tt.query, func(t *testing.T) {
 				require := require.New(t)
 
-				session := gitbase.NewSession(&pool)
+				session := gitbase.NewSession(pool)
 				ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 				_, iter, err := engine.Query(ctx, tt.query)
@@ -173,7 +173,7 @@ func TestUastQueries(t *testing.T) {
 	engine.AddDatabase(gitbase.NewDatabase("foo"))
 	engine.Catalog.RegisterFunctions(function.Functions)
 
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	_, iter, err := engine.Query(ctx, `
 		SELECT uast_xpath(uast(content, 'php'), '//*[@roleIdentifier]') as uast, name 
@@ -249,8 +249,8 @@ func TestSquashCorrectness(t *testing.T) {
 
 	for _, q := range queries {
 		t.Run(q, func(t *testing.T) {
-			expected := queryResults(t, engine, &pool, q)
-			result := queryResults(t, squashEngine, &pool, q)
+			expected := queryResults(t, engine, pool, q)
+			result := queryResults(t, squashEngine, pool, q)
 			require.ElementsMatch(
 				t,
 				expected,
@@ -374,7 +374,7 @@ func benchmarkQuery(b *testing.B, query string) {
 	pool := gitbase.NewRepositoryPool()
 	_, err := pool.AddGit(path)
 	require.NoError(b, err)
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	run := func(b *testing.B) {

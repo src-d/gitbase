@@ -39,10 +39,10 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 	pool := NewRepositoryPool()
 
 	for _, id := range repoIDs {
-		pool.Add(id, "")
+		pool.Add(id, "", gitRepo)
 	}
 
-	session := NewSession(&pool)
+	session := NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	db := NewDatabase(RepositoriesTableName)

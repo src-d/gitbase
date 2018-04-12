@@ -30,7 +30,7 @@ func setup(t *testing.T) (ctx *sql.Context, path string, cleanup CleanupFunc) {
 		require.NoError(fixtures.Clean())
 	}
 
-	session := NewSession(&pool)
+	session := NewSession(pool)
 	ctx = sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	return ctx, path, cleanup

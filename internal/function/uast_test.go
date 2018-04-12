@@ -191,7 +191,7 @@ func setup(t *testing.T) (*sql.Context, func()) {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	return ctx, func() {

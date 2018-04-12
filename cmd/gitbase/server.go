@@ -24,7 +24,8 @@ var enableUnstableSquash = os.Getenv("UNSTABLE_SQUASH_ENABLE") != ""
 type cmdServer struct {
 	Verbose bool `short:"v" description:"Activates the verbose mode"`
 
-	Git      string `short:"g" long:"git" description:"Path where the git repositories are located, one per dir"`
+	Git      string `short:"g" long:"git" description:"Path where the git repositories are located"`
+	Siva     string `long:"siva" description:"Path where the siva repositories are located"`
 	Host     string `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port     int    `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User     string `short:"u" long:"user" default:"root" description:"User name used for connection"`
@@ -44,12 +45,12 @@ func (c *cmdServer) buildDatabase() error {
 		logrus.WithField("dir", c.Git).Debug("added folder containing git repositories")
 	}
 
-	var err error
+	c.pool = gitbase.NewRepositoryPool()
+	if err := c.pool.AddDir(c.Git); err != nil {
+		return err
+	}
 
-	pool := gitbase.NewRepositoryPool()
-	c.pool = &pool
-	err = c.pool.AddDir(c.Git)
-	if err != nil {
+	if err := c.pool.AddSivaDir(c.Siva); err != nil {
 		return err
 	}
 
