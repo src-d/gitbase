@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	errors "gopkg.in/src-d/go-errors.v1"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
@@ -786,12 +787,21 @@ func (i *refCommitsIter) Advance() error {
 
 		if i.commits == nil {
 			err := i.refs.Advance()
-			if err == io.EOF {
-				i.refs = nil
-				return io.EOF
+			if err != nil {
+				if err == io.EOF {
+					i.refs = nil
+					return io.EOF
+				}
+
+				return err
 			}
 
+			_, err = resolveCommit(i.repo, i.refs.Ref().Hash())
 			if err != nil {
+				if errInvalidCommit.Is(err) {
+					continue
+				}
+
 				return err
 			}
 
@@ -882,17 +892,20 @@ func (i *refHeadCommitsIter) Advance() error {
 		}
 
 		err := i.refs.Advance()
-		if err == io.EOF {
-			i.refs = nil
-			return io.EOF
-		}
-
 		if err != nil {
+			if err == io.EOF {
+				i.refs = nil
+				return io.EOF
+			}
+
 			return err
 		}
 
-		i.commit, err = i.repo.CommitObject(i.refs.Ref().Hash())
+		i.commit, err = resolveCommit(i.repo, i.refs.Ref().Hash())
 		if err != nil {
+			if errInvalidCommit.Is(err) {
+				continue
+			}
 			return err
 		}
 
@@ -1590,4 +1603,20 @@ func evalFilters(ctx *sql.Context, row sql.Row, filters sql.Expression) (bool, e
 	}
 
 	return v.(bool), nil
+}
+
+var errInvalidCommit = errors.NewKind("invalid commit of type: %T")
+
+func resolveCommit(repo *git.Repository, hash plumbing.Hash) (*object.Commit, error) {
+	obj, err := repo.Object(plumbing.AnyObject, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	commit, ok := obj.(*object.Commit)
+	if !ok {
+		return nil, errInvalidCommit.New(obj)
+	}
+
+	return commit, nil
 }
