@@ -276,7 +276,18 @@ func (i *rowRepoIter) rowReader(num int) {
 	defer i.wg.Done()
 
 	for repo := range i.repos {
-		iter, _ := i.iter.NewIterator(repo)
+		iter, err := i.iter.NewIterator(repo)
+		if err != nil {
+			// guard from possible previous error
+			select {
+			case <-i.done:
+				return
+			default:
+				i.setError(err)
+				close(i.done)
+				continue
+			}
+		}
 
 	loop:
 		for {
