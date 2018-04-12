@@ -38,6 +38,9 @@ type historyKey struct {
 
 // Eval implements the Expression interface.
 func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	span, ctx := ctx.Span("gitbase.HistoryIdx")
+	defer span.Finish()
+
 	s, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)

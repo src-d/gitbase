@@ -28,6 +28,7 @@ func TestLanguage(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
+			ctx := sql.NewEmptyContext()
 
 			var args = make([]sql.Expression, len(tt.row))
 			for i := range tt.row {
@@ -37,7 +38,7 @@ func TestLanguage(t *testing.T) {
 			f, err := NewLanguage(args...)
 			if err == nil {
 				var val interface{}
-				val, err = f.Eval(nil, tt.row)
+				val, err = f.Eval(ctx, tt.row)
 				if tt.err == nil {
 					require.NoError(err)
 					require.Equal(tt.expected, val)

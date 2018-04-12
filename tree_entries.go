@@ -51,14 +51,16 @@ func (r *treeEntriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.
 }
 
 func (r treeEntriesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.TreeEntriesTable")
 	iter := new(treeEntryIter)
 
 	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return repoIter, nil
+	return sql.NewSpanIter(span, repoIter), nil
 }
 
 func (treeEntriesTable) Children() []sql.Node {
@@ -73,10 +75,11 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.TreeEntriesTable")
 	// TODO: could be optimized even more checking that only tree_hash is
 	// projected. There would be no need to iterate files in this case, and
 	// it would be much faster.
-	return rowIterWithSelectors(
+	iter, err := rowIterWithSelectors(
 		ctx, TreeEntriesSchema, TreeEntriesTableName, filters,
 		[]string{"tree_hash"},
 		func(selectors selectors) (RowRepoIter, error) {
@@ -92,6 +95,13 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 			return &treeEntriesByHashIter{hashes: hashes}, nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 func (r treeEntriesTable) String() string {

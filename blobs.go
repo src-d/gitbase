@@ -69,14 +69,16 @@ func (r *blobsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, 
 }
 
 func (r blobsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.BlobsTable")
 	iter := new(blobIter)
 
 	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return repoIter, nil
+	return sql.NewSpanIter(span, repoIter), nil
 }
 
 func (blobsTable) Children() []sql.Node {
@@ -91,7 +93,8 @@ func (r *blobsTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.BlobsTable")
+	iter, err := rowIterWithSelectors(
 		ctx, BlobsSchema, BlobsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
@@ -107,6 +110,13 @@ func (r *blobsTable) WithProjectAndFilters(
 			return &blobsByHashIter{hashes: hashes}, nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type blobIter struct {

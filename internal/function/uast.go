@@ -115,6 +115,9 @@ func (f UAST) String() string {
 
 // Eval implements the Expression interface.
 func (f UAST) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	span, ctx := ctx.Span("gitbase.UAST")
+	defer span.Finish()
+
 	session, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
@@ -229,6 +232,9 @@ func (UASTXPath) Type() sql.Type {
 
 // Eval implements the Expression interface.
 func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	span, ctx := ctx.Span("gitbase.UASTXPath")
+	defer span.Finish()
+
 	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
 		return nil, err

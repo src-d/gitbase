@@ -28,6 +28,9 @@ func SquashJoins(
 		return n, nil
 	}
 
+	span, ctx := ctx.Span("gitbase.SquashJoins")
+	defer span.Finish()
+
 	a.Log("squashing joins, node of type %T", n)
 	n, err := n.TransformUp(func(n sql.Node) (sql.Node, error) {
 		join, ok := n.(*plan.InnerJoin)
@@ -606,11 +609,17 @@ func (t *squashedTable) Resolved() bool {
 	return true
 }
 func (t *squashedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.SquashedTable")
 	iter, err := gitbase.NewRowRepoIter(ctx, gitbase.NewChainableRowRepoIter(ctx, t.iter))
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
-	return &schemaMapperIter{iter, t.schemaMappings}, nil
+
+	return sql.NewSpanIter(
+		span,
+		&schemaMapperIter{iter, t.schemaMappings},
+	), nil
 }
 func (t *squashedTable) String() string {
 	return fmt.Sprintf("SquashedTable(%s)", strings.Join(t.tables, ", "))
