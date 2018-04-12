@@ -419,6 +419,26 @@ func TestRecursiveTreeFileIter(t *testing.T) {
 	require.Equal(expected, result)
 }
 
+func TestCommitBlobsIter(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	rows := chainableIterRows(
+		t, ctx,
+		NewCommitBlobsIter(
+			NewRefHEADCommitsIter(
+				NewAllRefsIter(nil),
+				nil,
+				true,
+			),
+			nil,
+		),
+	)
+
+	require.Len(rows, 42)
+}
+
 func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql.Row {
 	it, err := NewRowRepoIter(ctx, NewChainableRowRepoIter(ctx, iter))
 	require.NoError(t, err)

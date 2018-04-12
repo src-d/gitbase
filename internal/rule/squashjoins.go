@@ -322,16 +322,8 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewTreeEntryBlobsIter(
-					gitbase.NewCommitTreeEntriesIter(
-						gitbase.NewRefHEADCommitsIter(
-							it,
-							nil,
-							true,
-						),
-						nil,
-						true,
-					),
+				iter = gitbase.NewCommitBlobsIter(
+					gitbase.NewRefHEADCommitsIter(it, nil, true),
 					f,
 				)
 			case gitbase.CommitsIter:

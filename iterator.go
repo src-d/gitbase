@@ -1442,6 +1442,115 @@ func (i *treeEntryBlobsIter) Schema() sql.Schema {
 	return append(i.treeEntries.Schema(), BlobsSchema...)
 }
 
+type commitBlobsIter struct {
+	ctx     *sql.Context
+	repo    *git.Repository
+	filters sql.Expression
+	commits CommitsIter
+	files   *object.FileIter
+	row     sql.Row
+	seen    map[plumbing.Hash]struct{}
+}
+
+// NewCommitBlobsIter returns an iterator that will return all blobs
+// for the commit in the given iter that match the given filters.
+func NewCommitBlobsIter(
+	commits CommitsIter,
+	filters sql.Expression,
+) BlobsIter {
+	return &commitBlobsIter{commits: commits, filters: filters}
+}
+
+func (i *commitBlobsIter) Close() error {
+	if i.commits != nil {
+		return i.commits.Close()
+	}
+
+	return nil
+}
+func (i *commitBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.commits.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &commitBlobsIter{
+		ctx:     ctx,
+		repo:    repo.Repo,
+		commits: iter.(CommitsIter),
+		filters: i.filters,
+		seen:    make(map[plumbing.Hash]struct{}),
+	}, nil
+}
+func (i *commitBlobsIter) Row() sql.Row { return i.row }
+func (i *commitBlobsIter) Advance() error {
+	for {
+		if i.commits == nil {
+			return io.EOF
+		}
+
+		if i.files == nil {
+			err := i.commits.Advance()
+			if err == io.EOF {
+				i.commits = nil
+				return io.EOF
+			}
+
+			if err != nil {
+				return err
+			}
+
+			tree, err := i.repo.TreeObject(i.commits.Commit().TreeHash)
+			if err != nil {
+				return err
+			}
+
+			i.files = tree.Files()
+			// uniqueness of blob is per commit, so we need to reset the seen map
+			i.seen = make(map[plumbing.Hash]struct{})
+		}
+
+		file, err := i.files.Next()
+		if err == io.EOF {
+			i.files = nil
+			continue
+		}
+
+		if _, ok := i.seen[file.Hash]; ok {
+			continue
+		}
+
+		i.seen[file.Hash] = struct{}{}
+		blob, err := i.repo.BlobObject(file.Hash)
+		if err != nil {
+			return err
+		}
+
+		row, err := blobToRow(blob)
+		if err != nil {
+			return err
+		}
+
+		i.row = append(i.commits.Row(), row...)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *commitBlobsIter) Schema() sql.Schema {
+	return append(i.commits.Schema(), BlobsSchema...)
+}
+
 // NewChainableRowRepoIter creates a new RowRepoIter from a ChainableIter.
 func NewChainableRowRepoIter(ctx *sql.Context, iter ChainableIter) RowRepoIter {
 	return &chainableRowRepoIter{iter, ctx}
