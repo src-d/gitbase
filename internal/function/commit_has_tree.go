@@ -46,6 +46,9 @@ func (CommitHasTree) Type() sql.Type { return sql.Boolean }
 
 // Eval implements the Expression interface.
 func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	span, ctx := ctx.Span("gitbase.CommitHasTree")
+	defer span.Finish()
+
 	s, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)

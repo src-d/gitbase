@@ -60,14 +60,16 @@ func (r *commitsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node
 }
 
 func (r commitsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.CommitsTable")
 	iter := new(commitIter)
 
 	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return repoIter, nil
+	return sql.NewSpanIter(span, repoIter), nil
 }
 
 func (commitsTable) Children() []sql.Node {
@@ -82,7 +84,8 @@ func (r *commitsTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.CommitsTable")
+	iter, err := rowIterWithSelectors(
 		ctx, CommitsSchema, CommitsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
@@ -98,6 +101,13 @@ func (r *commitsTable) WithProjectAndFilters(
 			return &commitsByHashIter{hashes: hashes}, nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type commitIter struct {

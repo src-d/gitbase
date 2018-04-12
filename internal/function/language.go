@@ -72,6 +72,9 @@ func (f *Language) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error)
 
 // Eval implements the Expression interface.
 func (f *Language) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	span, ctx := ctx.Span("gitbase.Language")
+	defer span.Finish()
+
 	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
 		return nil, err

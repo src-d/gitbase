@@ -53,14 +53,16 @@ func (r *referencesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.N
 }
 
 func (r referencesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.ReferencesTable")
 	iter := new(referenceIter)
 
 	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return repoIter, nil
+	return sql.NewSpanIter(span, repoIter), nil
 }
 
 func (referencesTable) Children() []sql.Node {
@@ -75,7 +77,8 @@ func (r *referencesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.ReferencesTable")
+	iter, err := rowIterWithSelectors(
 		ctx, RefsSchema, ReferencesTableName, filters,
 		[]string{"hash", "name"},
 		func(selectors selectors) (RowRepoIter, error) {
@@ -100,6 +103,13 @@ func (r *referencesTable) WithProjectAndFilters(
 			return &filteredReferencesIter{hashes: stringsToHashes(hashes), names: names}, nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type referenceIter struct {
