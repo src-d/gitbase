@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/jessevdk/go-flags"
@@ -13,8 +12,8 @@ const (
 
 func main() {
 	parser := flags.NewNamedParser(name, flags.Default)
-	parser.AddCommand("server", "Start SQL server.", "", &CmdServer{})
-	parser.AddCommand("version", "Show the version information.", "", &CmdVersion{})
+	parser.AddCommand("server", "Start SQL server.", "", &cmdServer{})
+	parser.AddCommand("version", "Show the version information.", "", &cmdVersion{})
 
 	_, err := parser.Parse()
 	if err != nil {
@@ -24,16 +23,4 @@ func main() {
 
 		os.Exit(1)
 	}
-}
-
-type cmd struct {
-	Verbose bool `short:"v" description:"Activates the verbose mode"`
-}
-
-func (c *cmd) print(format string, a ...interface{}) {
-	if !c.Verbose {
-		return
-	}
-
-	fmt.Printf(format, a...)
 }

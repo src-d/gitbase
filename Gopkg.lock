@@ -346,7 +346,10 @@
 
 [[projects]]
   name = "gopkg.in/bblfsh/client-go.v2"
-  packages = ["."]
+  packages = [
+    ".",
+    "tools"
+  ]
   revision = "274b551eb1e5a7a3e4aff84d8ee1a56feb799107"
   version = "v2.4.1"
 
@@ -501,6 +504,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "435dc9dc4ca08313470b1c87096b39311f43142b550f50e0c6791e701d508479"
+  inputs-digest = "50279f4db9a4f05d1eb408e2de83c5363583b48885544e62e664e30f702e35c7"
   solver-name = "gps-cdcl"
   solver-version = 1

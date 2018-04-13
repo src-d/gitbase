@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
 	errors "gopkg.in/src-d/go-errors.v1"
@@ -79,11 +80,15 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 			return s.bblfshClient, nil
 		case connectivity.Connecting:
 			attempts = 0
+			logrus.WithField("attempts", totalAttempts).
+				Debug("bblfsh is connecting, sleeping 100ms")
 			time.Sleep(100 * time.Millisecond)
 		default:
 			if err := s.bblfshClient.Close(); err != nil {
 				return nil, err
 			}
+
+			logrus.Debug("bblfsh connection is closed, opening a new one")
 
 			s.bblfshClient, err = bblfsh.NewClient(s.bblfshEndpoint)
 			if err != nil {
@@ -98,6 +103,9 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 
 // Close implements the io.Closer interface.
 func (s *Session) Close() error {
+	s.bblfshMu.Lock()
+	defer s.bblfshMu.Unlock()
+
 	if s.bblfshClient != nil {
 		return s.bblfshClient.Close()
 	}

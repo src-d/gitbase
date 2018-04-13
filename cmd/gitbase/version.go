@@ -1,16 +1,15 @@
 package main
 
-import (
-	"fmt"
+import "fmt"
+
+var (
+	version string
+	build   string
 )
 
-var version string
-var build string
+type cmdVersion struct{}
 
-type CmdVersion struct{}
-
-func (c *CmdVersion) Execute(args []string) error {
+func (c *cmdVersion) Execute(args []string) error {
 	fmt.Printf("%s (%s) - build %s\n", name, version, build)
-
 	return nil
 }
