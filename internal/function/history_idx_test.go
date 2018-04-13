@@ -27,7 +27,7 @@ func TestHistoryIdx(t *testing.T) {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	testCases := []struct {
@@ -80,7 +80,7 @@ func BenchmarkHistoryIdx(b *testing.B) {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	cases := []struct {

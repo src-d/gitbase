@@ -47,7 +47,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	// Add and GetPos
 
-	pool.Add("0", "/directory/should/not/exist")
+	pool.Add("0", "/directory/should/not/exist", gitRepo)
 	repo, err = pool.GetPos(0)
 	require.Error(err)
 
@@ -56,7 +56,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool.Add("1", path)
+	pool.Add("1", path, gitRepo)
 	repo, err = pool.GetPos(1)
 	require.NoError(err)
 	require.Equal("1", repo.ID)
@@ -108,8 +108,8 @@ func TestRepositoryPoolIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	pool.Add("0", path)
-	pool.Add("1", path)
+	pool.Add("0", path, gitRepo)
+	pool.Add("1", path, gitRepo)
 
 	iter, err := pool.RepoIter()
 	require.NoError(err)
@@ -189,12 +189,12 @@ func TestRepositoryRowIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	session := NewSession(&pool)
+	session := NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	max := 64
 
 	for i := 0; i < max; i++ {
-		pool.Add(strconv.Itoa(i), path)
+		pool.Add(strconv.Itoa(i), path, gitRepo)
 	}
 
 	testRepoIter(max, require, ctx)
@@ -290,14 +290,15 @@ func TestRepositoryErrorIter(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 	pool := NewRepositoryPool()
-	pool.Add("one", path)
+	pool.Add("one", path, gitRepo)
 
 	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
-	ctx := sql.NewContext(timeout, sql.WithSession(NewSession(&pool)))
+	ctx := sql.NewContext(timeout, sql.WithSession(NewSession(pool)))
 	eIter := &testErrorIter{}
 
-	repoIter, err := NewRowRepoIter(ctx, eIter)
+	iter, err := NewRowRepoIter(ctx, eIter)
+	repoIter := iter.(*rowRepoIter)
 	require.NoError(err)
 
 	go func() {
@@ -310,4 +311,38 @@ func TestRepositoryErrorIter(t *testing.T) {
 	}
 
 	cancel()
+}
+
+func TestRepositoryPoolSiva(t *testing.T) {
+	require := require.New(t)
+
+	expectedRepos := 3
+
+	pool := NewRepositoryPool()
+	path := filepath.Join(
+		os.Getenv("GOPATH"),
+		"src", "github.com", "src-d", "gitbase",
+		"_testdata",
+	)
+
+	require.NoError(pool.AddSivaDir(path))
+	require.Equal(expectedRepos, len(pool.repositories))
+
+	expected := []int{606, 452, 75}
+	result := make([]int, expectedRepos)
+
+	for i := 0; i < expectedRepos; i++ {
+		repo, err := pool.GetPos(i)
+		require.NoError(err)
+
+		iter, err := repo.Repo.CommitObjects()
+		require.NoError(err)
+
+		require.NoError(iter.ForEach(func(c *object.Commit) error {
+			result[i]++
+			return nil
+		}))
+	}
+
+	require.Equal(expected, result)
 }

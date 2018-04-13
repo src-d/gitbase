@@ -379,10 +379,17 @@
   version = "v1.6.3"
 
 [[projects]]
+  name = "gopkg.in/src-d/go-billy-siva.v4"
+  packages = ["."]
+  revision = "593006c4c2ffd1bbf7b54f4a9cd2beb00c68054c"
+  version = "v4.1.0"
+
+[[projects]]
   name = "gopkg.in/src-d/go-billy.v4"
   packages = [
     ".",
     "helper/chroot",
+    "helper/mount",
     "helper/polyfill",
     "osfs",
     "util"
@@ -466,6 +473,12 @@
   revision = "1e7464048d3a5f5261d26526d3500d9a560b2c08"
 
 [[projects]]
+  name = "gopkg.in/src-d/go-siva.v1"
+  packages = ["."]
+  revision = "b4cd504f9d6e57728058609e4540e931fbd41220"
+  version = "v1.1.3"
+
+[[projects]]
   branch = "master"
   name = "gopkg.in/src-d/go-vitess.v0"
   packages = [
@@ -504,6 +517,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "50279f4db9a4f05d1eb408e2de83c5363583b48885544e62e664e30f702e35c7"
+  inputs-digest = "8094decac810e93faab7d11f10f5cae91ae893895ade9577386dd21500a0a7a0"
   solver-name = "gps-cdcl"
   solver-version = 1

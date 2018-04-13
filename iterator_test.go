@@ -458,7 +458,7 @@ func setupIter(t *testing.T) (*sql.Context, func()) {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := NewSession(&pool)
+	session := NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())
