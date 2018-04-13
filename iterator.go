@@ -1400,6 +1400,7 @@ type treeEntryBlobsIter struct {
 	filters     sql.Expression
 	treeEntries TreeEntriesIter
 	row         sql.Row
+	readContent bool
 }
 
 // NewTreeEntryBlobsIter returns an iterator that will return all blobs
@@ -1407,8 +1408,13 @@ type treeEntryBlobsIter struct {
 func NewTreeEntryBlobsIter(
 	treeEntriesIter TreeEntriesIter,
 	filters sql.Expression,
+	readContent bool,
 ) BlobsIter {
-	return &treeEntryBlobsIter{treeEntries: treeEntriesIter, filters: filters}
+	return &treeEntryBlobsIter{
+		treeEntries: treeEntriesIter,
+		filters:     filters,
+		readContent: readContent,
+	}
 }
 
 func (i *treeEntryBlobsIter) Close() error {
@@ -1429,6 +1435,7 @@ func (i *treeEntryBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableI
 		repo:        repo.Repo,
 		treeEntries: iter.(TreeEntriesIter),
 		filters:     i.filters,
+		readContent: i.readContent,
 	}, nil
 }
 func (i *treeEntryBlobsIter) Row() sql.Row { return i.row }
@@ -1453,7 +1460,7 @@ func (i *treeEntryBlobsIter) Advance() error {
 			return err
 		}
 
-		row, err := blobToRow(blob)
+		row, err := blobToRow(blob, i.readContent)
 		if err != nil {
 			return err
 		}
@@ -1479,13 +1486,14 @@ func (i *treeEntryBlobsIter) Schema() sql.Schema {
 }
 
 type commitBlobsIter struct {
-	ctx     *sql.Context
-	repo    *git.Repository
-	filters sql.Expression
-	commits CommitsIter
-	files   *object.FileIter
-	row     sql.Row
-	seen    map[plumbing.Hash]struct{}
+	ctx         *sql.Context
+	readContent bool
+	repo        *git.Repository
+	filters     sql.Expression
+	commits     CommitsIter
+	files       *object.FileIter
+	row         sql.Row
+	seen        map[plumbing.Hash]struct{}
 }
 
 // NewCommitBlobsIter returns an iterator that will return all blobs
@@ -1493,8 +1501,13 @@ type commitBlobsIter struct {
 func NewCommitBlobsIter(
 	commits CommitsIter,
 	filters sql.Expression,
+	readContent bool,
 ) BlobsIter {
-	return &commitBlobsIter{commits: commits, filters: filters}
+	return &commitBlobsIter{
+		commits:     commits,
+		filters:     filters,
+		readContent: readContent,
+	}
 }
 
 func (i *commitBlobsIter) Close() error {
@@ -1511,11 +1524,12 @@ func (i *commitBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter
 	}
 
 	return &commitBlobsIter{
-		ctx:     ctx,
-		repo:    repo.Repo,
-		commits: iter.(CommitsIter),
-		filters: i.filters,
-		seen:    make(map[plumbing.Hash]struct{}),
+		ctx:         ctx,
+		repo:        repo.Repo,
+		commits:     iter.(CommitsIter),
+		filters:     i.filters,
+		seen:        make(map[plumbing.Hash]struct{}),
+		readContent: i.readContent,
 	}, nil
 }
 func (i *commitBlobsIter) Row() sql.Row { return i.row }
@@ -1562,7 +1576,7 @@ func (i *commitBlobsIter) Advance() error {
 			return err
 		}
 
-		row, err := blobToRow(blob)
+		row, err := blobToRow(blob, i.readContent)
 		if err != nil {
 			return err
 		}

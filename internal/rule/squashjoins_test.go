@@ -337,6 +337,11 @@ func TestBuildSquashedTable(t *testing.T) {
 		col(0, gitbase.BlobsTableName, "hash"),
 	)
 
+	blobContentFilter := eq(
+		col(0, gitbase.BlobsTableName, "content"),
+		col(0, gitbase.BlobsTableName, "content"),
+	)
+
 	treeEntryBlobsRedundantFilter := eq(
 		col(0, gitbase.TreeEntriesTableName, "entry_hash"),
 		col(0, gitbase.BlobsTableName, "hash"),
@@ -371,6 +376,7 @@ func TestBuildSquashedTable(t *testing.T) {
 		name     string
 		tables   []sql.Table
 		filters  []sql.Expression
+		columns  []sql.Expression
 		err      *errors.Kind
 		expected sql.Node
 	}{
@@ -383,6 +389,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				repoRemotesFilter,
 				remotesFilter,
 			},
+			nil,
 			nil,
 			newSquashedTable(
 				gitbase.NewRepoRemotesIter(
@@ -403,6 +410,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				remoteRefsFilter,
 				refFilter,
 			},
+			nil,
 			nil,
 			newSquashedTable(
 				gitbase.NewRemoteRefsIter(
@@ -429,6 +437,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				repoRefsRedundantFilter,
 			},
 			nil,
+			nil,
 			newSquashedTable(
 				gitbase.NewRepoRefsIter(
 					gitbase.NewAllReposIter(repoFilter),
@@ -451,6 +460,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				refCommitsFilter,
 				refHEADCommitsRedundantFilter,
 			},
+			nil,
 			nil,
 			newSquashedTable(
 				gitbase.NewRefHEADCommitsIter(
@@ -478,6 +488,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				refCommitsRedundantFilter,
 			},
 			nil,
+			nil,
 			newSquashedTable(
 				gitbase.NewRefCommitsIter(
 					gitbase.NewAllRefsIter(
@@ -497,12 +508,14 @@ func TestBuildSquashedTable(t *testing.T) {
 			"repos with commits",
 			[]sql.Table{repositories, commits},
 			nil,
+			nil,
 			errInvalidIteratorChain,
 			nil,
 		},
 		{
 			"remotes with commits",
 			[]sql.Table{remotes, commits},
+			nil,
 			nil,
 			errInvalidIteratorChain,
 			nil,
@@ -516,6 +529,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				commitTreeEntriesFilter,
 				commitMainTreeEntriesRedundantFilter,
 			},
+			nil,
 			nil,
 			newSquashedTable(
 				gitbase.NewCommitMainTreeEntriesIter(
@@ -543,6 +557,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				commitTreeEntriesRedundantFilter,
 			},
 			nil,
+			nil,
 			newSquashedTable(
 				gitbase.NewCommitTreeEntriesIter(
 					gitbase.NewAllCommitsIter(
@@ -563,6 +578,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			"repos with tree entries",
 			[]sql.Table{repositories, treeEntries},
 			nil,
+			nil,
 			errInvalidIteratorChain,
 			nil,
 		},
@@ -575,6 +591,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				refTreeEntriesFilter,
 				refTreeEntriesRedundantFilter,
 			},
+			nil,
 			nil,
 			newSquashedTable(
 				gitbase.NewCommitTreeEntriesIter(
@@ -600,6 +617,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			"remotes with tree entries",
 			[]sql.Table{remotes, treeEntries},
 			nil,
+			nil,
 			errInvalidIteratorChain,
 			nil,
 		},
@@ -613,6 +631,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				treeEntryBlobsFilter,
 			},
 			nil,
+			nil,
 			newSquashedTable(
 				gitbase.NewTreeEntryBlobsIter(
 					gitbase.NewAllTreeEntriesIter(
@@ -622,6 +641,7 @@ func TestBuildSquashedTable(t *testing.T) {
 						fixIdx(t, blobFilter, treeEntryBlobsSchema),
 						fixIdx(t, treeEntryBlobsFilter, treeEntryBlobsSchema),
 					),
+					false,
 				),
 				nil,
 				gitbase.TreeEntriesTableName,
@@ -632,12 +652,14 @@ func TestBuildSquashedTable(t *testing.T) {
 			"repos with blobs",
 			[]sql.Table{repositories, blobs},
 			nil,
+			nil,
 			errInvalidIteratorChain,
 			nil,
 		},
 		{
 			"remotes with blobs",
 			[]sql.Table{remotes, blobs},
+			nil,
 			nil,
 			errInvalidIteratorChain,
 			nil,
@@ -652,6 +674,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				refBlobsRedundantFilter,
 			},
 			nil,
+			nil,
 			newSquashedTable(
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewRefHEADCommitsIter(
@@ -665,6 +688,7 @@ func TestBuildSquashedTable(t *testing.T) {
 						fixIdx(t, blobFilter, refsBlobsSchema),
 						fixIdx(t, refBlobsFilter, refsBlobsSchema),
 					),
+					false,
 				),
 				nil,
 				gitbase.ReferencesTableName,
@@ -681,19 +705,46 @@ func TestBuildSquashedTable(t *testing.T) {
 				commitBlobsRedundantFilter,
 			},
 			nil,
+			nil,
 			newSquashedTable(
-				gitbase.NewTreeEntryBlobsIter(
-					gitbase.NewCommitMainTreeEntriesIter(
-						gitbase.NewAllCommitsIter(
-							fixIdx(t, commitFilter, commitBlobsSchema),
-						),
-						nil,
-						true,
+				gitbase.NewCommitBlobsIter(
+					gitbase.NewAllCommitsIter(
+						fixIdx(t, commitFilter, commitBlobsSchema),
 					),
 					and(
 						fixIdx(t, blobFilter, commitBlobsSchema),
 						fixIdx(t, commitBlobsFilter, commitBlobsSchema),
 					),
+					false,
+				),
+				nil,
+				gitbase.CommitsTableName,
+				gitbase.BlobsTableName,
+			),
+		},
+		{
+			"commits with blobs using content",
+			[]sql.Table{commits, blobs},
+			[]sql.Expression{
+				commitFilter,
+				blobContentFilter,
+				commitBlobsFilter,
+				commitBlobsRedundantFilter,
+			},
+			[]sql.Expression{expression.NewGetFieldWithTable(
+				0, sql.Int64, gitbase.BlobsTableName, "content", false,
+			)},
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitBlobsIter(
+					gitbase.NewAllCommitsIter(
+						fixIdx(t, commitFilter, commitBlobsSchema),
+					),
+					and(
+						fixIdx(t, blobContentFilter, commitBlobsSchema),
+						fixIdx(t, commitBlobsFilter, commitBlobsSchema),
+					),
+					true,
 				),
 				nil,
 				gitbase.CommitsTableName,
@@ -705,7 +756,7 @@ func TestBuildSquashedTable(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			result, err := buildSquashedTable(tt.tables, tt.filters, nil)
+			result, err := buildSquashedTable(tt.tables, tt.filters, tt.columns)
 			if tt.err != nil {
 				require.Error(err)
 				require.True(tt.err.Is(err))

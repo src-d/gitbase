@@ -347,6 +347,7 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 				false,
 			),
 			nil,
+			false,
 		),
 	)
 
@@ -364,6 +365,7 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 				expression.NewGetField(len(CommitsSchema)+len(TreeEntriesSchema)+1, sql.Int64, "size", false),
 				expression.NewLiteral(int64(150), sql.Int64),
 			),
+			false,
 		),
 	)
 
@@ -433,6 +435,7 @@ func TestCommitBlobsIter(t *testing.T) {
 				true,
 			),
 			nil,
+			false,
 		),
 	)
 

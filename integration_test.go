@@ -229,10 +229,10 @@ func TestSquashCorrectness(t *testing.T) {
 		`SELECT * FROM tree_entries te INNER JOIN blobs b ON te.entry_hash = b.hash`,
 
 		`SELECT * FROM repositories r
-		INNER JOIN refs re 
+		INNER JOIN refs re
 			ON r.id = re.repository_id
-		INNER JOIN commits c 
-			ON re.hash = c.hash 
+		INNER JOIN commits c
+			ON re.hash = c.hash
 		WHERE re.name = 'HEAD'`,
 
 		`SELECT * FROM commits c
