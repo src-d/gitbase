@@ -355,7 +355,11 @@ func (i *refIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error)
 
 	head, err := repo.Repo.Head()
 	if err != nil {
-		return nil, err
+		if err != plumbing.ErrReferenceNotFound {
+			return nil, err
+		}
+
+		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
 	}
 
 	return &refIter{
@@ -489,7 +493,13 @@ func (i *repoRefsIter) Advance() error {
 
 			i.head, err = i.repos.Repo().Repo.Head()
 			if err != nil {
-				return err
+				if err != plumbing.ErrReferenceNotFound {
+					return err
+				}
+
+				logrus.WithField("repo", i.repos.Repo().ID).
+					Debug("unable to get HEAD of repository")
+				continue
 			}
 		}
 
@@ -616,7 +626,12 @@ func (i *remoteRefsIter) Advance() error {
 
 			i.head, err = i.repo.Head()
 			if err != nil {
-				return err
+				if err != plumbing.ErrReferenceNotFound {
+					return err
+				}
+
+				logrus.WithField("repo", i.remotes.Remote().RepoID).
+					Debug("unable to get HEAD of repository")
 			}
 		}
 
