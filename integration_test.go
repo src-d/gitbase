@@ -2,6 +2,8 @@ package gitbase_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/src-d/gitbase/internal/rule"
@@ -276,6 +278,31 @@ func queryResults(
 	require.NoError(t, err)
 
 	return rows
+}
+
+func TestMissingHeadRefs(t *testing.T) {
+	require := require.New(t)
+
+	path := filepath.Join(
+		os.Getenv("GOPATH"),
+		"src", "github.com", "src-d", "gitbase",
+		"_testdata",
+	)
+
+	pool := gitbase.NewRepositoryPool()
+	require.NoError(pool.AddSivaDir(path))
+
+	engine := sqle.New()
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
+
+	session := gitbase.NewSession(pool)
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+	_, iter, err := engine.Query(ctx, "SELECT * FROM refs")
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 56)
 }
 
 func BenchmarkQueries(b *testing.B) {
