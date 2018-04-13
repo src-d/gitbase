@@ -2,6 +2,7 @@ package gitbase
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git-fixtures.v3"
@@ -262,4 +264,50 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	}
 
 	require.ElementsMatch(arrayExpected, arrayID)
+}
+
+var errIter = fmt.Errorf("Error iter")
+
+type testErrorIter struct{}
+
+func (d *testErrorIter) NewIterator(
+	repo *Repository,
+) (RowRepoIter, error) {
+	return nil, errIter
+	// return &testErrorIter{}, nil
+}
+
+func (d *testErrorIter) Next() (sql.Row, error) {
+	return nil, io.EOF
+}
+
+func (d *testErrorIter) Close() error {
+	return nil
+}
+
+func TestRepositoryErrorIter(t *testing.T) {
+	require := require.New(t)
+
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+	pool := NewRepositoryPool()
+	pool.Add("one", path)
+
+	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	ctx := sql.NewContext(timeout, sql.WithSession(NewSession(&pool)))
+	eIter := &testErrorIter{}
+
+	repoIter, err := NewRowRepoIter(ctx, eIter)
+	require.NoError(err)
+
+	go func() {
+		repoIter.Next()
+	}()
+
+	select {
+	case <-repoIter.done:
+		require.Equal(errIter, repoIter.err)
+	}
+
+	cancel()
 }
