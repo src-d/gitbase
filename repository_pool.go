@@ -169,6 +169,9 @@ type rowRepoIter struct {
 	err   error
 	repos chan *Repository
 	rows  chan sql.Row
+
+	doneMutex  sync.Mutex
+	doneClosed bool
 }
 
 // NewRowRepoIter initializes a new repository iterator.
@@ -229,6 +232,16 @@ func (i *rowRepoIter) setError(err error) {
 	i.err = err
 }
 
+func closeIter(i *rowRepoIter) {
+	i.doneMutex.Lock()
+	defer i.doneMutex.Unlock()
+
+	if !i.doneClosed {
+		close(i.done)
+		i.doneClosed = true
+	}
+}
+
 func (i *rowRepoIter) fillRepoChannel() {
 	defer close(i.repos)
 
@@ -238,7 +251,7 @@ func (i *rowRepoIter) fillRepoChannel() {
 			return
 
 		case <-i.ctx.Done():
-			close(i.done)
+			closeIter(i)
 			return
 
 		default:
@@ -252,7 +265,7 @@ func (i *rowRepoIter) fillRepoChannel() {
 
 				case <-i.ctx.Done():
 					i.setError(ErrSessionCanceled.New())
-					close(i.done)
+					closeIter(i)
 					return
 
 				case i.repos <- repo:
@@ -264,7 +277,7 @@ func (i *rowRepoIter) fillRepoChannel() {
 				return
 
 			default:
-				close(i.done)
+				closeIter(i)
 				i.setError(err)
 				return
 			}
@@ -284,7 +297,7 @@ func (i *rowRepoIter) rowReader(num int) {
 				return
 			default:
 				i.setError(err)
-				close(i.done)
+				closeIter(i)
 				continue
 			}
 		}
@@ -318,7 +331,7 @@ func (i *rowRepoIter) rowReader(num int) {
 				default:
 					iter.Close()
 					i.setError(err)
-					close(i.done)
+					closeIter(i)
 					return
 				}
 			}
