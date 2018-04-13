@@ -1613,10 +1613,12 @@ func resolveCommit(repo *git.Repository, hash plumbing.Hash) (*object.Commit, er
 		return nil, err
 	}
 
-	commit, ok := obj.(*object.Commit)
-	if !ok {
+	switch obj := obj.(type) {
+	case *object.Commit:
+		return obj, nil
+	case *object.Tag:
+		return resolveCommit(repo, obj.Target)
+	default:
 		return nil, errInvalidCommit.New(obj)
 	}
-
-	return commit, nil
 }
