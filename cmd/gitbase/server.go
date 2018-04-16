@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"os"
 	"strconv"
@@ -41,17 +42,26 @@ func (c *cmdServer) buildDatabase() error {
 		c.engine = sqle.New()
 	}
 
-	if c.Git != "" {
-		logrus.WithField("dir", c.Git).Debug("added folder containing git repositories")
+	if c.Git == "" && c.Siva == "" {
+		return errors.New("missing git or siva directories")
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
-	if err := c.pool.AddDir(c.Git); err != nil {
-		return err
+
+	if c.Git != "" {
+		logrus.WithField("dir", c.Git).Debug("added folder containing git repositories")
+
+		if err := c.pool.AddDir(c.Git); err != nil {
+			return err
+		}
 	}
 
-	if err := c.pool.AddSivaDir(c.Siva); err != nil {
-		return err
+	if c.Siva != "" {
+		logrus.WithField("dir", c.Siva).Debug("added folder containing siva repositories")
+
+		if err := c.pool.AddSivaDir(c.Siva); err != nil {
+			return err
+		}
 	}
 
 	c.engine.AddDatabase(gitbase.NewDatabase(c.name))
