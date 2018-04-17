@@ -15,3 +15,12 @@ $(MAKEFILE):
 
 dependencies:
 	cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies
+
+bblfsh:
+	docker run -d --rm --name bblfshd --privileged -p 9432:9432 -v /var/lib/bblfshd:/var/lib/bblfshd bblfsh/bblfshd:v2.4.2
+
+bblfsh-drivers:
+	docker exec -it bblfshd bblfshctl driver install --recommended
+
+bblfsh-list-drivers:
+	docker exec -it bblfshd bblfshctl driver list
