@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"net"
 	"os"
 	"strconv"
@@ -25,12 +24,12 @@ var enableUnstableSquash = os.Getenv("UNSTABLE_SQUASH_ENABLE") != ""
 type cmdServer struct {
 	Verbose bool `short:"v" description:"Activates the verbose mode"`
 
-	Git      string `short:"g" long:"git" description:"Path where the git repositories are located"`
-	Siva     string `long:"siva" description:"Path where the siva repositories are located"`
-	Host     string `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
-	Port     int    `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
-	User     string `short:"u" long:"user" default:"root" description:"User name used for connection"`
-	Password string `short:"P" long:"password" default:"" description:"Password used for connection"`
+	Git      []string `short:"g" long:"git" description:"Path where the git repositories are located, multiple directories can be defined"`
+	Siva     []string `long:"siva" description:"Path where the siva repositories are located, multiple directories can be defined"`
+	Host     string   `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
+	Port     int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
+	User     string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
+	Password string   `short:"P" long:"password" default:"" description:"Password used for connection"`
 
 	engine *sqle.Engine
 	pool   *gitbase.RepositoryPool
@@ -42,30 +41,15 @@ func (c *cmdServer) buildDatabase() error {
 		c.engine = sqle.New()
 	}
 
-	if c.Git == "" && c.Siva == "" {
-		return errors.New("missing git or siva directories")
-	}
-
 	c.pool = gitbase.NewRepositoryPool()
 
-	if c.Git != "" {
-		logrus.WithField("dir", c.Git).Debug("added folder containing git repositories")
-
-		if err := c.pool.AddDir(c.Git); err != nil {
-			return err
-		}
-	}
-
-	if c.Siva != "" {
-		logrus.WithField("dir", c.Siva).Debug("added folder containing siva repositories")
-
-		if err := c.pool.AddSivaDir(c.Siva); err != nil {
-			return err
-		}
+	if err := c.addDirectories(); err != nil {
+		return err
 	}
 
 	c.engine.AddDatabase(gitbase.NewDatabase(c.name))
 	logrus.WithField("db", c.name).Debug("registered database to catalog")
+
 	c.engine.Catalog.RegisterFunctions(function.Functions)
 	logrus.Debug("registered all available functions in catalog")
 
@@ -106,7 +90,36 @@ func (c *cmdServer) Execute(args []string) error {
 		return err
 	}
 
-	logrus.Debug("starting server")
-
+	logrus.Info("starting server")
 	return s.Start()
+}
+
+func (c *cmdServer) addDirectories() error {
+	if len(c.Git) == 0 && len(c.Siva) == 0 {
+		logrus.Error("At least one git folder or siva folder should be provided.")
+	}
+
+	for _, dir := range c.Git {
+		if err := c.addGitDirectory(dir); err != nil {
+			return err
+		}
+	}
+
+	for _, dir := range c.Siva {
+		if err := c.addSivaDirectory(dir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *cmdServer) addGitDirectory(folder string) error {
+	logrus.WithField("dir", c.Git).Debug("git repositories directory added")
+	return c.pool.AddDir(folder)
+}
+
+func (c *cmdServer) addSivaDirectory(folder string) error {
+	logrus.WithField("dir", c.Git).Debug("siva repositories directory added")
+	return c.pool.AddSivaDir(folder)
 }
