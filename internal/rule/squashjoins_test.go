@@ -73,7 +73,7 @@ func TestSquashJoins(t *testing.T) {
 					nil,
 					false,
 				),
-				[]int{4, 5, 6, 7, 8, 9, 10, 11, 12, 0, 1, 2, 3},
+				[]int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0, 1, 2, 3},
 				gitbase.RepositoriesTableName,
 				gitbase.ReferencesTableName,
 				gitbase.CommitsTableName,
