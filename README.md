@@ -30,6 +30,12 @@ Available commands:
   version  Show the version information.
 ```
 
+You can start a server using some repositores from `/path/to/repositories` with this command:
+
+```
+$ gitbase server -v -g /path/to/repositories
+```
+
 A MySQL client is needed to connect to the server. For example:
 
 ```bash
@@ -45,6 +51,15 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 2 rows in set (0.01 sec)
 ```
 
+### Environment variables
+
+| Name                         | Description                                       |
+|:-----------------------------|:--------------------------------------------------|
+| `BBLFSH_ENDPOINT`            | bblfshd endpoint, default "127.0.0.1:9432"        |
+| `GITBASE_BLOBS_MAX_SIZE`     | maximum blob size to return in MiB, default 5 MiB |
+| `GITBASE_BLOBS_ALLOW_BINARY` | enable retrieval of binary blobs, default `false` |
+| `UNSTABLE_SQUASH_ENABLE`     | **UNSTABLE** check *Unstable features*            |
+
 ## Tables
 
 You can execute the `SHOW TABLES` statement to get a list of the available tables.
@@ -52,26 +67,30 @@ To get all the columns and types of a specific table, you can write `DESCRIBE TA
 
 gitbase exposes the following tables:
 
-|     Name     |                                               Columns                                               |
-|:------------:|:---------------------------------------------------------------------------------------------------:|
-| repositories |id                                                                                                   |
-| remotes      |repository_id, name, push_url,fetch_url,push_refspec,fetch_refspec                                   |
-|    commits   | hash, author_name, author_email, author_when, comitter_name, comitter_email, comitter_when, message, tree_hash |
-|     blobs    | hash, size, content                                                                                 |
-|  refs        | repository_id, name, hash                                                                           |
-| tree_entries | tree_hash, entry_hash, mode, name                                                                   |
+|     Name     |                                               Columns                                                             |
+|:-------------|:------------------------------------------------------------------------------------------------------------------|
+| repositories | id                                                                                                                |
+| remotes      | repository_id, name, push_url, fetch_url, push_refspec, fetch_refspec                                             |
+| commits      | hash, author_name, author_email, author_when, committer_name, committer_email, committer_when, message, tree_hash |
+| blobs        | hash, size, content                                                                                               |
+| refs         | repository_id, name, hash                                                                                         |
+| tree_entries | tree_hash, entry_hash, mode, name                                                                                 |
+| references   | repository_id, name, hash                                                                                         |
 
 ## Functions
 
 To make some common tasks easier for the user, there are some functions to interact with the previous mentioned tables:
 
 |     Name     |                                               Description                                           |
-|:------------:|:---------------------------------------------------------------------------------------------------:|
+|:-------------|:----------------------------------------------------------------------------------------------------|
 |commit_has_blob(commit_hash,blob_hash)bool| get if the specified commit contains the specified blob                 |
 |commit_has_tree(commit_hash,tree_hash)bool| get if the specified commit contains the specified tree                 |
 |history_idx(start_hash, target_hash)int| get the index of a commit in the history of another commit                 |
 |is_remote(reference_name)bool| check if the given reference name is from a remote one                               |
 |is_tag(reference_name)bool| check if the given reference name is a tag                                              |
+|language(path, [blob])text| gets the language of a file given its path and the optional content of the file         |
+|uast(blob, [lang, [xpath]])json_blob| returns an array of UAST nodes as blobs                                       |
+|uast_xpath(json_blob, xpath)| performs an XPath query over the given UAST nodes                                     |
 
 ## Unstable features
 
@@ -82,7 +101,6 @@ To make some common tasks easier for the user, there are some functions to inter
 ### Get all the HEAD references from all the repositories
 ```sql
 SELECT * FROM refs WHERE name = 'HEAD'
-
 ```
 
 ### Commits that appears in more than one reference
