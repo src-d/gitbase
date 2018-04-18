@@ -461,6 +461,7 @@
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
+    "mem",
     "server",
     "sql",
     "sql/analyzer",
@@ -470,7 +471,7 @@
     "sql/parse",
     "sql/plan"
   ]
-  revision = "1e7464048d3a5f5261d26526d3500d9a560b2c08"
+  revision = "a25d2500494956cf33f5ccb182ac809848100eaf"
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
@@ -517,6 +518,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8094decac810e93faab7d11f10f5cae91ae893895ade9577386dd21500a0a7a0"
+  inputs-digest = "3f2bccbcccd3b8b671ef070ba165c4b9d002cd94f9da3c7e58a82a8d55cf2e70"
   solver-name = "gps-cdcl"
   solver-version = 1
