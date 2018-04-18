@@ -23,6 +23,7 @@ var CommitsSchema = sql.Schema{
 	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
 	{Name: "message", Type: sql.Text, Nullable: false, Source: CommitsTableName},
 	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "parents", Type: sql.Array(sql.Text), Nullable: false, Source: CommitsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
@@ -186,5 +187,15 @@ func commitToRow(c *object.Commit) sql.Row {
 		c.Committer.When,
 		c.Message,
 		c.TreeHash.String(),
+		getParentHashes(c),
 	)
+}
+
+func getParentHashes(c *object.Commit) []interface{} {
+	parentHashes := make([]interface{}, 0, len(c.ParentHashes))
+	for _, plumbingHash := range c.ParentHashes {
+		parentHashes = append(parentHashes, plumbingHash.String())
+	}
+
+	return parentHashes
 }
