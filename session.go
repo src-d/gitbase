@@ -135,5 +135,9 @@ var ErrSessionCanceled = errors.NewKind("session canceled")
 // session but received something else.
 var ErrInvalidGitbaseSession = errors.NewKind("expecting gitbase session, but received: %T")
 
+// ErrInvalidContext is returned when some node expected an sql.Context
+// with gitbase session but received something else.
+var ErrInvalidContext = errors.NewKind("invalid context received: %v")
+
 // ErrBblfshConnection is returned when it's impossible to connect to bblfsh.
 var ErrBblfshConnection = errors.NewKind("unable to establish a new bblfsh connection")

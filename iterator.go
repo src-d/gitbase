@@ -225,6 +225,11 @@ func (i *repoRemotesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter
 }
 func (i *repoRemotesIter) Row() sql.Row { return i.row }
 func (i *repoRemotesIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.repos == nil {
 			return io.EOF
@@ -243,6 +248,16 @@ func (i *repoRemotesIter) Advance() error {
 
 			i.remotes, err = i.repos.Repo().Repo.Remotes()
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"iter":  "repoRemoteIter",
+					"repo":  i.repos.Repo().ID,
+					"error": err,
+				}).Error("unable to retrieve repository remotes")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 
@@ -348,14 +363,19 @@ func (i *refIter) Close() error {
 	return nil
 }
 func (i *refIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	refs, err := repo.Repo.References()
+	session, err := getSession(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	refs, err := repo.Repo.References()
+	if err != nil && !session.SkipGitErrors {
 		return nil, err
 	}
 
 	head, err := repo.Repo.Head()
 	if err != nil {
-		if err != plumbing.ErrReferenceNotFound {
+		if err != plumbing.ErrReferenceNotFound && !session.SkipGitErrors {
 			return nil, err
 		}
 
@@ -372,6 +392,11 @@ func (i *refIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error)
 }
 func (i *refIter) Row() sql.Row { return i.row }
 func (i *refIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.refs == nil {
 			return io.EOF
@@ -393,6 +418,9 @@ func (i *refIter) Advance() error {
 			}
 
 			if err != nil {
+				if session.SkipGitErrors {
+					continue
+				}
 				return err
 			}
 		}
@@ -470,6 +498,11 @@ func (i *repoRefsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, e
 }
 func (i *repoRefsIter) Row() sql.Row { return i.row }
 func (i *repoRefsIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.repos == nil {
 			return io.EOF
@@ -488,12 +521,21 @@ func (i *repoRefsIter) Advance() error {
 
 			i.refs, err = i.repos.Repo().Repo.References()
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+					"repo":  i.repos.Repo().ID,
+				}).Error("unable to retrieve references")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 
 			i.head, err = i.repos.Repo().Repo.Head()
 			if err != nil {
-				if err != plumbing.ErrReferenceNotFound {
+				if err != plumbing.ErrReferenceNotFound && !session.SkipGitErrors {
 					return err
 				}
 
@@ -554,7 +596,7 @@ func (i *repoRefsIter) Schema() sql.Schema {
 
 type remoteRefsIter struct {
 	ctx     *sql.Context
-	repo    *git.Repository
+	repo    *Repository
 	remotes RemotesIter
 	filters sql.Expression
 	refs    storer.ReferenceIter
@@ -598,11 +640,16 @@ func (i *remoteRefsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter,
 		ctx:     ctx,
 		remotes: iter.(RemotesIter),
 		filters: i.filters,
-		repo:    repo.Repo,
+		repo:    repo,
 	}, nil
 }
 func (i *remoteRefsIter) Row() sql.Row { return i.row }
 func (i *remoteRefsIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.remotes == nil {
 			return io.EOF
@@ -619,14 +666,23 @@ func (i *remoteRefsIter) Advance() error {
 				return err
 			}
 
-			i.refs, err = i.repo.References()
+			i.refs, err = i.repo.Repo.References()
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"error": err,
+					"repo":  i.repo.ID,
+				}).Error("unable to retrieve references")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 
-			i.head, err = i.repo.Head()
+			i.head, err = i.repo.Repo.Head()
 			if err != nil {
-				if err != plumbing.ErrReferenceNotFound {
+				if err != plumbing.ErrReferenceNotFound && session.SkipGitErrors {
 					return err
 				}
 
@@ -715,9 +771,21 @@ func (i *commitsIter) Close() error {
 	return nil
 }
 func (i *commitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	commits, err := repo.Repo.CommitObjects()
+	session, err := getSession(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	commits, err := repo.Repo.CommitObjects()
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"repo":  repo.ID,
+			"error": err,
+		}).Error("unable to get commit iterator")
+
+		if session.SkipGitErrors {
+			return nil, err
+		}
 	}
 
 	return &commitsIter{
@@ -764,7 +832,7 @@ func (i *commitsIter) Schema() sql.Schema { return CommitsSchema }
 
 type refCommitsIter struct {
 	ctx     *sql.Context
-	repo    *git.Repository
+	repo    *Repository
 	filters sql.Expression
 	refs    RefsIter
 	commits object.CommitIter
@@ -803,13 +871,18 @@ func (i *refCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter,
 
 	return &refCommitsIter{
 		ctx:     ctx,
-		repo:    repo.Repo,
+		repo:    repo,
 		refs:    iter.(RefsIter),
 		filters: i.filters,
 	}, nil
 }
 func (i *refCommitsIter) Row() sql.Row { return i.row }
 func (i *refCommitsIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.refs == nil {
 			return io.EOF
@@ -836,11 +909,33 @@ func (i *refCommitsIter) Advance() error {
 					continue
 				}
 
+				logrus.WithFields(logrus.Fields{
+					"ref":   i.refs.Ref().Name(),
+					"hash":  i.refs.Ref().Hash(),
+					"error": err,
+				}).Error("unable to resolve commit")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 
-			i.commits, err = i.repo.Log(&git.LogOptions{From: i.refs.Ref().Hash()})
+			i.commits, err = i.repo.Repo.Log(&git.LogOptions{
+				From: i.refs.Ref().Hash(),
+			})
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"ref":   i.refs.Ref().Name(),
+					"hash":  i.refs.Ref().Hash(),
+					"error": err,
+				}).Error("unable to retrieve commits")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 		}
@@ -878,7 +973,7 @@ func (i *refCommitsIter) Schema() sql.Schema {
 
 type refHeadCommitsIter struct {
 	ctx     *sql.Context
-	repo    *git.Repository
+	repo    *Repository
 	filters sql.Expression
 	refs    RefsIter
 	commit  *object.Commit
@@ -912,7 +1007,7 @@ func (i *refHeadCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableI
 
 	return &refHeadCommitsIter{
 		ctx:     ctx,
-		repo:    repo.Repo,
+		repo:    repo,
 		refs:    iter.(RefsIter),
 		filters: i.filters,
 		virtual: i.virtual,
@@ -920,6 +1015,16 @@ func (i *refHeadCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableI
 }
 func (i *refHeadCommitsIter) Row() sql.Row { return i.row }
 func (i *refHeadCommitsIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
+	session, ok := i.ctx.Session.(*Session)
+	if !ok {
+		return ErrInvalidGitbaseSession.New(i.ctx.Session)
+	}
+
 	for {
 		if i.refs == nil {
 			return io.EOF
@@ -944,6 +1049,17 @@ func (i *refHeadCommitsIter) Advance() error {
 				}).Debug("skipping reference, it's not pointing to a commit")
 				continue
 			}
+
+			logrus.WithFields(logrus.Fields{
+				"ref":   i.refs.Ref().Name(),
+				"hash":  i.refs.Ref().Hash(),
+				"error": err,
+			}).Error("unable to resolve commit")
+
+			if session.SkipGitErrors {
+				continue
+			}
+
 			return err
 		}
 
@@ -1133,6 +1249,11 @@ func (i *commitMainTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (Cha
 }
 func (i *commitMainTreeEntriesIter) Row() sql.Row { return i.row }
 func (i *commitMainTreeEntriesIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.commits == nil {
 			return io.EOF
@@ -1151,6 +1272,15 @@ func (i *commitMainTreeEntriesIter) Advance() error {
 
 			i.tree, err = i.commits.Commit().Tree()
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"commit": i.commits.Commit().Hash.String(),
+					"error":  err,
+				}).Error("unable to retrieve tree")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 
@@ -1200,7 +1330,7 @@ type commitTreeEntriesIter struct {
 	ctx     *sql.Context
 	commits CommitsIter
 	filters sql.Expression
-	repo    *git.Repository
+	repo    *Repository
 	files   *recursiveTreeFileIter
 	entry   *TreeEntry
 	row     sql.Row
@@ -1243,13 +1373,18 @@ func (i *commitTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (Chainab
 	return &commitTreeEntriesIter{
 		ctx:     ctx,
 		commits: iter.(CommitsIter),
-		repo:    repo.Repo,
+		repo:    repo,
 		filters: i.filters,
 		virtual: i.virtual,
 	}, nil
 }
 func (i *commitTreeEntriesIter) Row() sql.Row { return i.row }
 func (i *commitTreeEntriesIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.commits == nil {
 			return io.EOF
@@ -1268,10 +1403,19 @@ func (i *commitTreeEntriesIter) Advance() error {
 
 			tree, err := i.commits.Commit().Tree()
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"commit": i.commits.Commit().Hash.String(),
+					"error":  err,
+				}).Error("unable to retrieve tree")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 
-			i.files = newRecursiveTreeFileIter(i.repo, tree)
+			i.files = newRecursiveTreeFileIter(i.ctx, i.repo, tree)
 		}
 
 		file, tree, err := i.files.Next()
@@ -1314,7 +1458,8 @@ func (i *commitTreeEntriesIter) Schema() sql.Schema {
 }
 
 type recursiveTreeFileIter struct {
-	repo         *git.Repository
+	ctx          *sql.Context
+	repo         *Repository
 	tree         *object.Tree
 	pendingTrees []*object.Tree
 	stack        []*recursiveTreeFileStackFrame
@@ -1327,10 +1472,12 @@ type recursiveTreeFileStackFrame struct {
 }
 
 func newRecursiveTreeFileIter(
-	repo *git.Repository,
+	ctx *sql.Context,
+	repo *Repository,
 	tree *object.Tree,
 ) *recursiveTreeFileIter {
 	return &recursiveTreeFileIter{
+		ctx:          ctx,
 		repo:         repo,
 		tree:         tree,
 		pendingTrees: nil,
@@ -1344,6 +1491,11 @@ func newRecursiveTreeFileIter(
 }
 
 func (i *recursiveTreeFileIter) Next() (*object.File, *object.Tree, error) {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	for {
 		if i.tree == nil {
 			if len(i.pendingTrees) == 0 {
@@ -1371,8 +1523,18 @@ func (i *recursiveTreeFileIter) Next() (*object.File, *object.Tree, error) {
 		entry := frame.tree.Entries[frame.pos]
 		frame.pos++
 		if entry.Mode == filemode.Dir {
-			tree, err := i.repo.TreeObject(entry.Hash)
+			tree, err := i.repo.Repo.TreeObject(entry.Hash)
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"tree":  entry.Hash.String(),
+					"repo":  i.repo.ID,
+					"error": err,
+				}).Error("unable to retrieve tree object")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return nil, nil, err
 			}
 
@@ -1411,7 +1573,7 @@ type BlobsIter interface {
 // table in the squashing.
 type treeEntryBlobsIter struct {
 	ctx         *sql.Context
-	repo        *git.Repository
+	repo        *Repository
 	filters     sql.Expression
 	treeEntries TreeEntriesIter
 	row         sql.Row
@@ -1447,7 +1609,7 @@ func (i *treeEntryBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableI
 
 	return &treeEntryBlobsIter{
 		ctx:         ctx,
-		repo:        repo.Repo,
+		repo:        repo,
 		treeEntries: iter.(TreeEntriesIter),
 		filters:     i.filters,
 		readContent: i.readContent,
@@ -1455,6 +1617,11 @@ func (i *treeEntryBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableI
 }
 func (i *treeEntryBlobsIter) Row() sql.Row { return i.row }
 func (i *treeEntryBlobsIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.treeEntries == nil {
 			return io.EOF
@@ -1470,8 +1637,17 @@ func (i *treeEntryBlobsIter) Advance() error {
 			return err
 		}
 
-		blob, err := i.repo.BlobObject(i.treeEntries.TreeEntry().Hash)
+		blob, err := i.repo.Repo.BlobObject(i.treeEntries.TreeEntry().Hash)
 		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"repo":  i.repo.ID,
+				"error": err,
+			})
+
+			if session.SkipGitErrors {
+				continue
+			}
+
 			return err
 		}
 
@@ -1503,7 +1679,7 @@ func (i *treeEntryBlobsIter) Schema() sql.Schema {
 type commitBlobsIter struct {
 	ctx         *sql.Context
 	readContent bool
-	repo        *git.Repository
+	repo        *Repository
 	filters     sql.Expression
 	commits     CommitsIter
 	files       *object.FileIter
@@ -1540,7 +1716,7 @@ func (i *commitBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter
 
 	return &commitBlobsIter{
 		ctx:         ctx,
-		repo:        repo.Repo,
+		repo:        repo,
 		commits:     iter.(CommitsIter),
 		filters:     i.filters,
 		seen:        make(map[plumbing.Hash]struct{}),
@@ -1549,6 +1725,11 @@ func (i *commitBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter
 }
 func (i *commitBlobsIter) Row() sql.Row { return i.row }
 func (i *commitBlobsIter) Advance() error {
+	session, err := getSession(i.ctx)
+	if err != nil {
+		return err
+	}
+
 	for {
 		if i.commits == nil {
 			return io.EOF
@@ -1565,8 +1746,18 @@ func (i *commitBlobsIter) Advance() error {
 				return err
 			}
 
-			tree, err := i.repo.TreeObject(i.commits.Commit().TreeHash)
+			tree, err := i.repo.Repo.TreeObject(i.commits.Commit().TreeHash)
 			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"repo":      i.repo.ID,
+					"tree_hash": i.commits.Commit().TreeHash.String(),
+					"error":     err,
+				}).Error("unable to retrieve tree object")
+
+				if session.SkipGitErrors {
+					continue
+				}
+
 				return err
 			}
 
@@ -1586,7 +1777,7 @@ func (i *commitBlobsIter) Advance() error {
 		}
 
 		i.seen[file.Hash] = struct{}{}
-		blob, err := i.repo.BlobObject(file.Hash)
+		blob, err := i.repo.Repo.BlobObject(file.Hash)
 		if err != nil {
 			return err
 		}
@@ -1659,8 +1850,8 @@ func evalFilters(ctx *sql.Context, row sql.Row, filters sql.Expression) (bool, e
 
 var errInvalidCommit = errors.NewKind("invalid commit of type: %T")
 
-func resolveCommit(repo *git.Repository, hash plumbing.Hash) (*object.Commit, error) {
-	obj, err := repo.Object(plumbing.AnyObject, hash)
+func resolveCommit(repo *Repository, hash plumbing.Hash) (*object.Commit, error) {
+	obj, err := repo.Repo.Object(plumbing.AnyObject, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -1677,4 +1868,17 @@ func resolveCommit(repo *git.Repository, hash plumbing.Hash) (*object.Commit, er
 		}).Debug("expecting hash to belong to a commit object")
 		return nil, errInvalidCommit.New(obj)
 	}
+}
+
+func getSession(ctx *sql.Context) (*Session, error) {
+	if ctx == nil || ctx.Session == nil {
+		return nil, ErrInvalidContext.New(ctx)
+	}
+
+	session, ok := ctx.Session.(*Session)
+	if !ok {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	return session, nil
 }

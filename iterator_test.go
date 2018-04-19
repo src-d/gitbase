@@ -386,7 +386,14 @@ func TestRecursiveTreeFileIter(t *testing.T) {
 	tree, err := repo.TreeObject(hash)
 	require.NoError(err)
 
-	iter := newRecursiveTreeFileIter(repo, tree)
+	r := &Repository{
+		Repo: repo,
+		ID:   "test_repo",
+	}
+
+	session := NewSession(nil)
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+	iter := newRecursiveTreeFileIter(ctx, r, tree)
 
 	var result [][]interface{}
 	for {
