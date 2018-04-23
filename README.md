@@ -145,4 +145,4 @@ GROUP BY committer_email, month, repo_id
 
 ## License
 
-gitbase is licensed under the [MIT License](/LICENSE).
+gitbase is licensed under the [Apache 2.0 License](/LICENSE).
