@@ -783,9 +783,11 @@ func (i *commitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, er
 			"error": err,
 		}).Error("unable to get commit iterator")
 
-		if session.SkipGitErrors {
+		if !session.SkipGitErrors {
 			return nil, err
 		}
+
+		commits = nil
 	}
 
 	return &commitsIter{
