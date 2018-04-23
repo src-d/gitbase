@@ -178,7 +178,7 @@ func TestUastQueries(t *testing.T) {
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	_, iter, err := engine.Query(ctx, `
-		SELECT uast_xpath(uast(content, 'php'), '//*[@roleIdentifier]') as uast, name 
+		SELECT uast_xpath(uast(content, language(name, content)), '//*[@roleIdentifier]') as uast, name 
 		FROM tree_entries te
 		INNER JOIN blobs b
 		ON b.hash = te.entry_hash
