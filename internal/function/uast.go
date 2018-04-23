@@ -155,7 +155,7 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 			return nil, err
 		}
 
-		lang = lng.(string)
+		lang = strings.ToLower(lng.(string))
 	}
 
 	var xpath string
