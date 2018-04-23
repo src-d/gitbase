@@ -2,7 +2,8 @@ language: go
 sudo: required
 
 go:
-  - 1.9
+  - "1.9.x"
+  - "1.10.x"
   - tip
 
 services:
