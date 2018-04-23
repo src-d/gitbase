@@ -53,12 +53,13 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 
 ### Environment variables
 
-| Name                         | Description                                       |
-|:-----------------------------|:--------------------------------------------------|
-| `BBLFSH_ENDPOINT`            | bblfshd endpoint, default "127.0.0.1:9432"        |
-| `GITBASE_BLOBS_MAX_SIZE`     | maximum blob size to return in MiB, default 5 MiB |
-| `GITBASE_BLOBS_ALLOW_BINARY` | enable retrieval of binary blobs, default `false` |
-| `UNSTABLE_SQUASH_ENABLE`     | **UNSTABLE** check *Unstable features*            |
+| Name                         | Description                                         |
+|:-----------------------------|:----------------------------------------------------|
+| `BBLFSH_ENDPOINT`            | bblfshd endpoint, default "127.0.0.1:9432"          |
+| `GITBASE_BLOBS_MAX_SIZE`     | maximum blob size to return in MiB, default 5 MiB   |
+| `GITBASE_BLOBS_ALLOW_BINARY` | enable retrieval of binary blobs, default `false`   |
+| `UNSTABLE_SQUASH_ENABLE`     | **UNSTABLE** check *Unstable features*              |
+| `GITBASE_SKIP_GIT_ERRORS`    | do not stop queries on git errors, default disabled |
 
 ## Tables
 

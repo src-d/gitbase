@@ -5,10 +5,11 @@ import (
 	"io"
 
 	"github.com/hashicorp/golang-lru"
+	"github.com/sirupsen/logrus"
 
 	"github.com/src-d/gitbase"
-	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -41,13 +42,16 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	span, ctx := ctx.Span("gitbase.HistoryIdx")
 	defer span.Finish()
 
-	s, ok := ctx.Session.(*gitbase.Session)
-	if !ok {
-		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
-	}
+	log := logrus.WithFields(logrus.Fields{
+		"function": "history_idx",
+		"row":      row,
+		"left":     f.Left.String(),
+		"right":    f.Right.String(),
+	})
 
 	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
+		log.WithField("error", err).Error("cannot eval left side")
 		return nil, err
 	}
 
@@ -57,11 +61,13 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	left, err = sql.Text.Convert(left)
 	if err != nil {
+		log.WithField("error", err).Error("cannot convert left side")
 		return nil, err
 	}
 
 	right, err := f.Right.Eval(ctx, row)
 	if err != nil {
+		log.WithField("error", err).Error("cannot eval right side")
 		return nil, err
 	}
 
@@ -71,6 +77,7 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	right, err = sql.Text.Convert(right)
 	if err != nil {
+		log.WithField("error", err).Error("cannot convert right side")
 		return nil, err
 	}
 
@@ -86,27 +93,59 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return int64(0), nil
 	}
 
-	return f.historyIdx(s.Pool, start, target)
+	return f.historyIdx(ctx, log, start, target)
 }
 
-func (f *HistoryIdx) historyIdx(pool *gitbase.RepositoryPool, start, target plumbing.Hash) (int64, error) {
+func (f *HistoryIdx) historyIdx(
+	ctx *sql.Context,
+	log *logrus.Entry,
+	start, target plumbing.Hash,
+) (int64, error) {
+	s, ok := ctx.Session.(*gitbase.Session)
+	if !ok {
+		return 0, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	pool := s.Pool
+
 	iter, err := pool.RepoIter()
 	if err != nil {
+		log.WithField("error", err).Error("cannot create repository iterator")
 		return 0, err
 	}
 
 	for {
+		select {
+		case <-ctx.Done():
+			log.Debug("query canceled")
+			return 0, gitbase.ErrSessionCanceled.New()
+		default:
+		}
+
 		repo, err := iter.Next()
 		if err == io.EOF {
 			return -1, nil
 		}
 
 		if err != nil {
+			log.WithField("error", err).Error("could not get next repository")
+
+			if s.SkipGitErrors {
+				continue
+			}
 			return 0, err
 		}
 
-		idx, err := f.repoHistoryIdx(repo.Repo, start, target)
+		idx, err := f.repoHistoryIdx(ctx, repo, log, start, target)
 		if err != nil {
+			log.WithFields(logrus.Fields{
+				"repo":  repo.ID,
+				"error": err,
+			}).Error("error searching history")
+
+			if s.SkipGitErrors {
+				continue
+			}
 			return 0, err
 		}
 
@@ -124,7 +163,19 @@ type stackFrame struct {
 	hashes []plumbing.Hash
 }
 
-func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing.Hash) (int64, error) {
+func (f *HistoryIdx) repoHistoryIdx(
+	ctx *sql.Context,
+	r *gitbase.Repository,
+	log *logrus.Entry,
+	start, target plumbing.Hash,
+) (int64, error) {
+	s := ctx.Session.(*gitbase.Session)
+	repo := r.Repo
+	log = log.WithFields(logrus.Fields{
+		"repo":   r.ID,
+		"target": target.String(),
+	})
+
 	// If the target is not on the repo we can avoid starting to traverse the
 	// tree completely.
 	_, err := repo.CommitObject(target)
@@ -133,6 +184,10 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 	}
 
 	if err != nil {
+		log.WithFields(logrus.Fields{
+			"error":  err,
+			"commit": target.String(),
+		}).Error("could not get commit")
 		return 0, err
 	}
 
@@ -147,6 +202,13 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 	visitedHashes := make(map[plumbing.Hash]struct{})
 
 	for {
+		select {
+		case <-ctx.Done():
+			log.Debug("query canceled")
+			return 0, gitbase.ErrSessionCanceled.New()
+		default:
+		}
+
 		if len(stack) == 0 {
 			f.cache.Add(historyKey{start, target}, int64(-1))
 			return -1, nil
@@ -165,7 +227,18 @@ func (f *HistoryIdx) repoHistoryIdx(repo *git.Repository, start, target plumbing
 		}
 
 		if err != nil {
-			return 0, err
+			log.WithFields(logrus.Fields{
+				"error":  err,
+				"commit": h.String(),
+			}).Error("could not get commit")
+
+			if !s.SkipGitErrors {
+				return 0, err
+			}
+
+			c = &object.Commit{
+				Hash: h,
+			}
 		}
 
 		frame.pos++

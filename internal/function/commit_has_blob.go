@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/hashicorp/golang-lru"
+	"github.com/sirupsen/logrus"
 
 	"github.com/src-d/gitbase"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -40,10 +41,6 @@ func (CommitHasBlob) Type() sql.Type {
 
 // Eval implements the Expression interface.
 func (f *CommitHasBlob) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
-	s, ok := ctx.Session.(*gitbase.Session)
-	if !ok {
-		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
-	}
 
 	commitHash, err := f.Left.Eval(ctx, row)
 	if err != nil {
@@ -74,7 +71,7 @@ func (f *CommitHasBlob) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 	}
 
 	return f.commitHasBlob(
-		s.Pool,
+		ctx,
 		plumbing.NewHash(commitHash.(string)),
 		plumbing.NewHash(blob.(string)),
 	)
@@ -85,25 +82,49 @@ type commitBlobKey struct {
 }
 
 func (f *CommitHasBlob) commitHasBlob(
-	pool *gitbase.RepositoryPool,
+	ctx *sql.Context,
 	commitHash, blob plumbing.Hash,
 ) (bool, error) {
 	if val, ok := f.cache.Get(commitBlobKey{commitHash, blob}); ok {
 		return val.(bool), nil
 	}
 
-	iter, err := pool.RepoIter()
+	s, ok := ctx.Session.(*gitbase.Session)
+	if !ok {
+		return false, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	log := logrus.WithFields(logrus.Fields{
+		"function":    "commit_hash_blob",
+		"commit_hash": commitHash.String(),
+		"blob":        blob.String(),
+	})
+
+	iter, err := s.Pool.RepoIter()
 	if err != nil {
+		log.WithField("error", err).Error("cannot create repository iterator")
 		return false, err
 	}
 
 	for {
+		select {
+		case <-ctx.Done():
+			log.Debug("query canceled")
+			return false, gitbase.ErrSessionCanceled.New()
+		default:
+		}
+
 		repository, err := iter.Next()
 		if err == io.EOF {
 			break
 		}
 
 		if err != nil {
+			log.WithField("error", err).Error("could not get repository")
+
+			if s.SkipGitErrors {
+				continue
+			}
 			return false, err
 		}
 
@@ -113,17 +134,36 @@ func (f *CommitHasBlob) commitHasBlob(
 			continue
 		}
 
+		log = log.WithFields(logrus.Fields{
+			"repo": repository.ID,
+		})
+
 		if err != nil {
+			logrus.WithField("error", err).Error("could not get commit")
+
+			if s.SkipGitErrors {
+				continue
+			}
 			return false, err
 		}
 
 		tree, err := commit.Tree()
 		if err != nil {
+			logrus.WithField("error", err).Error("could not get tree")
+
+			if s.SkipGitErrors {
+				continue
+			}
 			return false, err
 		}
 
 		contained, err := f.hashInTree(blob, commitHash, tree)
 		if err != nil {
+			logrus.WithField("error", err).Error("error searching hash in tree")
+
+			if s.SkipGitErrors {
+				continue
+			}
 			return false, err
 		}
 

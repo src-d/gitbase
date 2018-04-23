@@ -39,6 +39,16 @@ func TestAllRemotesIter(t *testing.T) {
 		)),
 		1,
 	)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	require.Len(chainableIterRows(t, ctx, NewAllRemotesIter(nil)), 2)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(t, ctx, NewAllRemotesIter(nil))
 }
 
 func TestRepoRemotesIter(t *testing.T) {
@@ -63,6 +73,22 @@ func TestRepoRemotesIter(t *testing.T) {
 			),
 		),
 	), 1)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	require.Len(chainableIterRows(
+		t, ctx,
+		NewRepoRemotesIter(NewAllReposIter(nil), nil),
+	), 2)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewRepoRemotesIter(NewAllReposIter(nil), nil),
+	)
 }
 
 func TestAllRefsIter(t *testing.T) {
@@ -74,6 +100,8 @@ func TestAllRefsIter(t *testing.T) {
 		t, ctx,
 		NewAllRefsIter(nil),
 	)
+
+	expectedRowsLen := len(rows)
 
 	it, err := NewRowRepoIter(ctx, new(referenceIter))
 	require.NoError(err)
@@ -93,6 +121,24 @@ func TestAllRefsIter(t *testing.T) {
 	)
 
 	require.Len(rows, 2)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewAllRefsIter(nil),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewAllRefsIter(nil),
+	)
 }
 
 func TestRepoRefsIter(t *testing.T) {
@@ -107,6 +153,8 @@ func TestRepoRefsIter(t *testing.T) {
 			nil,
 		),
 	)
+
+	expectedRowsLen := len(rows)
 
 	expected := chainableIterRows(
 		t, ctx,
@@ -131,6 +179,30 @@ func TestRepoRefsIter(t *testing.T) {
 	)
 
 	require.Len(rows, 2)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewRepoRefsIter(
+			NewAllReposIter(nil),
+			nil,
+		),
+	)
+
+	require.Equal(expectedRowsLen, len(rows))
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewRepoRefsIter(
+			NewAllReposIter(nil),
+			nil,
+		),
+	)
 }
 
 func TestRemoteRefsIter(t *testing.T) {
@@ -145,6 +217,8 @@ func TestRemoteRefsIter(t *testing.T) {
 			nil,
 		),
 	)
+
+	expectedRowsLen := len(rows)
 
 	expected := chainableIterRows(
 		t, ctx,
@@ -169,6 +243,30 @@ func TestRemoteRefsIter(t *testing.T) {
 	)
 
 	require.Len(rows, 2)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewRemoteRefsIter(
+			NewAllRemotesIter(nil),
+			nil,
+		),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewRemoteRefsIter(
+			NewAllRemotesIter(nil),
+			nil,
+		),
+	)
 }
 
 func TestAllCommitsIter(t *testing.T) {
@@ -180,6 +278,8 @@ func TestAllCommitsIter(t *testing.T) {
 		t, ctx,
 		NewAllCommitsIter(nil),
 	)
+
+	expectedRowsLen := len(rows)
 
 	it, err := NewRowRepoIter(ctx, new(commitIter))
 	require.NoError(err)
@@ -199,6 +299,24 @@ func TestAllCommitsIter(t *testing.T) {
 	)
 
 	require.Len(rows, 12)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewAllCommitsIter(nil),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewAllCommitsIter(nil),
+	)
 }
 
 func TestRefCommitsIter(t *testing.T) {
@@ -215,6 +333,8 @@ func TestRefCommitsIter(t *testing.T) {
 	)
 	require.Len(rows, 44)
 
+	expectedRowsLen := len(rows)
+
 	rows = chainableIterRows(
 		t, ctx,
 		NewRefCommitsIter(
@@ -229,6 +349,30 @@ func TestRefCommitsIter(t *testing.T) {
 		),
 	)
 	require.Len(rows, 11)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewRefCommitsIter(
+			NewAllRefsIter(nil),
+			nil,
+		),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewRefCommitsIter(
+			NewAllRefsIter(nil),
+			nil,
+		),
+	)
 }
 
 func TestRefHEADCommitsIter(t *testing.T) {
@@ -240,6 +384,8 @@ func TestRefHEADCommitsIter(t *testing.T) {
 		t, ctx,
 		NewRefHEADCommitsIter(NewAllRefsIter(nil), nil, false),
 	)
+
+	expectedRowsLen := len(rows)
 
 	it, err := NewRowRepoIter(ctx, new(referenceIter))
 	require.NoError(err)
@@ -267,6 +413,24 @@ func TestRefHEADCommitsIter(t *testing.T) {
 	for _, row := range rows {
 		require.Equal(row[2 /* ref hash */], row[3 /* commit hash */])
 	}
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewRefHEADCommitsIter(NewAllRefsIter(nil), nil, false),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewRefHEADCommitsIter(NewAllRefsIter(nil), nil, false),
+	)
 }
 
 func TestAllTreeEntriesIter(t *testing.T) {
@@ -278,6 +442,8 @@ func TestAllTreeEntriesIter(t *testing.T) {
 		t, ctx,
 		NewAllTreeEntriesIter(nil),
 	)
+
+	expectedRowsLen := len(rows)
 
 	it, err := NewRowRepoIter(ctx, new(treeEntryIter))
 	require.NoError(err)
@@ -297,6 +463,24 @@ func TestAllTreeEntriesIter(t *testing.T) {
 	)
 
 	require.Len(rows, 8)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewAllTreeEntriesIter(nil),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewAllTreeEntriesIter(nil),
+	)
 }
 
 func TestCommitTreeEntriesIter(t *testing.T) {
@@ -314,6 +498,34 @@ func TestCommitTreeEntriesIter(t *testing.T) {
 	)
 
 	require.Len(rows, 67)
+
+	expectedRowsLen := len(rows)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewCommitTreeEntriesIter(
+			NewAllCommitsIter(nil),
+			nil,
+			false,
+		),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewCommitTreeEntriesIter(
+			NewAllCommitsIter(nil),
+			nil,
+			false,
+		),
+	)
 }
 
 func TestCommitMainTreeEntriesIter(t *testing.T) {
@@ -331,6 +543,34 @@ func TestCommitMainTreeEntriesIter(t *testing.T) {
 	)
 
 	require.Len(rows, 52)
+
+	expectedRowsLen := len(rows)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewCommitMainTreeEntriesIter(
+			NewAllCommitsIter(nil),
+			nil,
+			false,
+		),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewCommitMainTreeEntriesIter(
+			NewAllCommitsIter(nil),
+			nil,
+			false,
+		),
+	)
 }
 
 func TestTreeEntryBlobsIter(t *testing.T) {
@@ -353,6 +593,8 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 
 	require.Len(rows, 67)
 
+	expectedRowsLen := len(rows)
+
 	rows = chainableIterRows(
 		t, ctx,
 		NewTreeEntryBlobsIter(
@@ -370,6 +612,40 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 	)
 
 	require.Len(rows, 12)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewTreeEntryBlobsIter(
+			NewCommitTreeEntriesIter(
+				NewAllCommitsIter(nil),
+				nil,
+				false,
+			),
+			nil,
+			false,
+		),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewTreeEntryBlobsIter(
+			NewCommitTreeEntriesIter(
+				NewAllCommitsIter(nil),
+				nil,
+				false,
+			),
+			nil,
+			false,
+		),
+	)
 }
 
 func TestRecursiveTreeFileIter(t *testing.T) {
@@ -386,7 +662,14 @@ func TestRecursiveTreeFileIter(t *testing.T) {
 	tree, err := repo.TreeObject(hash)
 	require.NoError(err)
 
-	iter := newRecursiveTreeFileIter(repo, tree)
+	r := &Repository{
+		Repo: repo,
+		ID:   "test_repo",
+	}
+
+	session := NewSession(nil)
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+	iter := newRecursiveTreeFileIter(ctx, r, tree)
 
 	var result [][]interface{}
 	for {
@@ -419,6 +702,8 @@ func TestRecursiveTreeFileIter(t *testing.T) {
 	}
 
 	require.Equal(expected, result)
+
+	// TODO: add repo that has errors walking trees
 }
 
 func TestCommitBlobsIter(t *testing.T) {
@@ -440,6 +725,48 @@ func TestCommitBlobsIter(t *testing.T) {
 	)
 
 	require.Len(rows, 42)
+	expectedRowsLen := len(rows)
+
+	ctx, cleanup2 := setupIterWithErrors(t, true, true)
+	defer cleanup2()
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewCommitBlobsIter(
+			NewRefHEADCommitsIter(
+				NewAllRefsIter(nil),
+				nil,
+				true,
+			),
+			nil,
+			false,
+		),
+	)
+
+	require.Len(rows, expectedRowsLen)
+
+	ctx, cleanup3 := setupIterWithErrors(t, true, false)
+	defer cleanup3()
+
+	chainableIterRowsError(
+		t, ctx,
+		NewCommitBlobsIter(
+			NewRefHEADCommitsIter(
+				NewAllRefsIter(nil),
+				nil,
+				true,
+			),
+			nil,
+			false,
+		),
+	)
+}
+
+func chainableIterRowsError(t *testing.T, ctx *sql.Context, iter ChainableIter) {
+	it, err := NewRowRepoIter(ctx, NewChainableRowRepoIter(ctx, iter))
+	require.NoError(t, err)
+	_, err = sql.RowIterToRows(it)
+	require.Error(t, err)
 }
 
 func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql.Row {
@@ -451,14 +778,23 @@ func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql
 }
 
 func setupIter(t *testing.T) (*sql.Context, func()) {
+	return setupIterWithErrors(t, false, false)
+}
+
+func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Context, func()) {
 	require.NoError(t, fixtures.Init())
 
 	pool := NewRepositoryPool()
+	if badRepo {
+		// TODO: add repo with errors
+		pool.Add("bad_repo", "bad_path", gitRepo)
+	}
+
 	for _, f := range fixtures.ByTag("worktree") {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := NewSession(pool)
+	session := NewSession(pool, WithSkipGitErrors(skipErrors))
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())

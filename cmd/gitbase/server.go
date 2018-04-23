@@ -21,6 +21,11 @@ import (
 // not be empty.
 var enableUnstableSquash = os.Getenv("UNSTABLE_SQUASH_ENABLE") != ""
 
+// By default when gitbase encounters and error in a repository it stops
+// the query. With this parameter it won't complain and just skip those
+// rows or repositories.
+var skipGitErrors = os.Getenv("GITBASE_SKIP_GIT_ERRORS") != ""
+
 type cmdServer struct {
 	Verbose bool `short:"v" description:"Activates the verbose mode"`
 
@@ -84,7 +89,9 @@ func (c *cmdServer) Execute(args []string) error {
 			Auth:     auth,
 		},
 		c.engine,
-		gitbase.NewSessionBuilder(c.pool),
+		gitbase.NewSessionBuilder(c.pool,
+			gitbase.WithSkipGitErrors(skipGitErrors),
+		),
 	)
 	if err != nil {
 		return err

@@ -21,6 +21,8 @@ type Session struct {
 	bblfshMu       sync.Mutex
 	bblfshEndpoint string
 	bblfshClient   *bblfsh.Client
+
+	SkipGitErrors bool
 }
 
 const (
@@ -35,6 +37,13 @@ type SessionOption func(*Session)
 func WithBblfshEndpoint(endpoint string) SessionOption {
 	return func(s *Session) {
 		s.bblfshEndpoint = endpoint
+	}
+}
+
+// WithSkipGitErrors changes the behavior with go-git error.
+func WithSkipGitErrors(enabled bool) SessionOption {
+	return func(s *Session) {
+		s.SkipGitErrors = enabled
 	}
 }
 
@@ -125,6 +134,10 @@ var ErrSessionCanceled = errors.NewKind("session canceled")
 // ErrInvalidGitbaseSession is returned when some node expected a gitbase
 // session but received something else.
 var ErrInvalidGitbaseSession = errors.NewKind("expecting gitbase session, but received: %T")
+
+// ErrInvalidContext is returned when some node expected an sql.Context
+// with gitbase session but received something else.
+var ErrInvalidContext = errors.NewKind("invalid context received: %v")
 
 // ErrBblfshConnection is returned when it's impossible to connect to bblfsh.
 var ErrBblfshConnection = errors.NewKind("unable to establish a new bblfsh connection")

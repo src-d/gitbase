@@ -266,53 +266,6 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	require.ElementsMatch(arrayExpected, arrayID)
 }
 
-var errIter = fmt.Errorf("Error iter")
-
-type testErrorIter struct{}
-
-func (d *testErrorIter) NewIterator(
-	repo *Repository,
-) (RowRepoIter, error) {
-	return nil, errIter
-	// return &testErrorIter{}, nil
-}
-
-func (d *testErrorIter) Next() (sql.Row, error) {
-	return nil, io.EOF
-}
-
-func (d *testErrorIter) Close() error {
-	return nil
-}
-
-func TestRepositoryErrorIter(t *testing.T) {
-	require := require.New(t)
-
-	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
-	pool := NewRepositoryPool()
-	pool.Add("one", path, gitRepo)
-
-	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-
-	ctx := sql.NewContext(timeout, sql.WithSession(NewSession(pool)))
-	eIter := &testErrorIter{}
-
-	iter, err := NewRowRepoIter(ctx, eIter)
-	repoIter := iter.(*rowRepoIter)
-	require.NoError(err)
-
-	go func() {
-		repoIter.Next()
-	}()
-
-	select {
-	case <-repoIter.done:
-		require.Equal(errIter, repoIter.err)
-	}
-
-	cancel()
-}
-
 func TestRepositoryPoolSiva(t *testing.T) {
 	require := require.New(t)
 
@@ -345,4 +298,145 @@ func TestRepositoryPoolSiva(t *testing.T) {
 	}
 
 	require.Equal(expected, result)
+}
+
+var errIter = fmt.Errorf("Error iter")
+
+type newIteratorFunc func(*Repository) (RowRepoIter, error)
+type nextFunc func() (sql.Row, error)
+
+type testErrorIter struct {
+	newIterator newIteratorFunc
+	next        nextFunc
+}
+
+func (d *testErrorIter) NewIterator(
+	repo *Repository,
+) (RowRepoIter, error) {
+	if d.newIterator != nil {
+		return d.newIterator(repo)
+	}
+
+	return nil, errIter
+}
+
+func (d *testErrorIter) Next() (sql.Row, error) {
+	if d.next != nil {
+		return d.next()
+	}
+
+	return nil, io.EOF
+}
+
+func (d *testErrorIter) Close() error {
+	return nil
+}
+
+func testCaseRepositoryErrorIter(
+	t *testing.T,
+	pool *RepositoryPool,
+	iter RowRepoIter,
+	retError error,
+	skipGitErrors bool,
+) {
+	require := require.New(t)
+
+	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx := sql.NewContext(timeout,
+		sql.WithSession(NewSession(pool, WithSkipGitErrors(skipGitErrors))),
+	)
+
+	r, err := NewRowRepoIter(ctx, iter)
+	require.NoError(err)
+
+	repoIter, ok := r.(*rowRepoIter)
+	require.True(ok)
+
+	go func() {
+		for {
+			_, err := repoIter.Next()
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	select {
+	case <-repoIter.done:
+		require.Equal(retError, repoIter.err)
+	}
+
+	cancel()
+}
+
+func TestRepositoryErrorIter(t *testing.T) {
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+	pool := NewRepositoryPool()
+	pool.Add("one", path, gitRepo)
+
+	iter := &testErrorIter{}
+	testCaseRepositoryErrorIter(t, pool, iter, errIter, false)
+}
+
+func TestRepositoryErrorBadRepository(t *testing.T) {
+	pool := NewRepositoryPool()
+	pool.Add("one", "badpath", gitRepo)
+
+	iter := &testErrorIter{}
+
+	newIterator := func(*Repository) (RowRepoIter, error) {
+		return iter, nil
+	}
+
+	count := 0
+	next := func() (sql.Row, error) {
+		if count >= 10 {
+			return nil, io.EOF
+		}
+
+		count++
+
+		return sql.NewRow("test"), nil
+	}
+
+	iter.newIterator = newIterator
+	iter.next = next
+
+	testCaseRepositoryErrorIter(t, pool, iter, git.ErrRepositoryNotExists, false)
+	testCaseRepositoryErrorIter(t, pool, iter, io.EOF, true)
+}
+
+func TestRepositoryErrorBadRow(t *testing.T) {
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+	pool := NewRepositoryPool()
+	pool.Add("one", path, gitRepo)
+
+	iter := &testErrorIter{}
+
+	newIterator := func(*Repository) (RowRepoIter, error) {
+		return iter, nil
+	}
+
+	errRow := fmt.Errorf("bad row")
+
+	count := 0
+	next := func() (sql.Row, error) {
+		if count == 5 {
+			return nil, errRow
+		}
+
+		if count >= 10 {
+			return nil, io.EOF
+		}
+
+		count++
+
+		return sql.NewRow("test"), nil
+	}
+
+	iter.newIterator = newIterator
+	iter.next = next
+
+	testCaseRepositoryErrorIter(t, pool, iter, errRow, false)
+	testCaseRepositoryErrorIter(t, pool, iter, io.EOF, true)
 }
