@@ -102,6 +102,18 @@
   version = "0.4"
 
 [[projects]]
+  name = "github.com/mattn/go-colorable"
+  packages = ["."]
+  revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
+  version = "v0.0.9"
+
+[[projects]]
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  revision = "0360b2af4f38e8d38c7fce2a9f4e702702d73a39"
+  version = "v0.0.3"
+
+[[projects]]
   name = "github.com/mattn/go-runewidth"
   packages = ["."]
   revision = "9e777a8366cce605130a531d2cd6363d07ad7317"
@@ -112,6 +124,12 @@
   name = "github.com/mcuadros/go-lookup"
   packages = ["."]
   revision = "5650f26be7675b629fff8356a50d906fa03e9c8b"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mgutz/ansi"
+  packages = ["."]
+  revision = "9520e82c474b0a04dd04f8a40959027271bab992"
 
 [[projects]]
   branch = "master"
@@ -183,6 +201,12 @@
   version = "v1.2.0"
 
 [[projects]]
+  name = "github.com/src-d/envconfig"
+  packages = ["."]
+  revision = "0280e33525f5d88edb71638a80b31724153225ba"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/src-d/gcfg"
   packages = [
     ".",
@@ -230,6 +254,12 @@
   packages = ["metrics"]
   revision = "4267858c0679cd4e47cefed8d7f70fd386cfb567"
   version = "v1.4.0"
+
+[[projects]]
+  name = "github.com/x-cray/logrus-prefixed-formatter"
+  packages = ["."]
+  revision = "bb2702d423886830dee131692131d35648c382e2"
+  version = "v0.5.2"
 
 [[projects]]
   branch = "master"
@@ -458,6 +488,12 @@
   version = "v4.2.0"
 
 [[projects]]
+  branch = "master"
+  name = "gopkg.in/src-d/go-log.v0"
+  packages = ["."]
+  revision = "e555fa2c56661a3aafb566fc45446ac7cbf97085"
+
+[[projects]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -518,6 +554,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3f2bccbcccd3b8b671ef070ba165c4b9d002cd94f9da3c7e58a82a8d55cf2e70"
+  inputs-digest = "ef332cef6e893b459f6ccd8d87f1436237407c536029c5f59299f21782a7e6e5"
   solver-name = "gps-cdcl"
   solver-version = 1

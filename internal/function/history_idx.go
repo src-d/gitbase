@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/hashicorp/golang-lru"
-	"github.com/sirupsen/logrus"
+	"gopkg.in/src-d/go-log.v0"
 
 	"github.com/src-d/gitbase"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -42,7 +42,8 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	span, ctx := ctx.Span("gitbase.HistoryIdx")
 	defer span.Finish()
 
-	log := logrus.WithFields(logrus.Fields{
+	logger, _ := log.New()
+	logger = logger.New(log.Fields{
 		"function": "history_idx",
 		"row":      row,
 		"left":     f.Left.String(),
@@ -51,7 +52,7 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
-		log.WithField("error", err).Error("cannot eval left side")
+		logger.Error(err, "cannot eval left side")
 		return nil, err
 	}
 
@@ -61,13 +62,13 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	left, err = sql.Text.Convert(left)
 	if err != nil {
-		log.WithField("error", err).Error("cannot convert left side")
+		logger.Error(err, "cannot convert left side")
 		return nil, err
 	}
 
 	right, err := f.Right.Eval(ctx, row)
 	if err != nil {
-		log.WithField("error", err).Error("cannot eval right side")
+		logger.Error(err, "cannot eval right side")
 		return nil, err
 	}
 
@@ -77,7 +78,7 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	right, err = sql.Text.Convert(right)
 	if err != nil {
-		log.WithField("error", err).Error("cannot convert right side")
+		logger.Error(err, "cannot convert right side")
 		return nil, err
 	}
 
@@ -93,12 +94,12 @@ func (f *HistoryIdx) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return int64(0), nil
 	}
 
-	return f.historyIdx(ctx, log, start, target)
+	return f.historyIdx(ctx, logger, start, target)
 }
 
 func (f *HistoryIdx) historyIdx(
 	ctx *sql.Context,
-	log *logrus.Entry,
+	logger log.Logger,
 	start, target plumbing.Hash,
 ) (int64, error) {
 	s, ok := ctx.Session.(*gitbase.Session)
@@ -110,14 +111,14 @@ func (f *HistoryIdx) historyIdx(
 
 	iter, err := pool.RepoIter()
 	if err != nil {
-		log.WithField("error", err).Error("cannot create repository iterator")
+		logger.Error(err, "cannot create repository iterator")
 		return 0, err
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("query canceled")
+			logger.Debugf("query canceled")
 			return 0, gitbase.ErrSessionCanceled.New()
 		default:
 		}
@@ -128,7 +129,7 @@ func (f *HistoryIdx) historyIdx(
 		}
 
 		if err != nil {
-			log.WithField("error", err).Error("could not get next repository")
+			logger.Error(err, "could not get next repository")
 
 			if s.SkipGitErrors {
 				continue
@@ -136,12 +137,11 @@ func (f *HistoryIdx) historyIdx(
 			return 0, err
 		}
 
-		idx, err := f.repoHistoryIdx(ctx, repo, log, start, target)
+		idx, err := f.repoHistoryIdx(ctx, repo, logger, start, target)
 		if err != nil {
-			log.WithFields(logrus.Fields{
-				"repo":  repo.ID,
-				"error": err,
-			}).Error("error searching history")
+			logger.New(log.Fields{
+				"repo": repo.ID,
+			}).Error(err, "error searching history")
 
 			if s.SkipGitErrors {
 				continue
@@ -166,12 +166,12 @@ type stackFrame struct {
 func (f *HistoryIdx) repoHistoryIdx(
 	ctx *sql.Context,
 	r *gitbase.Repository,
-	log *logrus.Entry,
+	logger log.Logger,
 	start, target plumbing.Hash,
 ) (int64, error) {
 	s := ctx.Session.(*gitbase.Session)
 	repo := r.Repo
-	log = log.WithFields(logrus.Fields{
+	logger = logger.New(log.Fields{
 		"repo":   r.ID,
 		"target": target.String(),
 	})
@@ -184,10 +184,9 @@ func (f *HistoryIdx) repoHistoryIdx(
 	}
 
 	if err != nil {
-		log.WithFields(logrus.Fields{
-			"error":  err,
+		logger.New(log.Fields{
 			"commit": target.String(),
-		}).Error("could not get commit")
+		}).Error(err, "could not get commit")
 		return 0, err
 	}
 
@@ -204,7 +203,7 @@ func (f *HistoryIdx) repoHistoryIdx(
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("query canceled")
+			logger.Debugf("query canceled")
 			return 0, gitbase.ErrSessionCanceled.New()
 		default:
 		}
@@ -227,10 +226,9 @@ func (f *HistoryIdx) repoHistoryIdx(
 		}
 
 		if err != nil {
-			log.WithFields(logrus.Fields{
-				"error":  err,
+			logger.New(log.Fields{
 				"commit": h.String(),
-			}).Error("could not get commit")
+			}).Error(err, "could not get commit")
 
 			if !s.SkipGitErrors {
 				return 0, err
