@@ -53,13 +53,13 @@ SELECT hash, author_email, author_name FROM commits LIMIT 2;
 
 ### Environment variables
 
-| Name                         | Description                                         |
-|:-----------------------------|:----------------------------------------------------|
-| `BBLFSH_ENDPOINT`            | bblfshd endpoint, default "127.0.0.1:9432"          |
-| `GITBASE_BLOBS_MAX_SIZE`     | maximum blob size to return in MiB, default 5 MiB   |
-| `GITBASE_BLOBS_ALLOW_BINARY` | enable retrieval of binary blobs, default `false`   |
-| `UNSTABLE_SQUASH_ENABLE`     | **UNSTABLE** check *Unstable features*              |
-| `GITBASE_SKIP_GIT_ERRORS`    | do not stop queries on git errors, default disabled |
+| Name                             | Description                                         |
+|:---------------------------------|:----------------------------------------------------|
+| `BBLFSH_ENDPOINT`                | bblfshd endpoint, default "127.0.0.1:9432"          |
+| `GITBASE_BLOBS_MAX_SIZE`         | maximum blob size to return in MiB, default 5 MiB   |
+| `GITBASE_BLOBS_ALLOW_BINARY`     | enable retrieval of binary blobs, default `false`   |
+| `GITBASE_UNSTABLE_SQUASH_ENABLE` | **UNSTABLE** check *Unstable features*              |
+| `GITBASE_SKIP_GIT_ERRORS`        | do not stop queries on git errors, default disabled |
 
 ## Tables
 
@@ -95,7 +95,7 @@ To make some common tasks easier for the user, there are some functions to inter
 
 ## Unstable features
 
-- **Table squashing:** there is an optimization that collects inner joins between tables with a set of supported conditions and converts them into a single node that retrieves the data in chained steps (getting first the commits and then the blobs of every commit instead of joinin all commits and all blobs, for example). It can be enabled with the environment variable `UNSTABLE_SQUASH_ENABLE`.
+- **Table squashing:** there is an optimization that collects inner joins between tables with a set of supported conditions and converts them into a single node that retrieves the data in chained steps (getting first the commits and then the blobs of every commit instead of joinin all commits and all blobs, for example). It can be enabled with the environment variable `GITBASE_UNSTABLE_SQUASH_ENABLE`.
 
 ## Examples
 

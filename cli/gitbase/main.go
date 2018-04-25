@@ -16,7 +16,7 @@ func main() {
 	parser := flags.NewNamedParser(name, flags.Default)
 
 	parser.AddCommand("server", cmd.ServerDescription, cmd.ServerHelp, &cmd.Server{
-		UnstableSquash: os.Getenv("UNSTABLE_SQUASH_ENABLE") != "",
+		UnstableSquash: os.Getenv("GITBASE_UNSTABLE_SQUASH_ENABLE") != "",
 		SkipGitErrors:  os.Getenv("GITBASE_SKIP_GIT_ERRORS") != "",
 	})
 

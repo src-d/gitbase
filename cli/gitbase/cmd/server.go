@@ -19,7 +19,7 @@ const (
 	ServerHelp        = ServerDescription + "\n\n" +
 		"The squashing tables and pushing down join conditions is still a\n" +
 		"work in progress and unstable,disable by default can be enabled\n" +
-		"using a not empty value at UNSTABLE_SQUASH_ENABLE env variable.\n\n" +
+		"using a not empty value at GITBASE_UNSTABLE_SQUASH_ENABLE env variable.\n\n" +
 		"By default when gitbase encounters and error in a repository it\n" +
 		"stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't\n" +
 		"complain and just skip those rows or repositories."
@@ -36,7 +36,7 @@ type Server struct {
 	Password string   `short:"P" long:"password" default:"" description:"Password used for connection"`
 
 	// UnstableSquash quashing tables and pushing down join conditions is still
-	// a work in progress and unstable. To enable it, the UNSTABLE_SQUASH_ENABLE
+	// a work in progress and unstable. To enable it, the GITBASE_UNSTABLE_SQUASH_ENABLE
 	// must not be empty.
 	UnstableSquash bool
 	// IgnoreGitErrors by default when gitbase encounters and error in a
