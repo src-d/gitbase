@@ -14,7 +14,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
-	"github.com/sirupsen/logrus"
+	"gopkg.in/src-d/go-log.v0"
 )
 
 // ChainableIter is an iterator meant to have a chaining-friendly API.
@@ -230,6 +230,8 @@ func (i *repoRemotesIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.repos == nil {
 			return io.EOF
@@ -248,11 +250,10 @@ func (i *repoRemotesIter) Advance() error {
 
 			i.remotes, err = i.repos.Repo().Repo.Remotes()
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"iter":  "repoRemoteIter",
-					"repo":  i.repos.Repo().ID,
-					"error": err,
-				}).Error("unable to retrieve repository remotes")
+				logger.New(log.Fields{
+					"iter": "repoRemoteIter",
+					"repo": i.repos.Repo().ID,
+				}).Error(err, "unable to retrieve repository remotes")
 
 				if session.SkipGitErrors {
 					continue
@@ -379,7 +380,9 @@ func (i *refIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error)
 			return nil, err
 		}
 
-		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
+		logger, _ := log.New()
+		logger.New(log.Fields{"repo": repo.ID}).
+			Debugf("unable to get HEAD of repository")
 	}
 
 	return &refIter{
@@ -396,6 +399,8 @@ func (i *refIter) Advance() error {
 	if err != nil {
 		return err
 	}
+
+	logger, _ := log.New()
 
 	for {
 		if i.refs == nil {
@@ -426,10 +431,10 @@ func (i *refIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
+			logger.New(log.Fields{
 				"type": ref.Type(),
 				"ref":  ref.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
+			}).Debugf("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -503,6 +508,8 @@ func (i *repoRefsIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.repos == nil {
 			return io.EOF
@@ -521,10 +528,9 @@ func (i *repoRefsIter) Advance() error {
 
 			i.refs, err = i.repos.Repo().Repo.References()
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-					"repo":  i.repos.Repo().ID,
-				}).Error("unable to retrieve references")
+				logger.New(log.Fields{
+					"repo": i.repos.Repo().ID,
+				}).Error(err, "unable to retrieve references")
 
 				if session.SkipGitErrors {
 					continue
@@ -539,8 +545,8 @@ func (i *repoRefsIter) Advance() error {
 					return err
 				}
 
-				logrus.WithField("repo", i.repos.Repo().ID).
-					Debug("unable to get HEAD of repository")
+				logger.New(log.Fields{"repo": i.repos.Repo().ID}).
+					Debugf("unable to get HEAD of repository")
 				continue
 			}
 		}
@@ -566,10 +572,10 @@ func (i *repoRefsIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
+			logger.New(log.Fields{
 				"type": ref.Type(),
 				"ref":  ref.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
+			}).Debugf("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -650,6 +656,8 @@ func (i *remoteRefsIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.remotes == nil {
 			return io.EOF
@@ -668,10 +676,9 @@ func (i *remoteRefsIter) Advance() error {
 
 			i.refs, err = i.repo.Repo.References()
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err,
-					"repo":  i.repo.ID,
-				}).Error("unable to retrieve references")
+				logger.New(log.Fields{
+					"repo": i.repo.ID,
+				}).Error(err, "unable to retrieve references")
 
 				if session.SkipGitErrors {
 					continue
@@ -686,8 +693,8 @@ func (i *remoteRefsIter) Advance() error {
 					return err
 				}
 
-				logrus.WithField("repo", i.remotes.Remote().RepoID).
-					Debug("unable to get HEAD of repository")
+				logger.New(log.Fields{"repo": i.remotes.Remote().RepoID}).
+					Debugf("unable to get HEAD of repository")
 			}
 		}
 
@@ -712,10 +719,10 @@ func (i *remoteRefsIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
+			logger.New(log.Fields{
 				"type": ref.Type(),
 				"ref":  ref.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
+			}).Debugf("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -776,12 +783,13 @@ func (i *commitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, er
 		return nil, err
 	}
 
+	logger, _ := log.New()
+
 	commits, err := repo.Repo.CommitObjects()
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"repo":  repo.ID,
-			"error": err,
-		}).Error("unable to get commit iterator")
+		logger.New(log.Fields{
+			"repo": repo.ID,
+		}).Error(err, "unable to get commit iterator")
 
 		if !session.SkipGitErrors {
 			return nil, err
@@ -885,6 +893,8 @@ func (i *refCommitsIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.refs == nil {
 			return io.EOF
@@ -904,18 +914,17 @@ func (i *refCommitsIter) Advance() error {
 			_, err = resolveCommit(i.repo, i.refs.Ref().Hash())
 			if err != nil {
 				if errInvalidCommit.Is(err) {
-					logrus.WithFields(logrus.Fields{
+					logger.New(log.Fields{
 						"ref":  i.refs.Ref().Name(),
 						"hash": i.refs.Ref().Hash(),
-					}).Debug("skipping reference, it's not pointing to a commit")
+					}).Debugf("skipping reference, it's not pointing to a commit")
 					continue
 				}
 
-				logrus.WithFields(logrus.Fields{
-					"ref":   i.refs.Ref().Name(),
-					"hash":  i.refs.Ref().Hash(),
-					"error": err,
-				}).Error("unable to resolve commit")
+				logger.New(log.Fields{
+					"ref":  i.refs.Ref().Name(),
+					"hash": i.refs.Ref().Hash(),
+				}).Error(err, "unable to resolve commit")
 
 				if session.SkipGitErrors {
 					continue
@@ -928,11 +937,10 @@ func (i *refCommitsIter) Advance() error {
 				From: i.refs.Ref().Hash(),
 			})
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"ref":   i.refs.Ref().Name(),
-					"hash":  i.refs.Ref().Hash(),
-					"error": err,
-				}).Error("unable to retrieve commits")
+				logger.New(log.Fields{
+					"ref":  i.refs.Ref().Name(),
+					"hash": i.refs.Ref().Hash(),
+				}).Error(err, "unable to retrieve commits")
 
 				if session.SkipGitErrors {
 					continue
@@ -1027,6 +1035,8 @@ func (i *refHeadCommitsIter) Advance() error {
 		return ErrInvalidGitbaseSession.New(i.ctx.Session)
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.refs == nil {
 			return io.EOF
@@ -1045,18 +1055,17 @@ func (i *refHeadCommitsIter) Advance() error {
 		i.commit, err = resolveCommit(i.repo, i.refs.Ref().Hash())
 		if err != nil {
 			if errInvalidCommit.Is(err) {
-				logrus.WithFields(logrus.Fields{
+				logger.New(log.Fields{
 					"ref":  i.refs.Ref().Name(),
 					"hash": i.refs.Ref().Hash(),
-				}).Debug("skipping reference, it's not pointing to a commit")
+				}).Debugf("skipping reference, it's not pointing to a commit")
 				continue
 			}
 
-			logrus.WithFields(logrus.Fields{
-				"ref":   i.refs.Ref().Name(),
-				"hash":  i.refs.Ref().Hash(),
-				"error": err,
-			}).Error("unable to resolve commit")
+			logger.New(log.Fields{
+				"ref":  i.refs.Ref().Name(),
+				"hash": i.refs.Ref().Hash(),
+			}).Error(err, "unable to resolve commit")
 
 			if session.SkipGitErrors {
 				continue
@@ -1256,6 +1265,8 @@ func (i *commitMainTreeEntriesIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.commits == nil {
 			return io.EOF
@@ -1274,10 +1285,9 @@ func (i *commitMainTreeEntriesIter) Advance() error {
 
 			i.tree, err = i.commits.Commit().Tree()
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
+				logger.New(log.Fields{
 					"commit": i.commits.Commit().Hash.String(),
-					"error":  err,
-				}).Error("unable to retrieve tree")
+				}).Error(err, "unable to retrieve tree")
 
 				if session.SkipGitErrors {
 					continue
@@ -1387,6 +1397,8 @@ func (i *commitTreeEntriesIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.commits == nil {
 			return io.EOF
@@ -1405,10 +1417,9 @@ func (i *commitTreeEntriesIter) Advance() error {
 
 			tree, err := i.commits.Commit().Tree()
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
+				logger.New(log.Fields{
 					"commit": i.commits.Commit().Hash.String(),
-					"error":  err,
-				}).Error("unable to retrieve tree")
+				}).Error(err, "unable to retrieve tree")
 
 				if session.SkipGitErrors {
 					continue
@@ -1498,6 +1509,8 @@ func (i *recursiveTreeFileIter) Next() (*object.File, *object.Tree, error) {
 		return nil, nil, err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.tree == nil {
 			if len(i.pendingTrees) == 0 {
@@ -1527,11 +1540,10 @@ func (i *recursiveTreeFileIter) Next() (*object.File, *object.Tree, error) {
 		if entry.Mode == filemode.Dir {
 			tree, err := i.repo.Repo.TreeObject(entry.Hash)
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"tree":  entry.Hash.String(),
-					"repo":  i.repo.ID,
-					"error": err,
-				}).Error("unable to retrieve tree object")
+				logger.New(log.Fields{
+					"tree": entry.Hash.String(),
+					"repo": i.repo.ID,
+				}).Error(err, "unable to retrieve tree object")
 
 				if session.SkipGitErrors {
 					continue
@@ -1624,6 +1636,8 @@ func (i *treeEntryBlobsIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.treeEntries == nil {
 			return io.EOF
@@ -1641,10 +1655,10 @@ func (i *treeEntryBlobsIter) Advance() error {
 
 		blob, err := i.repo.Repo.BlobObject(i.treeEntries.TreeEntry().Hash)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"repo":  i.repo.ID,
-				"error": err,
-			})
+			logger.New(log.Fields{
+				"repo": i.repo.ID,
+				"hash": i.treeEntries.TreeEntry().Hash,
+			}).Error(err, "error getting blob for tree hash")
 
 			if session.SkipGitErrors {
 				continue
@@ -1732,6 +1746,8 @@ func (i *commitBlobsIter) Advance() error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for {
 		if i.commits == nil {
 			return io.EOF
@@ -1750,11 +1766,10 @@ func (i *commitBlobsIter) Advance() error {
 
 			tree, err := i.repo.Repo.TreeObject(i.commits.Commit().TreeHash)
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
+				logger.New(log.Fields{
 					"repo":      i.repo.ID,
 					"tree_hash": i.commits.Commit().TreeHash.String(),
-					"error":     err,
-				}).Error("unable to retrieve tree object")
+				}).Error(err, "unable to retrieve tree object")
 
 				if session.SkipGitErrors {
 					continue
@@ -1858,16 +1873,18 @@ func resolveCommit(repo *Repository, hash plumbing.Hash) (*object.Commit, error)
 		return nil, err
 	}
 
+	logger, _ := log.New()
+
 	switch obj := obj.(type) {
 	case *object.Commit:
 		return obj, nil
 	case *object.Tag:
 		return resolveCommit(repo, obj.Target)
 	default:
-		logrus.WithFields(logrus.Fields{
+		logger.New(log.Fields{
 			"hash": hash,
 			"type": fmt.Sprintf("%T", obj),
-		}).Debug("expecting hash to belong to a commit object")
+		}).Debugf("expecting hash to belong to a commit object")
 		return nil, errInvalidCommit.New(obj)
 	}
 }

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-billy-siva.v4"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
+	"gopkg.in/src-d/go-log.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
@@ -128,13 +128,16 @@ func (p *RepositoryPool) AddDir(path string) error {
 		return err
 	}
 
+	logger, _ := log.New()
+
 	for _, f := range dirs {
 		if f.IsDir() {
 			name := filepath.Join(path, f.Name())
 			if _, err := p.AddGit(name); err != nil {
-				logrus.WithField("path", name).Error("repository could not be opened")
+				logger.New(log.Fields{"path": name}).
+					Error(err, "repository could not be opened")
 			} else {
-				logrus.WithField("path", name).Debug("repository added")
+				logger.New(log.Fields{"path": name}).Debugf("repository added")
 			}
 		}
 	}
@@ -180,12 +183,15 @@ func (p *RepositoryPool) addSivaFile(root, path string, f os.FileInfo) {
 		relativeFileName = filepath.Join(relPath, f.Name())
 	}
 
+	logger, _ := log.New()
+
 	if strings.HasSuffix(f.Name(), ".siva") {
 		path := filepath.Join(path, f.Name())
 		p.Add(path, path, sivaRepo)
-		logrus.WithField("file", relativeFileName).Debug("repository added")
+		logger.New(log.Fields{"file": relativeFileName}).Debugf("repository added")
 	} else {
-		logrus.WithField("file", relativeFileName).Warn("found a non-siva file, skipping")
+		logger.New(log.Fields{"file": relativeFileName}).
+			Warningf("found a non-siva file, skipping")
 	}
 }
 

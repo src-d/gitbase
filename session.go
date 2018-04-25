@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
 	errors "gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-log.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
@@ -78,6 +78,8 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 		}
 	}
 
+	logger, _ := log.New()
+
 	var attempts, totalAttempts int
 	for {
 		if attempts > bblfshMaxAttempts || totalAttempts > 3*bblfshMaxAttempts {
@@ -89,15 +91,15 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 			return s.bblfshClient, nil
 		case connectivity.Connecting:
 			attempts = 0
-			logrus.WithField("attempts", totalAttempts).
-				Debug("bblfsh is connecting, sleeping 100ms")
+			logger.New(log.Fields{"attempts": totalAttempts}).
+				Debugf("bblfsh is connecting, sleeping 100ms")
 			time.Sleep(100 * time.Millisecond)
 		default:
 			if err := s.bblfshClient.Close(); err != nil {
 				return nil, err
 			}
 
-			logrus.Debug("bblfsh connection is closed, opening a new one")
+			logger.Debugf("bblfsh connection is closed, opening a new one")
 
 			s.bblfshClient, err = bblfsh.NewClient(s.bblfshEndpoint)
 			if err != nil {

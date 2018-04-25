@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/hashicorp/golang-lru"
-	"github.com/sirupsen/logrus"
+	"gopkg.in/src-d/go-log.v0"
 
 	"github.com/src-d/gitbase"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -94,7 +94,9 @@ func (f *CommitHasBlob) commitHasBlob(
 		return false, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	log := logrus.WithFields(logrus.Fields{
+	logger, _ := log.New()
+
+	logger = logger.New(log.Fields{
 		"function":    "commit_hash_blob",
 		"commit_hash": commitHash.String(),
 		"blob":        blob.String(),
@@ -102,14 +104,14 @@ func (f *CommitHasBlob) commitHasBlob(
 
 	iter, err := s.Pool.RepoIter()
 	if err != nil {
-		log.WithField("error", err).Error("cannot create repository iterator")
+		logger.Error(err, "cannot create repository iterator")
 		return false, err
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("query canceled")
+			logger.Debugf("query canceled")
 			return false, gitbase.ErrSessionCanceled.New()
 		default:
 		}
@@ -120,7 +122,7 @@ func (f *CommitHasBlob) commitHasBlob(
 		}
 
 		if err != nil {
-			log.WithField("error", err).Error("could not get repository")
+			logger.Error(err, "could not get repository")
 
 			if s.SkipGitErrors {
 				continue
@@ -134,12 +136,12 @@ func (f *CommitHasBlob) commitHasBlob(
 			continue
 		}
 
-		log = log.WithFields(logrus.Fields{
+		logger := logger.New(log.Fields{
 			"repo": repository.ID,
 		})
 
 		if err != nil {
-			logrus.WithField("error", err).Error("could not get commit")
+			logger.Error(err, "could not get commit")
 
 			if s.SkipGitErrors {
 				continue
@@ -149,7 +151,7 @@ func (f *CommitHasBlob) commitHasBlob(
 
 		tree, err := commit.Tree()
 		if err != nil {
-			logrus.WithField("error", err).Error("could not get tree")
+			logger.Error(err, "could not get tree")
 
 			if s.SkipGitErrors {
 				continue
@@ -159,7 +161,7 @@ func (f *CommitHasBlob) commitHasBlob(
 
 		contained, err := f.hashInTree(blob, commitHash, tree)
 		if err != nil {
-			logrus.WithField("error", err).Error("error searching hash in tree")
+			logger.Error(err, "error searching hash in tree")
 
 			if s.SkipGitErrors {
 				continue

@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/hashicorp/golang-lru"
-	"github.com/sirupsen/logrus"
+	"gopkg.in/src-d/go-log.v0"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -50,7 +50,8 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 	span, ctx := ctx.Span("gitbase.CommitHasTree")
 	defer span.Finish()
 
-	log := logrus.WithFields(logrus.Fields{
+	logger, _ := log.New()
+	logger = logger.New(log.Fields{
 		"function": "commit_hash_tree",
 		"row":      row,
 		"left":     f.Left.String(),
@@ -64,7 +65,7 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 
 	left, err := f.Left.Eval(ctx, row)
 	if err != nil {
-		log.WithField("error", err).Error("cannot eval left side")
+		logger.Error(err, "cannot eval left side")
 		return nil, err
 	}
 
@@ -74,13 +75,13 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 
 	left, err = sql.Text.Convert(left)
 	if err != nil {
-		log.WithField("error", err).Error("cannot convert left side")
+		logger.Error(err, "cannot convert left side")
 		return nil, err
 	}
 
 	right, err := f.Right.Eval(ctx, row)
 	if err != nil {
-		log.WithField("error", err).Error("cannot eval right side")
+		logger.Error(err, "cannot eval right side")
 		return nil, err
 	}
 
@@ -90,14 +91,14 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 
 	right, err = sql.Text.Convert(right)
 	if err != nil {
-		log.WithField("error", err).Error("cannot convert right side")
+		logger.Error(err, "cannot convert right side")
 		return nil, err
 	}
 
 	commitHash := plumbing.NewHash(left.(string))
 	treeHash := plumbing.NewHash(right.(string))
 
-	log = log.WithFields(logrus.Fields{
+	logger = logger.New(log.Fields{
 		"commit_hash": commitHash.String(),
 		"tree_hash":   treeHash.String(),
 	})
@@ -108,7 +109,7 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 
 	iter, err := s.Pool.RepoIter()
 	if err != nil {
-		log.WithField("error", err).Error("cannot create repository iterator")
+		logger.Error(err, "cannot create repository iterator")
 		return nil, err
 	}
 
@@ -119,7 +120,7 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 		}
 
 		if err != nil {
-			log.WithField("error", err).Error("could not get next repository")
+			logger.Error(err, "could not get next repository")
 
 			if s.SkipGitErrors {
 				continue
@@ -133,10 +134,9 @@ func (f *CommitHasTree) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 		}
 
 		if err != nil {
-			log.WithFields(logrus.Fields{
-				"repo":  repo.ID,
-				"error": err,
-			}).Error("error searching commit in tree")
+			logger.New(log.Fields{
+				"repo": repo.ID,
+			}).Error(err, "error searching commit in tree")
 
 			if s.SkipGitErrors {
 				continue

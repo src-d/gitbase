@@ -3,7 +3,7 @@ package gitbase
 import (
 	"strings"
 
-	"github.com/sirupsen/logrus"
+	"gopkg.in/src-d/go-log.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -131,7 +131,9 @@ func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 			return nil, err
 		}
 
-		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
+		logger, _ := log.New()
+		logger.New(log.Fields{"repo": repo.ID}).
+			Debugf("unable to get HEAD of repository")
 	}
 
 	return &referenceIter{
@@ -159,10 +161,11 @@ func (i *referenceIter) Next() (sql.Row, error) {
 		}
 
 		if o.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
+			logger, _ := log.New()
+			logger.New(log.Fields{
 				"type": o.Type(),
 				"ref":  o.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
+			}).Debugf("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -198,7 +201,9 @@ func (i *filteredReferencesIter) NewIterator(repo *Repository) (RowRepoIter, err
 			return nil, err
 		}
 
-		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
+		logger, _ := log.New()
+		logger.New(log.Fields{"repo": repo.ID}).
+			Debugf("unable to get HEAD of repository")
 	}
 
 	return &filteredReferencesIter{
@@ -237,10 +242,11 @@ func (i *filteredReferencesIter) Next() (sql.Row, error) {
 		}
 
 		if o.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
+			logger, _ := log.New()
+			logger.New(log.Fields{
 				"type": o.Type(),
 				"ref":  o.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
+			}).Debugf("ignoring reference, it's not a hash reference")
 			continue
 		}
 
