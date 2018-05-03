@@ -22,9 +22,7 @@ _testmain.go
 *.exe
 *.test
 *.prof
-gitbase
 
 # CI
 .ci/
-gitbase
-gitbase.exe
+build/
