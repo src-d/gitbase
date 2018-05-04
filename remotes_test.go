@@ -81,8 +81,8 @@ func TestRemotesTable_RowIter(t *testing.T) {
 			require.Equal(url, row[3]) // fetch
 
 			ref := fmt.Sprintf("refs/heads/*:refs/remotes/fetch%v/*", num)
-			require.Equal(gitconfig.RefSpec(ref), row[4]) // push
-			require.Equal(gitconfig.RefSpec(ref), row[5]) // fetch
+			require.Equal(gitconfig.RefSpec(ref).String(), row[4]) // push
+			require.Equal(gitconfig.RefSpec(ref).String(), row[5]) // fetch
 		} else {
 			require.Equal("origin", row[1])
 		}

@@ -2,6 +2,8 @@ package gitbase_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/src-d/gitbase/internal/rule"
@@ -139,7 +141,7 @@ func TestIntegration(t *testing.T) {
 			t.Run(tt.query, func(t *testing.T) {
 				require := require.New(t)
 
-				session := gitbase.NewSession(&pool)
+				session := gitbase.NewSession(pool)
 				ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 				_, iter, err := engine.Query(ctx, tt.query)
@@ -173,10 +175,10 @@ func TestUastQueries(t *testing.T) {
 	engine.AddDatabase(gitbase.NewDatabase("foo"))
 	engine.Catalog.RegisterFunctions(function.Functions)
 
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	_, iter, err := engine.Query(ctx, `
-		SELECT uast_xpath(uast(content, 'php'), '//*[@roleIdentifier]') as uast, name 
+		SELECT uast_xpath(uast(content, language(name, content)), '//*[@roleIdentifier]') as uast, name 
 		FROM tree_entries te
 		INNER JOIN blobs b
 		ON b.hash = te.entry_hash
@@ -187,6 +189,120 @@ func TestUastQueries(t *testing.T) {
 	rows, err := sql.RowIterToRows(iter)
 	require.NoError(err)
 	require.Len(rows, 3)
+}
+
+func TestSquashCorrectness(t *testing.T) {
+	engine := sqle.New()
+	squashEngine := sqle.New()
+	require.NoError(t, fixtures.Init())
+	defer func() {
+		require.NoError(t, fixtures.Clean())
+	}()
+
+	pool := gitbase.NewRepositoryPool()
+	for _, f := range fixtures.ByTag("worktree") {
+		pool.AddGit(f.Worktree().Root())
+	}
+
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
+	engine.Catalog.RegisterFunctions(function.Functions)
+
+	squashEngine.AddDatabase(gitbase.NewDatabase("foo"))
+	squashEngine.Catalog.RegisterFunctions(function.Functions)
+	squashEngine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+
+	queries := []string{
+		`SELECT * FROM repositories`,
+		`SELECT * FROM refs`,
+		`SELECT * FROM remotes`,
+		`SELECT * FROM commits`,
+		`SELECT * FROM tree_entries`,
+		`SELECT * FROM blobs`,
+		`SELECT * FROM repositories r INNER JOIN refs ON r.id = refs.repository_id`,
+		`SELECT * FROM repositories r INNER JOIN remotes ON r.id = remotes.repository_id`,
+		`SELECT * FROM refs r INNER JOIN remotes re ON r.repository_id = re.repository_id`,
+		`SELECT * FROM refs r INNER JOIN commits c ON r.hash = c.hash`,
+		`SELECT * FROM refs r INNER JOIN commits c ON history_idx(r.hash, c.hash) >= 0`,
+		`SELECT * FROM refs r INNER JOIN tree_entries te ON commit_has_tree(r.hash, te.tree_hash)`,
+		`SELECT * FROM refs r INNER JOIN blobs b ON commit_has_blob(r.hash, b.hash)`,
+		`SELECT * FROM commits c INNER JOIN tree_entries te ON commit_has_tree(c.hash, te.tree_hash)`,
+		`SELECT * FROM commits c INNER JOIN tree_entries te ON c.tree_hash = te.tree_hash`,
+		`SELECT * FROM commits c INNER JOIN blobs b ON commit_has_blob(c.hash, b.hash)`,
+		`SELECT * FROM tree_entries te INNER JOIN blobs b ON te.entry_hash = b.hash`,
+
+		`SELECT * FROM repositories r
+		INNER JOIN refs re
+			ON r.id = re.repository_id
+		INNER JOIN commits c
+			ON re.hash = c.hash
+		WHERE re.name = 'HEAD'`,
+
+		`SELECT * FROM commits c
+		INNER JOIN tree_entries te
+			ON c.tree_hash = te.tree_hash
+		INNER JOIN blobs b
+			ON te.entry_hash = b.hash
+		WHERE te.name = 'LICENSE'`,
+
+		`SELECT * FROM repositories,
+		commits c INNER JOIN tree_entries te
+			ON c.tree_hash = te.tree_hash`,
+	}
+
+	for _, q := range queries {
+		t.Run(q, func(t *testing.T) {
+			expected := queryResults(t, engine, pool, q)
+			result := queryResults(t, squashEngine, pool, q)
+			require.ElementsMatch(
+				t,
+				expected,
+				result,
+			)
+		})
+	}
+}
+
+func queryResults(
+	t *testing.T,
+	e *sqle.Engine,
+	pool *gitbase.RepositoryPool,
+	q string,
+) []sql.Row {
+	session := gitbase.NewSession(pool)
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+
+	_, iter, err := e.Query(ctx, q)
+	require.NoError(t, err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(t, err)
+
+	return rows
+}
+
+func TestMissingHeadRefs(t *testing.T) {
+	require := require.New(t)
+
+	path := filepath.Join(
+		os.Getenv("GOPATH"),
+		"src", "github.com", "src-d", "gitbase",
+		"_testdata",
+	)
+
+	pool := gitbase.NewRepositoryPool()
+	require.NoError(pool.AddSivaDir(path))
+
+	engine := sqle.New()
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
+
+	session := gitbase.NewSession(pool)
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+	_, iter, err := engine.Query(ctx, "SELECT * FROM refs")
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+	require.Len(rows, 56)
 }
 
 func BenchmarkQueries(b *testing.B) {
@@ -285,7 +401,7 @@ func benchmarkQuery(b *testing.B, query string) {
 	pool := gitbase.NewRepositoryPool()
 	_, err := pool.AddGit(path)
 	require.NoError(b, err)
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	run := func(b *testing.B) {

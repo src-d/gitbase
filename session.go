@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
 	errors "gopkg.in/src-d/go-errors.v1"
@@ -20,6 +21,8 @@ type Session struct {
 	bblfshMu       sync.Mutex
 	bblfshEndpoint string
 	bblfshClient   *bblfsh.Client
+
+	SkipGitErrors bool
 }
 
 const (
@@ -34,6 +37,13 @@ type SessionOption func(*Session)
 func WithBblfshEndpoint(endpoint string) SessionOption {
 	return func(s *Session) {
 		s.bblfshEndpoint = endpoint
+	}
+}
+
+// WithSkipGitErrors changes the behavior with go-git error.
+func WithSkipGitErrors(enabled bool) SessionOption {
+	return func(s *Session) {
+		s.SkipGitErrors = enabled
 	}
 }
 
@@ -79,11 +89,15 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 			return s.bblfshClient, nil
 		case connectivity.Connecting:
 			attempts = 0
+			logrus.WithField("attempts", totalAttempts).
+				Debug("bblfsh is connecting, sleeping 100ms")
 			time.Sleep(100 * time.Millisecond)
 		default:
 			if err := s.bblfshClient.Close(); err != nil {
 				return nil, err
 			}
+
+			logrus.Debug("bblfsh connection is closed, opening a new one")
 
 			s.bblfshClient, err = bblfsh.NewClient(s.bblfshEndpoint)
 			if err != nil {
@@ -98,6 +112,9 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 
 // Close implements the io.Closer interface.
 func (s *Session) Close() error {
+	s.bblfshMu.Lock()
+	defer s.bblfshMu.Unlock()
+
 	if s.bblfshClient != nil {
 		return s.bblfshClient.Close()
 	}
@@ -117,6 +134,10 @@ var ErrSessionCanceled = errors.NewKind("session canceled")
 // ErrInvalidGitbaseSession is returned when some node expected a gitbase
 // session but received something else.
 var ErrInvalidGitbaseSession = errors.NewKind("expecting gitbase session, but received: %T")
+
+// ErrInvalidContext is returned when some node expected an sql.Context
+// with gitbase session but received something else.
+var ErrInvalidContext = errors.NewKind("invalid context received: %v")
 
 // ErrBblfshConnection is returned when it's impossible to connect to bblfsh.
 var ErrBblfshConnection = errors.NewKind("unable to establish a new bblfsh connection")

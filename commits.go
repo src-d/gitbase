@@ -23,6 +23,7 @@ var CommitsSchema = sql.Schema{
 	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
 	{Name: "message", Type: sql.Text, Nullable: false, Source: CommitsTableName},
 	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "parents", Type: sql.Array(sql.Text), Nullable: false, Source: CommitsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
@@ -60,14 +61,16 @@ func (r *commitsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node
 }
 
 func (r commitsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.CommitsTable")
 	iter := new(commitIter)
 
 	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return repoIter, nil
+	return sql.NewSpanIter(span, repoIter), nil
 }
 
 func (commitsTable) Children() []sql.Node {
@@ -82,7 +85,8 @@ func (r *commitsTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.CommitsTable")
+	iter, err := rowIterWithSelectors(
 		ctx, CommitsSchema, CommitsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
@@ -98,6 +102,13 @@ func (r *commitsTable) WithProjectAndFilters(
 			return &commitsByHashIter{hashes: hashes}, nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type commitIter struct {
@@ -176,5 +187,15 @@ func commitToRow(c *object.Commit) sql.Row {
 		c.Committer.When,
 		c.Message,
 		c.TreeHash.String(),
+		getParentHashes(c),
 	)
+}
+
+func getParentHashes(c *object.Commit) []interface{} {
+	parentHashes := make([]interface{}, 0, len(c.ParentHashes))
+	for _, plumbingHash := range c.ParentHashes {
+		parentHashes = append(parentHashes, plumbingHash.String())
+	}
+
+	return parentHashes
 }

@@ -58,8 +58,8 @@ func TestUAST(t *testing.T) {
 		{"lang is nil", fn3, sql.NewRow([]byte{}, nil, nil), nil, nil},
 		{"xpath is nil", fn3, sql.NewRow([]byte{}, "Ruby", nil), nil, nil},
 		{"only blob, can't infer language", fn1, sql.NewRow([]byte(testCode)), nil, ErrParseBlob},
-		{"blob with lang", fn2, sql.NewRow([]byte(testCode), "python"), uast, nil},
-		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "python", testXPath), filteredNodes, nil},
+		{"blob with lang", fn2, sql.NewRow([]byte(testCode), "Python"), uast, nil},
+		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPath), filteredNodes, nil},
 	}
 
 	for _, tt := range testCases {
@@ -191,7 +191,7 @@ func setup(t *testing.T) (*sql.Context, func()) {
 		pool.AddGit(f.Worktree().Root())
 	}
 
-	session := gitbase.NewSession(&pool)
+	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	return ctx, func() {

@@ -1,0 +1,25 @@
+language: go
+
+go:
+    - 1.8
+    - tip
+
+matrix:
+    fast_finish: true
+    allow_failures:
+        - go: tip
+
+install:
+  - rm -rf $GOPATH/src/gopkg.in/src-d
+  - mkdir -p $GOPATH/src/gopkg.in/src-d
+  - ln -s $PWD $GOPATH/src/gopkg.in/src-d/go-billy-siva.v4
+  - cd $GOPATH/src/gopkg.in/src-d/go-billy-siva.v4
+  - go get -v -t ./...
+
+script:
+  - cd $GOPATH/src/gopkg.in/src-d/go-billy-siva.v4
+  - go test -v ./...
+  - make test-coverage
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

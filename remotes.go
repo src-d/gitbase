@@ -54,14 +54,16 @@ func (r *remotesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node
 }
 
 func (r remotesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.RemotesTable")
 	iter := new(remotesIter)
 
 	rowRepoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return sql.NewSpanIter(span, rowRepoIter), nil
 }
 
 func (remotesTable) Children() []sql.Node {
@@ -76,13 +78,21 @@ func (r *remotesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.RemotesTable")
+	iter, err := rowIterWithSelectors(
 		ctx, RemotesSchema, RemotesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(remotesIter), nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type remotesIter struct {
@@ -130,8 +140,8 @@ func (i *remotesIter) Next() (sql.Row, error) {
 		config.Name,
 		config.URLs[i.urlPos],
 		config.URLs[i.urlPos],
-		config.Fetch[i.urlPos],
-		config.Fetch[i.urlPos],
+		config.Fetch[i.urlPos].String(),
+		config.Fetch[i.urlPos].String(),
 	)
 
 	i.urlPos++

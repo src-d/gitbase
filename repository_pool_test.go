@@ -2,6 +2,7 @@ package gitbase
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git-fixtures.v3"
@@ -45,7 +47,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	// Add and GetPos
 
-	pool.Add("0", "/directory/should/not/exist")
+	pool.Add("0", "/directory/should/not/exist", gitRepo)
 	repo, err = pool.GetPos(0)
 	require.Error(err)
 
@@ -54,7 +56,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool.Add("1", path)
+	pool.Add("1", path, gitRepo)
 	repo, err = pool.GetPos(1)
 	require.NoError(err)
 	require.Equal("1", repo.ID)
@@ -106,8 +108,8 @@ func TestRepositoryPoolIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	pool.Add("0", path)
-	pool.Add("1", path)
+	pool.Add("0", path, gitRepo)
+	pool.Add("1", path, gitRepo)
 
 	iter, err := pool.RepoIter()
 	require.NoError(err)
@@ -187,12 +189,12 @@ func TestRepositoryRowIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	session := NewSession(&pool)
+	session := NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	max := 64
 
 	for i := 0; i < max; i++ {
-		pool.Add(strconv.Itoa(i), path)
+		pool.Add(strconv.Itoa(i), path, gitRepo)
 	}
 
 	testRepoIter(max, require, ctx)
@@ -262,4 +264,179 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	}
 
 	require.ElementsMatch(arrayExpected, arrayID)
+}
+
+func TestRepositoryPoolSiva(t *testing.T) {
+	require := require.New(t)
+
+	expectedRepos := 3
+
+	pool := NewRepositoryPool()
+	path := filepath.Join(
+		os.Getenv("GOPATH"),
+		"src", "github.com", "src-d", "gitbase",
+		"_testdata",
+	)
+
+	require.NoError(pool.AddSivaDir(path))
+	require.Equal(expectedRepos, len(pool.repositories))
+
+	expected := []int{606, 452, 75}
+	result := make([]int, expectedRepos)
+
+	for i := 0; i < expectedRepos; i++ {
+		repo, err := pool.GetPos(i)
+		require.NoError(err)
+
+		iter, err := repo.Repo.CommitObjects()
+		require.NoError(err)
+
+		require.NoError(iter.ForEach(func(c *object.Commit) error {
+			result[i]++
+			return nil
+		}))
+	}
+
+	require.Equal(expected, result)
+}
+
+var errIter = fmt.Errorf("Error iter")
+
+type newIteratorFunc func(*Repository) (RowRepoIter, error)
+type nextFunc func() (sql.Row, error)
+
+type testErrorIter struct {
+	newIterator newIteratorFunc
+	next        nextFunc
+}
+
+func (d *testErrorIter) NewIterator(
+	repo *Repository,
+) (RowRepoIter, error) {
+	if d.newIterator != nil {
+		return d.newIterator(repo)
+	}
+
+	return nil, errIter
+}
+
+func (d *testErrorIter) Next() (sql.Row, error) {
+	if d.next != nil {
+		return d.next()
+	}
+
+	return nil, io.EOF
+}
+
+func (d *testErrorIter) Close() error {
+	return nil
+}
+
+func testCaseRepositoryErrorIter(
+	t *testing.T,
+	pool *RepositoryPool,
+	iter RowRepoIter,
+	retError error,
+	skipGitErrors bool,
+) {
+	require := require.New(t)
+
+	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx := sql.NewContext(timeout,
+		sql.WithSession(NewSession(pool, WithSkipGitErrors(skipGitErrors))),
+	)
+
+	r, err := NewRowRepoIter(ctx, iter)
+	require.NoError(err)
+
+	repoIter, ok := r.(*rowRepoIter)
+	require.True(ok)
+
+	go func() {
+		for {
+			_, err := repoIter.Next()
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	select {
+	case <-repoIter.done:
+		require.Equal(retError, repoIter.err)
+	}
+
+	cancel()
+}
+
+func TestRepositoryErrorIter(t *testing.T) {
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+	pool := NewRepositoryPool()
+	pool.Add("one", path, gitRepo)
+
+	iter := &testErrorIter{}
+	testCaseRepositoryErrorIter(t, pool, iter, errIter, false)
+}
+
+func TestRepositoryErrorBadRepository(t *testing.T) {
+	pool := NewRepositoryPool()
+	pool.Add("one", "badpath", gitRepo)
+
+	iter := &testErrorIter{}
+
+	newIterator := func(*Repository) (RowRepoIter, error) {
+		return iter, nil
+	}
+
+	count := 0
+	next := func() (sql.Row, error) {
+		if count >= 10 {
+			return nil, io.EOF
+		}
+
+		count++
+
+		return sql.NewRow("test"), nil
+	}
+
+	iter.newIterator = newIterator
+	iter.next = next
+
+	testCaseRepositoryErrorIter(t, pool, iter, git.ErrRepositoryNotExists, false)
+	testCaseRepositoryErrorIter(t, pool, iter, io.EOF, true)
+}
+
+func TestRepositoryErrorBadRow(t *testing.T) {
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+	pool := NewRepositoryPool()
+	pool.Add("one", path, gitRepo)
+
+	iter := &testErrorIter{}
+
+	newIterator := func(*Repository) (RowRepoIter, error) {
+		return iter, nil
+	}
+
+	errRow := fmt.Errorf("bad row")
+
+	count := 0
+	next := func() (sql.Row, error) {
+		if count == 5 {
+			return nil, errRow
+		}
+
+		if count >= 10 {
+			return nil, io.EOF
+		}
+
+		count++
+
+		return sql.NewRow("test"), nil
+	}
+
+	iter.newIterator = newIterator
+	iter.next = next
+
+	testCaseRepositoryErrorIter(t, pool, iter, errRow, false)
+	testCaseRepositoryErrorIter(t, pool, iter, io.EOF, true)
 }

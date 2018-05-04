@@ -48,14 +48,16 @@ func (r *repositoriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql
 }
 
 func (r repositoriesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.RepositoriesTable")
 	iter := &repositoriesIter{}
 
 	rowRepoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return rowRepoIter, nil
+	return sql.NewSpanIter(span, rowRepoIter), nil
 }
 
 func (repositoriesTable) Children() []sql.Node {
@@ -70,13 +72,21 @@ func (r *repositoriesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.RepositoriesTable")
+	iter, err := rowIterWithSelectors(
 		ctx, RepositoriesSchema, RepositoriesTableName, filters, nil,
 		func(selectors) (RowRepoIter, error) {
 			// it's not worth to manually filter with the selectors
 			return new(repositoriesIter), nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type repositoriesIter struct {

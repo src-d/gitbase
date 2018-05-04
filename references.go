@@ -3,6 +3,7 @@ package gitbase
 import (
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -53,14 +54,16 @@ func (r *referencesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.N
 }
 
 func (r referencesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.ReferencesTable")
 	iter := new(referenceIter)
 
 	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return repoIter, nil
+	return sql.NewSpanIter(span, repoIter), nil
 }
 
 func (referencesTable) Children() []sql.Node {
@@ -75,7 +78,8 @@ func (r *referencesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.ReferencesTable")
+	iter, err := rowIterWithSelectors(
 		ctx, RefsSchema, ReferencesTableName, filters,
 		[]string{"hash", "name"},
 		func(selectors selectors) (RowRepoIter, error) {
@@ -100,6 +104,13 @@ func (r *referencesTable) WithProjectAndFilters(
 			return &filteredReferencesIter{hashes: stringsToHashes(hashes), names: names}, nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type referenceIter struct {
@@ -116,7 +127,11 @@ func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 
 	head, err := repo.Repo.Head()
 	if err != nil {
-		return nil, err
+		if err != plumbing.ErrReferenceNotFound {
+			return nil, err
+		}
+
+		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
 	}
 
 	return &referenceIter{
@@ -144,6 +159,10 @@ func (i *referenceIter) Next() (sql.Row, error) {
 		}
 
 		if o.Type() != plumbing.HashReference {
+			logrus.WithFields(logrus.Fields{
+				"type": o.Type(),
+				"ref":  o.Name(),
+			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -175,7 +194,11 @@ func (i *filteredReferencesIter) NewIterator(repo *Repository) (RowRepoIter, err
 
 	head, err := repo.Repo.Head()
 	if err != nil {
-		return nil, err
+		if err != plumbing.ErrReferenceNotFound {
+			return nil, err
+		}
+
+		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
 	}
 
 	return &filteredReferencesIter{
@@ -214,6 +237,10 @@ func (i *filteredReferencesIter) Next() (sql.Row, error) {
 		}
 
 		if o.Type() != plumbing.HashReference {
+			logrus.WithFields(logrus.Fields{
+				"type": o.Type(),
+				"ref":  o.Name(),
+			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 

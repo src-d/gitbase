@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -69,14 +70,16 @@ func (r *blobsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, 
 }
 
 func (r blobsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	iter := new(blobIter)
+	span, ctx := ctx.Span("gitbase.BlobsTable")
+	iter := &blobIter{readContent: true}
 
 	repoIter, err := NewRowRepoIter(ctx, iter)
 	if err != nil {
+		span.Finish()
 		return nil, err
 	}
 
-	return repoIter, nil
+	return sql.NewSpanIter(span, repoIter), nil
 }
 
 func (blobsTable) Children() []sql.Node {
@@ -89,14 +92,15 @@ func (blobsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 
 func (r *blobsTable) WithProjectAndFilters(
 	ctx *sql.Context,
-	_, filters []sql.Expression,
+	columns, filters []sql.Expression,
 ) (sql.RowIter, error) {
-	return rowIterWithSelectors(
+	span, ctx := ctx.Span("gitbase.BlobsTable")
+	iter, err := rowIterWithSelectors(
 		ctx, BlobsSchema, BlobsTableName, filters,
 		[]string{"hash"},
 		func(selectors selectors) (RowRepoIter, error) {
 			if len(selectors["hash"]) == 0 {
-				return new(blobIter), nil
+				return &blobIter{readContent: shouldReadContent(columns)}, nil
 			}
 
 			hashes, err := selectors.textValues("hash")
@@ -104,13 +108,24 @@ func (r *blobsTable) WithProjectAndFilters(
 				return nil, err
 			}
 
-			return &blobsByHashIter{hashes: hashes}, nil
+			return &blobsByHashIter{
+				hashes:      hashes,
+				readContent: shouldReadContent(columns),
+			}, nil
 		},
 	)
+
+	if err != nil {
+		span.Finish()
+		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
 }
 
 type blobIter struct {
-	iter *object.BlobIter
+	iter        *object.BlobIter
+	readContent bool
 }
 
 func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -119,7 +134,7 @@ func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		return nil, err
 	}
 
-	return &blobIter{iter: iter}, nil
+	return &blobIter{iter: iter, readContent: i.readContent}, nil
 }
 
 func (i *blobIter) Next() (sql.Row, error) {
@@ -128,7 +143,7 @@ func (i *blobIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	return blobToRow(o)
+	return blobToRow(o, i.readContent)
 }
 
 func (i *blobIter) Close() error {
@@ -140,13 +155,14 @@ func (i *blobIter) Close() error {
 }
 
 type blobsByHashIter struct {
-	repo   *Repository
-	pos    int
-	hashes []string
+	repo        *Repository
+	pos         int
+	hashes      []string
+	readContent bool
 }
 
 func (i *blobsByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	return &blobsByHashIter{repo, 0, i.hashes}, nil
+	return &blobsByHashIter{repo, 0, i.hashes, i.readContent}, nil
 }
 
 func (i *blobsByHashIter) Next() (sql.Row, error) {
@@ -166,7 +182,7 @@ func (i *blobsByHashIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		return blobToRow(blob)
+		return blobToRow(blob, i.readContent)
 	}
 }
 
@@ -174,10 +190,10 @@ func (i *blobsByHashIter) Close() error {
 	return nil
 }
 
-func blobToRow(c *object.Blob) (sql.Row, error) {
+func blobToRow(c *object.Blob, readContent bool) (sql.Row, error) {
 	var content []byte
 	var isAllowed = blobsAllowBinary
-	if !isAllowed {
+	if !isAllowed && readContent {
 		ok, err := isBinary(c)
 		if err != nil {
 			return nil, err
@@ -185,7 +201,7 @@ func blobToRow(c *object.Blob) (sql.Row, error) {
 		isAllowed = !ok
 	}
 
-	if c.Size <= int64(blobsMaxSize) && isAllowed {
+	if c.Size <= int64(blobsMaxSize) && isAllowed && readContent {
 		r, err := c.Reader()
 		if err != nil {
 			return nil, err
@@ -237,4 +253,20 @@ func isBinary(blob *object.Blob) (bool, error) {
 			return true, nil
 		}
 	}
+}
+
+func shouldReadContent(columns []sql.Expression) bool {
+	for _, e := range columns {
+		var found bool
+		expression.Inspect(e, func(e sql.Expression) bool {
+			gf, ok := e.(*expression.GetField)
+			found = ok && gf.Table() == BlobsTableName && gf.Name() == "content"
+			return !found
+		})
+
+		if found {
+			return true
+		}
+	}
+	return false
 }

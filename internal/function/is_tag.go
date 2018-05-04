@@ -21,6 +21,9 @@ func NewIsTag(e sql.Expression) sql.Expression {
 
 // Eval implements the expression interface.
 func (f *IsTag) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	span, ctx := ctx.Span("gitbase.IsTag")
+	defer span.Finish()
+
 	val, err := f.Child.Eval(ctx, row)
 	if err != nil {
 		return nil, err
