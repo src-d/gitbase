@@ -362,8 +362,8 @@ func testCaseRepositoryErrorIter(
 	}()
 
 	select {
-	case <-repoIter.done:
-		require.Equal(retError, repoIter.err)
+	case <-repoIter.ctx.Done():
+
 	}
 
 	cancel()

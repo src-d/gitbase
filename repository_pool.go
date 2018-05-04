@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-billy-siva.v4"
@@ -194,6 +194,7 @@ var errInvalidRepoKind = errors.NewKind("invalid repo kind: %d")
 // GetPos retrieves a repository at a given position. If the position is
 // out of bounds it returns io.EOF.
 func (p *RepositoryPool) GetPos(pos int) (*Repository, error) {
+
 	if pos >= len(p.repositories) {
 		return nil, io.EOF
 	}
@@ -225,24 +226,25 @@ func (p *RepositoryPool) GetPos(pos int) (*Repository, error) {
 // RepoIter creates a new Repository iterator
 func (p *RepositoryPool) RepoIter() (*RepositoryIter, error) {
 	iter := &RepositoryIter{
-		pos:  0,
 		pool: p,
 	}
+	atomic.StoreInt32(&iter.pos, 0)
 
 	return iter, nil
 }
 
 // RepositoryIter iterates over all repositories in the pool
 type RepositoryIter struct {
-	pos  int
+	pos  int32
 	pool *RepositoryPool
 }
 
 // Next retrieves the next Repository. It returns io.EOF as error
 // when there are no more Repositories to retrieve.
 func (i *RepositoryIter) Next() (*Repository, error) {
-	r, err := i.pool.GetPos(i.pos)
-	i.pos++
+	pos := int(atomic.LoadInt32(&i.pos))
+	r, err := i.pool.GetPos(pos)
+	atomic.AddInt32(&i.pos, 1)
 
 	return r, err
 }
@@ -265,19 +267,11 @@ type RowRepoIter interface {
 type rowRepoIter struct {
 	mu sync.Mutex
 
+	currRepoIter   RowRepoIter
 	repositoryIter *RepositoryIter
 	iter           RowRepoIter
 	session        *Session
 	ctx            *sql.Context
-
-	wg    sync.WaitGroup
-	done  chan bool
-	err   error
-	repos chan *Repository
-	rows  chan sql.Row
-
-	doneMutex  sync.Mutex
-	doneClosed bool
 }
 
 // NewRowRepoIter initializes a new repository iterator.
@@ -303,169 +297,71 @@ func NewRowRepoIter(
 	}
 
 	repoIter := rowRepoIter{
+		currRepoIter:   nil,
 		repositoryIter: rIter,
 		iter:           iter,
 		session:        s,
 		ctx:            ctx,
-		done:           make(chan bool),
-		err:            nil,
-		repos:          make(chan *Repository),
-		rows:           make(chan sql.Row),
 	}
-
-	go repoIter.fillRepoChannel()
-
-	wNum := runtime.NumCPU()
-
-	for i := 0; i < wNum; i++ {
-		repoIter.wg.Add(1)
-
-		go repoIter.rowReader(i)
-	}
-
-	go func() {
-		repoIter.wg.Wait()
-		close(repoIter.rows)
-		closeIter(&repoIter)
-	}()
 
 	return &repoIter, nil
 }
 
-func (i *rowRepoIter) setError(err error) {
+// Next gets the next row
+func (i *rowRepoIter) Next() (sql.Row, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	i.err = err
-}
-
-func closeIter(i *rowRepoIter) {
-	i.doneMutex.Lock()
-	defer i.doneMutex.Unlock()
-
-	if !i.doneClosed {
-		close(i.done)
-		i.doneClosed = true
-	}
-}
-
-func (i *rowRepoIter) fillRepoChannel() {
-	defer close(i.repos)
-
 	for {
 		select {
-		case <-i.done:
-			return
-
 		case <-i.ctx.Done():
-			closeIter(i)
-			return
+			return nil, ErrSessionCanceled.New()
 
 		default:
-			repo, err := i.repositoryIter.Next()
+			if i.currRepoIter == nil {
+				repo, err := i.repositoryIter.Next()
+				if err != nil {
+					if err == io.EOF {
+						return nil, io.EOF
+					}
 
-			switch err {
-			case nil:
-				select {
-				case <-i.done:
-					return
+					if i.session.SkipGitErrors {
+						continue
+					}
 
-				case <-i.ctx.Done():
-					i.setError(ErrSessionCanceled.New())
-					closeIter(i)
-					return
+					return nil, err
+				}
 
-				case i.repos <- repo:
+				i.currRepoIter, err = i.iter.NewIterator(repo)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			row, err := i.currRepoIter.Next()
+			if err != nil {
+				if err == io.EOF {
+					i.currRepoIter.Close()
+					i.currRepoIter = nil
 					continue
 				}
 
-			case io.EOF:
-				i.setError(io.EOF)
-				return
-
-			default:
-				if !i.session.SkipGitErrors {
-					closeIter(i)
-					i.setError(err)
-					return
+				if i.session.SkipGitErrors {
+					continue
 				}
+
+				return nil, err
 			}
+
+			return row, nil
 		}
 	}
-}
-
-func (i *rowRepoIter) rowReader(num int) {
-	defer i.wg.Done()
-
-	for repo := range i.repos {
-		iter, err := i.iter.NewIterator(repo)
-		if err != nil {
-			// guard from possible previous error
-			select {
-			case <-i.done:
-				return
-			default:
-				i.setError(err)
-				closeIter(i)
-				continue
-			}
-		}
-
-	loop:
-		for {
-			select {
-			case <-i.done:
-				iter.Close()
-				return
-
-			case <-i.ctx.Done():
-				i.setError(ErrSessionCanceled.New())
-				return
-
-			default:
-				row, err := iter.Next()
-				switch err {
-				case nil:
-					select {
-					case <-i.done:
-						iter.Close()
-						return
-					case i.rows <- row:
-					}
-
-				case io.EOF:
-					iter.Close()
-					break loop
-
-				default:
-					if !i.session.SkipGitErrors {
-						iter.Close()
-						i.setError(err)
-						closeIter(i)
-						return
-					} else {
-						break loop
-					}
-				}
-			}
-		}
-	}
-}
-
-// Next gets the next row
-func (i *rowRepoIter) Next() (sql.Row, error) {
-	row, ok := <-i.rows
-	if !ok {
-		i.mu.Lock()
-		defer i.mu.Unlock()
-
-		return nil, i.err
-	}
-
-	return row, nil
 }
 
 // Close called to close the iterator
 func (i *rowRepoIter) Close() error {
+	if i.currRepoIter != nil {
+		i.currRepoIter.Close()
+	}
 	return i.iter.Close()
 }
