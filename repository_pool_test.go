@@ -362,6 +362,7 @@ func testCaseRepositoryErrorIter(
 	}()
 
 	select {
+	case <-repoIter.done:
 	case <-repoIter.ctx.Done():
 
 	}

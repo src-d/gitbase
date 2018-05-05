@@ -272,6 +272,7 @@ type rowRepoIter struct {
 	iter           RowRepoIter
 	session        *Session
 	ctx            *sql.Context
+	done           chan bool
 }
 
 // NewRowRepoIter initializes a new repository iterator.
@@ -302,6 +303,7 @@ func NewRowRepoIter(
 		iter:           iter,
 		session:        s,
 		ctx:            ctx,
+		done:           make(chan bool),
 	}
 
 	return &repoIter, nil
@@ -322,6 +324,7 @@ func (i *rowRepoIter) Next() (sql.Row, error) {
 				repo, err := i.repositoryIter.Next()
 				if err != nil {
 					if err == io.EOF {
+						close(i.done)
 						return nil, io.EOF
 					}
 
@@ -329,11 +332,13 @@ func (i *rowRepoIter) Next() (sql.Row, error) {
 						continue
 					}
 
+					close(i.done)
 					return nil, err
 				}
 
 				i.currRepoIter, err = i.iter.NewIterator(repo)
 				if err != nil {
+					close(i.done)
 					return nil, err
 				}
 			}
@@ -350,6 +355,7 @@ func (i *rowRepoIter) Next() (sql.Row, error) {
 					continue
 				}
 
+				close(i.done)
 				return nil, err
 			}
 
@@ -360,6 +366,8 @@ func (i *rowRepoIter) Next() (sql.Row, error) {
 
 // Close called to close the iterator
 func (i *rowRepoIter) Close() error {
+	close(i.done)
+
 	if i.currRepoIter != nil {
 		i.currRepoIter.Close()
 	}
