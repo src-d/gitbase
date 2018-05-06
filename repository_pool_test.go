@@ -287,7 +287,6 @@ func TestRepositoryPoolSiva(t *testing.T) {
 	for i := 0; i < expectedRepos; i++ {
 		repo, err := pool.GetPos(i)
 		require.NoError(err)
-		fmt.Printf("%v\n", repo)
 
 		iter, err := repo.Repo.CommitObjects()
 		require.NoError(err)
