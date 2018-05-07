@@ -2,11 +2,9 @@ package generator
 
 import (
 	"bytes"
+	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
-	"text/template"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 // Vendor reads from fileToParse and builds source file from tmplPath. It complies with type File signature.
@@ -30,14 +28,5 @@ func Vendor(fileToParse, samplesDir, outPath, tmplPath, tmplName, commit string)
 }
 
 func executeVendorTemplate(out io.Writer, regexpList []string, tmplPath, tmplName, commit string) error {
-	fmap := template.FuncMap{
-		"getCommit": func() string { return commit },
-	}
-
-	t := template.Must(template.New(tmplName).Funcs(fmap).ParseFiles(tmplPath))
-	if err := t.Execute(out, regexpList); err != nil {
-		return err
-	}
-
-	return nil
+	return executeTemplate(out, tmplName, tmplPath, commit, nil, regexpList)
 }

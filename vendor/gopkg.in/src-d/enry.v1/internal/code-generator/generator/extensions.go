@@ -81,14 +81,7 @@ func buildLanguageExtensionsMap(languages map[string]*languageInfo) map[string][
 
 func executeExtensionsTemplate(out io.Writer, extInfo *extensionsInfo, tmplPath, tmplName, commit string) error {
 	fmap := template.FuncMap{
-		"getCommit":         func() string { return commit },
 		"formatStringSlice": func(slice []string) string { return `"` + strings.Join(slice, `","`) + `"` },
 	}
-
-	t := template.Must(template.New(tmplName).Funcs(fmap).ParseFiles(tmplPath))
-	if err := t.Execute(out, extInfo); err != nil {
-		return err
-	}
-
-	return nil
+	return executeTemplate(out, tmplName, tmplPath, commit, fmap, extInfo)
 }

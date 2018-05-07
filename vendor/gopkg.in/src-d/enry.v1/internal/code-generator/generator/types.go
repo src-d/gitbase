@@ -2,11 +2,9 @@ package generator
 
 import (
 	"bytes"
+	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
-	"text/template"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 var typeToTypeConst = map[string]int{
@@ -48,14 +46,5 @@ func buildLanguageTypeMap(languages map[string]*languageInfo) map[string]int {
 }
 
 func executeTypesTemplate(out io.Writer, langTypeMap map[string]int, tmplPath, tmplName, commit string) error {
-	fmap := template.FuncMap{
-		"getCommit": func() string { return commit },
-	}
-
-	t := template.Must(template.New(tmplName).Funcs(fmap).ParseFiles(tmplPath))
-	if err := t.Execute(out, langTypeMap); err != nil {
-		return err
-	}
-
-	return nil
+	return executeTemplate(out, tmplName, tmplPath, commit, nil, langTypeMap)
 }

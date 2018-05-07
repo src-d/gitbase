@@ -157,7 +157,6 @@ func getTokens(samples []string) ([]string, error) {
 
 func executeFrequenciesTemplate(out io.Writer, freqs *samplesFrequencies, tmplPath, tmplName, commit string) error {
 	fmap := template.FuncMap{
-		"getCommit": func() string { return commit },
 		"toFloat64": func(num int) string { return fmt.Sprintf("%f", float64(num)) },
 		"orderKeys": func(m map[string]int) []string {
 			keys := make([]string, 0, len(m))
@@ -187,11 +186,5 @@ func executeFrequenciesTemplate(out io.Writer, freqs *samplesFrequencies, tmplPa
 		},
 		"quote": strconv.Quote,
 	}
-
-	t := template.Must(template.New(tmplName).Funcs(fmap).ParseFiles(tmplPath))
-	if err := t.Execute(out, freqs); err != nil {
-		return err
-	}
-
-	return nil
+	return executeTemplate(out, tmplName, tmplPath, commit, fmap, freqs)
 }

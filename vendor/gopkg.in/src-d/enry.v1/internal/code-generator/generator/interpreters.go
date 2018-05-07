@@ -47,14 +47,7 @@ func buildInterpreterLanguagesMap(languages map[string]*languageInfo, orderedKey
 
 func executeInterpretersTemplate(out io.Writer, languagesByInterpreter map[string][]string, tmplPath, tmplName, commit string) error {
 	fmap := template.FuncMap{
-		"getCommit":         func() string { return commit },
 		"formatStringSlice": func(slice []string) string { return `"` + strings.Join(slice, `","`) + `"` },
 	}
-
-	t := template.Must(template.New(tmplName).Funcs(fmap).ParseFiles(tmplPath))
-	if err := t.Execute(out, languagesByInterpreter); err != nil {
-		return err
-	}
-
-	return nil
+	return executeTemplate(out, tmplName, tmplPath, commit, fmap, languagesByInterpreter)
 }
