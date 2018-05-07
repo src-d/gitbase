@@ -356,17 +356,13 @@ func testCaseRepositoryErrorIter(
 		for {
 			_, err := repoIter.Next()
 			if err != nil {
+				cancel()
 				break
 			}
 		}
 	}()
 
-	select {
-	case <-repoIter.done:
-		require.Equal(retError, repoIter.err)
-	}
-
-	cancel()
+	<-repoIter.ctx.Done()
 }
 
 func TestRepositoryErrorIter(t *testing.T) {
@@ -396,7 +392,7 @@ func TestRepositoryErrorBadRepository(t *testing.T) {
 
 		count++
 
-		return sql.NewRow("test"), nil
+		return sql.NewRow("test " + strconv.Itoa(count)), nil
 	}
 
 	iter.newIterator = newIterator
@@ -439,4 +435,50 @@ func TestRepositoryErrorBadRow(t *testing.T) {
 
 	testCaseRepositoryErrorIter(t, pool, iter, errRow, false)
 	testCaseRepositoryErrorIter(t, pool, iter, io.EOF, true)
+}
+
+func TestRepositoryIteratorOrder(t *testing.T) {
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+	pool := NewRepositoryPool()
+	pool.Add("one", path, gitRepo)
+
+	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx := sql.NewContext(timeout,
+		sql.WithSession(NewSession(pool, WithSkipGitErrors(true))),
+	)
+	iter := &testErrorIter{}
+	newIterator := func(*Repository) (RowRepoIter, error) {
+		return iter, nil
+	}
+
+	count := 0
+	next := func() (sql.Row, error) {
+		if count >= 10 {
+			return nil, io.EOF
+		}
+
+		count++
+
+		return sql.NewRow("test " + strconv.Itoa(count)), nil
+	}
+	iter.newIterator = newIterator
+	iter.next = next
+
+	r, err := NewRowRepoIter(ctx, iter)
+	require.NoError(t, err)
+
+	repoIter, ok := r.(*rowRepoIter)
+	require.True(t, ok)
+
+	func() {
+		for i := 1; i <= 10; i++ {
+			row, err := repoIter.Next()
+			if err != nil {
+				break
+			}
+			require.Equal(t, sql.Row{"test " + strconv.Itoa(i)}, row)
+		}
+	}()
+
+	cancel()
 }
