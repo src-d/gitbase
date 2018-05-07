@@ -356,18 +356,13 @@ func testCaseRepositoryErrorIter(
 		for {
 			_, err := repoIter.Next()
 			if err != nil {
+				cancel()
 				break
 			}
 		}
 	}()
 
-	select {
-	case <-repoIter.done:
-	case <-repoIter.ctx.Done():
-
-	}
-
-	cancel()
+	<-repoIter.ctx.Done()
 }
 
 func TestRepositoryErrorIter(t *testing.T) {
