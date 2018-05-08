@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/src-d/gitbase/cli/gitbase/cmd"
+	"github.com/src-d/gitbase/cmd/gitbase/cmd"
 
 	"github.com/jessevdk/go-flags"
 )
