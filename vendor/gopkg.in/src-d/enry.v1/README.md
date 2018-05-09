@@ -21,14 +21,14 @@ this will generate a binary in the project's root directory called `enry`. You c
 
 ### Faster regexp engine (optional)
 
-[Onigumura](https://github.com/kkos/oniguruma) is CRuby's regular expression engine.
+[Oniguruma](https://github.com/kkos/oniguruma) is CRuby's regular expression engine.
 It is very fast and performs better than the one built into Go runtime. *enry* supports swapping
 between those two engines thanks to [rubex](https://github.com/moovweb/rubex) project.
-The typical overall speedup from using Onigumura is 1.5-2x. However, it requires CGo and the external shared library.
+The typical overall speedup from using Oniguruma is 1.5-2x. However, it requires CGo and the external shared library.
 On macOS with brew, it is
 
 ```
-brew install onigumura
+brew install oniguruma
 ```
 
 On Ubuntu, it is
@@ -37,10 +37,10 @@ On Ubuntu, it is
 sudo apt install libonig-dev
 ```
 
-To build enry with Onigumura regexps, patch the imports with
+To build enry with Oniguruma regexps, patch the imports with
 
 ```
-make onigumura
+make oniguruma
 ```
 
 and then rebuild the project.

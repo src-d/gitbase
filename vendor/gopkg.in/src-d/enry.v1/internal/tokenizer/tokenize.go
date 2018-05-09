@@ -43,11 +43,11 @@ var (
 		extractRemainders,
 	}
 
-	// Differences between golang regexp and onigumura:
-	// 1. no (?s) in onigumura - makes dot match \n
-	// 2. no (?U) in onigumura - ungreedy *
-	// 3. (?m) implies dot matches \n in onigumura
-	// 4. onigumura handles \w differently - impossible, but true
+	// Differences between golang regexp and oniguruma:
+	// 1. no (?s) in oniguruma - makes dot match \n
+	// 2. no (?U) in oniguruma - ungreedy *
+	// 3. (?m) implies dot matches \n in oniguruma
+	// 4. oniguruma handles \w differently - impossible, but true
 	//
 	// Workarounds:
 	// 1. (.|\n)

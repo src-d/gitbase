@@ -91,14 +91,7 @@ func buildFilenameLanguageMap(languages map[string]*languageInfo) map[string][]s
 
 func executeFilenamesTemplate(out io.Writer, languagesByFilename map[string][]string, tmplPath, tmplName, commit string) error {
 	fmap := template.FuncMap{
-		"getCommit":         func() string { return commit },
 		"formatStringSlice": func(slice []string) string { return `"` + strings.Join(slice, `","`) + `"` },
 	}
-
-	t := template.Must(template.New(tmplName).Funcs(fmap).ParseFiles(tmplPath))
-	if err := t.Execute(out, languagesByFilename); err != nil {
-		return err
-	}
-
-	return nil
+	return executeTemplate(out, tmplName, tmplPath, commit, fmap, languagesByFilename)
 }

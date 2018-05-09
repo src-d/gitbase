@@ -15,15 +15,16 @@ matrix:
   fast_finish: true
 
 env:
-  - ONIGUMURA=0
-  - ONIGUMURA=1
+  - ONIGURUMA=0
+  - ONIGURUMA=1
 
 install:
+  - go version
   - rm -rf $GOPATH/src/gopkg.in/src-d
   - mkdir -p $GOPATH/src/gopkg.in/src-d
   - ln -s $PWD $GOPATH/src/gopkg.in/src-d/enry.v1
   - cd $GOPATH/src/gopkg.in/src-d/enry.v1
-  - if [ "$ONIGUMURA" == "1" ]; then make onigumura; fi
+  - if [ "$ONIGURUMA" == "1" ]; then make oniguruma; fi
   - go get -v -t ./...
 
 script:
@@ -47,14 +48,14 @@ deploy:
 
 jobs:
   env:
-    - ONIGUMURA=0    
+    - ONIGURUMA=0
   include:
     - stage: test
       language: scala
       jdk: oraclejdk8
 
       install:
-        - GIMME_OUTPUT=$(gimme 1.8 | tee -a $HOME/.bashrc) && eval "$GIMME_OUTPUT"
+        - GIMME_OUTPUT=$(gimme 1.9 | tee -a $HOME/.bashrc) && eval "$GIMME_OUTPUT"
         - export GOPATH=$HOME/gopath
         - mkdir -p $GOPATH/src/gopkg.in/src-d/enry.v1
         - rsync -az ${TRAVIS_BUILD_DIR}/ $GOPATH/src/gopkg.in/src-d/enry.v1
@@ -80,7 +81,7 @@ jobs:
         on:
           tags: true
 
-    - stage: Build macOS shared
+    - stage: Build MacOS shared
 
       env:
         - OSXCROSS_PACKAGE="osxcross_3034f7149716d815bc473d0a7b35d17e4cf175aa.tar.gz"
@@ -120,6 +121,9 @@ jobs:
     - stage: Publish Maven
       language: scala
       jdk: oraclejdk8
+
+      install:
+        - go version # override install
 
       before_script:
         - if [[ -z "$TRAVIS_TAG" ]]; then echo "Skipping this build for non-tag builds."; exit 0; fi

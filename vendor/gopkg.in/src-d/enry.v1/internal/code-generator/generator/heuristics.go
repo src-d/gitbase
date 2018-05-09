@@ -428,7 +428,6 @@ func buildLanguagesHeuristics(langsList [][]string, heuristicsList [][]*heuristi
 
 func executeContentTemplate(out io.Writer, disambiguators []*disambiguator, tmplPath, tmplName, commit string) error {
 	fmap := template.FuncMap{
-		"getCommit":        func() string { return commit },
 		"getAllHeuristics": getAllHeuristics,
 		"returnStringSlice": func(slice []string) string {
 			if len(slice) == 0 {
@@ -440,13 +439,7 @@ func executeContentTemplate(out io.Writer, disambiguators []*disambiguator, tmpl
 		"returnLanguages": returnLanguages,
 		"avoidLanguage":   avoidLanguage,
 	}
-
-	t := template.Must(template.New(tmplName).Funcs(fmap).ParseFiles(tmplPath))
-	if err := t.Execute(out, disambiguators); err != nil {
-		return err
-	}
-
-	return nil
+	return executeTemplate(out, tmplName, tmplPath, commit, fmap, disambiguators)
 }
 
 func getAllHeuristics(disambiguators []*disambiguator) []*heuristic {

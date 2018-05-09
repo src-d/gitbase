@@ -13,68 +13,71 @@ import (
 )
 
 const (
-	linguistURL = "https://github.com/github/linguist.git"
+	linguistURL          = "https://github.com/github/linguist.git"
 	linguistClonedEnvVar = "ENRY_TEST_REPO"
-	commit        = "d5c8db3fb91963c4b2762ca2ea2ff7cfac109f68"
-	samplesDir    = "samples"
-	languagesFile = "lib/linguist/languages.yml"
+	commit               = "d5c8db3fb91963c4b2762ca2ea2ff7cfac109f68"
+	samplesDir           = "samples"
+	languagesFile        = "lib/linguist/languages.yml"
+
+	testDir   = "test_files"
+	assetsDir = "../assets"
 
 	// Extensions test
-	extensionGold         = "test_files/extension.gold"
-	extensionTestTmplPath = "../assets/extension.go.tmpl"
+	extensionGold         = testDir + "/extension.gold"
+	extensionTestTmplPath = assetsDir + "/extension.go.tmpl"
 	extensionTestTmplName = "extension.go.tmpl"
 
 	// Heuristics test
 	heuristicsTestFile  = "lib/linguist/heuristics.rb"
-	contentGold         = "test_files/content.gold"
-	contentTestTmplPath = "../assets/content.go.tmpl"
+	contentGold         = testDir + "/content.gold"
+	contentTestTmplPath = assetsDir + "/content.go.tmpl"
 	contentTestTmplName = "content.go.tmpl"
 
 	// Vendor test
 	vendorTestFile     = "lib/linguist/vendor.yml"
-	vendorGold         = "test_files/vendor.gold"
-	vendorTestTmplPath = "../assets/vendor.go.tmpl"
+	vendorGold         = testDir + "/vendor.gold"
+	vendorTestTmplPath = assetsDir + "/vendor.go.tmpl"
 	vendorTestTmplName = "vendor.go.tmpl"
 
 	// Documentation test
 	documentationTestFile     = "lib/linguist/documentation.yml"
-	documentationGold         = "test_files/documentation.gold"
-	documentationTestTmplPath = "../assets/documentation.go.tmpl"
+	documentationGold         = testDir + "/documentation.gold"
+	documentationTestTmplPath = assetsDir + "/documentation.go.tmpl"
 	documentationTestTmplName = "documentation.go.tmpl"
 
 	// Types test
-	typeGold         = "test_files/type.gold"
-	typeTestTmplPath = "../assets/type.go.tmpl"
+	typeGold         = testDir + "/type.gold"
+	typeTestTmplPath = assetsDir + "/type.go.tmpl"
 	typeTestTmplName = "type.go.tmpl"
 
 	// Interpreters test
-	interpreterGold         = "test_files/interpreter.gold"
-	interpreterTestTmplPath = "../assets/interpreter.go.tmpl"
+	interpreterGold         = testDir + "/interpreter.gold"
+	interpreterTestTmplPath = assetsDir + "/interpreter.go.tmpl"
 	interpreterTestTmplName = "interpreter.go.tmpl"
 
 	// Filenames test
-	filenameGold         = "test_files/filename.gold"
-	filenameTestTmplPath = "../assets/filename.go.tmpl"
+	filenameGold         = testDir + "/filename.gold"
+	filenameTestTmplPath = assetsDir + "/filename.go.tmpl"
 	filenameTestTmplName = "filename.go.tmpl"
 
 	// Aliases test
-	aliasGold         = "test_files/alias.gold"
-	aliasTestTmplPath = "../assets/alias.go.tmpl"
+	aliasGold         = testDir + "/alias.gold"
+	aliasTestTmplPath = assetsDir + "/alias.go.tmpl"
 	aliasTestTmplName = "alias.go.tmpl"
 
 	// Frequencies test
-	frequenciesGold         = "test_files/frequencies.gold"
-	frequenciesTestTmplPath = "../assets/frequencies.go.tmpl"
+	frequenciesGold         = testDir + "/frequencies.gold"
+	frequenciesTestTmplPath = assetsDir + "/frequencies.go.tmpl"
 	frequenciesTestTmplName = "frequencies.go.tmpl"
 
 	// commit test
-	commitGold         = "test_files/commit.gold"
-	commitTestTmplPath = "../assets/commit.go.tmpl"
+	commitGold         = testDir + "/commit.gold"
+	commitTestTmplPath = assetsDir + "/commit.go.tmpl"
 	commitTestTmplName = "commit.go.tmpl"
 
 	// mime test
-	mimeTypeGold         = "test_files/mimeType.gold"
-	mimeTypeTestTmplPath = "../assets/mimeType.go.tmpl"
+	mimeTypeGold         = testDir + "/mimeType.gold"
+	mimeTypeTestTmplPath = assetsDir + "/mimeType.go.tmpl"
 	mimeTypeTestTmplName = "mimeType.go.tmpl"
 )
 
