@@ -319,6 +319,44 @@ func TestAllCommitsIter(t *testing.T) {
 	)
 }
 
+func TestRepoCommitsIter(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	rows := chainableIterRows(
+		t, ctx,
+		NewRepoCommitsIter(
+			NewAllReposIter(nil),
+			nil,
+		),
+	)
+
+	expected := chainableIterRows(
+		t, ctx,
+		NewAllCommitsIter(nil),
+	)
+
+	for i := range rows {
+		rows[i] = rows[i][1:]
+	}
+
+	require.ElementsMatch(expected, rows)
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewRepoCommitsIter(
+			NewAllReposIter(nil),
+			expression.NewEquals(
+				expression.NewGetField(2, sql.Text, "commit_hash", false),
+				expression.NewLiteral("918c48b83bd081e863dbe1b80f8998f058cd8294", sql.Text),
+			),
+		),
+	)
+
+	require.Len(rows, 1)
+}
+
 func TestRefCommitsIter(t *testing.T) {
 	require := require.New(t)
 	ctx, cleanup := setupIter(t)
@@ -481,6 +519,44 @@ func TestAllTreeEntriesIter(t *testing.T) {
 		t, ctx,
 		NewAllTreeEntriesIter(nil),
 	)
+}
+
+func TestRepoTreeEntriesIter(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	rows := chainableIterRows(
+		t, ctx,
+		NewRepoTreeEntriesIter(
+			NewAllReposIter(nil),
+			nil,
+		),
+	)
+
+	expected := chainableIterRows(
+		t, ctx,
+		NewAllTreeEntriesIter(nil),
+	)
+
+	for i := range rows {
+		rows[i] = rows[i][1:]
+	}
+
+	require.ElementsMatch(expected, rows)
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewRepoTreeEntriesIter(
+			NewAllReposIter(nil),
+			expression.NewEquals(
+				expression.NewGetField(5, sql.Text, "tree_entry_name", false),
+				expression.NewLiteral("LICENSE", sql.Text),
+			),
+		),
+	)
+
+	require.Len(rows, 8)
 }
 
 func TestCommitTreeEntriesIter(t *testing.T) {
@@ -704,6 +780,47 @@ func TestRecursiveTreeFileIter(t *testing.T) {
 	require.Equal(expected, result)
 
 	// TODO: add repo that has errors walking trees
+}
+
+func TestRepoBlobsIter(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	rows := chainableIterRows(
+		t, ctx,
+		NewRepoBlobsIter(
+			NewAllReposIter(nil),
+			nil,
+			false,
+		),
+	)
+
+	iter, err := NewRowRepoIter(ctx, new(blobIter))
+	require.NoError(err)
+
+	expected, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+
+	for i := range rows {
+		rows[i] = rows[i][1:]
+	}
+
+	require.ElementsMatch(expected, rows)
+
+	rows = chainableIterRows(
+		t, ctx,
+		NewRepoBlobsIter(
+			NewAllReposIter(nil),
+			expression.NewEquals(
+				expression.NewGetField(2, sql.Text, "hash", false),
+				expression.NewLiteral("d3ff53e0564a9f87d8e84b6e28e5060e517008aa", sql.Text),
+			),
+			false,
+		),
+	)
+
+	require.Len(rows, 1)
 }
 
 func TestCommitBlobsIter(t *testing.T) {

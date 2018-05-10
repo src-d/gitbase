@@ -255,6 +255,7 @@ func TestSquashCorrectness(t *testing.T) {
 		t.Run(q, func(t *testing.T) {
 			expected := queryResults(t, engine, pool, q)
 			result := queryResults(t, squashEngine, pool, q)
+			require.Len(t, result, len(expected))
 			require.ElementsMatch(
 				t,
 				expected,
