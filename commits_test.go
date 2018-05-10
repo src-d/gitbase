@@ -61,7 +61,7 @@ func TestCommitsPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(0, sql.Text, CommitsTableName, "hash", false),
+			expression.NewGetFieldWithTable(1, sql.Text, CommitsTableName, "blob_hash", false),
 			expression.NewLiteral("918c48b83bd081e863dbe1b80f8998f058cd8294", sql.Text),
 		),
 	})
@@ -73,7 +73,7 @@ func TestCommitsPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(0, sql.Text, CommitsTableName, "hash", false),
+			expression.NewGetFieldWithTable(1, sql.Text, CommitsTableName, "blob_hash", false),
 			expression.NewLiteral("not exists", sql.Text),
 		),
 	})
@@ -85,7 +85,7 @@ func TestCommitsPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(2, sql.Text, CommitsTableName, "author_email", false),
+			expression.NewGetFieldWithTable(3, sql.Text, CommitsTableName, "commit_author_email", false),
 			expression.NewLiteral("mcuadros@gmail.com", sql.Text),
 		),
 	})
@@ -97,11 +97,11 @@ func TestCommitsPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(2, sql.Text, CommitsTableName, "author_email", false),
+			expression.NewGetFieldWithTable(3, sql.Text, CommitsTableName, "commit_author_email", false),
 			expression.NewLiteral("mcuadros@gmail.com", sql.Text),
 		),
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(7, sql.Text, CommitsTableName, "message", false),
+			expression.NewGetFieldWithTable(8, sql.Text, CommitsTableName, "commit_message", false),
 			expression.NewLiteral("vendor stuff\n", sql.Text),
 		),
 	})
@@ -196,8 +196,8 @@ func TestCommitsParents(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			hash := rows[i][0]
-			parents := rows[i][9]
+			hash := rows[i][1]
+			parents := rows[i][10]
 			require.Equal(t, test.hash, hash)
 			require.ElementsMatch(t, test.parents, parents)
 		})

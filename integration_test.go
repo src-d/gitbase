@@ -37,13 +37,13 @@ func TestIntegration(t *testing.T) {
 		result []sql.Row
 	}{
 		{
-			`SELECT COUNT(c.hash), c.hash
+			`SELECT COUNT(c.commit_hash), c.commit_hash
 			FROM refs r
 			INNER JOIN commits c
-				ON r.name = 'HEAD' AND history_idx(r.hash, c.hash) >= 0
+				ON r.ref_name = 'HEAD' AND history_idx(r.commit_hash, c.commit_hash) >= 0
 			INNER JOIN blobs b
-				ON commit_has_blob(c.hash, b.hash)
-			GROUP BY c.hash`,
+				ON commit_has_blob(c.commit_hash, b.blob_hash)
+			GROUP BY c.commit_hash`,
 			[]sql.Row{
 				{int32(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
 				{int32(3), "35e85108805c84807bc66a02d91535e1e24b38b9"},
@@ -56,7 +56,7 @@ func TestIntegration(t *testing.T) {
 			},
 		},
 		{
-			`SELECT name FROM refs ORDER BY name`,
+			`SELECT ref_name FROM refs ORDER BY ref_name`,
 			[]sql.Row{
 				{"HEAD"},
 				{"refs/heads/master"},
@@ -65,11 +65,11 @@ func TestIntegration(t *testing.T) {
 			},
 		},
 		{
-			`SELECT c.hash
+			`SELECT c.commit_hash
 			FROM refs 
 			INNER JOIN commits c 
-				ON refs.name = 'HEAD' 
-				AND history_idx(refs.hash, c.hash) >= 0`,
+				ON refs.ref_name = 'HEAD' 
+				AND history_idx(refs.commit_hash, c.commit_hash) >= 0`,
 			[]sql.Row{
 				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
 				{"918c48b83bd081e863dbe1b80f8998f058cd8294"},
@@ -84,13 +84,13 @@ func TestIntegration(t *testing.T) {
 		{
 			`SELECT COUNT(first_commit_year), first_commit_year
 			FROM (
-				SELECT YEAR(c.author_when) AS first_commit_year
+				SELECT YEAR(c.commit_author_when) AS first_commit_year
 				FROM repositories r
 				INNER JOIN refs 
-					ON r.id = refs.repository_id
+					ON r.repository_id = refs.repository_id
 				INNER JOIN commits c 
-					ON history_idx(refs.hash, c.hash) >= 0
-				ORDER BY c.author_when 
+					ON history_idx(refs.commit_hash, c.commit_hash) >= 0
+				ORDER BY c.commit_author_when 
 				LIMIT 1
 			) repo_years
 			GROUP BY first_commit_year`,
@@ -101,11 +101,12 @@ func TestIntegration(t *testing.T) {
 			FROM (
 				SELECT
 					MONTH(committer_when) as month,
-					r.id as repo_id,
+					r.repository_id as repo_id,
 					committer_email
 				FROM repositories r
-				INNER JOIN refs ON refs.repository_id = r.id AND refs.name = 'refs/heads/master'
-				INNER JOIN commits c ON history_idx(refs.hash, c.hash) >= 0
+				INNER JOIN refs ON refs.repository_id = r.repository_id 
+					AND refs.ref_name = 'refs/heads/master'
+				INNER JOIN commits c ON history_idx(refs.commit_hash, c.commit_hash) >= 0
 				WHERE YEAR(committer_when) = 2015
 			) as t
 			GROUP BY committer_email, month, repo_id`,
@@ -117,11 +118,11 @@ func TestIntegration(t *testing.T) {
 		},
 		{
 			`SELECT * FROM (
-				SELECT COUNT(c.hash) AS num, c.hash
+				SELECT COUNT(c.commit_hash) AS num, c.commit_hash
 				FROM refs r
 				INNER JOIN commits c
-					ON history_idx(r.hash, c.hash) >= 0
-				GROUP BY c.hash
+					ON history_idx(r.commit_hash, c.commit_hash) >= 0
+				GROUP BY c.commit_hash
 			) t WHERE num > 1`,
 			[]sql.Row{
 				{int32(3), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
@@ -178,11 +179,12 @@ func TestUastQueries(t *testing.T) {
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	_, iter, err := engine.Query(ctx, `
-		SELECT uast_xpath(uast(content, language(name, content)), '//*[@roleIdentifier]') as uast, name 
+		SELECT uast_xpath(uast(blob_content, language(tree_entry_name, blob_content)), '//*[@roleIdentifier]') as uast, 
+			tree_entry_name 
 		FROM tree_entries te
 		INNER JOIN blobs b
-		ON b.hash = te.entry_hash
-		WHERE te.name = 'php/crappy.php'`,
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'php/crappy.php'`,
 	)
 	require.NoError(err)
 
@@ -218,31 +220,31 @@ func TestSquashCorrectness(t *testing.T) {
 		`SELECT * FROM commits`,
 		`SELECT * FROM tree_entries`,
 		`SELECT * FROM blobs`,
-		`SELECT * FROM repositories r INNER JOIN refs ON r.id = refs.repository_id`,
-		`SELECT * FROM repositories r INNER JOIN remotes ON r.id = remotes.repository_id`,
+		`SELECT * FROM repositories r INNER JOIN refs ON r.repository_id = refs.repository_id`,
+		`SELECT * FROM repositories r INNER JOIN remotes ON r.repository_id = remotes.repository_id`,
 		`SELECT * FROM refs r INNER JOIN remotes re ON r.repository_id = re.repository_id`,
-		`SELECT * FROM refs r INNER JOIN commits c ON r.hash = c.hash`,
-		`SELECT * FROM refs r INNER JOIN commits c ON history_idx(r.hash, c.hash) >= 0`,
-		`SELECT * FROM refs r INNER JOIN tree_entries te ON commit_has_tree(r.hash, te.tree_hash)`,
-		`SELECT * FROM refs r INNER JOIN blobs b ON commit_has_blob(r.hash, b.hash)`,
-		`SELECT * FROM commits c INNER JOIN tree_entries te ON commit_has_tree(c.hash, te.tree_hash)`,
+		`SELECT * FROM refs r INNER JOIN commits c ON r.commit_hash = c.commit_hash`,
+		`SELECT * FROM refs r INNER JOIN commits c ON history_idx(r.commit_hash, c.commit_hash) >= 0`,
+		`SELECT * FROM refs r INNER JOIN tree_entries te ON commit_has_tree(r.commit_hash, te.tree_hash)`,
+		`SELECT * FROM refs r INNER JOIN blobs b ON commit_has_blob(r.commit_hash, b.blob_hash)`,
+		`SELECT * FROM commits c INNER JOIN tree_entries te ON commit_has_tree(c.commit_hash, te.tree_hash)`,
 		`SELECT * FROM commits c INNER JOIN tree_entries te ON c.tree_hash = te.tree_hash`,
-		`SELECT * FROM commits c INNER JOIN blobs b ON commit_has_blob(c.hash, b.hash)`,
-		`SELECT * FROM tree_entries te INNER JOIN blobs b ON te.entry_hash = b.hash`,
+		`SELECT * FROM commits c INNER JOIN blobs b ON commit_has_blob(c.commit_hash, b.blob_hash)`,
+		`SELECT * FROM tree_entries te INNER JOIN blobs b ON te.blob_hash = b.blob_hash`,
 
 		`SELECT * FROM repositories r
 		INNER JOIN refs re
-			ON r.id = re.repository_id
+			ON r.repository_id = re.repository_id
 		INNER JOIN commits c
-			ON re.hash = c.hash
-		WHERE re.name = 'HEAD'`,
+			ON re.commit_hash = c.commit_hash
+		WHERE re.ref_name = 'HEAD'`,
 
 		`SELECT * FROM commits c
 		INNER JOIN tree_entries te
 			ON c.tree_hash = te.tree_hash
 		INNER JOIN blobs b
-			ON te.entry_hash = b.hash
-		WHERE te.name = 'LICENSE'`,
+			ON te.blob_hash = b.blob_hash
+		WHERE te.tree_entry_name = 'LICENSE'`,
 
 		`SELECT * FROM repositories,
 		commits c INNER JOIN tree_entries te
@@ -314,29 +316,29 @@ func BenchmarkQueries(b *testing.B) {
 			"simple query",
 			`SELECT * FROM repositories r 
 			INNER JOIN refs rr 
-			ON r.id = rr.repository_id`,
+			ON r.repository_id = rr.repository_id`,
 		},
 		{
 			"query with commit_has_blob",
-			`SELECT COUNT(c.hash), c.hash
+			`SELECT COUNT(c.commit_hash), c.commit_hash
 			FROM refs r
 			INNER JOIN commits c
-				ON r.name = 'HEAD' AND history_idx(r.hash, c.hash) >= 0
+				ON r.ref_name = 'HEAD' AND history_idx(r.commit_hash, c.commit_hash) >= 0
 			INNER JOIN blobs b
-				ON commit_has_blob(c.hash, b.hash)
-			GROUP BY c.hash`,
+				ON commit_has_blob(c.commit_hash, b.blob_hash)
+			GROUP BY c.commit_hash`,
 		},
 		{
 			"query with history_idx and 3 joins",
 			`SELECT COUNT(first_commit_year), first_commit_year
 			FROM (
-				SELECT YEAR(c.author_when) AS first_commit_year
+				SELECT YEAR(c.commit_author_when) AS first_commit_year
 				FROM repositories r
 				INNER JOIN refs 
-					ON r.id = refs.repository_id
+					ON r.repository_id = refs.repository_id
 				INNER JOIN commits c 
-					ON history_idx(refs.hash, c.hash) >= 0
-				ORDER BY c.author_when 
+					ON history_idx(refs.commit_hash, c.commit_hash) >= 0
+				ORDER BY c.commit_author_when 
 				LIMIT 1
 			) repo_years
 			GROUP BY first_commit_year`,
@@ -344,38 +346,38 @@ func BenchmarkQueries(b *testing.B) {
 		{
 			"query with history_idx",
 			`SELECT * FROM (
-				SELECT COUNT(c.hash) AS num, c.hash
+				SELECT COUNT(c.commit_hash) AS num, c.commit_hash
 				FROM refs r
 				INNER JOIN commits c
-					ON history_idx(r.hash, c.hash) >= 0
-				GROUP BY c.hash
+					ON history_idx(r.commit_hash, c.commit_hash) >= 0
+				GROUP BY c.commit_hash
 			) t WHERE num > 1`,
 		},
 		{
 			"join tree entries and blobs",
 			`SELECT * FROM tree_entries te 
 			INNER JOIN blobs b 
-			ON te.entry_hash = b.hash`,
+			ON te.blob_hash = b.blob_hash`,
 		},
 		{
 			"join tree entries and blobs with filters",
 			`SELECT * FROM tree_entries te 
 			INNER JOIN blobs b 
-			ON te.entry_hash = b.hash
-			WHERE te.name = 'LICENSE'`,
+			ON te.blob_hash = b.blob_hash
+			WHERE te.tree_entry_name = 'LICENSE'`,
 		},
 		{
 			"join refs and blobs",
 			`SELECT * FROM refs r
 			INNER JOIN blobs b
-			ON commit_has_blob(r.hash, b.hash)`,
+			ON commit_has_blob(r.commit_hash, b.blob_hash)`,
 		},
 		{
 			"join refs and blobs with filters",
 			`SELECT * FROM refs r
 			INNER JOIN blobs b
-			ON commit_has_blob(r.hash, b.hash)
-			WHERE r.name = 'refs/heads/master'`,
+			ON commit_has_blob(r.commit_hash, b.blob_hash)
+			WHERE r.ref_name = 'refs/heads/master'`,
 		},
 	}
 

@@ -10,7 +10,7 @@ type repositoriesTable struct{}
 
 // RepositoriesSchema is the schema for the repositories table.
 var RepositoriesSchema = sql.Schema{
-	{Name: "id", Type: sql.Text, Nullable: false, Source: RepositoriesTableName},
+	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: RepositoriesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*repositoriesTable)(nil)

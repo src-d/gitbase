@@ -314,7 +314,7 @@ func buildSquashedTable(
 		case gitbase.BlobsTableName:
 			var readContent bool
 			for _, e := range columns {
-				if containsField(e, gitbase.BlobsTableName, "content") {
+				if containsField(e, gitbase.BlobsTableName, "blob_content") {
 					readContent = true
 					break
 				}
@@ -747,8 +747,8 @@ func removeRedundantFilters(filters []sql.Expression, t1, t2 string) []sql.Expre
 func hasRefHEADFilter(filters []sql.Expression) bool {
 	for _, f := range filters {
 		ok := isEq(
-			isCol(gitbase.ReferencesTableName, "hash"),
-			isCol(gitbase.CommitsTableName, "hash"),
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.CommitsTableName, "commit_hash"),
 		)(f)
 		if ok {
 			return true
@@ -788,12 +788,12 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 	switch true {
 	case t1 == gitbase.RepositoriesTableName && t2 == gitbase.RemotesTableName:
 		return isEq(
-			isCol(gitbase.RepositoriesTableName, "id"),
+			isCol(gitbase.RepositoriesTableName, "repository_id"),
 			isCol(gitbase.RemotesTableName, "repository_id"),
 		)(f)
 	case t1 == gitbase.RepositoriesTableName && t2 == gitbase.ReferencesTableName:
 		return isEq(
-			isCol(gitbase.RepositoriesTableName, "id"),
+			isCol(gitbase.RepositoriesTableName, "repository_id"),
 			isCol(gitbase.ReferencesTableName, "repository_id"),
 		)(f)
 	case t1 == gitbase.RemotesTableName && t2 == gitbase.ReferencesTableName:
@@ -803,48 +803,48 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 		)(f)
 	case t1 == gitbase.ReferencesTableName && t2 == gitbase.CommitsTableName:
 		return isEq(
-			isCol(gitbase.ReferencesTableName, "hash"),
-			isCol(gitbase.CommitsTableName, "hash"),
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.CommitsTableName, "commit_hash"),
 		)(f) || isGte(
 			isHistoryIdx(
-				isCol(gitbase.ReferencesTableName, "hash"),
-				isCol(gitbase.CommitsTableName, "hash"),
+				isCol(gitbase.ReferencesTableName, "commit_hash"),
+				isCol(gitbase.CommitsTableName, "commit_hash"),
 			),
 			isNum(0),
 		)(f)
 	case t1 == gitbase.ReferencesTableName && t2 == gitbase.TreeEntriesTableName:
 		return isCommitHasTree(
-			isCol(gitbase.ReferencesTableName, "hash"),
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
 			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
 		)(f) || isCommitHasBlob(
-			isCol(gitbase.ReferencesTableName, "hash"),
-			isCol(gitbase.TreeEntriesTableName, "entry_hash"),
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.TreeEntriesTableName, "blob_hash"),
 		)(f)
 	case t1 == gitbase.ReferencesTableName && t2 == gitbase.BlobsTableName:
 		return isCommitHasBlob(
-			isCol(gitbase.ReferencesTableName, "hash"),
-			isCol(gitbase.BlobsTableName, "hash"),
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.BlobsTableName, "blob_hash"),
 		)(f)
 	case t1 == gitbase.CommitsTableName && t2 == gitbase.TreeEntriesTableName:
 		return isEq(
 			isCol(gitbase.CommitsTableName, "tree_hash"),
 			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
 		)(f) || isCommitHasTree(
-			isCol(gitbase.CommitsTableName, "hash"),
+			isCol(gitbase.CommitsTableName, "commit_hash"),
 			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
 		)(f) || isCommitHasBlob(
-			isCol(gitbase.CommitsTableName, "hash"),
-			isCol(gitbase.TreeEntriesTableName, "entry_hash"),
+			isCol(gitbase.CommitsTableName, "commit_hash"),
+			isCol(gitbase.TreeEntriesTableName, "blob_hash"),
 		)(f)
 	case t1 == gitbase.CommitsTableName && t2 == gitbase.BlobsTableName:
 		return isCommitHasBlob(
-			isCol(gitbase.CommitsTableName, "hash"),
-			isCol(gitbase.BlobsTableName, "hash"),
+			isCol(gitbase.CommitsTableName, "commit_hash"),
+			isCol(gitbase.BlobsTableName, "blob_hash"),
 		)(f)
 	case t1 == gitbase.TreeEntriesTableName && t2 == gitbase.BlobsTableName:
 		return isEq(
-			isCol(gitbase.TreeEntriesTableName, "entry_hash"),
-			isCol(gitbase.BlobsTableName, "hash"),
+			isCol(gitbase.TreeEntriesTableName, "blob_hash"),
+			isCol(gitbase.BlobsTableName, "blob_hash"),
 		)(f)
 	}
 	return false

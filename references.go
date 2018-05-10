@@ -15,8 +15,8 @@ type referencesTable struct{}
 // RefsSchema is the schema for the refs table.
 var RefsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
-	{Name: "name", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
-	{Name: "hash", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
+	{Name: "ref_name", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
+	{Name: "commit_hash", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*referencesTable)(nil)
@@ -81,18 +81,18 @@ func (r *referencesTable) WithProjectAndFilters(
 	span, ctx := ctx.Span("gitbase.ReferencesTable")
 	iter, err := rowIterWithSelectors(
 		ctx, RefsSchema, ReferencesTableName, filters,
-		[]string{"hash", "name"},
+		[]string{"commit_hash", "ref_name"},
 		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["hash"]) == 0 && len(selectors["name"]) == 0 {
+			if len(selectors["commit_hash"]) == 0 && len(selectors["ref_name"]) == 0 {
 				return new(referenceIter), nil
 			}
 
-			hashes, err := selectors.textValues("hash")
+			hashes, err := selectors.textValues("commit_hash")
 			if err != nil {
 				return nil, err
 			}
 
-			names, err := selectors.textValues("name")
+			names, err := selectors.textValues("ref_name")
 			if err != nil {
 				return nil, err
 			}

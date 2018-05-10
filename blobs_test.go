@@ -83,9 +83,9 @@ func TestBlobsLimit(t *testing.T) {
 	require.Len(rows, len(expected))
 	for i, row := range rows {
 		e := expected[i]
-		require.Equal(e.hash, row[0].(string))
-		require.Equal(e.bytes, row[1].(int64))
-		require.Equal(e.empty, len(row[2].([]byte)) == 0)
+		require.Equal(e.hash, row[1].(string))
+		require.Equal(e.bytes, row[2].(int64))
+		require.Equal(e.empty, len(row[3].([]byte)) == 0)
 	}
 }
 
@@ -105,7 +105,7 @@ func TestBlobsPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(0, sql.Text, BlobsTableName, "hash", false),
+			expression.NewGetFieldWithTable(1, sql.Text, BlobsTableName, "blob_hash", false),
 			expression.NewLiteral("32858aad3c383ed1ff0a0f9bdf231d54a00c9e88", sql.Text),
 		),
 	})
@@ -117,7 +117,7 @@ func TestBlobsPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewLessThan(
-			expression.NewGetFieldWithTable(1, sql.Int64, BlobsTableName, "size", false),
+			expression.NewGetFieldWithTable(2, sql.Int64, BlobsTableName, "blob_size", false),
 			expression.NewLiteral(int64(10), sql.Int64),
 		),
 	})
@@ -125,7 +125,7 @@ func TestBlobsPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(0, sql.Text, BlobsTableName, "hash", false),
+			expression.NewGetFieldWithTable(1, sql.Text, BlobsTableName, "blob_hash", false),
 			expression.NewLiteral("not exists", sql.Text),
 		),
 	})

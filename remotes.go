@@ -12,11 +12,11 @@ type remotesTable struct{}
 // RemotesSchema is the schema for the remotes table.
 var RemotesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: RemotesTableName},
-	{Name: "name", Type: sql.Text, Nullable: false, Source: RemotesTableName},
-	{Name: "push_url", Type: sql.Text, Nullable: false, Source: RemotesTableName},
-	{Name: "fetch_url", Type: sql.Text, Nullable: false, Source: RemotesTableName},
-	{Name: "push_refspec", Type: sql.Text, Nullable: false, Source: RemotesTableName},
-	{Name: "fetch_refspec", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "remote_name", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "remote_push_url", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "remote_fetch_url", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "remote_push_refspec", Type: sql.Text, Nullable: false, Source: RemotesTableName},
+	{Name: "remote_fetch_refspec", Type: sql.Text, Nullable: false, Source: RemotesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*remotesTable)(nil)

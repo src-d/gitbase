@@ -750,6 +750,7 @@ type CommitsIter interface {
 }
 
 type commitsIter struct {
+	repoID  string
 	ctx     *sql.Context
 	filters sql.Expression
 	commits object.CommitIter
@@ -791,6 +792,7 @@ func (i *commitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, er
 	}
 
 	return &commitsIter{
+		repoID:  repo.ID,
 		ctx:     ctx,
 		commits: commits,
 		filters: i.filters,
@@ -814,7 +816,7 @@ func (i *commitsIter) Advance() error {
 			return err
 		}
 
-		i.row = commitToRow(i.commit)
+		i.row = commitToRow(i.repoID, i.commit)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -953,7 +955,7 @@ func (i *refCommitsIter) Advance() error {
 			return err
 		}
 
-		i.row = append(i.refs.Row(), commitToRow(i.commit)...)
+		i.row = append(i.refs.Row(), commitToRow(i.repo.ID, i.commit)...)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -1068,7 +1070,7 @@ func (i *refHeadCommitsIter) Advance() error {
 		if i.virtual {
 			i.row = i.refs.Row()
 		} else {
-			i.row = append(i.refs.Row(), commitToRow(i.commit)...)
+			i.row = append(i.refs.Row(), commitToRow(i.repo.ID, i.commit)...)
 		}
 
 		if i.filters != nil {
@@ -1109,6 +1111,7 @@ type TreeEntry struct {
 
 type treeEntriesIter struct {
 	ctx     *sql.Context
+	repoID  string
 	filters sql.Expression
 	trees   *object.TreeIter
 	tree    *object.Tree
@@ -1143,6 +1146,7 @@ func (i *treeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter
 
 	return &treeEntriesIter{
 		ctx:     ctx,
+		repoID:  repo.ID,
 		trees:   trees,
 		filters: i.filters,
 	}, nil
@@ -1180,7 +1184,7 @@ func (i *treeEntriesIter) Advance() error {
 		}
 
 		i.entry = &TreeEntry{i.tree.Hash, file}
-		i.row = fileToRow(i.tree, i.entry.File)
+		i.row = fileToRow(i.repoID, i.tree, i.entry.File)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -1200,6 +1204,7 @@ func (i *treeEntriesIter) Schema() sql.Schema { return TreeEntriesSchema }
 
 type commitMainTreeEntriesIter struct {
 	ctx     *sql.Context
+	repoID  string
 	commits CommitsIter
 	filters sql.Expression
 	tree    *object.Tree
@@ -1244,6 +1249,7 @@ func (i *commitMainTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (Cha
 
 	return &commitMainTreeEntriesIter{
 		ctx:     ctx,
+		repoID:  repo.ID,
 		commits: iter.(CommitsIter),
 		filters: i.filters,
 		virtual: i.virtual,
@@ -1304,7 +1310,7 @@ func (i *commitMainTreeEntriesIter) Advance() error {
 		if i.virtual {
 			i.row = i.commits.Row()
 		} else {
-			i.row = append(i.commits.Row(), fileToRow(i.tree, file)...)
+			i.row = append(i.commits.Row(), fileToRow(i.repoID, i.tree, file)...)
 		}
 
 		if i.filters != nil {
@@ -1435,7 +1441,7 @@ func (i *commitTreeEntriesIter) Advance() error {
 		if i.virtual {
 			i.row = i.commits.Row()
 		} else {
-			i.row = append(i.commits.Row(), fileToRow(tree, file)...)
+			i.row = append(i.commits.Row(), fileToRow(i.repo.ID, tree, file)...)
 		}
 
 		if i.filters != nil {
@@ -1653,7 +1659,7 @@ func (i *treeEntryBlobsIter) Advance() error {
 			return err
 		}
 
-		row, err := blobToRow(blob, i.readContent)
+		row, err := blobToRow(i.repo.ID, blob, i.readContent)
 		if err != nil {
 			return err
 		}
@@ -1784,7 +1790,7 @@ func (i *commitBlobsIter) Advance() error {
 			return err
 		}
 
-		row, err := blobToRow(blob, i.readContent)
+		row, err := blobToRow(i.repo.ID, blob, i.readContent)
 		if err != nil {
 			return err
 		}

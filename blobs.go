@@ -30,9 +30,10 @@ type blobsTable struct{}
 
 // BlobsSchema is the schema for the blobs table.
 var BlobsSchema = sql.Schema{
-	{Name: "hash", Type: sql.Text, Nullable: false, Source: BlobsTableName},
-	{Name: "size", Type: sql.Int64, Nullable: false, Source: BlobsTableName},
-	{Name: "content", Type: sql.Blob, Nullable: false, Source: BlobsTableName},
+	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: BlobsTableName},
+	{Name: "blob_hash", Type: sql.Text, Nullable: false, Source: BlobsTableName},
+	{Name: "blob_size", Type: sql.Int64, Nullable: false, Source: BlobsTableName},
+	{Name: "blob_content", Type: sql.Blob, Nullable: false, Source: BlobsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
@@ -97,13 +98,13 @@ func (r *blobsTable) WithProjectAndFilters(
 	span, ctx := ctx.Span("gitbase.BlobsTable")
 	iter, err := rowIterWithSelectors(
 		ctx, BlobsSchema, BlobsTableName, filters,
-		[]string{"hash"},
+		[]string{"blob_hash"},
 		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["hash"]) == 0 {
+			if len(selectors["blob_hash"]) == 0 {
 				return &blobIter{readContent: shouldReadContent(columns)}, nil
 			}
 
-			hashes, err := selectors.textValues("hash")
+			hashes, err := selectors.textValues("blob_hash")
 			if err != nil {
 				return nil, err
 			}
@@ -124,6 +125,7 @@ func (r *blobsTable) WithProjectAndFilters(
 }
 
 type blobIter struct {
+	repoID      string
 	iter        *object.BlobIter
 	readContent bool
 }
@@ -134,7 +136,7 @@ func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		return nil, err
 	}
 
-	return &blobIter{iter: iter, readContent: i.readContent}, nil
+	return &blobIter{repoID: repo.ID, iter: iter, readContent: i.readContent}, nil
 }
 
 func (i *blobIter) Next() (sql.Row, error) {
@@ -143,7 +145,7 @@ func (i *blobIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	return blobToRow(o, i.readContent)
+	return blobToRow(i.repoID, o, i.readContent)
 }
 
 func (i *blobIter) Close() error {
@@ -182,7 +184,7 @@ func (i *blobsByHashIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		return blobToRow(blob, i.readContent)
+		return blobToRow(i.repo.ID, blob, i.readContent)
 	}
 }
 
@@ -190,7 +192,7 @@ func (i *blobsByHashIter) Close() error {
 	return nil
 }
 
-func blobToRow(c *object.Blob, readContent bool) (sql.Row, error) {
+func blobToRow(repoID string, c *object.Blob, readContent bool) (sql.Row, error) {
 	var content []byte
 	var isAllowed = blobsAllowBinary
 	if !isAllowed && readContent {
@@ -214,6 +216,7 @@ func blobToRow(c *object.Blob, readContent bool) (sql.Row, error) {
 	}
 
 	return sql.NewRow(
+		repoID,
 		c.Hash.String(),
 		c.Size,
 		content,
@@ -260,7 +263,7 @@ func shouldReadContent(columns []sql.Expression) bool {
 		var found bool
 		expression.Inspect(e, func(e sql.Expression) bool {
 			gf, ok := e.(*expression.GetField)
-			found = ok && gf.Table() == BlobsTableName && gf.Name() == "content"
+			found = ok && gf.Table() == BlobsTableName && gf.Name() == "blob_content"
 			return !found
 		})
 
