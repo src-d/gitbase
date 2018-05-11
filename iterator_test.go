@@ -292,7 +292,7 @@ func TestAllCommitsIter(t *testing.T) {
 		t, ctx,
 		NewAllCommitsIter(
 			expression.NewEquals(
-				expression.NewGetField(2, sql.Text, "author_email", false),
+				expression.NewGetField(3, sql.Text, "commit_author_email", false),
 				expression.NewLiteral("mcuadros@gmail.com", sql.Text),
 			),
 		),
@@ -339,11 +339,11 @@ func TestRefCommitsIter(t *testing.T) {
 		t, ctx,
 		NewRefCommitsIter(
 			NewAllRefsIter(expression.NewEquals(
-				expression.NewGetField(1, sql.Text, "name", false),
+				expression.NewGetField(1, sql.Text, "ref_name", false),
 				expression.NewLiteral("HEAD", sql.Text),
 			)),
 			expression.NewEquals(
-				expression.NewGetField(5, sql.Text, "author_email", false),
+				expression.NewGetField(6, sql.Text, "commit_author_email", false),
 				expression.NewLiteral("mcuadros@gmail.com", sql.Text),
 			),
 		),
@@ -394,7 +394,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 
 	require.Len(rows, len(expected))
 	for _, row := range rows {
-		require.Equal(row[2 /* ref hash */], row[3 /* commit hash */])
+		require.Equal(row[2 /* ref hash */], row[4 /* commit hash */])
 	}
 
 	rows = chainableIterRows(
@@ -402,7 +402,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 		NewRefHEADCommitsIter(
 			NewAllRefsIter(nil),
 			expression.NewEquals(
-				expression.NewGetField(5, sql.Text, "author_email", false),
+				expression.NewGetField(6, sql.Text, "commit_author_email", false),
 				expression.NewLiteral("mcuadros@gmail.com", sql.Text),
 			),
 			false,
@@ -411,7 +411,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 
 	require.Len(rows, 7)
 	for _, row := range rows {
-		require.Equal(row[2 /* ref hash */], row[3 /* commit hash */])
+		require.Equal(row[2 /* ref hash */], row[4 /* commit hash */])
 	}
 
 	ctx, cleanup2 := setupIterWithErrors(t, true, true)
@@ -456,7 +456,7 @@ func TestAllTreeEntriesIter(t *testing.T) {
 		t, ctx,
 		NewAllTreeEntriesIter(
 			expression.NewEquals(
-				expression.NewGetField(3, sql.Text, "name", false),
+				expression.NewGetField(4, sql.Text, "tree_entry_name", false),
 				expression.NewLiteral("LICENSE", sql.Text),
 			),
 		),
@@ -604,7 +604,7 @@ func TestTreeEntryBlobsIter(t *testing.T) {
 				false,
 			),
 			expression.NewLessThan(
-				expression.NewGetField(len(CommitsSchema)+len(TreeEntriesSchema)+1, sql.Int64, "size", false),
+				expression.NewGetField(len(CommitsSchema)+len(TreeEntriesSchema)+2, sql.Int64, "blob_size", false),
 				expression.NewLiteral(int64(150), sql.Int64),
 			),
 			false,

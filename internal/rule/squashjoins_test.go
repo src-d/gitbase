@@ -38,7 +38,7 @@ func TestSquashJoins(t *testing.T) {
 					),
 					and(
 						eq(
-							col(0, gitbase.RepositoriesTableName, "id"),
+							col(0, gitbase.RepositoriesTableName, "repository_id"),
 							col(0, gitbase.ReferencesTableName, "repository_id"),
 						),
 						lit(4),
@@ -46,8 +46,8 @@ func TestSquashJoins(t *testing.T) {
 				),
 				and(
 					eq(
-						col(0, gitbase.ReferencesTableName, "hash"),
-						col(0, gitbase.CommitsTableName, "hash"),
+						col(0, gitbase.ReferencesTableName, "commit_hash"),
+						col(0, gitbase.CommitsTableName, "commit_hash"),
 					),
 					lit(3),
 				),
@@ -73,7 +73,7 @@ func TestSquashJoins(t *testing.T) {
 					nil,
 					false,
 				),
-				[]int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0, 1, 2, 3},
+				[]int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0, 1, 2, 3},
 				gitbase.RepositoriesTableName,
 				gitbase.ReferencesTableName,
 				gitbase.CommitsTableName,
@@ -134,7 +134,7 @@ func TestSquashJoinsPartial(t *testing.T) {
 				),
 				and(
 					eq(
-						col(0, gitbase.RepositoriesTableName, "id"),
+						col(0, gitbase.RepositoriesTableName, "repository_id"),
 						col(0, gitbase.ReferencesTableName, "repository_id"),
 					),
 					lit(4),
@@ -190,7 +190,7 @@ func TestSquashJoinsSchema(t *testing.T) {
 			),
 			and(
 				eq(
-					col(0, gitbase.RepositoriesTableName, "id"),
+					col(0, gitbase.RepositoriesTableName, "repository_id"),
 					col(0, gitbase.ReferencesTableName, "repository_id"),
 				),
 				lit(4),
@@ -198,8 +198,8 @@ func TestSquashJoinsSchema(t *testing.T) {
 		),
 		and(
 			eq(
-				col(0, gitbase.ReferencesTableName, "hash"),
-				col(0, gitbase.CommitsTableName, "hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
 			),
 			lit(3),
 		),
@@ -235,18 +235,18 @@ func TestBuildSquashedTable(t *testing.T) {
 	commitBlobsSchema := append(gitbase.CommitsSchema, gitbase.BlobsSchema...)
 
 	repoFilter := eq(
-		col(0, gitbase.RepositoriesTableName, "id"),
-		col(0, gitbase.RepositoriesTableName, "id"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
 	)
 
 	repoRemotesRedundantFilter := eq(
-		col(0, gitbase.RepositoriesTableName, "id"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
 		col(1, gitbase.RemotesTableName, "repository_id"),
 	)
 
 	repoRemotesFilter := eq(
-		col(0, gitbase.RepositoriesTableName, "id"),
-		col(2, gitbase.RemotesTableName, "name"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(2, gitbase.RemotesTableName, "remote_name"),
 	)
 
 	remotesFilter := eq(
@@ -260,8 +260,8 @@ func TestBuildSquashedTable(t *testing.T) {
 	)
 
 	remoteRefsFilter := eq(
-		col(2, gitbase.RemotesTableName, "name"),
-		col(8, gitbase.ReferencesTableName, "name"),
+		col(2, gitbase.RemotesTableName, "remote_name"),
+		col(8, gitbase.ReferencesTableName, "ref_name"),
 	)
 
 	remoteRefsRedundantFilter := eq(
@@ -270,50 +270,50 @@ func TestBuildSquashedTable(t *testing.T) {
 	)
 
 	repoRefsFilter := eq(
-		col(0, gitbase.RepositoriesTableName, "id"),
-		col(2, gitbase.ReferencesTableName, "name"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(2, gitbase.ReferencesTableName, "ref_name"),
 	)
 
 	repoRefsRedundantFilter := eq(
-		col(0, gitbase.RepositoriesTableName, "id"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
 		col(1, gitbase.ReferencesTableName, "repository_id"),
 	)
 
 	commitFilter := eq(
-		col(4, gitbase.CommitsTableName, "hash"),
-		col(4, gitbase.CommitsTableName, "hash"),
+		col(4, gitbase.CommitsTableName, "commit_hash"),
+		col(4, gitbase.CommitsTableName, "commit_hash"),
 	)
 
 	refCommitsRedundantFilter := gte(
 		historyIdx(
-			col(2, gitbase.ReferencesTableName, "hash"),
-			col(4, gitbase.CommitsTableName, "hash"),
+			col(2, gitbase.ReferencesTableName, "commit_hash"),
+			col(4, gitbase.CommitsTableName, "commit_hash"),
 		),
 		lit(int64(0)),
 	)
 
 	refHEADCommitsRedundantFilter := eq(
-		col(2, gitbase.ReferencesTableName, "hash"),
-		col(4, gitbase.CommitsTableName, "hash"),
+		col(2, gitbase.ReferencesTableName, "commit_hash"),
+		col(4, gitbase.CommitsTableName, "commit_hash"),
 	)
 
 	refCommitsFilter := eq(
-		col(2, gitbase.ReferencesTableName, "hash"),
-		col(4, gitbase.CommitsTableName, "author_name"),
+		col(2, gitbase.ReferencesTableName, "commit_hash"),
+		col(5, gitbase.CommitsTableName, "commit_author_name"),
 	)
 
 	treeEntryFilter := eq(
-		col(0, gitbase.TreeEntriesTableName, "entry_hash"),
-		col(0, gitbase.TreeEntriesTableName, "entry_hash"),
+		col(0, gitbase.TreeEntriesTableName, "blob_hash"),
+		col(0, gitbase.TreeEntriesTableName, "blob_hash"),
 	)
 
 	commitTreeEntriesFilter := eq(
 		col(0, gitbase.CommitsTableName, "tree_hash"),
-		col(0, gitbase.TreeEntriesTableName, "entry_hash"),
+		col(0, gitbase.TreeEntriesTableName, "blob_hash"),
 	)
 
 	commitTreeEntriesRedundantFilter := commitHasTree(
-		col(0, gitbase.CommitsTableName, "hash"),
+		col(0, gitbase.CommitsTableName, "commit_hash"),
 		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
 	)
 
@@ -323,53 +323,53 @@ func TestBuildSquashedTable(t *testing.T) {
 	)
 
 	refTreeEntriesFilter := eq(
-		col(0, gitbase.ReferencesTableName, "name"),
-		col(0, gitbase.TreeEntriesTableName, "name"),
+		col(0, gitbase.ReferencesTableName, "ref_name"),
+		col(0, gitbase.TreeEntriesTableName, "tree_entry_name"),
 	)
 
 	refTreeEntriesRedundantFilter := commitHasTree(
-		col(0, gitbase.ReferencesTableName, "hash"),
+		col(0, gitbase.ReferencesTableName, "commit_hash"),
 		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
 	)
 
 	blobFilter := eq(
-		col(0, gitbase.BlobsTableName, "hash"),
-		col(0, gitbase.BlobsTableName, "hash"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
 	)
 
 	blobContentFilter := eq(
-		col(0, gitbase.BlobsTableName, "content"),
-		col(0, gitbase.BlobsTableName, "content"),
+		col(0, gitbase.BlobsTableName, "blob_content"),
+		col(0, gitbase.BlobsTableName, "blob_content"),
 	)
 
 	treeEntryBlobsRedundantFilter := eq(
-		col(0, gitbase.TreeEntriesTableName, "entry_hash"),
-		col(0, gitbase.BlobsTableName, "hash"),
+		col(0, gitbase.TreeEntriesTableName, "blob_hash"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
 	)
 
 	treeEntryBlobsFilter := eq(
 		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
-		col(0, gitbase.BlobsTableName, "hash"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
 	)
 
 	refBlobsRedundantFilter := commitHasBlob(
-		col(0, gitbase.ReferencesTableName, "hash"),
-		col(0, gitbase.BlobsTableName, "hash"),
+		col(0, gitbase.ReferencesTableName, "commit_hash"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
 	)
 
 	refBlobsFilter := eq(
-		col(0, gitbase.ReferencesTableName, "name"),
-		col(0, gitbase.BlobsTableName, "hash"),
+		col(0, gitbase.ReferencesTableName, "ref_name"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
 	)
 
 	commitBlobsRedundantFilter := commitHasBlob(
-		col(0, gitbase.CommitsTableName, "hash"),
-		col(0, gitbase.BlobsTableName, "hash"),
+		col(0, gitbase.CommitsTableName, "commit_hash"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
 	)
 
 	commitBlobsFilter := eq(
-		col(0, gitbase.CommitsTableName, "hash"),
-		col(0, gitbase.BlobsTableName, "size"),
+		col(0, gitbase.CommitsTableName, "commit_hash"),
+		col(0, gitbase.BlobsTableName, "blob_size"),
 	)
 
 	testCases := []struct {
@@ -732,7 +732,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				commitBlobsRedundantFilter,
 			},
 			[]sql.Expression{expression.NewGetFieldWithTable(
-				0, sql.Int64, gitbase.BlobsTableName, "content", false,
+				0, sql.Int64, gitbase.BlobsTableName, "blob_content", false,
 			)},
 			nil,
 			newSquashedTable(
@@ -892,15 +892,15 @@ func TestFiltersForJoin(t *testing.T) {
 
 	filters := []sql.Expression{
 		eq(
-			col(0, gitbase.ReferencesTableName, "hash"),
+			col(0, gitbase.ReferencesTableName, "commit_hash"),
 			lit(0),
 		),
 		eq(
-			col(0, gitbase.RemotesTableName, "name"),
+			col(0, gitbase.RemotesTableName, "remote_name"),
 			lit(1),
 		),
 		eq(
-			col(0, gitbase.RepositoriesTableName, "id"),
+			col(0, gitbase.RepositoriesTableName, "repository_id"),
 			col(0, gitbase.ReferencesTableName, "repository_id"),
 		),
 		eq(
@@ -921,11 +921,11 @@ func TestFiltersForJoin(t *testing.T) {
 	require.Equal(
 		expression.JoinAnd(
 			eq(
-				col(8, gitbase.ReferencesTableName, "hash"),
+				col(8, gitbase.ReferencesTableName, "commit_hash"),
 				lit(0),
 			),
 			eq(
-				col(1, gitbase.RemotesTableName, "name"),
+				col(1, gitbase.RemotesTableName, "remote_name"),
 				lit(1),
 			),
 		),
@@ -938,15 +938,15 @@ func TestFiltersForTable(t *testing.T) {
 
 	filters := []sql.Expression{
 		eq(
-			col(0, gitbase.ReferencesTableName, "hash"),
+			col(0, gitbase.ReferencesTableName, "commit_hash"),
 			lit(0),
 		),
 		eq(
-			col(0, gitbase.ReferencesTableName, "hash"),
+			col(0, gitbase.ReferencesTableName, "commit_hash"),
 			lit(1),
 		),
 		eq(
-			col(0, gitbase.RepositoriesTableName, "id"),
+			col(0, gitbase.RepositoriesTableName, "repository_id"),
 			col(0, gitbase.ReferencesTableName, "repository_id"),
 		),
 	}
@@ -962,11 +962,11 @@ func TestFiltersForTable(t *testing.T) {
 	require.Equal(
 		expression.NewAnd(
 			eq(
-				col(2, gitbase.ReferencesTableName, "hash"),
+				col(2, gitbase.ReferencesTableName, "commit_hash"),
 				lit(0),
 			),
 			eq(
-				col(2, gitbase.ReferencesTableName, "hash"),
+				col(2, gitbase.ReferencesTableName, "commit_hash"),
 				lit(1),
 			),
 		),
@@ -976,12 +976,12 @@ func TestFiltersForTable(t *testing.T) {
 
 func TestRemoveRedundantFilters(t *testing.T) {
 	f1 := eq(
-		col(0, gitbase.RepositoriesTableName, "id"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
 		col(0, gitbase.ReferencesTableName, "repository_id"),
 	)
 
 	f2 := eq(
-		col(0, gitbase.RepositoriesTableName, "id"),
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
 		lit(0),
 	)
 
@@ -1015,8 +1015,8 @@ func TestIsJoinCondSquashable(t *testing.T) {
 		commits,
 		and(
 			eq(
-				col(0, gitbase.ReferencesTableName, "hash"),
-				col(0, gitbase.CommitsTableName, "hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
 			),
 			eq(lit(0), lit(1)),
 		),
@@ -1029,8 +1029,8 @@ func TestIsJoinCondSquashable(t *testing.T) {
 		commits,
 		and(
 			eq(
-				col(0, gitbase.ReferencesTableName, "hash"),
-				col(0, gitbase.CommitsTableName, "message"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
+				col(0, gitbase.CommitsTableName, "commit_message"),
 			),
 			eq(lit(0), lit(1)),
 		),
@@ -1048,8 +1048,8 @@ func TestIsJoinCondSquashable(t *testing.T) {
 		commits,
 		and(
 			eq(
-				col(0, gitbase.ReferencesTableName, "hash"),
-				col(0, gitbase.CommitsTableName, "hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
 			),
 			eq(lit(0), lit(1)),
 		),
@@ -1068,7 +1068,7 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.RepositoriesTableName,
 			gitbase.RemotesTableName,
 			eq(
-				col(0, gitbase.RepositoriesTableName, "id"),
+				col(0, gitbase.RepositoriesTableName, "repository_id"),
 				col(0, gitbase.RemotesTableName, "repository_id"),
 			),
 			true,
@@ -1078,7 +1078,7 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.RemotesTableName,
 			eq(
 				col(0, gitbase.RemotesTableName, "repository_id"),
-				col(0, gitbase.RepositoriesTableName, "id"),
+				col(0, gitbase.RepositoriesTableName, "repository_id"),
 			),
 			true,
 		},
@@ -1086,7 +1086,7 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.RepositoriesTableName,
 			gitbase.ReferencesTableName,
 			eq(
-				col(0, gitbase.RepositoriesTableName, "id"),
+				col(0, gitbase.RepositoriesTableName, "repository_id"),
 				col(0, gitbase.ReferencesTableName, "repository_id"),
 			),
 			true,
@@ -1096,7 +1096,7 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.ReferencesTableName,
 			eq(
 				col(0, gitbase.ReferencesTableName, "repository_id"),
-				col(0, gitbase.RepositoriesTableName, "id"),
+				col(0, gitbase.RepositoriesTableName, "repository_id"),
 			),
 			true,
 		},
@@ -1122,8 +1122,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.ReferencesTableName,
 			gitbase.CommitsTableName,
 			eq(
-				col(0, gitbase.ReferencesTableName, "hash"),
-				col(0, gitbase.CommitsTableName, "hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
 			),
 			true,
 		},
@@ -1131,8 +1131,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.ReferencesTableName,
 			gitbase.CommitsTableName,
 			eq(
-				col(0, gitbase.CommitsTableName, "hash"),
-				col(0, gitbase.ReferencesTableName, "hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
 			),
 			true,
 		},
@@ -1141,8 +1141,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.CommitsTableName,
 			gte(
 				historyIdx(
-					col(0, gitbase.ReferencesTableName, "hash"),
-					col(0, gitbase.CommitsTableName, "hash"),
+					col(0, gitbase.ReferencesTableName, "commit_hash"),
+					col(0, gitbase.CommitsTableName, "commit_hash"),
 				),
 				lit(int64(0)),
 			),
@@ -1154,8 +1154,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			lte(
 				lit(int64(0)),
 				historyIdx(
-					col(0, gitbase.ReferencesTableName, "hash"),
-					col(0, gitbase.CommitsTableName, "hash"),
+					col(0, gitbase.ReferencesTableName, "commit_hash"),
+					col(0, gitbase.CommitsTableName, "commit_hash"),
 				),
 			),
 			true,
@@ -1165,8 +1165,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.CommitsTableName,
 			gte(
 				historyIdx(
-					col(0, gitbase.ReferencesTableName, "hash"),
-					col(0, gitbase.CommitsTableName, "hash"),
+					col(0, gitbase.ReferencesTableName, "commit_hash"),
+					col(0, gitbase.CommitsTableName, "commit_hash"),
 				),
 				lit(1),
 			),
@@ -1176,7 +1176,7 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.ReferencesTableName,
 			gitbase.TreeEntriesTableName,
 			commitHasTree(
-				col(0, gitbase.ReferencesTableName, "hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
 				col(0, gitbase.TreeEntriesTableName, "tree_hash"),
 			),
 			true,
@@ -1185,8 +1185,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.ReferencesTableName,
 			gitbase.TreeEntriesTableName,
 			commitHasBlob(
-				col(0, gitbase.ReferencesTableName, "hash"),
-				col(0, gitbase.TreeEntriesTableName, "entry_hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
+				col(0, gitbase.TreeEntriesTableName, "blob_hash"),
 			),
 			true,
 		},
@@ -1194,8 +1194,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.ReferencesTableName,
 			gitbase.BlobsTableName,
 			commitHasBlob(
-				col(0, gitbase.ReferencesTableName, "hash"),
-				col(0, gitbase.BlobsTableName, "hash"),
+				col(0, gitbase.ReferencesTableName, "commit_hash"),
+				col(0, gitbase.BlobsTableName, "blob_hash"),
 			),
 			true,
 		},
@@ -1203,7 +1203,7 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.CommitsTableName,
 			gitbase.TreeEntriesTableName,
 			commitHasTree(
-				col(0, gitbase.CommitsTableName, "hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
 				col(0, gitbase.TreeEntriesTableName, "tree_hash"),
 			),
 			true,
@@ -1212,8 +1212,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.CommitsTableName,
 			gitbase.TreeEntriesTableName,
 			commitHasBlob(
-				col(0, gitbase.CommitsTableName, "hash"),
-				col(0, gitbase.TreeEntriesTableName, "entry_hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
+				col(0, gitbase.TreeEntriesTableName, "blob_hash"),
 			),
 			true,
 		},
@@ -1239,8 +1239,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.CommitsTableName,
 			gitbase.BlobsTableName,
 			commitHasBlob(
-				col(0, gitbase.CommitsTableName, "hash"),
-				col(0, gitbase.BlobsTableName, "hash"),
+				col(0, gitbase.CommitsTableName, "commit_hash"),
+				col(0, gitbase.BlobsTableName, "blob_hash"),
 			),
 			true,
 		},
@@ -1248,8 +1248,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.TreeEntriesTableName,
 			gitbase.BlobsTableName,
 			eq(
-				col(0, gitbase.TreeEntriesTableName, "entry_hash"),
-				col(0, gitbase.BlobsTableName, "hash"),
+				col(0, gitbase.TreeEntriesTableName, "blob_hash"),
+				col(0, gitbase.BlobsTableName, "blob_hash"),
 			),
 			true,
 		},
@@ -1257,8 +1257,8 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.TreeEntriesTableName,
 			gitbase.BlobsTableName,
 			eq(
-				col(0, gitbase.BlobsTableName, "hash"),
-				col(0, gitbase.TreeEntriesTableName, "entry_hash"),
+				col(0, gitbase.BlobsTableName, "blob_hash"),
+				col(0, gitbase.TreeEntriesTableName, "blob_hash"),
 			),
 			true,
 		},
@@ -1267,7 +1267,7 @@ func TestIsRedundantFilter(t *testing.T) {
 			gitbase.BlobsTableName,
 			eq(
 				col(0, gitbase.TreeEntriesTableName, "tree_hash"),
-				col(0, gitbase.BlobsTableName, "hash"),
+				col(0, gitbase.BlobsTableName, "blob_hash"),
 			),
 			false,
 		},

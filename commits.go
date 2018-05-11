@@ -9,21 +9,21 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
-type commitsTable struct {
-}
+type commitsTable struct{}
 
 // CommitsSchema is the schema for the commits table.
 var CommitsSchema = sql.Schema{
-	{Name: "hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "author_name", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "author_email", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "author_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
+	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "commit_hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "commit_author_name", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "commit_author_email", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "commit_author_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
 	{Name: "committer_name", Type: sql.Text, Nullable: false, Source: CommitsTableName},
 	{Name: "committer_email", Type: sql.Text, Nullable: false, Source: CommitsTableName},
 	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
-	{Name: "message", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "commit_message", Type: sql.Text, Nullable: false, Source: CommitsTableName},
 	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "parents", Type: sql.Array(sql.Text), Nullable: false, Source: CommitsTableName},
+	{Name: "commit_parents", Type: sql.Array(sql.Text), Nullable: false, Source: CommitsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
@@ -88,13 +88,13 @@ func (r *commitsTable) WithProjectAndFilters(
 	span, ctx := ctx.Span("gitbase.CommitsTable")
 	iter, err := rowIterWithSelectors(
 		ctx, CommitsSchema, CommitsTableName, filters,
-		[]string{"hash"},
+		[]string{"commit_hash"},
 		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["hash"]) == 0 {
+			if len(selectors["commit_hash"]) == 0 {
 				return new(commitIter), nil
 			}
 
-			hashes, err := selectors.textValues("hash")
+			hashes, err := selectors.textValues("commit_hash")
 			if err != nil {
 				return nil, err
 			}
@@ -112,7 +112,8 @@ func (r *commitsTable) WithProjectAndFilters(
 }
 
 type commitIter struct {
-	iter object.CommitIter
+	repoID string
+	iter   object.CommitIter
 }
 
 func (i *commitIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -121,7 +122,7 @@ func (i *commitIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		return nil, err
 	}
 
-	return &commitIter{iter: iter}, nil
+	return &commitIter{repoID: repo.ID, iter: iter}, nil
 }
 
 func (i *commitIter) Next() (sql.Row, error) {
@@ -130,7 +131,7 @@ func (i *commitIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	return commitToRow(o), nil
+	return commitToRow(i.repoID, o), nil
 }
 
 func (i *commitIter) Close() error {
@@ -168,7 +169,7 @@ func (i *commitsByHashIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		return commitToRow(commit), nil
+		return commitToRow(i.repo.ID, commit), nil
 	}
 }
 
@@ -176,8 +177,9 @@ func (i *commitsByHashIter) Close() error {
 	return nil
 }
 
-func commitToRow(c *object.Commit) sql.Row {
+func commitToRow(repoID string, c *object.Commit) sql.Row {
 	return sql.NewRow(
+		repoID,
 		c.Hash.String(),
 		c.Author.Name,
 		c.Author.Email,

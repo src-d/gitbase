@@ -14,10 +14,11 @@ type treeEntriesTable struct{}
 
 // TreeEntriesSchema is the schema for the tree entries table.
 var TreeEntriesSchema = sql.Schema{
+	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "entry_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "name", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "blob_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "tree_entry_mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "tree_entry_name", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*treeEntriesTable)(nil)
@@ -109,8 +110,9 @@ func (r treeEntriesTable) String() string {
 }
 
 type treeEntryIter struct {
-	i  *object.TreeIter
-	fi *fileIter
+	i      *object.TreeIter
+	fi     *fileIter
+	repoID string
 }
 
 func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -119,7 +121,7 @@ func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		return nil, err
 	}
 
-	return &treeEntryIter{i: iter}, nil
+	return &treeEntryIter{repoID: repo.ID, i: iter}, nil
 }
 
 func (i *treeEntryIter) Next() (sql.Row, error) {
@@ -130,7 +132,7 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 				return nil, err
 			}
 
-			i.fi = &fileIter{t: tree, fi: tree.Files()}
+			i.fi = &fileIter{repoID: i.repoID, t: tree, fi: tree.Files()}
 		}
 
 		row, err := i.fi.Next()
@@ -182,7 +184,7 @@ func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
 				return nil, err
 			}
 
-			i.fi = &fileIter{t: tree, fi: tree.Files()}
+			i.fi = &fileIter{repoID: i.repo.ID, t: tree, fi: tree.Files()}
 		}
 
 		row, err := i.fi.Next()
@@ -202,8 +204,9 @@ func (i *treeEntriesByHashIter) Close() error {
 }
 
 type fileIter struct {
-	t  *object.Tree
-	fi *object.FileIter
+	repoID string
+	t      *object.Tree
+	fi     *object.FileIter
 }
 
 func (i *fileIter) Next() (sql.Row, error) {
@@ -212,7 +215,7 @@ func (i *fileIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	return fileToRow(i.t, f), nil
+	return fileToRow(i.repoID, i.t, f), nil
 }
 
 func (i *fileIter) Close() error {
@@ -220,8 +223,9 @@ func (i *fileIter) Close() error {
 	return nil
 }
 
-func fileToRow(t *object.Tree, f *object.File) sql.Row {
+func fileToRow(repoID string, t *object.Tree, f *object.File) sql.Row {
 	return sql.NewRow(
+		repoID,
 		t.ID().String(),
 		f.Hash.String(),
 		strconv.FormatInt(int64(f.Mode), 8),

@@ -204,11 +204,14 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		}
 	}
 
-	var result = make([]interface{}, len(nodes))
-	for i, n := range nodes {
-		result[i], err = n.Marshal()
-		if err != nil {
-			return nil, err
+	var result = make([]interface{}, 0, len(nodes))
+	for _, n := range nodes {
+		if n != nil {
+			node, err := n.Marshal()
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, node)
 		}
 	}
 
