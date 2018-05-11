@@ -272,20 +272,3 @@ func referenceToRow(repositoryID string, c *plumbing.Reference) sql.Row {
 		hash,
 	)
 }
-
-func stringsToHashes(strs []string) []plumbing.Hash {
-	var hashes = make([]plumbing.Hash, len(strs))
-	for i, s := range strs {
-		hashes[i] = plumbing.NewHash(s)
-	}
-	return hashes
-}
-
-func hashContains(hashes []plumbing.Hash, hash plumbing.Hash) bool {
-	for _, h := range hashes {
-		if h == hash {
-			return true
-		}
-	}
-	return false
-}

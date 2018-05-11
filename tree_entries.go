@@ -215,7 +215,7 @@ func (i *fileIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	return fileToRow(i.repoID, i.t, f), nil
+	return treeEntryFileToRow(i.repoID, i.t, f), nil
 }
 
 func (i *fileIter) Close() error {
@@ -223,7 +223,7 @@ func (i *fileIter) Close() error {
 	return nil
 }
 
-func fileToRow(repoID string, t *object.Tree, f *object.File) sql.Row {
+func treeEntryFileToRow(repoID string, t *object.Tree, f *object.File) sql.Row {
 	return sql.NewRow(
 		repoID,
 		t.ID().String(),

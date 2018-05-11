@@ -220,6 +220,7 @@ func TestSquashCorrectness(t *testing.T) {
 		`SELECT * FROM commits`,
 		`SELECT * FROM tree_entries`,
 		`SELECT * FROM blobs`,
+		`SELECT * FROM files`,
 		`SELECT * FROM repositories r INNER JOIN refs ON r.repository_id = refs.repository_id`,
 		`SELECT * FROM repositories r INNER JOIN remotes ON r.repository_id = remotes.repository_id`,
 		`SELECT * FROM refs r INNER JOIN remotes re ON r.repository_id = re.repository_id`,

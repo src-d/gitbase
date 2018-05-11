@@ -192,7 +192,7 @@ func (i *blobsByHashIter) Close() error {
 	return nil
 }
 
-func blobToRow(repoID string, c *object.Blob, readContent bool) (sql.Row, error) {
+func blobContent(c *object.Blob, readContent bool) ([]byte, error) {
 	var content []byte
 	var isAllowed = blobsAllowBinary
 	if !isAllowed && readContent {
@@ -213,6 +213,15 @@ func blobToRow(repoID string, c *object.Blob, readContent bool) (sql.Row, error)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return content, nil
+}
+
+func blobToRow(repoID string, c *object.Blob, readContent bool) (sql.Row, error) {
+	content, err := blobContent(c, readContent)
+	if err != nil {
+		return nil, err
 	}
 
 	return sql.NewRow(
@@ -263,7 +272,7 @@ func shouldReadContent(columns []sql.Expression) bool {
 		var found bool
 		expression.Inspect(e, func(e sql.Expression) bool {
 			gf, ok := e.(*expression.GetField)
-			found = ok && gf.Table() == BlobsTableName && gf.Name() == "blob_content"
+			found = ok && gf.Name() == "blob_content"
 			return !found
 		})
 

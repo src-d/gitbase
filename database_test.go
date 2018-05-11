@@ -40,6 +40,7 @@ func TestDatabase_Tables(t *testing.T) {
 		RepositoriesTableName,
 		RemotesTableName,
 		CommitBlobsTableName,
+		FilesTableName,
 	}
 	sort.Strings(expected)
 
