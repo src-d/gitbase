@@ -1,17 +1,16 @@
 # gitbase [![GitHub version](https://badge.fury.io/gh/src-d%2Fgitbase.svg)](https://github.com/mcuadros/ofelia/releases) [![Build Status](https://travis-ci.org/src-d/gitbase.svg?branch=master)](https://travis-ci.org/src-d/gitbase) [![codecov](https://codecov.io/gh/src-d/gitbase/branch/master/graph/badge.svg)](https://codecov.io/gh/src-d/gitbase) [![GoDoc](https://godoc.org/gopkg.in/src-d/gitbase.v0?status.svg)](https://godoc.org/gopkg.in/src-d/gitbase.v0) [![Go Report Card](https://goreportcard.com/badge/github.com/src-d/gitbase)](https://goreportcard.com/report/github.com/src-d/gitbase)
 
-**gitbase**, is a database interface to git repository.
+**gitbase**, is a SQL database interface to Git repositories.
 
-It can be used to perform SQL queries about the git history but as well about
-the code itself through the AST, on top or any number of git repository.
+It can be used to perform SQL queries about the Git history and
+about the [Universal AST](https://doc.bblf.sh/) of the code itself. gitbase is being built to work on top of any number of git repositories.
 
 gitbase implements the *MySQL* wire protocol, it can be accessed using any MySQL
 client or library from any language.
 
 ## Status
 
-The project is currently in **alpha** stage, not being performance in many of the
-cases, but we are working hard on getting a performance system able to processes
+The project is currently in **alpha** stage, meaning it's still lacking performance in a number of cases but we are working hard on getting a performant system able to processes
 thousands of repositories in a single node. Stay tuned!
 
 ## Examples
@@ -68,7 +67,7 @@ GROUP BY committer_email, month, repo_id
 
 ### Installing from binaries
 
-Check the [Releases](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
+Check the [Release](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
 ### Installing from source
 
@@ -94,7 +93,7 @@ Available commands:
   version  Show the version information.
 ```
 
-You can start a server using some repositores from `/path/to/repositories` with this command:
+You can start a server by providing a path which contains multiple git repositories `/path/to/repositories` with this command:
 
 ```
 $ gitbase server -v -g /path/to/repositories
