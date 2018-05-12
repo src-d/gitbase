@@ -30,7 +30,7 @@ Available commands:
   version  Show the version information.
 ```
 
-You can start a server using some repositores from `/path/to/repositories` with this command:
+You can start a server using repositories from `/path/to/repositories` with this command:
 
 ```
 $ gitbase server -v -g /path/to/repositories
