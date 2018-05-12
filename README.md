@@ -1,8 +1,72 @@
-# gitbase <a href="https://travis-ci.org/src-d/gitbase"><img alt="Build Status" src="https://travis-ci.org/src-d/gitbase.svg?branch=master" /></a> <a href="https://codecov.io/gh/src-d/gitbase"><img alt="codecov" src="https://codecov.io/gh/src-d/gitbase/branch/master/graph/badge.svg" /></a> <a href="https://godoc.org/gopkg.in/src-d/gitbase.v0"><img alt="GoDoc" src="https://godoc.org/gopkg.in/src-d/gitbase.v0?status.svg" /></a>
+# gitbase [![GitHub version](https://badge.fury.io/gh/src-d%2Fgitbase.svg)](https://github.com/mcuadros/ofelia/releases) [![Build Status](https://travis-ci.org/src-d/gitbase.svg?branch=master)](https://travis-ci.org/src-d/gitbase) [![codecov](https://codecov.io/gh/src-d/gitbase/branch/master/graph/badge.svg)](https://codecov.io/gh/src-d/gitbase) [![GoDoc](https://godoc.org/gopkg.in/src-d/gitbase.v0?status.svg)](https://godoc.org/gopkg.in/src-d/gitbase.v0) [![Go Report Card](https://goreportcard.com/badge/github.com/src-d/gitbase)](https://goreportcard.com/report/github.com/src-d/gitbase)
 
-Query git repositories with a MySQL interface.
+**gitbase**, is a database interface to git repository.
+
+It can be used to perform SQL queries about the git history but as well about
+the code itself through the AST, on top or any number of git repository.
+
+gitbase implements the *MySQL* wire protocol, it can be accessed using any MySQL
+client or library from any language.
+
+## Status
+
+The project is currently in **alpha** stage, not being performance in many of the
+cases, but we are working hard on getting a performance system able to processes
+thousands of repositories in a single node. Stay tuned!
+
+## Examples
+
+#### Get all the HEAD references from all the repositories
+
+```sql
+SELECT * FROM refs WHERE ref_name = 'HEAD'
+```
+
+#### Commits that appears in more than one reference
+
+```sql
+SELECT * FROM (
+    SELECT COUNT(c.commit_hash) AS num, c.commit_hash
+    FROM refs r
+    INNER JOIN commits c
+        ON history_idx(r.commit_hash, c.commit_hash) >= 0
+    GROUP BY c.commit_hash
+) t WHERE num > 1
+```
+
+####  Get the number of blobs per HEAD commit
+
+```sql
+SELECT COUNT(c.commit_hash), c.commit_hash
+FROM refs r
+INNER JOIN commits c
+    ON r.ref_name = 'HEAD' AND history_idx(r.commit_hash, c.commit_hash) >= 0
+INNER JOIN blobs b
+    ON commit_has_blob(c.commit_hash, b.commit_hash)
+GROUP BY c.commit_hash
+```
+
+#### Get commits per commiter, per month in 2015
+
+```sql
+SELECT COUNT(*) as num_commits, month, repo_id, committer_email
+FROM (
+    SELECT
+        MONTH(committer_when) as month,
+        r.repository_id as repo_id,
+        committer_email
+    FROM repositories r
+        INNER JOIN refs 
+            ON refs.repository_id = r.repository_id AND refs.ref_name = 'HEAD'
+        INNER JOIN commits c 
+            ON YEAR(committer_when) = 2015 AND history_idx(refs.commit_hash, c.commit_hash) >= 0
+) as t
+GROUP BY committer_email, month, repo_id
+```
 
 ## Installation
+
+### Installing from binaries
 
 Check the [Releases](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
@@ -97,52 +161,6 @@ To make some common tasks easier for the user, there are some functions to inter
 
 - **Table squashing:** there is an optimization that collects inner joins between tables with a set of supported conditions and converts them into a single node that retrieves the data in chained steps (getting first the commits and then the blobs of every commit instead of joinin all commits and all blobs, for example). It can be enabled with the environment variable `GITBASE_UNSTABLE_SQUASH_ENABLE`.
 
-## Examples
-
-### Get all the HEAD references from all the repositories
-```sql
-SELECT * FROM refs WHERE ref_name = 'HEAD'
-```
-
-### Commits that appears in more than one reference
-
-```sql
-SELECT * FROM (
-	SELECT COUNT(c.commit_hash) AS num, c.commit_hash
-	FROM refs r
-	INNER JOIN commits c
-		ON history_idx(r.commit_hash, c.commit_hash) >= 0
-	GROUP BY c.commit_hash
-) t WHERE num > 1
-```
-
-###  Get the number of blobs per HEAD commit
-```sql
-SELECT COUNT(c.commit_hash), c.commit_hash
-FROM refs r
-INNER JOIN commits c
-	ON r.ref_name = 'HEAD' AND history_idx(r.commit_hash, c.commit_hash) >= 0
-INNER JOIN blobs b
-	ON commit_has_blob(c.commit_hash, b.commit_hash)
-GROUP BY c.commit_hash
-```
-
-### Get commits per commiter, per month in 2015
-
-```sql
-SELECT COUNT(*) as num_commits, month, repo_id, committer_email
-	FROM (
-		SELECT
-			MONTH(committer_when) as month,
-			r.repository_id as repo_id,
-			committer_email
-		FROM repositories r
-		INNER JOIN refs ON refs.repository_id = r.repository_id AND refs.ref_name = 'HEAD'
-		INNER JOIN commits c ON YEAR(committer_when) = 2015 AND history_idx(refs.commit_hash, c.commit_hash) >= 0
-	) as t
-GROUP BY committer_email, month, repo_id
-```
-
 ## License
 
-gitbase is licensed under the [Apache 2.0 License](/LICENSE).
+Apache License Version 2.0, see [LICENSE](LICENSE)
