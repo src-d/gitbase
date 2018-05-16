@@ -2,6 +2,7 @@ package command
 
 import (
 	"net"
+	"path/filepath"
 	"strconv"
 
 	"github.com/src-d/gitbase"
@@ -28,8 +29,8 @@ const (
 // Server represents the `server` command of gitbase cli tool.
 type Server struct {
 	Verbose  bool     `short:"v" description:"Activates the verbose mode"`
-	Git      []string `short:"g" long:"git" description:"Path where the git repositories are located, multiple directories can be defined"`
-	Siva     []string `long:"siva" description:"Path where the siva repositories are located, multiple directories can be defined"`
+	Git      []string `short:"g" long:"git" description:"Path where the git repositories are located, multiple directories can be defined. Accepts globs."`
+	Siva     []string `long:"siva" description:"Path where the siva repositories are located, multiple directories can be defined. Accepts globs."`
 	Host     string   `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port     int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User     string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
@@ -116,14 +117,14 @@ func (c *Server) addDirectories() error {
 		logrus.Error("At least one git folder or siva folder should be provided.")
 	}
 
-	for _, dir := range c.Git {
-		if err := c.addGitDirectory(dir); err != nil {
+	for _, pattern := range c.Git {
+		if err := c.addGitPattern(pattern); err != nil {
 			return err
 		}
 	}
 
-	for _, dir := range c.Siva {
-		if err := c.addSivaDirectory(dir); err != nil {
+	for _, pattern := range c.Siva {
+		if err := c.addSivaPattern(pattern); err != nil {
 			return err
 		}
 	}
@@ -131,12 +132,34 @@ func (c *Server) addDirectories() error {
 	return nil
 }
 
-func (c *Server) addGitDirectory(folder string) error {
-	logrus.WithField("dir", c.Git).Debug("git repositories directory added")
-	return c.pool.AddDir(folder)
+func (c *Server) addGitPattern(pattern string) error {
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range matches {
+		logrus.WithField("dir", m).Debug("git repositories directory added")
+		if err := c.pool.AddDir(m); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (c *Server) addSivaDirectory(folder string) error {
-	logrus.WithField("dir", c.Git).Debug("siva repositories directory added")
-	return c.pool.AddSivaDir(folder)
+func (c *Server) addSivaPattern(pattern string) error {
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range matches {
+		logrus.WithField("dir", m).Debug("siva repositories directory added")
+		if err := c.pool.AddSivaDir(m); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
