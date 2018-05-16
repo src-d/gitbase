@@ -90,11 +90,11 @@ func canHandleEquals(schema sql.Schema, tableName string, eq *expression.Equals)
 	switch left := eq.Left().(type) {
 	case *expression.GetField:
 		if _, ok := eq.Right().(*expression.Literal); ok && left.Table() == tableName {
-			return schema.Contains(left.Name())
+			return schema.Contains(left.Name(), tableName)
 		}
 	case *expression.Literal:
 		if right, ok := eq.Right().(*expression.GetField); ok && right.Table() == tableName {
-			return schema.Contains(right.Name())
+			return schema.Contains(right.Name(), tableName)
 		}
 	}
 	return false
@@ -106,7 +106,7 @@ func canHandleEquals(schema sql.Schema, tableName string, eq *expression.Equals)
 // The GetField expr must exist in the schema and match the given table name.
 func canHandleIn(schema sql.Schema, tableName string, in *expression.In) bool {
 	left, ok := in.Left().(*expression.GetField)
-	if !ok || !schema.Contains(left.Name()) || left.Table() != tableName {
+	if !ok || !schema.Contains(left.Name(), tableName) || left.Table() != tableName {
 		return false
 	}
 
@@ -326,15 +326,16 @@ func rowIterWithSelectors(
 	schema sql.Schema,
 	tableName string,
 	filters []sql.Expression,
+	columns []sql.Expression,
 	handledCols []string,
-	rowIterBuilder func(selectors) (RowRepoIter, error),
+	iterBuild iteratorBuilder,
 ) (sql.RowIter, error) {
 	selectors, filters, err := classifyFilters(schema, tableName, filters, handledCols...)
 	if err != nil {
 		return nil, err
 	}
 
-	rowRepoIter, err := rowIterBuilder(selectors)
+	rowRepoIter, err := iterBuild(ctx, selectors, columns)
 	if err != nil {
 		return nil, err
 	}

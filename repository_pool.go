@@ -194,7 +194,6 @@ var errInvalidRepoKind = errors.NewKind("invalid repo kind: %d")
 // GetPos retrieves a repository at a given position. If the position is
 // out of bounds it returns io.EOF.
 func (p *RepositoryPool) GetPos(pos int) (*Repository, error) {
-
 	if pos >= len(p.repositories) {
 		return nil, io.EOF
 	}
@@ -204,7 +203,19 @@ func (p *RepositoryPool) GetPos(pos int) (*Repository, error) {
 		return nil, io.EOF
 	}
 
-	r := p.repositories[id]
+	return p.GetRepo(id)
+}
+
+// ErrPoolRepoNotFound is returned when a repository id is not present in the pool.
+var ErrPoolRepoNotFound = errors.NewKind("repository id %s not found in the pool")
+
+// GetRepo returns a repository with the given id from the pool.
+func (p *RepositoryPool) GetRepo(id string) (*Repository, error) {
+	r, ok := p.repositories[id]
+	if !ok {
+		return nil, ErrPoolRepoNotFound.New(id)
+	}
+
 	var repo *Repository
 	var err error
 	switch r.kind {
@@ -258,9 +269,13 @@ func (i *RepositoryIter) Close() error {
 // implementation
 type RowRepoIter interface {
 	NewIterator(*Repository) (RowRepoIter, error)
+	Repository() string
+	LastObject() string
 	Next() (sql.Row, error)
 	Close() error
 }
+
+type iteratorBuilder func(*sql.Context, selectors, []sql.Expression) (RowRepoIter, error)
 
 // RowRepoIter is used as the base to iterate over all the repositories
 // in the pool

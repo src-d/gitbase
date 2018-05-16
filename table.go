@@ -9,6 +9,10 @@ import (
 // Table represents a gitbase table.
 type Table interface {
 	sql.Table
+	gitBase
+}
+
+type gitBase interface {
 	isGitbaseTable()
 }
 

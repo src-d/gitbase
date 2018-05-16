@@ -21,8 +21,11 @@ var RefsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*referencesTable)(nil)
 
-func newReferencesTable() sql.Table {
-	return new(referencesTable)
+func newReferencesTable() Indexable {
+	return &indexableTable{
+		PushdownTable:          new(referencesTable),
+		buildIterWithSelectors: referencesIterBuilder,
+	}
 }
 
 var _ Table = (*referencesTable)(nil)
@@ -74,35 +77,18 @@ func (referencesTable) HandledFilters(filters []sql.Expression) []sql.Expression
 	return handledFilters(ReferencesTableName, RefsSchema, filters)
 }
 
+func (referencesTable) handledColumns() []string { return []string{"commit_hash", "ref_name"} }
+
 func (r *referencesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.ReferencesTable")
 	iter, err := rowIterWithSelectors(
-		ctx, RefsSchema, ReferencesTableName, filters,
-		[]string{"commit_hash", "ref_name"},
-		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["commit_hash"]) == 0 && len(selectors["ref_name"]) == 0 {
-				return new(referenceIter), nil
-			}
-
-			hashes, err := selectors.textValues("commit_hash")
-			if err != nil {
-				return nil, err
-			}
-
-			names, err := selectors.textValues("ref_name")
-			if err != nil {
-				return nil, err
-			}
-
-			for i := range names {
-				names[i] = strings.ToLower(names[i])
-			}
-
-			return &filteredReferencesIter{hashes: stringsToHashes(hashes), names: names}, nil
-		},
+		ctx, RefsSchema, ReferencesTableName,
+		filters, nil,
+		r.handledColumns(),
+		referencesIterBuilder,
 	)
 
 	if err != nil {
@@ -113,10 +99,33 @@ func (r *referencesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+func referencesIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
+	if len(selectors["commit_hash"]) == 0 && len(selectors["ref_name"]) == 0 {
+		return new(referenceIter), nil
+	}
+
+	hashes, err := selectors.textValues("commit_hash")
+	if err != nil {
+		return nil, err
+	}
+
+	names, err := selectors.textValues("ref_name")
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range names {
+		names[i] = strings.ToLower(names[i])
+	}
+
+	return &filteredReferencesIter{hashes: stringsToHashes(hashes), names: names}, nil
+}
+
 type referenceIter struct {
 	head         *plumbing.Reference
 	repositoryID string
 	iter         storer.ReferenceIter
+	lastRef      string
 }
 
 func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -141,11 +150,16 @@ func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	}, nil
 }
 
+func (i *referenceIter) Repository() string { return i.repositoryID }
+
+func (i *referenceIter) LastObject() string { return i.lastRef }
+
 func (i *referenceIter) Next() (sql.Row, error) {
 	for {
 		if i.head != nil {
 			o := i.head
 			i.head = nil
+			i.lastRef = "HEAD"
 			return sql.NewRow(
 				i.repositoryID,
 				"HEAD",
@@ -166,6 +180,7 @@ func (i *referenceIter) Next() (sql.Row, error) {
 			continue
 		}
 
+		i.lastRef = o.Name().String()
 		return referenceToRow(i.repositoryID, o), nil
 	}
 }
@@ -179,11 +194,12 @@ func (i *referenceIter) Close() error {
 }
 
 type filteredReferencesIter struct {
-	head   *plumbing.Reference
-	hashes []plumbing.Hash
-	names  []string
-	repoID string
-	iter   storer.ReferenceIter
+	head    *plumbing.Reference
+	hashes  []plumbing.Hash
+	names   []string
+	repoID  string
+	iter    storer.ReferenceIter
+	lastRef string
 }
 
 func (i *filteredReferencesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -209,6 +225,10 @@ func (i *filteredReferencesIter) NewIterator(repo *Repository) (RowRepoIter, err
 		iter:   iter,
 	}, nil
 }
+
+func (i *filteredReferencesIter) Repository() string { return i.repoID }
+
+func (i *filteredReferencesIter) LastObject() string { return i.lastRef }
 
 func (i *filteredReferencesIter) Next() (sql.Row, error) {
 	for {
@@ -252,6 +272,7 @@ func (i *filteredReferencesIter) Next() (sql.Row, error) {
 			continue
 		}
 
+		i.lastRef = o.Name().String()
 		return referenceToRow(i.repoID, o), nil
 	}
 }

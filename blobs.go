@@ -38,8 +38,11 @@ var BlobsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
 
-func newBlobsTable() sql.Table {
-	return new(blobsTable)
+func newBlobsTable() Indexable {
+	return &indexableTable{
+		PushdownTable:          new(blobsTable),
+		buildIterWithSelectors: blobsIterBuilder,
+	}
 }
 
 var _ Table = (*blobsTable)(nil)
@@ -91,29 +94,20 @@ func (blobsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 	return handledFilters(BlobsTableName, BlobsSchema, filters)
 }
 
+func (*blobsTable) handledColumns() []string {
+	return []string{"blob_hash"}
+}
+
 func (r *blobsTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	columns, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.BlobsTable")
 	iter, err := rowIterWithSelectors(
-		ctx, BlobsSchema, BlobsTableName, filters,
-		[]string{"blob_hash"},
-		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["blob_hash"]) == 0 {
-				return &blobIter{readContent: shouldReadContent(columns)}, nil
-			}
-
-			hashes, err := selectors.textValues("blob_hash")
-			if err != nil {
-				return nil, err
-			}
-
-			return &blobsByHashIter{
-				hashes:      hashes,
-				readContent: shouldReadContent(columns),
-			}, nil
-		},
+		ctx, BlobsSchema, BlobsTableName,
+		filters, columns,
+		r.handledColumns(),
+		blobsIterBuilder,
 	)
 
 	if err != nil {
@@ -124,10 +118,27 @@ func (r *blobsTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+func blobsIterBuilder(_ *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
+	if len(selectors["blob_hash"]) == 0 {
+		return &blobIter{readContent: shouldReadContent(columns)}, nil
+	}
+
+	hashes, err := selectors.textValues("blob_hash")
+	if err != nil {
+		return nil, err
+	}
+
+	return &blobsByHashIter{
+		hashes:      hashes,
+		readContent: shouldReadContent(columns),
+	}, nil
+}
+
 type blobIter struct {
 	repoID      string
 	iter        *object.BlobIter
 	readContent bool
+	lastHash    string
 }
 
 func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -139,12 +150,17 @@ func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	return &blobIter{repoID: repo.ID, iter: iter, readContent: i.readContent}, nil
 }
 
+func (i *blobIter) Repository() string { return i.repoID }
+
+func (i *blobIter) LastObject() string { return i.lastHash }
+
 func (i *blobIter) Next() (sql.Row, error) {
 	o, err := i.iter.Next()
 	if err != nil {
 		return nil, err
 	}
 
+	i.lastHash = o.Hash.String()
 	return blobToRow(i.repoID, o, i.readContent)
 }
 
@@ -161,11 +177,16 @@ type blobsByHashIter struct {
 	pos         int
 	hashes      []string
 	readContent bool
+	lastHash    string
 }
 
 func (i *blobsByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	return &blobsByHashIter{repo, 0, i.hashes, i.readContent}, nil
+	return &blobsByHashIter{repo, 0, i.hashes, i.readContent, ""}, nil
 }
+
+func (i *blobsByHashIter) Repository() string { return i.repo.ID }
+
+func (i *blobsByHashIter) LastObject() string { return i.lastHash }
 
 func (i *blobsByHashIter) Next() (sql.Row, error) {
 	for {
@@ -184,6 +205,7 @@ func (i *blobsByHashIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
+		i.lastHash = hash.String()
 		return blobToRow(i.repo.ID, blob, i.readContent)
 	}
 }

@@ -175,8 +175,8 @@ func TestUastQueries(t *testing.T) {
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	_, iter, err := engine.Query(ctx, `
-		SELECT uast_xpath(uast(blob_content, language(tree_entry_name, blob_content)), '//*[@roleIdentifier]') as uast, 
-			tree_entry_name 
+		SELECT uast_xpath(uast(blob_content, language(tree_entry_name, blob_content)), '//*[@roleIdentifier]') as uast,
+			tree_entry_name
 		FROM tree_entries te
 		INNER JOIN blobs b
 		ON b.blob_hash = te.blob_hash
@@ -334,8 +334,8 @@ func BenchmarkQueries(b *testing.B) {
 	}{
 		{
 			"simple query",
-			`SELECT * FROM repositories r 
-			INNER JOIN refs rr 
+			`SELECT * FROM repositories r
+			INNER JOIN refs rr
 			ON r.repository_id = rr.repository_id`,
 		},
 		{
@@ -373,14 +373,14 @@ func BenchmarkQueries(b *testing.B) {
 		},
 		{
 			"join tree entries and blobs",
-			`SELECT * FROM tree_entries te 
-			INNER JOIN blobs b 
+			`SELECT * FROM tree_entries te
+			INNER JOIN blobs b
 			ON te.blob_hash = b.blob_hash`,
 		},
 		{
 			"join tree entries and blobs with filters",
-			`SELECT * FROM tree_entries te 
-			INNER JOIN blobs b 
+			`SELECT * FROM tree_entries te
+			INNER JOIN blobs b
 			ON te.blob_hash = b.blob_hash
 			WHERE te.tree_entry_name = 'LICENSE'`,
 		},

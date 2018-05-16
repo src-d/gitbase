@@ -21,8 +21,11 @@ var RemotesSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*remotesTable)(nil)
 
-func newRemotesTable() sql.Table {
-	return new(remotesTable)
+func newRemotesTable() Indexable {
+	return &indexableTable{
+		PushdownTable:          new(remotesTable),
+		buildIterWithSelectors: remotesIterBuilder,
+	}
 }
 
 var _ Table = (*remotesTable)(nil)
@@ -74,17 +77,18 @@ func (remotesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 	return handledFilters(RemotesTableName, RemotesSchema, filters)
 }
 
+func (remotesTable) handledColumns() []string { return []string{} }
+
 func (r *remotesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.RemotesTable")
 	iter, err := rowIterWithSelectors(
-		ctx, RemotesSchema, RemotesTableName, filters, nil,
-		func(selectors) (RowRepoIter, error) {
-			// it's not worth to manually filter with the selectors
-			return new(remotesIter), nil
-		},
+		ctx, RemotesSchema, RemotesTableName,
+		filters, nil,
+		r.handledColumns(),
+		remotesIterBuilder,
 	)
 
 	if err != nil {
@@ -95,15 +99,20 @@ func (r *remotesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+func remotesIterBuilder(_ *sql.Context, _ selectors, _ []sql.Expression) (RowRepoIter, error) {
+	// it's not worth to manually filter with the selectors
+	return new(remotesIter), nil
+}
+
 type remotesIter struct {
 	repositoryID string
 	remotes      []*git.Remote
 	remotePos    int
 	urlPos       int
+	lastRemote   string
 }
 
 func (i *remotesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-
 	remotes, err := repo.Repo.Remotes()
 	if err != nil {
 		return nil, err
@@ -115,6 +124,10 @@ func (i *remotesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		remotePos:    0,
 		urlPos:       0}, nil
 }
+
+func (i *remotesIter) Repository() string { return i.repositoryID }
+
+func (i *remotesIter) LastObject() string { return i.lastRemote }
 
 func (i *remotesIter) Next() (sql.Row, error) {
 	if i.remotePos >= len(i.remotes) {
@@ -146,6 +159,7 @@ func (i *remotesIter) Next() (sql.Row, error) {
 
 	i.urlPos++
 
+	i.lastRemote = config.Name
 	return row, nil
 }
 

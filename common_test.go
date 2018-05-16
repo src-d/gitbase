@@ -40,6 +40,8 @@ func buildSession(t *testing.T, repos fixtures.Fixtures,
 		path := fixture.Worktree().Root()
 		_, err := pool.AddGit(path)
 		if err == nil {
+			_, err := pool.GetRepo(path)
+			require.NoError(err)
 			paths = append(paths, path)
 		}
 	}

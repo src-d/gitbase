@@ -37,9 +37,6 @@ func TestRemotesTable_RowIter(t *testing.T) {
 
 	table := getTable(require, RemotesTableName)
 
-	_, ok := table.(*remotesTable)
-	require.True(ok)
-
 	session := ctx.Session.(*Session)
 	pool := session.Pool
 	repository, err := pool.GetPos(0)

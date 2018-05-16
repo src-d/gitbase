@@ -18,8 +18,11 @@ var CommitBlobsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitBlobsTable)(nil)
 
-func newCommitBlobsTable() sql.Table {
-	return new(commitBlobsTable)
+func newCommitBlobsTable() Indexable {
+	return &indexableTable{
+		PushdownTable:          new(commitBlobsTable),
+		buildIterWithSelectors: commitBlobsIterBuilder,
+	}
 }
 
 func (commitBlobsTable) isGitbaseTable() {}
@@ -59,36 +62,18 @@ func (commitBlobsTable) HandledFilters(filters []sql.Expression) []sql.Expressio
 	return handledFilters(CommitBlobsTableName, CommitBlobsSchema, filters)
 }
 
-func (commitBlobsTable) WithProjectAndFilters(
+func (commitBlobsTable) handledColumns() []string { return []string{"commit_hash", "repository_id"} }
+
+func (t *commitBlobsTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.CommitBlobsTable")
 	iter, err := rowIterWithSelectors(
-		ctx, CommitBlobsSchema, CommitBlobsTableName, filters,
-		[]string{"commit_hash", "repository_id"},
-		func(selectors selectors) (RowRepoIter, error) {
-			repos, err := selectors.textValues("repository_id")
-			if err != nil {
-				return nil, err
-			}
-
-			commits, err := selectors.textValues("commit_hash")
-			if err != nil {
-				return nil, err
-			}
-
-			s, ok := ctx.Session.(*Session)
-			if !ok {
-				return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-			}
-
-			return &commitBlobsIter{
-				repos:         repos,
-				commits:       commits,
-				skipGitErrors: s.SkipGitErrors,
-			}, nil
-		},
+		ctx, CommitBlobsSchema, CommitBlobsTableName,
+		filters, nil,
+		t.handledColumns(),
+		commitBlobsIterBuilder,
 	)
 
 	if err != nil {
@@ -99,8 +84,31 @@ func (commitBlobsTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+func commitBlobsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
+	repos, err := selectors.textValues("repository_id")
+	if err != nil {
+		return nil, err
+	}
+
+	commits, err := selectors.textValues("commit_hash")
+	if err != nil {
+		return nil, err
+	}
+
+	s, ok := ctx.Session.(*Session)
+	if !ok {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	return &commitBlobsIter{
+		repos:         repos,
+		commits:       commits,
+		skipGitErrors: s.SkipGitErrors,
+	}, nil
+}
+
 type commitBlobsIter struct {
-	repoID        string
+	repo          *Repository
 	iter          object.CommitIter
 	currCommit    *object.Commit
 	filesIter     *object.FileIter
@@ -122,12 +130,16 @@ func (i *commitBlobsIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	}
 
 	return &commitBlobsIter{
-		repoID:  repo.ID,
+		repo:    repo,
 		iter:    iter,
 		repos:   i.repos,
 		commits: i.commits,
 	}, nil
 }
+
+func (i *commitBlobsIter) Repository() string { return i.repo.ID }
+
+func (i *commitBlobsIter) LastObject() string { return i.currCommit.Hash.String() }
 
 func (i *commitBlobsIter) Next() (sql.Row, error) {
 	for {
@@ -175,7 +187,7 @@ func (i *commitBlobsIter) Next() (sql.Row, error) {
 		}
 
 		return sql.NewRow(
-			i.repoID, i.currCommit.Hash.String(), file.Blob.Hash.String(),
+			i.repo.ID, i.currCommit.Hash.String(), file.Blob.Hash.String(),
 		), nil
 	}
 }
