@@ -23,8 +23,11 @@ var TreeEntriesSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*treeEntriesTable)(nil)
 
-func newTreeEntriesTable() sql.Table {
-	return new(treeEntriesTable)
+func newTreeEntriesTable() Indexable {
+	return &indexableTable{
+		PushdownTable:          new(treeEntriesTable),
+		buildIterWithSelectors: treeEntriesIterBuilder,
+	}
 }
 
 var _ Table = (*treeEntriesTable)(nil)
@@ -72,6 +75,10 @@ func (treeEntriesTable) HandledFilters(filters []sql.Expression) []sql.Expressio
 	return handledFilters(TreeEntriesTableName, TreeEntriesSchema, filters)
 }
 
+func (treeEntriesTable) handledColumns() []string {
+	return []string{"tree_hash"}
+}
+
 func (r *treeEntriesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
@@ -81,20 +88,10 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	// projected. There would be no need to iterate files in this case, and
 	// it would be much faster.
 	iter, err := rowIterWithSelectors(
-		ctx, TreeEntriesSchema, TreeEntriesTableName, filters,
-		[]string{"tree_hash"},
-		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["tree_hash"]) == 0 {
-				return new(treeEntryIter), nil
-			}
-
-			hashes, err := selectors.textValues("tree_hash")
-			if err != nil {
-				return nil, err
-			}
-
-			return &treeEntriesByHashIter{hashes: hashes}, nil
-		},
+		ctx, TreeEntriesSchema, TreeEntriesTableName,
+		filters, nil,
+		r.handledColumns(),
+		treeEntriesIterBuilder,
 	)
 
 	if err != nil {
@@ -105,15 +102,29 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+func treeEntriesIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
+	if len(selectors["tree_hash"]) == 0 {
+		return new(treeEntryIter), nil
+	}
+
+	hashes, err := selectors.textValues("tree_hash")
+	if err != nil {
+		return nil, err
+	}
+
+	return &treeEntriesByHashIter{hashes: hashes}, nil
+}
+
 func (r treeEntriesTable) String() string {
 	return printTable(TreeEntriesTableName, TreeEntriesSchema)
 }
 
 type treeEntryIter struct {
-	i      *object.TreeIter
-	tree   *object.Tree
-	cursor int
-	repoID string
+	i        *object.TreeIter
+	tree     *object.Tree
+	cursor   int
+	repoID   string
+	lastHash string
 }
 
 func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -124,6 +135,10 @@ func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 
 	return &treeEntryIter{repoID: repo.ID, i: iter}, nil
 }
+
+func (i *treeEntryIter) Repository() string { return i.repoID }
+
+func (i *treeEntryIter) LastObject() string { return i.lastHash }
 
 func (i *treeEntryIter) Next() (sql.Row, error) {
 	for {
@@ -144,6 +159,7 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 
 		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
 		i.cursor++
+		i.lastHash = i.tree.Hash.String()
 
 		return treeEntryToRow(i.repoID, entry), nil
 	}
@@ -158,16 +174,21 @@ func (i *treeEntryIter) Close() error {
 }
 
 type treeEntriesByHashIter struct {
-	hashes []string
-	pos    int
-	tree   *object.Tree
-	cursor int
-	repo   *Repository
+	hashes   []string
+	pos      int
+	tree     *object.Tree
+	cursor   int
+	repo     *Repository
+	lastHash string
 }
 
 func (i *treeEntriesByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	return &treeEntriesByHashIter{hashes: i.hashes, repo: repo}, nil
 }
+
+func (i *treeEntriesByHashIter) Repository() string { return i.repo.ID }
+
+func (i *treeEntriesByHashIter) LastObject() string { return i.lastHash }
 
 func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
 	for {
@@ -196,6 +217,7 @@ func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
 		}
 
 		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
+		i.lastHash = i.tree.Hash.String()
 		i.cursor++
 
 		return treeEntryToRow(i.repo.ID, entry), nil
