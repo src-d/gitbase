@@ -38,9 +38,9 @@ func TestIntegration(t *testing.T) {
 	}{
 		{
 			`SELECT COUNT(c.commit_hash), c.commit_hash
-			FROM refs r
+			FROM ref_commits r
 			INNER JOIN commits c
-				ON r.ref_name = 'HEAD' AND history_idx(r.commit_hash, c.commit_hash) >= 0
+				ON r.ref_name = 'HEAD' AND r.commit_hash = c.commit_hash
 			INNER JOIN blobs b
 				ON commit_has_blob(c.commit_hash, b.blob_hash)
 			GROUP BY c.commit_hash`,
@@ -66,10 +66,10 @@ func TestIntegration(t *testing.T) {
 		},
 		{
 			`SELECT c.commit_hash
-			FROM refs 
+			FROM ref_commits r 
 			INNER JOIN commits c 
-				ON refs.ref_name = 'HEAD' 
-				AND history_idx(refs.commit_hash, c.commit_hash) >= 0`,
+				ON r.ref_name = 'HEAD' 
+				AND r.commit_hash = c.commit_hash`,
 			[]sql.Row{
 				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
 				{"918c48b83bd081e863dbe1b80f8998f058cd8294"},
@@ -86,10 +86,10 @@ func TestIntegration(t *testing.T) {
 			FROM (
 				SELECT YEAR(c.commit_author_when) AS first_commit_year
 				FROM repositories r
-				INNER JOIN refs 
-					ON r.repository_id = refs.repository_id
+				INNER JOIN ref_commits rc
+					ON r.repository_id = rc.repository_id
 				INNER JOIN commits c 
-					ON history_idx(refs.commit_hash, c.commit_hash) >= 0
+					ON rc.commit_hash = c.commit_hash
 				ORDER BY c.commit_author_when 
 				LIMIT 1
 			) repo_years
@@ -104,9 +104,9 @@ func TestIntegration(t *testing.T) {
 					r.repository_id as repo_id,
 					committer_email
 				FROM repositories r
-				INNER JOIN refs ON refs.repository_id = r.repository_id 
-					AND refs.ref_name = 'refs/heads/master'
-				INNER JOIN commits c ON history_idx(refs.commit_hash, c.commit_hash) >= 0
+				INNER JOIN ref_commits rc ON rc.repository_id = r.repository_id 
+					AND rc.ref_name = 'refs/heads/master'
+				INNER JOIN commits c ON rc.commit_hash = c.commit_hash
 				WHERE YEAR(committer_when) = 2015
 			) as t
 			GROUP BY committer_email, month, repo_id`,
@@ -119,9 +119,9 @@ func TestIntegration(t *testing.T) {
 		{
 			`SELECT * FROM (
 				SELECT COUNT(c.commit_hash) AS num, c.commit_hash
-				FROM refs r
+				FROM ref_commits r
 				INNER JOIN commits c
-					ON history_idx(r.commit_hash, c.commit_hash) >= 0
+					ON r.commit_hash = c.commit_hash
 				GROUP BY c.commit_hash
 			) t WHERE num > 1`,
 			[]sql.Row{
@@ -224,7 +224,7 @@ func TestSquashCorrectness(t *testing.T) {
 		`SELECT * FROM repositories r INNER JOIN remotes ON r.repository_id = remotes.repository_id`,
 		`SELECT * FROM refs r INNER JOIN remotes re ON r.repository_id = re.repository_id`,
 		`SELECT * FROM refs r INNER JOIN commits c ON r.commit_hash = c.commit_hash`,
-		`SELECT * FROM refs r INNER JOIN commits c ON history_idx(r.commit_hash, c.commit_hash) >= 0`,
+		`SELECT * FROM ref_commits r INNER JOIN commits c ON r.commit_hash = c.commit_hash`,
 		`SELECT * FROM refs r INNER JOIN tree_entries te ON commit_has_tree(r.commit_hash, te.tree_hash)`,
 		`SELECT * FROM refs r INNER JOIN blobs b ON commit_has_blob(r.commit_hash, b.blob_hash)`,
 		`SELECT * FROM commits c INNER JOIN tree_entries te ON commit_has_tree(c.commit_hash, te.tree_hash)`,

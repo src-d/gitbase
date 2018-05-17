@@ -193,7 +193,7 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewRepoRefsIter(it, f)
+				iter = gitbase.NewRepoRefsIter(it, f, false)
 			case gitbase.RemotesIter:
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
@@ -217,9 +217,53 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
-				iter = gitbase.NewAllRefsIter(f)
+				iter = gitbase.NewAllRefsIter(f, false)
 			default:
 				return nil, errInvalidIteratorChain.New("refs", iter)
+			}
+		case gitbase.RefCommitsTableName:
+			switch it := iter.(type) {
+			case gitbase.ReposIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RepositoriesTableName,
+					gitbase.RefCommitsTableName,
+					filters,
+					append(it.Schema(), gitbase.RefCommitsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = &refCommitsIter{gitbase.NewRepoRefsIter(it, nil, true), f, false}
+			case gitbase.RefsIter:
+				var f sql.Expression
+				onlyHead := hasRefHEADFilter(filters)
+				f, filters, err = filtersForJoin(
+					gitbase.ReferencesTableName,
+					gitbase.RefCommitsTableName,
+					filters,
+					append(it.Schema(), gitbase.RefCommitsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = &refCommitsIter{it, f, onlyHead}
+			case nil:
+				var f sql.Expression
+				f, filters, err = filtersForTable(
+					gitbase.ReferencesTableName,
+					filters,
+					gitbase.RefsSchema,
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = &refCommitsIter{gitbase.NewAllRefsIter(nil, true), f, false}
+			default:
+				return nil, errInvalidIteratorChain.New("ref_commits", iter)
 			}
 		case gitbase.CommitsTableName:
 			switch it := iter.(type) {
@@ -238,8 +282,6 @@ func buildSquashedTable(
 				iter = gitbase.NewRepoCommitsIter(it, f)
 			case gitbase.RefsIter:
 				var f sql.Expression
-				onlyRefHEADCommits := hasRefHEADFilter(filters)
-
 				f, filters, err = filtersForJoin(
 					gitbase.ReferencesTableName,
 					gitbase.CommitsTableName,
@@ -250,10 +292,27 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				if onlyRefHEADCommits {
-					iter = gitbase.NewRefHEADCommitsIter(it, f, false)
+				iter = gitbase.NewRefHEADCommitsIter(it, f, false)
+			case *refCommitsIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RefCommitsTableName,
+					gitbase.CommitsTableName,
+					filters,
+					append(append(it.underlying.Schema(), gitbase.RefCommitsSchema...), gitbase.CommitsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				if it.filter != nil {
+					f = expression.NewAnd(f, it.filter)
+				}
+
+				if it.onlyHead {
+					iter = gitbase.NewRefHeadIndexedCommitsIter(it.underlying, f)
 				} else {
-					iter = gitbase.NewRefCommitsIter(it, f)
+					iter = gitbase.NewRefIndexedCommitsIter(it.underlying, f)
 				}
 			case nil:
 				var f sql.Expression
@@ -462,6 +521,7 @@ var tableHierarchy = []string{
 	gitbase.RepositoriesTableName,
 	gitbase.RemotesTableName,
 	gitbase.ReferencesTableName,
+	gitbase.RefCommitsTableName,
 	gitbase.CommitsTableName,
 	gitbase.TreeEntriesTableName,
 	gitbase.BlobsTableName,
@@ -788,6 +848,9 @@ func hasRefHEADFilter(filters []sql.Expression) bool {
 		ok := isEq(
 			isCol(gitbase.ReferencesTableName, "commit_hash"),
 			isCol(gitbase.CommitsTableName, "commit_hash"),
+		)(f) || isEq(
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.RefCommitsTableName, "commit_hash"),
 		)(f)
 		if ok {
 			return true
@@ -835,6 +898,11 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 			isCol(gitbase.RepositoriesTableName, "repository_id"),
 			isCol(gitbase.ReferencesTableName, "repository_id"),
 		)(f)
+	case t1 == gitbase.RepositoriesTableName && t2 == gitbase.RefCommitsTableName:
+		return isEq(
+			isCol(gitbase.RepositoriesTableName, "repository_id"),
+			isCol(gitbase.RefCommitsTableName, "repository_id"),
+		)(f)
 	case t1 == gitbase.RemotesTableName && t2 == gitbase.ReferencesTableName:
 		return isEq(
 			isCol(gitbase.RemotesTableName, "repository_id"),
@@ -844,12 +912,20 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 		return isEq(
 			isCol(gitbase.ReferencesTableName, "commit_hash"),
 			isCol(gitbase.CommitsTableName, "commit_hash"),
-		)(f) || isGte(
-			isHistoryIdx(
+		)(f)
+	case t1 == gitbase.ReferencesTableName && t2 == gitbase.RefCommitsTableName:
+		return isEq(
+			isCol(gitbase.ReferencesTableName, "ref_name"),
+			isCol(gitbase.RefCommitsTableName, "ref_name"),
+		)(f) ||
+			isEq(
 				isCol(gitbase.ReferencesTableName, "commit_hash"),
-				isCol(gitbase.CommitsTableName, "commit_hash"),
-			),
-			isNum(0),
+				isCol(gitbase.RefCommitsTableName, "commit_hash"),
+			)(f)
+	case t1 == gitbase.RefCommitsTableName && t2 == gitbase.CommitsTableName:
+		return isEq(
+			isCol(gitbase.RefCommitsTableName, "commit_hash"),
+			isCol(gitbase.CommitsTableName, "commit_hash"),
 		)(f)
 	case t1 == gitbase.ReferencesTableName && t2 == gitbase.TreeEntriesTableName:
 		return isCommitHasTree(
@@ -951,17 +1027,6 @@ func isCommitHasBlob(left, right validator) validator {
 	}
 }
 
-func isHistoryIdx(left, right validator) validator {
-	return func(e sql.Expression) bool {
-		f, ok := e.(*function.HistoryIdx)
-		if !ok {
-			return false
-		}
-
-		return left(f.Left) && right(f.Right)
-	}
-}
-
 func isGte(left, right validator) validator {
 	return func(e sql.Expression) bool {
 		switch e := e.(type) {
@@ -1033,4 +1098,26 @@ func fixFieldIndexes(e sql.Expression, schema sql.Schema) (sql.Expression, error
 
 		return nil, analyzer.ErrColumnTableNotFound.New(gf.Table(), gf.Name())
 	})
+}
+
+type refCommitsIter struct {
+	underlying gitbase.RefsIter
+	filter     sql.Expression
+	onlyHead   bool
+}
+
+func (i *refCommitsIter) New(*sql.Context, *gitbase.Repository) (gitbase.ChainableIter, error) {
+	panic("refCommitsIter is just a placeholder, New called")
+}
+func (i *refCommitsIter) Close() error {
+	panic("refCommitsIter is just a placeholder, Close called")
+}
+func (i *refCommitsIter) Row() sql.Row {
+	panic("refCommitsIter is just a placeholder, Row called")
+}
+func (i *refCommitsIter) Advance() error {
+	panic("refCommitsIter is just a placeholder, Advance called")
+}
+func (i *refCommitsIter) Schema() sql.Schema {
+	return i.underlying.Schema()
 }
