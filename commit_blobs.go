@@ -78,9 +78,15 @@ func (commitBlobsTable) WithProjectAndFilters(
 				return nil, err
 			}
 
+			s, ok := ctx.Session.(*Session)
+			if !ok {
+				return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+			}
+
 			return &commitBlobsIter{
-				repos:   repos,
-				commits: commits,
+				repos:         repos,
+				commits:       commits,
+				skipGitErrors: s.SkipGitErrors,
 			}, nil
 		},
 	)
@@ -94,10 +100,11 @@ func (commitBlobsTable) WithProjectAndFilters(
 }
 
 type commitBlobsIter struct {
-	repoID     string
-	iter       object.CommitIter
-	currCommit *object.Commit
-	filesIter  *object.FileIter
+	repoID        string
+	iter          object.CommitIter
+	currCommit    *object.Commit
+	filesIter     *object.FileIter
+	skipGitErrors bool
 
 	// selectors for faster filtering
 	repos   []string
@@ -131,6 +138,10 @@ func (i *commitBlobsIter) Next() (sql.Row, error) {
 		if i.currCommit == nil {
 			commit, err := i.iter.Next()
 			if err != nil {
+				if err != io.EOF && i.skipGitErrors {
+					continue
+				}
+
 				return nil, err
 			}
 
@@ -140,6 +151,10 @@ func (i *commitBlobsIter) Next() (sql.Row, error) {
 
 			filesIter, err := commit.Files()
 			if err != nil {
+				if i.skipGitErrors {
+					continue
+				}
+
 				return nil, err
 			}
 
@@ -153,6 +168,10 @@ func (i *commitBlobsIter) Next() (sql.Row, error) {
 				i.currCommit = nil
 				i.filesIter.Close()
 				i.filesIter = nil
+				continue
+			}
+
+			if i.skipGitErrors {
 				continue
 			}
 
