@@ -115,7 +115,7 @@ func (i *commitTreesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	var commits object.CommitIter
 	if len(i.repos) == 0 || stringContains(i.repos, repo.ID) {
 		var err error
-		commits, err = repo.Repo.CommitObjects()
+		commits, err = NewCommitsByHashIter(repo, i.commitHashes)
 		if err != nil {
 			return nil, err
 		}
@@ -128,14 +128,6 @@ func (i *commitTreesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		repos:        i.repos,
 		commitHashes: i.commitHashes,
 	}, nil
-}
-
-func (i *commitTreesIter) shouldVisitCommit(commit *object.Commit) bool {
-	if len(i.commitHashes) > 0 && !stringContains(i.commitHashes, commit.Hash.String()) {
-		return false
-	}
-
-	return true
 }
 
 func (i *commitTreesIter) Next() (sql.Row, error) {
@@ -162,10 +154,6 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 				}
 
 				return nil, err
-			}
-
-			if !i.shouldVisitCommit(commit) {
-				continue
 			}
 
 			tree, err := commit.Tree()
