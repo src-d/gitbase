@@ -99,7 +99,7 @@ func (r *commitsTable) WithProjectAndFilters(
 				return nil, err
 			}
 
-			return &commitsByHashIter{hashes: hashes}, nil
+			return &commitIter{hashes: hashes}, nil
 		},
 	)
 
@@ -114,10 +114,11 @@ func (r *commitsTable) WithProjectAndFilters(
 type commitIter struct {
 	repoID string
 	iter   object.CommitIter
+	hashes []string
 }
 
 func (i *commitIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	iter, err := repo.Repo.CommitObjects()
+	iter, err := NewCommitsByHashIter(repo, i.hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -139,41 +140,6 @@ func (i *commitIter) Close() error {
 		i.iter.Close()
 	}
 
-	return nil
-}
-
-type commitsByHashIter struct {
-	repo   *Repository
-	pos    int
-	hashes []string
-}
-
-func (i *commitsByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	return &commitsByHashIter{repo, 0, i.hashes}, nil
-}
-
-func (i *commitsByHashIter) Next() (sql.Row, error) {
-	for {
-		if i.pos >= len(i.hashes) {
-			return nil, io.EOF
-		}
-
-		hash := plumbing.NewHash(i.hashes[i.pos])
-		i.pos++
-		commit, err := i.repo.Repo.CommitObject(hash)
-		if err == plumbing.ErrObjectNotFound {
-			continue
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		return commitToRow(i.repo.ID, commit), nil
-	}
-}
-
-func (i *commitsByHashIter) Close() error {
 	return nil
 }
 
@@ -200,4 +166,86 @@ func getParentHashes(c *object.Commit) []interface{} {
 	}
 
 	return parentHashes
+}
+
+type commitsByHashIter struct {
+	repo       *Repository
+	hashes     []string
+	pos        int
+	commitIter object.CommitIter
+}
+
+// NewCommitsByHashIter creates a CommitIter that can use a list of hashes
+// to iterate. If the list is empty it scans all commits.
+func NewCommitsByHashIter(
+	repo *Repository,
+	hashes []string,
+) (object.CommitIter, error) {
+	var commitIter object.CommitIter
+	var err error
+	if len(hashes) == 0 {
+		commitIter, err = repo.Repo.CommitObjects()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &commitsByHashIter{
+		repo:       repo,
+		hashes:     hashes,
+		commitIter: commitIter,
+	}, nil
+}
+
+func (i *commitsByHashIter) Next() (*object.Commit, error) {
+	if i.commitIter != nil {
+		return i.nextScan()
+	}
+
+	return i.nextList()
+}
+
+func (i *commitsByHashIter) ForEach(f func(*object.Commit) error) error {
+	for {
+		c, err := i.Next()
+		if err != nil {
+			return err
+		}
+
+		err = f(c)
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (i *commitsByHashIter) Close() {
+	if i.commitIter != nil {
+		i.commitIter.Close()
+	}
+}
+
+func (i *commitsByHashIter) nextScan() (*object.Commit, error) {
+	return i.commitIter.Next()
+}
+
+func (i *commitsByHashIter) nextList() (*object.Commit, error) {
+	for {
+		if i.pos >= len(i.hashes) {
+			return nil, io.EOF
+		}
+
+		hash := plumbing.NewHash(i.hashes[i.pos])
+		i.pos++
+		commit, err := i.repo.Repo.CommitObject(hash)
+		if err == plumbing.ErrObjectNotFound {
+			continue
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		return commit, nil
+	}
 }

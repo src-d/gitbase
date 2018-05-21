@@ -140,6 +140,7 @@ gitbase exposes the following tables:
 | refs         | repository_id, ref_name, commit_hash                                                                                         |
 | tree_entries | repository_id, tree_hash, blob_hash, tree_entry_mode, tree_entry_name                                                                                 |
 | references   | repository_id, ref_name, commit_hash                                                                                         |
+| commit_trees | repository_id, commit_hash, tree_hash                                                                                        |
 
 ## Functions
 

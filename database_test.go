@@ -32,6 +32,7 @@ func TestDatabase_Tables(t *testing.T) {
 	sort.Strings(tableNames)
 	expected := []string{
 		CommitsTableName,
+		CommitTreesTableName,
 		RefCommitsTableName,
 		ReferencesTableName,
 		TreeEntriesTableName,
