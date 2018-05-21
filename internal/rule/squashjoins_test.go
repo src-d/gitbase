@@ -228,20 +228,24 @@ func TestBuildSquashedTable(t *testing.T) {
 	commits := tables[gitbase.CommitsTableName]
 	treeEntries := tables[gitbase.TreeEntriesTableName]
 	blobs := tables[gitbase.BlobsTableName]
+	commitTrees := tables[gitbase.CommitTreesTableName]
 
+	repoRefCommitsSchema := append(gitbase.RepositoriesSchema, gitbase.RefCommitsSchema...)
 	remoteRefsSchema := append(gitbase.RemotesSchema, gitbase.RefsSchema...)
 	refCommitsSchema := append(gitbase.RefsSchema, gitbase.CommitsSchema...)
 	commitTreeEntriesSchema := append(gitbase.CommitsSchema, gitbase.TreeEntriesSchema...)
-	refTreeEntriesSchema := append(gitbase.RefsSchema, gitbase.TreeEntriesSchema...)
 	treeEntryBlobsSchema := append(gitbase.TreeEntriesSchema, gitbase.BlobsSchema...)
 	refsBlobsSchema := append(gitbase.RefsSchema, gitbase.BlobsSchema...)
 	commitBlobsSchema := append(gitbase.CommitsSchema, gitbase.BlobsSchema...)
 	repoCommitsSchema := append(gitbase.RepositoriesSchema, gitbase.CommitsSchema...)
 	repoTreeEntriesSchema := append(gitbase.RepositoriesSchema, gitbase.TreeEntriesSchema...)
 	repoBlobsSchema := append(gitbase.RepositoriesSchema, gitbase.BlobsSchema...)
-	repoRefCommitsSchema := append(gitbase.RepositoriesSchema, gitbase.RefCommitsSchema...)
 	refsRefCommitsCommitsSchema := append(append(gitbase.RefsSchema, gitbase.RefCommitsSchema...), gitbase.CommitsSchema...)
 	refCommitsCommitsSchema := append(gitbase.RefCommitsSchema, gitbase.CommitsSchema...)
+	commitsCommitTreesSchema := append(gitbase.CommitsSchema, gitbase.CommitTreesSchema...)
+	refsCommitTreesSchema := append(gitbase.RefsSchema, gitbase.CommitTreesSchema...)
+	refCommitsCommitTreesSchema := append(gitbase.RefCommitsSchema, gitbase.CommitTreesSchema...)
+	commitTreesTreeEntriesSchema := append(gitbase.CommitTreesSchema, gitbase.TreeEntriesSchema...)
 
 	repoFilter := eq(
 		col(0, gitbase.RepositoriesTableName, "repository_id"),
@@ -383,23 +387,8 @@ func TestBuildSquashedTable(t *testing.T) {
 		col(0, gitbase.TreeEntriesTableName, "blob_hash"),
 	)
 
-	commitTreeEntriesRedundantFilter := commitHasTree(
-		col(0, gitbase.CommitsTableName, "commit_hash"),
-		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
-	)
-
-	commitMainTreeEntriesRedundantFilter := eq(
+	commitTreeEntriesRedundantFilter := eq(
 		col(0, gitbase.CommitsTableName, "tree_hash"),
-		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
-	)
-
-	refTreeEntriesFilter := eq(
-		col(0, gitbase.ReferencesTableName, "ref_name"),
-		col(0, gitbase.TreeEntriesTableName, "tree_entry_name"),
-	)
-
-	refTreeEntriesRedundantFilter := commitHasTree(
-		col(0, gitbase.ReferencesTableName, "commit_hash"),
 		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
 	)
 
@@ -441,6 +430,56 @@ func TestBuildSquashedTable(t *testing.T) {
 	commitBlobsFilter := eq(
 		col(0, gitbase.CommitsTableName, "commit_hash"),
 		col(0, gitbase.BlobsTableName, "blob_size"),
+	)
+
+	commitTreesFilter := eq(
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
+	)
+
+	refCommitTreesFilter := eq(
+		col(0, gitbase.ReferencesTableName, "ref_name"),
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
+	)
+
+	refCommitTreesRedundantFilter := eq(
+		col(0, gitbase.ReferencesTableName, "commit_hash"),
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
+	)
+
+	commitCommitTreesFilter := eq(
+		col(0, gitbase.CommitsTableName, "commit_author_name"),
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
+	)
+
+	commitCommitTreesRedundantFilter := eq(
+		col(0, gitbase.CommitsTableName, "commit_hash"),
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
+	)
+
+	commitCommitTreesByTreeRedundantFilter := eq(
+		col(0, gitbase.CommitsTableName, "tree_hash"),
+		col(0, gitbase.CommitTreesTableName, "tree_hash"),
+	)
+
+	commitTreeTreeEntriesFilter := eq(
+		col(0, gitbase.CommitTreesTableName, "tree_hash"),
+		col(0, gitbase.TreeEntriesTableName, "tree_entry_name"),
+	)
+
+	commitTreeTreeEntriesRedundantFilter := eq(
+		col(0, gitbase.CommitTreesTableName, "tree_hash"),
+		col(0, gitbase.TreeEntriesTableName, "tree_hash"),
+	)
+
+	refCommitCommitTreesFilter := eq(
+		col(0, gitbase.RefCommitsTableName, "ref_name"),
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
+	)
+
+	refCommitCommitTreesRedundantFilter := eq(
+		col(0, gitbase.RefCommitsTableName, "commit_hash"),
+		col(0, gitbase.CommitTreesTableName, "commit_hash"),
 	)
 
 	testCases := []struct {
@@ -566,41 +605,19 @@ func TestBuildSquashedTable(t *testing.T) {
 				commitFilter,
 				treeEntryFilter,
 				commitTreeEntriesFilter,
-				commitMainTreeEntriesRedundantFilter,
-			},
-			nil,
-			nil,
-			newSquashedTable(
-				gitbase.NewCommitMainTreeEntriesIter(
-					gitbase.NewAllCommitsIter(
-						fixIdx(t, commitFilter, gitbase.CommitsSchema),
-					),
-					and(
-						fixIdx(t, treeEntryFilter, commitTreeEntriesSchema),
-						fixIdx(t, commitTreeEntriesFilter, commitTreeEntriesSchema),
-					),
-					false,
-				),
-				nil,
-				gitbase.CommitsTableName,
-				gitbase.TreeEntriesTableName,
-			),
-		},
-		{
-			"commits with tree entries using commit_has_tree",
-			[]sql.Table{commits, treeEntries},
-			[]sql.Expression{
-				commitFilter,
-				treeEntryFilter,
-				commitTreeEntriesFilter,
 				commitTreeEntriesRedundantFilter,
 			},
 			nil,
 			nil,
 			newSquashedTable(
-				gitbase.NewCommitTreeEntriesIter(
-					gitbase.NewAllCommitsIter(
-						fixIdx(t, commitFilter, gitbase.CommitsSchema),
+				gitbase.NewTreeTreeEntriesIter(
+					gitbase.NewCommitMainTreeIter(
+						gitbase.NewAllCommitsIter(
+							fixIdx(t, commitFilter, gitbase.CommitsSchema),
+							false,
+						),
+						nil,
+						true,
 					),
 					and(
 						fixIdx(t, treeEntryFilter, commitTreeEntriesSchema),
@@ -614,18 +631,18 @@ func TestBuildSquashedTable(t *testing.T) {
 			),
 		},
 		{
-			"refs with tree entries",
-			[]sql.Table{refs, treeEntries},
+			"refs with commit trees",
+			[]sql.Table{refs, commitTrees},
 			[]sql.Expression{
 				refFilter,
-				treeEntryFilter,
-				refTreeEntriesFilter,
-				refTreeEntriesRedundantFilter,
+				commitTreesFilter,
+				refCommitTreesFilter,
+				refCommitTreesRedundantFilter,
 			},
 			nil,
 			nil,
 			newSquashedTable(
-				gitbase.NewCommitTreeEntriesIter(
+				gitbase.NewCommitTreesIter(
 					gitbase.NewRefHEADCommitsIter(
 						gitbase.NewAllRefsIter(
 							fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -635,14 +652,14 @@ func TestBuildSquashedTable(t *testing.T) {
 						true,
 					),
 					and(
-						fixIdx(t, treeEntryFilter, refTreeEntriesSchema),
-						fixIdx(t, refTreeEntriesFilter, refTreeEntriesSchema),
+						fixIdx(t, commitTreesFilter, refsCommitTreesSchema),
+						fixIdx(t, refCommitTreesFilter, refsCommitTreesSchema),
 					),
 					false,
 				),
 				nil,
 				gitbase.ReferencesTableName,
-				gitbase.TreeEntriesTableName,
+				gitbase.CommitTreesTableName,
 			),
 		},
 		{
@@ -735,6 +752,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitBlobsSchema),
+						false,
 					),
 					and(
 						fixIdx(t, blobFilter, commitBlobsSchema),
@@ -764,6 +782,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitBlobsSchema),
+						false,
 					),
 					and(
 						fixIdx(t, blobContentFilter, commitBlobsSchema),
@@ -812,7 +831,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			newSquashedTable(
-				&refCommitsIter{
+				gitbase.NewRefRefCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
 						false,
@@ -821,8 +840,7 @@ func TestBuildSquashedTable(t *testing.T) {
 						fixIdx(t, refCommitsFilter, refsRefCommitsCommitsSchema),
 						fixIdx(t, refsRefCommitsFilter, refsRefCommitsCommitsSchema),
 					),
-					false,
-				},
+				),
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
@@ -840,7 +858,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			newSquashedTable(
-				&refCommitsIter{
+				gitbase.NewRefHeadRefCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
 						false,
@@ -849,8 +867,7 @@ func TestBuildSquashedTable(t *testing.T) {
 						fixIdx(t, refCommitsFilter, refsRefCommitsCommitsSchema),
 						fixIdx(t, refsRefCommitsFilter, refsRefCommitsCommitsSchema),
 					),
-					true,
-				},
+				),
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
@@ -868,13 +885,13 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			newSquashedTable(
-				gitbase.NewRefIndexedCommitsIter(
-					gitbase.NewAllRefsIter(nil, true),
+				gitbase.NewRefCommitCommitsIter(
+					gitbase.NewAllRefCommitsIter(
+						fixIdx(t, refCommitsFilter, refCommitsCommitsSchema),
+					),
 					and(
-						and(
-							fixIdx(t, refCommitsFilter, refCommitsCommitsSchema),
-							fixIdx(t, commitFilter, refCommitsCommitsSchema),
-						),
+
+						fixIdx(t, commitFilter, refCommitsCommitsSchema),
 						fixIdx(t, refCommitsCommitsFilter, refCommitsCommitsSchema),
 					),
 				),
@@ -919,18 +936,18 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			newSquashedTable(
-				&refCommitsIter{
+				gitbase.NewRefRefCommitsIter(
 					gitbase.NewRepoRefsIter(
 						gitbase.NewAllReposIter(repoFilter),
 						nil,
 						true,
 					),
+
 					and(
 						fixIdx(t, refCommitsFilter, repoRefCommitsSchema),
 						fixIdx(t, repoRefCommitsFilter, repoRefCommitsSchema),
 					),
-					false,
-				},
+				),
 				nil,
 				gitbase.RepositoriesTableName,
 				gitbase.RefCommitsTableName,
@@ -978,20 +995,20 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			newSquashedTable(
-				gitbase.NewRefIndexedCommitsIter(
-					gitbase.NewAllRefsIter(
-						fixIdx(t, refFilter, refsRefCommitsCommitsSchema),
-						false,
-					),
-					and(
-						and(
-							fixIdx(t, commitFilter, refsRefCommitsCommitsSchema),
-							fixIdx(t, refCommitsCommitsFilter, refsRefCommitsCommitsSchema),
+				gitbase.NewRefCommitCommitsIter(
+					gitbase.NewRefRefCommitsIter(
+						gitbase.NewAllRefsIter(
+							fixIdx(t, refFilter, refsRefCommitsCommitsSchema),
+							false,
 						),
 						and(
 							fixIdx(t, refsRefCommitsFilter, refsRefCommitsCommitsSchema),
 							fixIdx(t, refCommitsFilter, refsRefCommitsCommitsSchema),
 						),
+					),
+					and(
+						fixIdx(t, commitFilter, refsRefCommitsCommitsSchema),
+						fixIdx(t, refCommitsCommitsFilter, refsRefCommitsCommitsSchema),
 					),
 				),
 				nil,
@@ -1015,26 +1032,136 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			newSquashedTable(
-				gitbase.NewRefHeadIndexedCommitsIter(
-					gitbase.NewAllRefsIter(
-						fixIdx(t, refFilter, refsRefCommitsCommitsSchema),
-						false,
-					),
-					and(
-						and(
-							fixIdx(t, commitFilter, refsRefCommitsCommitsSchema),
-							fixIdx(t, refCommitsCommitsFilter, refsRefCommitsCommitsSchema),
+				gitbase.NewRefCommitCommitsIter(
+					gitbase.NewRefHeadRefCommitsIter(
+						gitbase.NewAllRefsIter(
+							fixIdx(t, refFilter, refsRefCommitsCommitsSchema),
+							false,
 						),
 						and(
 							fixIdx(t, refsRefCommitsFilter, refsRefCommitsCommitsSchema),
 							fixIdx(t, refCommitsFilter, refsRefCommitsCommitsSchema),
 						),
 					),
+					and(
+						fixIdx(t, commitFilter, refsRefCommitsCommitsSchema),
+						fixIdx(t, refCommitsCommitsFilter, refsRefCommitsCommitsSchema),
+					),
 				),
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
 				gitbase.CommitsTableName,
+			),
+		},
+		{
+			"commit trees with tree entries",
+			[]sql.Table{commitTrees, treeEntries},
+			[]sql.Expression{
+				commitTreesFilter,
+				treeEntryFilter,
+				commitTreeTreeEntriesFilter,
+				commitTreeTreeEntriesRedundantFilter,
+			},
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewTreeTreeEntriesIter(
+					gitbase.NewAllCommitTreesIter(
+						fixIdx(t, commitTreesFilter, commitTreesTreeEntriesSchema),
+					),
+					and(
+						fixIdx(t, treeEntryFilter, commitTreesTreeEntriesSchema),
+						fixIdx(t, commitTreeTreeEntriesFilter, commitTreesTreeEntriesSchema),
+					),
+					false,
+				),
+				nil,
+				gitbase.CommitTreesTableName,
+				gitbase.TreeEntriesTableName,
+			),
+		},
+		{
+			"commits with commit trees",
+			[]sql.Table{commits, commitTrees},
+			[]sql.Expression{
+				commitFilter,
+				commitTreesFilter,
+				commitCommitTreesFilter,
+				commitCommitTreesRedundantFilter,
+			},
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitTreesIter(
+					gitbase.NewAllCommitsIter(
+						fixIdx(t, commitFilter, commitsCommitTreesSchema),
+						false,
+					),
+					and(
+						fixIdx(t, commitTreesFilter, commitsCommitTreesSchema),
+						fixIdx(t, commitCommitTreesFilter, commitsCommitTreesSchema),
+					),
+					false,
+				),
+				nil,
+				gitbase.CommitsTableName,
+				gitbase.CommitTreesTableName,
+			),
+		},
+		{
+			"commits with commit trees by tree",
+			[]sql.Table{commits, commitTrees},
+			[]sql.Expression{
+				commitFilter,
+				commitTreesFilter,
+				commitCommitTreesFilter,
+				commitCommitTreesByTreeRedundantFilter,
+			},
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitMainTreeIter(
+					gitbase.NewAllCommitsIter(
+						fixIdx(t, commitFilter, commitsCommitTreesSchema),
+						false,
+					),
+					and(
+						fixIdx(t, commitTreesFilter, commitsCommitTreesSchema),
+						fixIdx(t, commitCommitTreesFilter, commitsCommitTreesSchema),
+					),
+					false,
+				),
+				nil,
+				gitbase.CommitsTableName,
+				gitbase.CommitTreesTableName,
+			),
+		},
+		{
+			"ref commits with commit trees",
+			[]sql.Table{refCommits, commitTrees},
+			[]sql.Expression{
+				refCommitsFilter,
+				commitTreesFilter,
+				refCommitCommitTreesFilter,
+				refCommitCommitTreesRedundantFilter,
+			},
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitTreesIter(
+					gitbase.NewAllRefCommitsIter(
+						fixIdx(t, refCommitsFilter, refCommitsCommitTreesSchema),
+					),
+					and(
+						fixIdx(t, commitTreesFilter, refCommitsCommitTreesSchema),
+						fixIdx(t, refCommitCommitTreesFilter, refCommitsCommitTreesSchema),
+					),
+					false,
+				),
+				nil,
+				gitbase.RefCommitsTableName,
+				gitbase.CommitTreesTableName,
 			),
 		},
 	}
@@ -1405,29 +1532,11 @@ func TestIsRedundantFilter(t *testing.T) {
 			true,
 		},
 		{
-			gitbase.RepositoriesTableName,
-			gitbase.RefCommitsTableName,
-			eq(
-				col(0, gitbase.RepositoriesTableName, "repository_id"),
-				col(0, gitbase.RefCommitsTableName, "repository_id"),
-			),
-			true,
-		},
-		{
 			gitbase.ReferencesTableName,
 			gitbase.CommitsTableName,
 			eq(
 				col(0, gitbase.ReferencesTableName, "commit_hash"),
 				col(0, gitbase.CommitsTableName, "commit_hash"),
-			),
-			true,
-		},
-		{
-			gitbase.ReferencesTableName,
-			gitbase.CommitsTableName,
-			eq(
-				col(0, gitbase.CommitsTableName, "commit_hash"),
-				col(0, gitbase.ReferencesTableName, "commit_hash"),
 			),
 			true,
 		},
@@ -1437,15 +1546,6 @@ func TestIsRedundantFilter(t *testing.T) {
 			eq(
 				col(0, gitbase.ReferencesTableName, "commit_hash"),
 				col(0, gitbase.RefCommitsTableName, "commit_hash"),
-			),
-			true,
-		},
-		{
-			gitbase.ReferencesTableName,
-			gitbase.RefCommitsTableName,
-			eq(
-				col(0, gitbase.ReferencesTableName, "ref_name"),
-				col(0, gitbase.RefCommitsTableName, "ref_name"),
 			),
 			true,
 		},
@@ -1460,19 +1560,28 @@ func TestIsRedundantFilter(t *testing.T) {
 		},
 		{
 			gitbase.ReferencesTableName,
-			gitbase.TreeEntriesTableName,
-			commitHasTree(
+			gitbase.CommitTreesTableName,
+			eq(
 				col(0, gitbase.ReferencesTableName, "commit_hash"),
-				col(0, gitbase.TreeEntriesTableName, "tree_hash"),
+				col(0, gitbase.CommitTreesTableName, "commit_hash"),
 			),
 			true,
 		},
 		{
-			gitbase.ReferencesTableName,
-			gitbase.TreeEntriesTableName,
-			commitHasBlob(
-				col(0, gitbase.ReferencesTableName, "commit_hash"),
-				col(0, gitbase.TreeEntriesTableName, "blob_hash"),
+			gitbase.RefCommitsTableName,
+			gitbase.CommitTreesTableName,
+			eq(
+				col(0, gitbase.RefCommitsTableName, "commit_hash"),
+				col(0, gitbase.CommitTreesTableName, "commit_hash"),
+			),
+			true,
+		},
+		{
+			gitbase.CommitsTableName,
+			gitbase.CommitTreesTableName,
+			eq(
+				col(0, gitbase.CommitsTableName, "commit_hash"),
+				col(0, gitbase.CommitTreesTableName, "commit_hash"),
 			),
 			true,
 		},
@@ -1482,33 +1591,6 @@ func TestIsRedundantFilter(t *testing.T) {
 			commitHasBlob(
 				col(0, gitbase.ReferencesTableName, "commit_hash"),
 				col(0, gitbase.BlobsTableName, "blob_hash"),
-			),
-			true,
-		},
-		{
-			gitbase.CommitsTableName,
-			gitbase.TreeEntriesTableName,
-			commitHasTree(
-				col(0, gitbase.CommitsTableName, "commit_hash"),
-				col(0, gitbase.TreeEntriesTableName, "tree_hash"),
-			),
-			true,
-		},
-		{
-			gitbase.CommitsTableName,
-			gitbase.TreeEntriesTableName,
-			commitHasBlob(
-				col(0, gitbase.CommitsTableName, "commit_hash"),
-				col(0, gitbase.TreeEntriesTableName, "blob_hash"),
-			),
-			true,
-		},
-		{
-			gitbase.CommitsTableName,
-			gitbase.TreeEntriesTableName,
-			eq(
-				col(0, gitbase.CommitsTableName, "tree_hash"),
-				col(0, gitbase.TreeEntriesTableName, "tree_hash"),
 			),
 			true,
 		},
@@ -1584,6 +1666,15 @@ func TestIsRedundantFilter(t *testing.T) {
 			),
 			true,
 		},
+		{
+			gitbase.CommitTreesTableName,
+			gitbase.TreeEntriesTableName,
+			eq(
+				col(0, gitbase.CommitTreesTableName, "tree_hash"),
+				col(0, gitbase.TreeEntriesTableName, "tree_hash"),
+			),
+			true,
+		},
 	}
 
 	for _, tt := range testCases {
@@ -1603,10 +1694,6 @@ func eq(left, right sql.Expression) sql.Expression {
 
 func col(idx int, table, name string) sql.Expression {
 	return expression.NewGetFieldWithTable(idx, sql.Int64, table, name, false)
-}
-
-func commitHasTree(left, right sql.Expression) sql.Expression {
-	return function.NewCommitHasTree(left, right)
 }
 
 func commitHasBlob(left, right sql.Expression) sql.Expression {
