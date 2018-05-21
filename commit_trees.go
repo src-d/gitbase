@@ -104,7 +104,6 @@ type commitTreesIter struct {
 	commits object.CommitIter
 	commit  *object.Commit
 	trees   *object.TreeWalker
-	seen    map[plumbing.Hash]bool
 
 	// selectors for faster filtering
 	repos        []string
@@ -141,6 +140,7 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 			return nil, io.EOF
 		}
 
+		var tree *object.Tree
 		if i.trees == nil {
 			commit, err := i.commits.Next()
 			if err != nil {
@@ -156,7 +156,7 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 				return nil, err
 			}
 
-			tree, err := commit.Tree()
+			tree, err = commit.Tree()
 			if err != nil {
 				if s.SkipGitErrors {
 					continue
@@ -165,9 +165,16 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 				return nil, err
 			}
 
-			i.seen = make(map[plumbing.Hash]bool)
-			i.trees = object.NewTreeWalker(tree, true, i.seen)
+			i.trees = object.NewTreeWalker(tree, true, make(map[plumbing.Hash]bool))
 			i.commit = commit
+		}
+
+		if tree != nil {
+			return sql.NewRow(
+				i.repo.ID,
+				i.commit.Hash.String(),
+				tree.Hash.String(),
+			), nil
 		}
 
 		_, entry, err := i.trees.Next()
@@ -192,7 +199,6 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 			entry.Hash.String(),
 		), nil
 	}
-	return nil, nil
 }
 
 func (i *commitTreesIter) Close() error {
