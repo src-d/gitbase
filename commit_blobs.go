@@ -115,7 +115,7 @@ func (i *commitBlobsIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	var iter object.CommitIter
 	if len(i.repos) == 0 || stringContains(i.repos, repo.ID) {
 		var err error
-		iter, err = repo.Repo.CommitObjects()
+		iter, err = NewCommitsByHashIter(repo, i.commits)
 		if err != nil {
 			return nil, err
 		}
@@ -143,10 +143,6 @@ func (i *commitBlobsIter) Next() (sql.Row, error) {
 				}
 
 				return nil, err
-			}
-
-			if len(i.commits) > 0 && !stringContains(i.commits, commit.Hash.String()) {
-				continue
 			}
 
 			filesIter, err := commit.Files()

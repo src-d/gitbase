@@ -90,10 +90,6 @@ func (r *commitsTable) WithProjectAndFilters(
 		ctx, CommitsSchema, CommitsTableName, filters,
 		[]string{"commit_hash"},
 		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["commit_hash"]) == 0 {
-				return new(commitIter), nil
-			}
-
 			hashes, err := selectors.textValues("commit_hash")
 			if err != nil {
 				return nil, err
