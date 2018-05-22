@@ -39,10 +39,10 @@ func TestIntegration(t *testing.T) {
 		{
 			`SELECT COUNT(c.commit_hash), c.commit_hash
 			FROM ref_commits r
-			INNER JOIN commits c
+			INNER JOIN commit_blobs c
 				ON r.ref_name = 'HEAD' AND r.commit_hash = c.commit_hash
 			INNER JOIN blobs b
-				ON commit_has_blob(c.commit_hash, b.blob_hash)
+				ON c.blob_hash = b.blob_hash
 			GROUP BY c.commit_hash`,
 			[]sql.Row{
 				{int32(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
@@ -223,10 +223,19 @@ func TestSquashCorrectness(t *testing.T) {
 		`SELECT * FROM refs r INNER JOIN commits c ON r.commit_hash = c.commit_hash`,
 		`SELECT * FROM ref_commits r INNER JOIN commits c ON r.commit_hash = c.commit_hash`,
 		`SELECT * FROM refs r INNER JOIN commit_trees t ON r.commit_hash = t.commit_hash`,
-		`SELECT * FROM refs r INNER JOIN blobs b ON commit_has_blob(r.commit_hash, b.blob_hash)`,
+		`SELECT * FROM refs r INNER JOIN commit_blobs b ON r.commit_hash = b.commit_hash`,
+		`SELECT * FROM refs r
+		INNER JOIN commit_blobs cb
+			ON r.commit_hash = cb.commit_hash
+		INNER JOIN blobs b
+			ON cb.blob_hash = b.blob_hash`,
 		`SELECT * FROM commits c INNER JOIN commit_trees t ON c.commit_hash = t.tree_hash`,
 		`SELECT * FROM commits c INNER JOIN tree_entries te ON c.tree_hash = te.tree_hash`,
-		`SELECT * FROM commits c INNER JOIN blobs b ON commit_has_blob(c.commit_hash, b.blob_hash)`,
+		`SELECT * FROM commits c
+		INNER JOIN commit_blobs cb
+			ON c.commit_hash = cb.commit_hash
+		INNER JOIN blobs b
+			ON cb.blob_hash = b.blob_hash`,
 		`SELECT * FROM tree_entries te INNER JOIN blobs b ON te.blob_hash = b.blob_hash`,
 
 		`SELECT * FROM repositories r
@@ -248,6 +257,17 @@ func TestSquashCorrectness(t *testing.T) {
 		`SELECT * FROM repositories,
 		commits c INNER JOIN tree_entries te
 			ON c.tree_hash = te.tree_hash`,
+
+		`SELECT * FROM refs r
+		INNER JOIN ref_commits c
+			ON r.ref_name = c.ref_name 
+			AND c.repository_id = r.repository_id`,
+
+		`SELECT * FROM refs r
+		INNER JOIN ref_commits c
+			ON r.commit_hash = c.commit_hash
+			AND r.ref_name = c.ref_name
+			AND c.repository_id = r.repository_id`,
 	}
 
 	for _, q := range queries {
@@ -319,13 +339,13 @@ func BenchmarkQueries(b *testing.B) {
 			ON r.repository_id = rr.repository_id`,
 		},
 		{
-			"query with commit_has_blob",
+			"query with commit_blobs",
 			`SELECT COUNT(c.commit_hash), c.commit_hash
 			FROM ref_commits r
-			INNER JOIN commits c
+			INNER JOIN commit_blobs c
 				ON r.ref_name = 'HEAD' AND r.commit_hash = c.commit_hash
 			INNER JOIN blobs b
-				ON commit_has_blob(c.commit_hash, b.blob_hash)
+				ON c.blob_hash = b.blob_hash
 			GROUP BY c.commit_hash`,
 		},
 		{
@@ -367,14 +387,18 @@ func BenchmarkQueries(b *testing.B) {
 		{
 			"join refs and blobs",
 			`SELECT * FROM refs r
+			INNER JOIN commit_blobs cb 
+				ON r.commit_hash = cb.commit_hash
 			INNER JOIN blobs b
-			ON commit_has_blob(r.commit_hash, b.blob_hash)`,
+				ON cb.blob_hash = b.blob_hash`,
 		},
 		{
 			"join refs and blobs with filters",
 			`SELECT * FROM refs r
+			INNER JOIN commit_blobs cb 
+				ON r.commit_hash = cb.commit_hash
 			INNER JOIN blobs b
-			ON commit_has_blob(r.commit_hash, b.blob_hash)
+				ON cb.blob_hash = b.blob_hash
 			WHERE r.ref_name = 'refs/heads/master'`,
 		},
 	}
