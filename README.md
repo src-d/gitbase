@@ -55,9 +55,9 @@ FROM (
         r.repository_id as repo_id,
         committer_email
     FROM repositories r
-        INNER JOIN refs 
+        INNER JOIN refs
             ON refs.repository_id = r.repository_id AND refs.ref_name = 'HEAD'
-        INNER JOIN commits c 
+        INNER JOIN commits c
             ON YEAR(committer_when) = 2015 AND history_idx(refs.commit_hash, c.commit_hash) >= 0
 ) as t
 GROUP BY committer_email, month, repo_id
@@ -133,14 +133,15 @@ gitbase exposes the following tables:
 
 |     Name     |                                               Columns                                                             |
 |:-------------|:------------------------------------------------------------------------------------------------------------------|
-| repositories | repository_id                                                                                                                |
-| remotes      | repository_id, remote_name, remote_push_url, remote_fetch_url, remote_push_refspec, remote_fetch_refspec                                             |
+| repositories | repository_id                                                                                                     |
+| remotes      | repository_id, remote_name, remote_push_url, remote_fetch_url, remote_push_refspec, remote_fetch_refspec          |
 | commits      | repository_id, commit_hash, commit_author_name, commit_author_email, commit_author_when, committer_name, committer_email, committer_when, commit_message, tree_hash |
-| blobs        | repository_id, blob_hash, blob_size, blob_content                                                                                               |
-| refs         | repository_id, ref_name, commit_hash                                                                                         |
-| tree_entries | repository_id, tree_hash, blob_hash, tree_entry_mode, tree_entry_name                                                                                 |
-| references   | repository_id, ref_name, commit_hash                                                                                         |
-| commit_trees | repository_id, commit_hash, tree_hash                                                                                        |
+| blobs        | repository_id, blob_hash, blob_size, blob_content                                                                 |
+| refs         | repository_id, ref_name, commit_hash                                                                              |
+| tree_entries | repository_id, tree_hash, blob_hash, tree_entry_mode, tree_entry_name                                             |
+| references   | repository_id, ref_name, commit_hash                                                                              |
+| ref_commits  | repository_id, commit_hash, ref_name, index                                                                       |
+| commit_trees | repository_id, commit_hash, tree_hash                                                                             |
 
 ## Functions
 
