@@ -19,7 +19,7 @@ var RefCommitsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Source: RefCommitsTableName},
 	{Name: "commit_hash", Type: sql.Text, Source: RefCommitsTableName},
 	{Name: "ref_name", Type: sql.Text, Source: RefCommitsTableName},
-	{Name: "index", Type: sql.Text, Source: RefCommitsTableName},
+	{Name: "index", Type: sql.Int64, Source: RefCommitsTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*refCommitsTable)(nil)
@@ -217,7 +217,7 @@ func (i *refCommitsIter) Next() (sql.Row, error) {
 			i.repo.ID,
 			commit.Hash.String(),
 			i.ref.Name().String(),
-			idx,
+			int64(idx),
 		), nil
 	}
 }
