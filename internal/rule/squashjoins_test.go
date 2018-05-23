@@ -233,6 +233,9 @@ func TestBuildSquashedTable(t *testing.T) {
 	treeEntryBlobsSchema := append(gitbase.TreeEntriesSchema, gitbase.BlobsSchema...)
 	refsBlobsSchema := append(gitbase.RefsSchema, gitbase.BlobsSchema...)
 	commitBlobsSchema := append(gitbase.CommitsSchema, gitbase.BlobsSchema...)
+	repoCommitsSchema := append(gitbase.RepositoriesSchema, gitbase.CommitsSchema...)
+	repoTreeEntriesSchema := append(gitbase.RepositoriesSchema, gitbase.TreeEntriesSchema...)
+	repoBlobsSchema := append(gitbase.RepositoriesSchema, gitbase.BlobsSchema...)
 
 	repoFilter := eq(
 		col(0, gitbase.RepositoriesTableName, "repository_id"),
@@ -277,6 +280,36 @@ func TestBuildSquashedTable(t *testing.T) {
 	repoRefsRedundantFilter := eq(
 		col(0, gitbase.RepositoriesTableName, "repository_id"),
 		col(1, gitbase.ReferencesTableName, "repository_id"),
+	)
+
+	repoCommitsFilter := eq(
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(2, gitbase.CommitsTableName, "commit_hash"),
+	)
+
+	repoCommitsRedundantFilter := eq(
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(1, gitbase.CommitsTableName, "repository_id"),
+	)
+
+	repoTreeEntriesFilter := eq(
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(2, gitbase.TreeEntriesTableName, "tree_hash"),
+	)
+
+	repoTreeEntriesRedundantFilter := eq(
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(1, gitbase.TreeEntriesTableName, "repository_id"),
+	)
+
+	repoBlobsFilter := eq(
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(2, gitbase.BlobsTableName, "blob_hash"),
+	)
+
+	repoBlobsRedundantFilter := eq(
+		col(0, gitbase.RepositoriesTableName, "repository_id"),
+		col(1, gitbase.BlobsTableName, "repository_id"),
 	)
 
 	commitFilter := eq(
@@ -505,14 +538,6 @@ func TestBuildSquashedTable(t *testing.T) {
 			),
 		},
 		{
-			"repos with commits",
-			[]sql.Table{repositories, commits},
-			nil,
-			nil,
-			errInvalidIteratorChain,
-			nil,
-		},
-		{
 			"remotes with commits",
 			[]sql.Table{remotes, commits},
 			nil,
@@ -573,14 +598,6 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.CommitsTableName,
 				gitbase.TreeEntriesTableName,
 			),
-		},
-		{
-			"repos with tree entries",
-			[]sql.Table{repositories, treeEntries},
-			nil,
-			nil,
-			errInvalidIteratorChain,
-			nil,
 		},
 		{
 			"refs with tree entries",
@@ -647,14 +664,6 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.TreeEntriesTableName,
 				gitbase.BlobsTableName,
 			),
-		},
-		{
-			"repos with blobs",
-			[]sql.Table{repositories, blobs},
-			nil,
-			nil,
-			errInvalidIteratorChain,
-			nil,
 		},
 		{
 			"remotes with blobs",
@@ -748,6 +757,81 @@ func TestBuildSquashedTable(t *testing.T) {
 				),
 				nil,
 				gitbase.CommitsTableName,
+				gitbase.BlobsTableName,
+			),
+		},
+		{
+			"repos with commits",
+			[]sql.Table{repositories, commits},
+			[]sql.Expression{
+				repoFilter,
+				commitFilter,
+				repoCommitsFilter,
+				repoCommitsRedundantFilter,
+			},
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewRepoCommitsIter(
+					gitbase.NewAllReposIter(repoFilter),
+					and(
+						fixIdx(t, commitFilter, repoCommitsSchema),
+						fixIdx(t, repoCommitsFilter, repoCommitsSchema),
+					),
+				),
+				nil,
+				gitbase.RepositoriesTableName,
+				gitbase.CommitsTableName,
+			),
+		},
+		{
+			"repositories with tree entries",
+			[]sql.Table{repositories, treeEntries},
+			[]sql.Expression{
+				repoFilter,
+				treeEntryFilter,
+				repoTreeEntriesFilter,
+				repoTreeEntriesRedundantFilter,
+			},
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewRepoTreeEntriesIter(
+					gitbase.NewAllReposIter(repoFilter),
+					and(
+						fixIdx(t, treeEntryFilter, repoTreeEntriesSchema),
+						fixIdx(t, repoTreeEntriesFilter, repoTreeEntriesSchema),
+					),
+				),
+				nil,
+				gitbase.RepositoriesTableName,
+				gitbase.TreeEntriesTableName,
+			),
+		},
+		{
+			"blobs with tree entries",
+			[]sql.Table{repositories, blobs},
+			[]sql.Expression{
+				repoFilter,
+				blobFilter,
+				repoBlobsFilter,
+				repoBlobsRedundantFilter,
+			},
+			[]sql.Expression{expression.NewGetFieldWithTable(
+				0, sql.Int64, gitbase.BlobsTableName, "blob_content", false,
+			)},
+			nil,
+			newSquashedTable(
+				gitbase.NewRepoBlobsIter(
+					gitbase.NewAllReposIter(repoFilter),
+					and(
+						fixIdx(t, blobFilter, repoBlobsSchema),
+						fixIdx(t, repoBlobsFilter, repoBlobsSchema),
+					),
+					true,
+				),
+				nil,
+				gitbase.RepositoriesTableName,
 				gitbase.BlobsTableName,
 			),
 		},
@@ -1270,6 +1354,33 @@ func TestIsRedundantFilter(t *testing.T) {
 				col(0, gitbase.BlobsTableName, "blob_hash"),
 			),
 			false,
+		},
+		{
+			gitbase.RepositoriesTableName,
+			gitbase.CommitsTableName,
+			eq(
+				col(0, gitbase.RepositoriesTableName, "repository_id"),
+				col(0, gitbase.CommitsTableName, "repository_id"),
+			),
+			true,
+		},
+		{
+			gitbase.RepositoriesTableName,
+			gitbase.TreeEntriesTableName,
+			eq(
+				col(0, gitbase.RepositoriesTableName, "repository_id"),
+				col(0, gitbase.TreeEntriesTableName, "repository_id"),
+			),
+			true,
+		},
+		{
+			gitbase.RepositoriesTableName,
+			gitbase.BlobsTableName,
+			eq(
+				col(0, gitbase.RepositoriesTableName, "repository_id"),
+				col(0, gitbase.BlobsTableName, "repository_id"),
+			),
+			true,
 		},
 	}
 

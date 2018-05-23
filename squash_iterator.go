@@ -834,6 +834,103 @@ func (i *squashCommitsIter) Advance() error {
 }
 func (i *squashCommitsIter) Schema() sql.Schema { return CommitsSchema }
 
+type squashRepoCommitsIter struct {
+	repos   ReposIter
+	commits object.CommitIter
+	ctx     *sql.Context
+	filters sql.Expression
+	commit  *object.Commit
+	row     sql.Row
+}
+
+// NewRepoCommitsIter is an iterator that returns all commits for the
+// repositories returned by the given iterator.
+func NewRepoCommitsIter(repos ReposIter, filters sql.Expression) CommitsIter {
+	return &squashRepoCommitsIter{repos: repos, filters: filters}
+}
+
+func (i *squashRepoCommitsIter) Commit() *object.Commit { return i.commit }
+func (i *squashRepoCommitsIter) Close() error {
+	if i.commits != nil {
+		i.commits.Close()
+	}
+
+	if i.repos != nil {
+		return i.repos.Close()
+	}
+	return nil
+}
+func (i *squashRepoCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.repos.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashRepoCommitsIter{
+		repos:   iter.(ReposIter),
+		ctx:     ctx,
+		filters: i.filters,
+	}, nil
+}
+func (i *squashRepoCommitsIter) Row() sql.Row { return i.row }
+func (i *squashRepoCommitsIter) Advance() error {
+	for {
+		if i.commits == nil {
+			if err := i.repos.Advance(); err != nil {
+				return err
+			}
+
+			session, err := getSession(i.ctx)
+			if err != nil {
+				return err
+			}
+
+			i.commits, err = i.repos.Repo().Repo.CommitObjects()
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"repo":  i.repos.Repo().ID,
+					"error": err,
+				}).Error("unable to get commit iterator")
+
+				if !session.SkipGitErrors {
+					return err
+				}
+
+				continue
+			}
+		}
+
+		var err error
+		i.commit, err = i.commits.Next()
+		if err == io.EOF {
+			i.commits = nil
+			return io.EOF
+		}
+
+		if err != nil {
+			return err
+		}
+
+		i.row = append(i.repos.Row(), commitToRow(i.repos.Repo().ID, i.commit)...)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *squashRepoCommitsIter) Schema() sql.Schema {
+	return append(RepositoriesSchema, CommitsSchema...)
+}
+
 type squashRefCommitsIter struct {
 	ctx     *sql.Context
 	repo    *Repository
@@ -1201,6 +1298,112 @@ func (i *squashTreeEntriesIter) Advance() error {
 	}
 }
 func (i *squashTreeEntriesIter) Schema() sql.Schema { return TreeEntriesSchema }
+
+type squashRepoTreeEntriesIter struct {
+	ctx     *sql.Context
+	filters sql.Expression
+	repos   ReposIter
+	trees   *object.TreeIter
+	tree    *object.Tree
+	files   *object.FileIter
+	entry   *TreeEntry
+	row     sql.Row
+}
+
+// NewRepoTreeEntriesIter returns an iterator that will return all tree entries
+// for every repo returned by the given iterator.
+func NewRepoTreeEntriesIter(repos ReposIter, filters sql.Expression) TreeEntriesIter {
+	return &squashRepoTreeEntriesIter{repos: repos, filters: filters}
+}
+
+func (i *squashRepoTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
+func (i *squashRepoTreeEntriesIter) Close() error {
+	if i.trees != nil {
+		i.trees.Close()
+	}
+
+	if i.files != nil {
+		i.files.Close()
+	}
+
+	if i.repos != nil {
+		return i.repos.Close()
+	}
+
+	return nil
+}
+func (i *squashRepoTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.repos.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashRepoTreeEntriesIter{
+		ctx:     ctx,
+		repos:   iter.(ReposIter),
+		filters: i.filters,
+	}, nil
+}
+func (i *squashRepoTreeEntriesIter) Row() sql.Row { return i.row }
+func (i *squashRepoTreeEntriesIter) Advance() error {
+	for {
+		if i.trees == nil {
+			if err := i.repos.Advance(); err != nil {
+				return err
+			}
+
+			var err error
+			i.trees, err = i.repos.Repo().Repo.TreeObjects()
+			if err != nil {
+				return err
+			}
+		}
+
+		if i.files == nil {
+			var err error
+			i.tree, err = i.trees.Next()
+			if err == io.EOF {
+				i.trees = nil
+				return io.EOF
+			}
+
+			if err != nil {
+				return err
+			}
+
+			i.files = i.tree.Files()
+		}
+
+		file, err := i.files.Next()
+		if err == io.EOF {
+			i.files = nil
+			continue
+		}
+
+		if err != nil {
+			return err
+		}
+
+		i.entry = &TreeEntry{i.tree.Hash, file}
+		i.row = append(i.repos.Row(), fileToRow(i.repos.Repo().ID, i.tree, i.entry.File)...)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *squashRepoTreeEntriesIter) Schema() sql.Schema {
+	return append(RepositoriesSchema, TreeEntriesSchema...)
+}
 
 type squashCommitMainTreeEntriesIter struct {
 	ctx     *sql.Context
@@ -1574,6 +1777,98 @@ func (i *squashRecursiveTreeFileIter) Close() error { return nil }
 // BlobsIter is a chainable iterator that operates on blobs.
 type BlobsIter interface {
 	ChainableIter
+}
+
+type squashRepoBlobsIter struct {
+	ctx         *sql.Context
+	repos       ReposIter
+	filters     sql.Expression
+	blobs       *object.BlobIter
+	row         sql.Row
+	readContent bool
+}
+
+// NewRepoBlobsIter returns an iterator that will return all blobs for the
+// repositories in the given iter that match the given filters.
+func NewRepoBlobsIter(
+	repos ReposIter,
+	filters sql.Expression,
+	readContent bool,
+) BlobsIter {
+	return &squashRepoBlobsIter{
+		repos:       repos,
+		filters:     filters,
+		readContent: readContent,
+	}
+}
+
+func (i *squashRepoBlobsIter) Close() error {
+	if i.blobs != nil {
+		i.blobs.Close()
+	}
+
+	if i.repos != nil {
+		return i.repos.Close()
+	}
+
+	return nil
+}
+func (i *squashRepoBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.repos.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashRepoBlobsIter{
+		ctx:         ctx,
+		repos:       iter.(ReposIter),
+		filters:     i.filters,
+		readContent: i.readContent,
+	}, nil
+}
+func (i *squashRepoBlobsIter) Row() sql.Row { return i.row }
+func (i *squashRepoBlobsIter) Advance() error {
+	for {
+		if i.blobs == nil {
+			err := i.repos.Advance()
+			if err != nil {
+				return err
+			}
+
+			i.blobs, err = i.repos.Repo().Repo.BlobObjects()
+			if err != nil {
+				return err
+			}
+		}
+
+		blob, err := i.blobs.Next()
+		if err != nil {
+			return err
+		}
+
+		row, err := blobToRow(i.repos.Repo().ID, blob, i.readContent)
+		if err != nil {
+			return err
+		}
+
+		i.row = append(i.repos.Row(), row...)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *squashRepoBlobsIter) Schema() sql.Schema {
+	return append(i.repos.Schema(), BlobsSchema...)
 }
 
 // The only blob iterator is the chained one, because it's the last step

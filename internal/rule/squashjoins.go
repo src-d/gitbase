@@ -223,6 +223,19 @@ func buildSquashedTable(
 			}
 		case gitbase.CommitsTableName:
 			switch it := iter.(type) {
+			case gitbase.ReposIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RepositoriesTableName,
+					gitbase.CommitsTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewRepoCommitsIter(it, f)
 			case gitbase.RefsIter:
 				var f sql.Expression
 				onlyRefHEADCommits := hasRefHEADFilter(filters)
@@ -258,6 +271,19 @@ func buildSquashedTable(
 			}
 		case gitbase.TreeEntriesTableName:
 			switch it := iter.(type) {
+			case gitbase.ReposIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RepositoriesTableName,
+					gitbase.TreeEntriesTableName,
+					filters,
+					append(it.Schema(), gitbase.TreeEntriesSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewRepoTreeEntriesIter(it, f)
 			case gitbase.RefsIter:
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
@@ -321,6 +347,19 @@ func buildSquashedTable(
 			}
 
 			switch it := iter.(type) {
+			case gitbase.ReposIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RepositoriesTableName,
+					gitbase.BlobsTableName,
+					filters,
+					append(it.Schema(), gitbase.BlobsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewRepoBlobsIter(it, f, readContent)
 			case gitbase.RefsIter:
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
@@ -845,6 +884,21 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 		return isEq(
 			isCol(gitbase.TreeEntriesTableName, "blob_hash"),
 			isCol(gitbase.BlobsTableName, "blob_hash"),
+		)(f)
+	case t1 == gitbase.RepositoriesTableName && t2 == gitbase.CommitsTableName:
+		return isEq(
+			isCol(gitbase.RepositoriesTableName, "repository_id"),
+			isCol(gitbase.CommitsTableName, "repository_id"),
+		)(f)
+	case t1 == gitbase.RepositoriesTableName && t2 == gitbase.TreeEntriesTableName:
+		return isEq(
+			isCol(gitbase.RepositoriesTableName, "repository_id"),
+			isCol(gitbase.TreeEntriesTableName, "repository_id"),
+		)(f)
+	case t1 == gitbase.RepositoriesTableName && t2 == gitbase.BlobsTableName:
+		return isEq(
+			isCol(gitbase.RepositoriesTableName, "repository_id"),
+			isCol(gitbase.BlobsTableName, "repository_id"),
 		)(f)
 	}
 	return false
