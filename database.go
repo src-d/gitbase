@@ -21,6 +21,8 @@ const (
 	RefCommitsTableName = "ref_commits"
 	// CommitTreesTableName is the name of the commit trees table.
 	CommitTreesTableName = "commit_trees"
+	// CommitBlobsTableName is the name of the commit blobs table.
+	CommitBlobsTableName = "commit_blobs"
 )
 
 // Database holds all git repository tables
@@ -34,6 +36,7 @@ type Database struct {
 	remotes      sql.Table
 	refCommits   sql.Table
 	commitTrees  sql.Table
+	commitBlobs  sql.Table
 }
 
 // NewDatabase creates a new Database structure and initializes its
@@ -49,6 +52,7 @@ func NewDatabase(name string) sql.Database {
 		remotes:      newRemotesTable(),
 		refCommits:   newRefCommitsTable(),
 		commitTrees:  newCommitTreesTable(),
+		commitBlobs:  newCommitBlobsTable(),
 	}
 }
 
@@ -68,5 +72,6 @@ func (d *Database) Tables() map[string]sql.Table {
 		RemotesTableName:      d.remotes,
 		RefCommitsTableName:   d.refCommits,
 		CommitTreesTableName:  d.commitTrees,
+		CommitBlobsTableName:  d.commitBlobs,
 	}
 }
