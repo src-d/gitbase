@@ -3,8 +3,6 @@ package gitbase
 import (
 	"fmt"
 	"io"
-	"path/filepath"
-	"strings"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	git "gopkg.in/src-d/go-git.v4"
@@ -424,12 +422,12 @@ func (i *squashRefIter) Advance() error {
 		} else {
 			var err error
 			ref, err = i.refs.Next()
-			if err == io.EOF {
-				i.refs = nil
-				return io.EOF
-			}
-
 			if err != nil {
+				if err == io.EOF {
+					i.refs = nil
+					return io.EOF
+				}
+
 				if session.SkipGitErrors {
 					continue
 				}
@@ -776,6 +774,287 @@ type CommitsIter interface {
 	Commit() *object.Commit
 }
 
+// RefCommitsIter is a chainable iterator that operates on ref_commits.
+type RefCommitsIter interface {
+	CommitsIter
+	isRefCommitsIter()
+}
+
+// NewAllRefCommitsIter returns an iterator that will return all ref_commit
+// rows.
+func NewAllRefCommitsIter(filters sql.Expression) CommitsIter {
+	return NewRefRefCommitsIter(NewAllRefsIter(nil, true), filters)
+}
+
+type squashRefRefCommitsIter struct {
+	ctx           *sql.Context
+	refs          RefsIter
+	repo          *Repository
+	skipGitErrors bool
+	filters       sql.Expression
+	commits       *indexedCommitIter
+	commit        *object.Commit
+	row           sql.Row
+}
+
+// NewRefRefCommitsIter returns an iterator that will return all ref_commits
+// for all the references in the given iterator.
+func NewRefRefCommitsIter(refsIter RefsIter, filters sql.Expression) CommitsIter {
+	return &squashRefRefCommitsIter{refs: refsIter, filters: filters}
+}
+
+func (squashRefRefCommitsIter) isRefCommitsIter()         {}
+func (i *squashRefRefCommitsIter) Commit() *object.Commit { return i.commit }
+func (i *squashRefRefCommitsIter) Close() error {
+	if i.refs != nil {
+		i.refs.Close()
+	}
+	return nil
+}
+func (i *squashRefRefCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	refs, err := i.refs.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashRefRefCommitsIter{
+		ctx:           ctx,
+		repo:          repo,
+		skipGitErrors: session.SkipGitErrors,
+		refs:          refs.(RefsIter),
+		filters:       i.filters,
+	}, nil
+}
+
+func (i *squashRefRefCommitsIter) Row() sql.Row { return i.row }
+
+func (i *squashRefRefCommitsIter) Advance() error {
+	for {
+		if i.commits == nil {
+			err := i.refs.Advance()
+			if err != nil {
+				return err
+			}
+
+			commit, err := resolveCommit(i.repo, i.refs.Ref().Hash())
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"repo":  i.repo.ID,
+					"error": err,
+				}).Error("unable to get commit")
+
+				if i.skipGitErrors {
+					continue
+				}
+
+				return err
+			}
+
+			i.commits = newIndexedCommitIter(i.skipGitErrors, i.repo.Repo, commit)
+		}
+
+		commit, idx, err := i.commits.Next()
+		if err != nil {
+			if err == io.EOF {
+				i.commits = nil
+				continue
+			}
+
+			return err
+		}
+
+		i.commit = commit
+		i.row = append(
+			i.refs.Row(),
+			i.repo.ID,
+			commit.Hash.String(),
+			i.refs.Ref().Name().String(),
+			int64(idx),
+		)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *squashRefRefCommitsIter) Schema() sql.Schema {
+	return append(i.refs.Schema(), RefCommitsSchema...)
+}
+
+type squashRefHeadRefCommitsIter struct {
+	skipGitErrors bool
+	ctx           *sql.Context
+	repo          *Repository
+	filters       sql.Expression
+	refs          RefsIter
+	row           sql.Row
+	commit        *object.Commit
+}
+
+// NewRefHeadRefCommitsIter returns an iterator that will return all ref_commit
+// rows of the HEAD commits in references of the given iterator.
+func NewRefHeadRefCommitsIter(refs RefsIter, filters sql.Expression) CommitsIter {
+	return &squashRefHeadRefCommitsIter{refs: refs, filters: filters}
+}
+
+func (squashRefHeadRefCommitsIter) isRefCommitsIter()         {}
+func (i *squashRefHeadRefCommitsIter) Commit() *object.Commit { return i.commit }
+func (i *squashRefHeadRefCommitsIter) Close() error {
+	if i.refs != nil {
+		i.refs.Close()
+	}
+	return nil
+}
+func (i *squashRefHeadRefCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	refs, err := i.refs.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashRefHeadRefCommitsIter{
+		ctx:           ctx,
+		repo:          repo,
+		skipGitErrors: session.SkipGitErrors,
+		refs:          refs.(RefsIter),
+		filters:       i.filters,
+	}, nil
+}
+
+func (i *squashRefHeadRefCommitsIter) Row() sql.Row { return i.row }
+
+func (i *squashRefHeadRefCommitsIter) Advance() error {
+	for {
+		err := i.refs.Advance()
+		if err != nil {
+			return err
+		}
+
+		i.commit, err = resolveCommit(i.repo, i.refs.Ref().Hash())
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"repo":  i.repo.ID,
+				"error": err,
+			}).Error("unable to get commit")
+
+			if i.skipGitErrors {
+				continue
+			}
+
+			return err
+		}
+
+		i.row = append(
+			i.refs.Row(),
+			i.repo.ID,
+			i.commit.Hash.String(),
+			i.refs.Ref().Name().String(),
+			int64(0),
+		)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *squashRefHeadRefCommitsIter) Schema() sql.Schema {
+	return append(i.refs.Schema(), RefCommitsSchema...)
+}
+
+type squashRefCommitCommitsIter struct {
+	refCommits CommitsIter
+	repoID     string
+	row        sql.Row
+	filters    sql.Expression
+	ctx        *sql.Context
+}
+
+// NewRefCommitCommitsIter returns an iterator that will return commits
+// based on the ref_commits returned by the previous iterator.
+func NewRefCommitCommitsIter(refCommits CommitsIter, filters sql.Expression) CommitsIter {
+	return &squashRefCommitCommitsIter{refCommits: refCommits, filters: filters}
+}
+
+func (i *squashRefCommitCommitsIter) Commit() *object.Commit { return i.refCommits.Commit() }
+func (i *squashRefCommitCommitsIter) Close() error {
+	if i.refCommits != nil {
+		i.refCommits.Close()
+	}
+	return nil
+}
+func (i *squashRefCommitCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.refCommits.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashRefCommitCommitsIter{
+		ctx:        ctx,
+		repoID:     repo.ID,
+		refCommits: iter.(CommitsIter),
+		filters:    i.filters,
+	}, nil
+}
+
+func (i *squashRefCommitCommitsIter) Row() sql.Row { return i.row }
+
+func (i *squashRefCommitCommitsIter) Advance() error {
+	for {
+		if err := i.refCommits.Advance(); err != nil {
+			return err
+		}
+
+		commit := i.refCommits.Commit()
+		i.row = append(
+			i.refCommits.Row(),
+			commitToRow(i.repoID, commit)...,
+		)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *squashRefCommitCommitsIter) Schema() sql.Schema {
+	return append(i.refCommits.Schema(), CommitsSchema...)
+}
+
 type squashCommitsIter struct {
 	repoID  string
 	ctx     *sql.Context
@@ -783,12 +1062,13 @@ type squashCommitsIter struct {
 	commits object.CommitIter
 	commit  *object.Commit
 	row     sql.Row
+	virtual bool
 }
 
 // NewAllCommitsIter returns an iterator that will return all commits
 // that match the given filters.
-func NewAllCommitsIter(filters sql.Expression) CommitsIter {
-	return &squashCommitsIter{filters: filters}
+func NewAllCommitsIter(filters sql.Expression, virtual bool) CommitsIter {
+	return &squashCommitsIter{filters: filters, virtual: virtual}
 }
 
 func (i *squashCommitsIter) Commit() *object.Commit { return i.commit }
@@ -823,9 +1103,17 @@ func (i *squashCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIt
 		ctx:     ctx,
 		commits: commits,
 		filters: i.filters,
+		virtual: i.virtual,
 	}, nil
 }
-func (i *squashCommitsIter) Row() sql.Row { return i.row }
+
+func (i *squashCommitsIter) Row() sql.Row {
+	if i.virtual {
+		return nil
+	}
+	return i.row
+}
+
 func (i *squashCommitsIter) Advance() error {
 	for {
 		if i.commits == nil {
@@ -859,7 +1147,14 @@ func (i *squashCommitsIter) Advance() error {
 		return nil
 	}
 }
-func (i *squashCommitsIter) Schema() sql.Schema { return CommitsSchema }
+
+func (i *squashCommitsIter) Schema() sql.Schema {
+	if i.virtual {
+		return nil
+	}
+
+	return CommitsSchema
+}
 
 type squashRepoCommitsIter struct {
 	repos   ReposIter
@@ -1354,97 +1649,116 @@ func (i *squashRefHeadCommitsIter) Schema() sql.Schema {
 	return append(i.refs.Schema(), CommitsSchema...)
 }
 
-// TreeEntriesIter is a chainable operator that operates on Tree Entries.
-type TreeEntriesIter interface {
+// TreesIter is a chainable iterator that operates on trees.
+type TreesIter interface {
 	ChainableIter
-	// TreeEntry returns the current repository. All calls to TreeEntry return the
-	// same tree entries until another call to Advance. Advance should
-	// be called before calling TreeEntry.
-	TreeEntry() *TreeEntry
+	// Tree returns the current tree. All calls to Tree return the same tree
+	// until another call to Advance. Advance should be called before calling
+	// Tree.
+	Tree() *object.Tree
 }
 
-// TreeEntry is a tree entry object.
-type TreeEntry struct {
-	TreeHash plumbing.Hash
-	*object.File
+// NewAllCommitTreesIter returns all commit trees.
+func NewAllCommitTreesIter(filters sql.Expression) TreesIter {
+	return NewCommitTreesIter(NewAllCommitsIter(nil, true), filters, false)
 }
 
-type squashTreeEntriesIter struct {
-	ctx     *sql.Context
-	repoID  string
-	filters sql.Expression
-	trees   *object.TreeIter
-	tree    *object.Tree
-	files   *object.FileIter
-	entry   *TreeEntry
-	row     sql.Row
+type squashCommitTreesIter struct {
+	ctx           *sql.Context
+	commits       CommitsIter
+	repo          *Repository
+	trees         *commitTreeIter
+	filters       sql.Expression
+	tree          *object.Tree
+	row           sql.Row
+	skipGitErrors bool
+	virtual       bool
 }
 
-// NewAllTreeEntriesIter returns an iterator that will return all tree entries
-// that match the given filters.
-func NewAllTreeEntriesIter(filters sql.Expression) TreeEntriesIter {
-	return &squashTreeEntriesIter{filters: filters}
+// NewCommitTreesIter returns all trees from the commits returned by the given
+// commits iterator.
+func NewCommitTreesIter(commits CommitsIter, filters sql.Expression, virtual bool) TreesIter {
+	return &squashCommitTreesIter{commits: commits, filters: filters, virtual: virtual}
 }
 
-func (i *squashTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
-func (i *squashTreeEntriesIter) Close() error {
-	if i.trees != nil {
-		i.trees.Close()
-	}
-
-	if i.files != nil {
-		i.files.Close()
+func (i *squashCommitTreesIter) Tree() *object.Tree { return i.tree }
+func (i *squashCommitTreesIter) Close() error {
+	if i.commits != nil {
+		return i.commits.Close()
 	}
 
 	return nil
 }
-func (i *squashTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	trees, err := repo.Repo.TreeObjects()
+func (i *squashCommitTreesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	commits, err := i.commits.New(ctx, repo)
 	if err != nil {
 		return nil, err
 	}
 
-	return &squashTreeEntriesIter{
-		ctx:     ctx,
-		repoID:  repo.ID,
-		trees:   trees,
-		filters: i.filters,
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashCommitTreesIter{
+		ctx:           ctx,
+		repo:          repo,
+		commits:       commits.(CommitsIter),
+		filters:       i.filters,
+		skipGitErrors: session.SkipGitErrors,
+		virtual:       i.virtual,
 	}, nil
 }
-func (i *squashTreeEntriesIter) Row() sql.Row { return i.row }
-func (i *squashTreeEntriesIter) Advance() error {
+func (i *squashCommitTreesIter) Row() sql.Row { return i.row }
+func (i *squashCommitTreesIter) Advance() error {
 	for {
 		if i.trees == nil {
-			return io.EOF
-		}
-
-		if i.files == nil {
-			var err error
-			i.tree, err = i.trees.Next()
-			if err == io.EOF {
-				i.trees = nil
-				return io.EOF
-			}
-
+			err := i.commits.Advance()
 			if err != nil {
 				return err
 			}
 
-			i.files = i.tree.Files()
+			commit := i.commits.Commit()
+			i.trees, err = newCommitTreeIter(
+				i.repo.Repo,
+				commit,
+				make(map[plumbing.Hash]struct{}),
+				i.skipGitErrors,
+			)
+			if err != nil {
+				if i.skipGitErrors {
+					continue
+				}
+
+				logrus.WithFields(logrus.Fields{
+					"commit": commit.Hash,
+				}).Debug("skipping commit, can't get trees")
+
+				return err
+			}
 		}
 
-		file, err := i.files.Next()
-		if err == io.EOF {
-			i.files = nil
-			continue
-		}
-
+		var err error
+		i.tree, err = i.trees.Next()
 		if err != nil {
+			if err == io.EOF {
+				i.trees = nil
+				continue
+			}
+
 			return err
 		}
 
-		i.entry = &TreeEntry{i.tree.Hash, file}
-		i.row = treeEntryFileToRow(i.repoID, i.tree, i.entry.File)
+		if i.virtual {
+			i.row = i.commits.Row()
+		} else {
+			i.row = append(
+				i.commits.Row(),
+				i.repo.ID,
+				i.commits.Commit().Hash.String(),
+				i.tree.Hash.String(),
+			)
+		}
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -1460,17 +1774,17 @@ func (i *squashTreeEntriesIter) Advance() error {
 		return nil
 	}
 }
-func (i *squashTreeEntriesIter) Schema() sql.Schema { return TreeEntriesSchema }
 
 type squashRepoTreeEntriesIter struct {
-	ctx     *sql.Context
-	filters sql.Expression
-	repos   ReposIter
-	trees   *object.TreeIter
-	tree    *object.Tree
-	files   *object.FileIter
-	entry   *TreeEntry
-	row     sql.Row
+	ctx           *sql.Context
+	filters       sql.Expression
+	repos         ReposIter
+	trees         *object.TreeIter
+	tree          *object.Tree
+	cursor        int
+	entry         *TreeEntry
+	row           sql.Row
+	skipGitErrors bool
 }
 
 // NewRepoTreeEntriesIter returns an iterator that will return all tree entries
@@ -1485,10 +1799,6 @@ func (i *squashRepoTreeEntriesIter) Close() error {
 		i.trees.Close()
 	}
 
-	if i.files != nil {
-		i.files.Close()
-	}
-
 	if i.repos != nil {
 		return i.repos.Close()
 	}
@@ -1501,57 +1811,63 @@ func (i *squashRepoTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (Cha
 		return nil, err
 	}
 
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return &squashRepoTreeEntriesIter{
-		ctx:     ctx,
-		repos:   iter.(ReposIter),
-		filters: i.filters,
+		ctx:           ctx,
+		repos:         iter.(ReposIter),
+		filters:       i.filters,
+		skipGitErrors: session.SkipGitErrors,
 	}, nil
 }
 func (i *squashRepoTreeEntriesIter) Row() sql.Row { return i.row }
 func (i *squashRepoTreeEntriesIter) Advance() error {
 	for {
 		if i.trees == nil {
-			if err := i.repos.Advance(); err != nil {
+			err := i.repos.Advance()
+			if err != nil {
 				return err
 			}
 
-			var err error
 			i.trees, err = i.repos.Repo().Repo.TreeObjects()
 			if err != nil {
+				if i.skipGitErrors {
+					continue
+				}
+
 				return err
 			}
 		}
 
-		if i.files == nil {
+		if i.tree == nil {
 			var err error
 			i.tree, err = i.trees.Next()
-			if err == io.EOF {
-				i.trees = nil
-				return io.EOF
-			}
-
 			if err != nil {
+				if err == io.EOF {
+					i.trees = nil
+					return io.EOF
+				}
+
+				if i.skipGitErrors {
+					continue
+				}
+
 				return err
 			}
-
-			i.files = i.tree.Files()
+			i.cursor = 0
 		}
 
-		file, err := i.files.Next()
-		if err == io.EOF {
-			i.files = nil
+		if i.cursor >= len(i.tree.Entries) {
+			i.tree = nil
 			continue
 		}
 
-		if err != nil {
-			return err
-		}
-
-		i.entry = &TreeEntry{i.tree.Hash, file}
-		i.row = append(
-			i.repos.Row(),
-			treeEntryFileToRow(i.repos.Repo().ID, i.tree, i.entry.File)...,
-		)
+		i.entry = &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
+		i.cursor++
+		i.row = append(i.repos.Row(), treeEntryToRow(i.repos.Repo().ID, i.entry)...)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -1571,115 +1887,85 @@ func (i *squashRepoTreeEntriesIter) Schema() sql.Schema {
 	return append(RepositoriesSchema, TreeEntriesSchema...)
 }
 
-type squashCommitMainTreeEntriesIter struct {
-	ctx     *sql.Context
-	repoID  string
-	commits CommitsIter
-	filters sql.Expression
-	tree    *object.Tree
-	files   *object.FileIter
-	entry   *TreeEntry
-	row     sql.Row
-	virtual bool
+func (i *squashCommitTreesIter) Schema() sql.Schema {
+	if i.virtual {
+		return i.commits.Schema()
+	}
+	return append(i.commits.Schema(), CommitTreesSchema...)
 }
 
-// NewCommitMainTreeEntriesIter returns an iterator that will return all tree
-// entries for the main tree of the commits returned by the given commit
-// iterator that match the given filters.
-func NewCommitMainTreeEntriesIter(
-	squashCommitsIter CommitsIter,
-	filters sql.Expression,
-	virtual bool,
-) TreeEntriesIter {
-	return &squashCommitMainTreeEntriesIter{
-		commits: squashCommitsIter,
-		virtual: virtual,
-		filters: filters,
-	}
+type squashCommitMainTreeIter struct {
+	ctx           *sql.Context
+	commits       CommitsIter
+	repo          *Repository
+	filters       sql.Expression
+	tree          *object.Tree
+	row           sql.Row
+	seen          map[plumbing.Hash]struct{}
+	skipGitErrors bool
+	virtual       bool
 }
 
-func (i *squashCommitMainTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
-func (i *squashCommitMainTreeEntriesIter) Close() error {
-	if i.files != nil {
-		i.files.Close()
-	}
+// NewCommitMainTreeIter returns all main trees from the commits returned by the given
+// commits iterator.
+func NewCommitMainTreeIter(commits CommitsIter, filters sql.Expression, virtual bool) TreesIter {
+	return &squashCommitMainTreeIter{commits: commits, filters: filters, virtual: virtual}
+}
 
+func (i *squashCommitMainTreeIter) Tree() *object.Tree { return i.tree }
+func (i *squashCommitMainTreeIter) Close() error {
 	if i.commits != nil {
 		return i.commits.Close()
 	}
 
 	return nil
 }
-func (i *squashCommitMainTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	iter, err := i.commits.New(ctx, repo)
+func (i *squashCommitMainTreeIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	commits, err := i.commits.New(ctx, repo)
 	if err != nil {
 		return nil, err
 	}
 
-	return &squashCommitMainTreeEntriesIter{
-		ctx:     ctx,
-		repoID:  repo.ID,
-		commits: iter.(CommitsIter),
-		filters: i.filters,
-		virtual: i.virtual,
-	}, nil
-}
-func (i *squashCommitMainTreeEntriesIter) Row() sql.Row { return i.row }
-func (i *squashCommitMainTreeEntriesIter) Advance() error {
-	session, err := getSession(i.ctx)
+	session, err := getSession(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	return &squashCommitMainTreeIter{
+		ctx:           ctx,
+		repo:          repo,
+		commits:       commits.(CommitsIter),
+		filters:       i.filters,
+		seen:          make(map[plumbing.Hash]struct{}),
+		skipGitErrors: session.SkipGitErrors,
+		virtual:       i.virtual,
+	}, nil
+}
+func (i *squashCommitMainTreeIter) Row() sql.Row { return i.row }
+func (i *squashCommitMainTreeIter) Advance() error {
 	for {
-		if i.commits == nil {
-			return io.EOF
-		}
-
-		if i.files == nil {
-			err := i.commits.Advance()
-			if err == io.EOF {
-				i.commits = nil
-				return io.EOF
-			}
-
-			if err != nil {
-				return err
-			}
-
-			i.tree, err = i.commits.Commit().Tree()
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"commit": i.commits.Commit().Hash.String(),
-					"error":  err,
-				}).Error("unable to retrieve tree")
-
-				if session.SkipGitErrors {
-					continue
-				}
-
-				return err
-			}
-
-			i.files = i.tree.Files()
-		}
-
-		file, err := i.files.Next()
-		if err == io.EOF {
-			i.files = nil
-			continue
-		}
-
+		err := i.commits.Advance()
 		if err != nil {
 			return err
 		}
 
-		i.entry = &TreeEntry{i.tree.Hash, file}
+		i.tree, err = i.commits.Commit().Tree()
+		if err != nil {
+			if i.skipGitErrors {
+				continue
+			}
+			return err
+		}
 
 		if i.virtual {
 			i.row = i.commits.Row()
 		} else {
-			i.row = append(i.commits.Row(), treeEntryFileToRow(i.repoID, i.tree, file)...)
+			i.row = append(
+				i.commits.Row(),
+				i.repo.ID,
+				i.commits.Commit().Hash.String(),
+				i.tree.Hash.String(),
+			)
 		}
 
 		if i.filters != nil {
@@ -1696,249 +1982,304 @@ func (i *squashCommitMainTreeEntriesIter) Advance() error {
 		return nil
 	}
 }
-func (i *squashCommitMainTreeEntriesIter) Schema() sql.Schema {
+func (i *squashCommitMainTreeIter) Schema() sql.Schema {
 	if i.virtual {
 		return i.commits.Schema()
 	}
-	return append(i.commits.Schema(), TreeEntriesSchema...)
+	return append(i.commits.Schema(), CommitTreesSchema...)
 }
 
-type squashCommitTreeEntriesIter struct {
-	ctx     *sql.Context
-	commits CommitsIter
-	filters sql.Expression
-	repo    *Repository
-	files   *squashRecursiveTreeFileIter
-	entry   *TreeEntry
-	row     sql.Row
-	virtual bool
+type commitTreeIter struct {
+	skipGitErrors bool
+	tree          *object.Tree
+	repo          *git.Repository
+	stack         []*commitTreeStackFrame
+	seen          map[plumbing.Hash]struct{}
 }
 
-// NewCommitTreeEntriesIter returns an iterator that will return all tree
-// entries for all trees of the commits returned by the given commit
-// iterator that match the given filters.
-func NewCommitTreeEntriesIter(
-	squashCommitsIter CommitsIter,
-	filters sql.Expression,
-	virtual bool,
-) TreeEntriesIter {
-	return &squashCommitTreeEntriesIter{
-		commits: squashCommitsIter,
-		virtual: virtual,
-		filters: filters,
-	}
+type commitTreeStackFrame struct {
+	pos     int
+	entries []object.TreeEntry
 }
 
-func (i *squashCommitTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
-func (i *squashCommitTreeEntriesIter) Close() error {
-	if i.files != nil {
-		i.files.Close()
-	}
-
-	if i.commits != nil {
-		return i.commits.Close()
-	}
-
-	return nil
-}
-func (i *squashCommitTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	iter, err := i.commits.New(ctx, repo)
+func newCommitTreeIter(
+	repo *git.Repository,
+	commit *object.Commit,
+	seen map[plumbing.Hash]struct{},
+	skipGitErrors bool,
+) (*commitTreeIter, error) {
+	tree, err := commit.Tree()
 	if err != nil {
 		return nil, err
 	}
 
-	return &squashCommitTreeEntriesIter{
-		ctx:     ctx,
-		commits: iter.(CommitsIter),
-		repo:    repo,
-		filters: i.filters,
-		virtual: i.virtual,
+	if _, ok := seen[tree.Hash]; ok {
+		return new(commitTreeIter), nil
+	}
+
+	return &commitTreeIter{
+		tree:          tree,
+		repo:          repo,
+		stack:         []*commitTreeStackFrame{{entries: tree.Entries}},
+		seen:          seen,
+		skipGitErrors: skipGitErrors,
 	}, nil
 }
-func (i *squashCommitTreeEntriesIter) Row() sql.Row { return i.row }
-func (i *squashCommitTreeEntriesIter) Advance() error {
-	session, err := getSession(i.ctx)
-	if err != nil {
-		return err
-	}
 
+func (i *commitTreeIter) Next() (*object.Tree, error) {
 	for {
-		if i.commits == nil {
-			return io.EOF
-		}
-
-		if i.files == nil {
-			err := i.commits.Advance()
-			if err == io.EOF {
-				i.commits = nil
-				return io.EOF
-			}
-
-			if err != nil {
-				return err
-			}
-
-			tree, err := i.commits.Commit().Tree()
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"commit": i.commits.Commit().Hash.String(),
-					"error":  err,
-				}).Error("unable to retrieve tree")
-
-				if session.SkipGitErrors {
-					continue
-				}
-
-				return err
-			}
-
-			i.files = newRecursiveTreeFileIter(i.ctx, i.repo, tree)
-		}
-
-		file, tree, err := i.files.Next()
-		if err == io.EOF {
-			i.files = nil
-			continue
-		}
-
-		if err != nil {
-			return err
-		}
-
-		i.entry = &TreeEntry{tree.Hash, file}
-
-		if i.virtual {
-			i.row = i.commits.Row()
-		} else {
-			i.row = append(i.commits.Row(), treeEntryFileToRow(i.repo.ID, tree, file)...)
-		}
-
-		if i.filters != nil {
-			ok, err := evalFilters(i.ctx, i.row, i.filters)
-			if err != nil {
-				return err
-			}
-
-			if !ok {
-				continue
-			}
-		}
-
-		return nil
-	}
-}
-func (i *squashCommitTreeEntriesIter) Schema() sql.Schema {
-	if i.virtual {
-		return i.commits.Schema()
-	}
-	return append(i.commits.Schema(), TreeEntriesSchema...)
-}
-
-type squashRecursiveTreeFileIter struct {
-	ctx          *sql.Context
-	repo         *Repository
-	tree         *object.Tree
-	pendingTrees []*object.Tree
-	stack        []*recursiveTreeFileStackFrame
-	seen         map[plumbing.Hash]struct{}
-}
-
-type recursiveTreeFileStackFrame struct {
-	tree *object.Tree
-	pos  int
-}
-
-func newRecursiveTreeFileIter(
-	ctx *sql.Context,
-	repo *Repository,
-	tree *object.Tree,
-) *squashRecursiveTreeFileIter {
-	return &squashRecursiveTreeFileIter{
-		ctx:          ctx,
-		repo:         repo,
-		tree:         tree,
-		pendingTrees: nil,
-		stack: []*recursiveTreeFileStackFrame{
-			{tree, 0},
-		},
-		seen: map[plumbing.Hash]struct{}{
-			tree.Hash: struct{}{},
-		},
-	}
-}
-
-func (i *squashRecursiveTreeFileIter) Next() (*object.File, *object.Tree, error) {
-	session, err := getSession(i.ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for {
-		if i.tree == nil {
-			if len(i.pendingTrees) == 0 {
-				return nil, nil, io.EOF
-			}
-
-			i.tree = i.pendingTrees[0]
-			i.pendingTrees = i.pendingTrees[1:]
-			i.stack = []*recursiveTreeFileStackFrame{
-				{i.tree, 0},
-			}
+		if i.tree != nil {
+			tree := i.tree
+			i.tree = nil
+			return tree, nil
 		}
 
 		if len(i.stack) == 0 {
+			return nil, io.EOF
+		}
+
+		frame := i.stack[0]
+
+		for {
+			if frame.pos >= len(frame.entries) {
+				i.stack = i.stack[1:]
+				break
+			}
+
+			entry := frame.entries[frame.pos]
+			frame.pos++
+			if entry.Mode != filemode.Dir {
+				continue
+			}
+
+			tree, err := i.repo.TreeObject(entry.Hash)
+			if err != nil {
+				if i.skipGitErrors {
+					logrus.WithFields(logrus.Fields{
+						"tree": entry.Hash,
+					}).Debug("skipping tree entry, can't get tree")
+					continue
+				}
+
+				return nil, err
+			}
+
+			if _, ok := i.seen[tree.Hash]; ok {
+				continue
+			}
+
+			if len(tree.Entries) > 0 {
+				i.stack = append(i.stack, &commitTreeStackFrame{entries: tree.Entries})
+			}
+
+			return tree, nil
+		}
+	}
+}
+
+// TreeEntriesIter is a chainable iterator that operates on Tree Entries.
+type TreeEntriesIter interface {
+	ChainableIter
+	// TreeEntry returns the current tree entry. All calls to TreeEntry return the
+	// same tree entries until another call to Advance. Advance should
+	// be called before calling TreeEntry.
+	TreeEntry() *TreeEntry
+}
+
+type squashTreeEntriesIter struct {
+	ctx           *sql.Context
+	repoID        string
+	filters       sql.Expression
+	trees         *object.TreeIter
+	tree          *object.Tree
+	cursor        int
+	entry         *TreeEntry
+	row           sql.Row
+	skipGitErrors bool
+}
+
+// NewAllTreeEntriesIter returns an iterator that will return all tree entries
+// that match the given filters.
+func NewAllTreeEntriesIter(filters sql.Expression) TreeEntriesIter {
+	return &squashTreeEntriesIter{filters: filters}
+}
+
+func (i *squashTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
+func (i *squashTreeEntriesIter) Close() error {
+	if i.trees != nil {
+		i.trees.Close()
+	}
+
+	return nil
+}
+func (i *squashTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	trees, err := repo.Repo.TreeObjects()
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashTreeEntriesIter{
+		ctx:           ctx,
+		repoID:        repo.ID,
+		trees:         trees,
+		filters:       i.filters,
+		skipGitErrors: session.SkipGitErrors,
+	}, nil
+}
+func (i *squashTreeEntriesIter) Row() sql.Row { return i.row }
+func (i *squashTreeEntriesIter) Advance() error {
+	for {
+		if i.trees == nil {
+			return io.EOF
+		}
+
+		if i.tree == nil {
+			var err error
+			i.tree, err = i.trees.Next()
+			if err != nil {
+				if err == io.EOF {
+					i.trees = nil
+					return io.EOF
+				}
+
+				if i.skipGitErrors {
+					continue
+				}
+
+				return err
+			}
+			i.cursor = 0
+		}
+
+		if i.cursor >= len(i.tree.Entries) {
 			i.tree = nil
 			continue
 		}
 
-		frame := i.stack[len(i.stack)-1]
-		if frame.pos >= len(frame.tree.Entries) {
-			i.stack = i.stack[:len(i.stack)-1]
-			continue
-		}
+		i.entry = &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
+		i.cursor++
+		i.row = treeEntryToRow(i.repoID, i.entry)
 
-		entry := frame.tree.Entries[frame.pos]
-		frame.pos++
-		if entry.Mode == filemode.Dir {
-			tree, err := i.repo.Repo.TreeObject(entry.Hash)
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
 			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"tree":  entry.Hash.String(),
-					"repo":  i.repo.ID,
-					"error": err,
-				}).Error("unable to retrieve tree object")
-
-				if session.SkipGitErrors {
-					continue
-				}
-
-				return nil, nil, err
+				return err
 			}
 
-			if _, ok := i.seen[tree.Hash]; !ok {
-				i.pendingTrees = append(i.pendingTrees, tree)
-				i.seen[tree.Hash] = struct{}{}
+			if !ok {
+				continue
 			}
-			i.stack = append(i.stack, &recursiveTreeFileStackFrame{tree, 0})
-			continue
-		} else if entry.Mode == filemode.Submodule {
-			continue
 		}
 
-		var path []string
-		for j := 0; j < len(i.stack); j++ {
-			path = append(path, i.stack[j].tree.Entries[i.stack[j].pos-1].Name)
-		}
+		return nil
+	}
+}
+func (i *squashTreeEntriesIter) Schema() sql.Schema { return TreeEntriesSchema }
 
-		return &object.File{
-			Name: strings.Join(path, string(filepath.Separator)),
-			Mode: entry.Mode,
-			Blob: object.Blob{Hash: entry.Hash},
-		}, i.tree, nil
+type squashTreeTreeEntriesIter struct {
+	ctx     *sql.Context
+	repoID  string
+	trees   TreesIter
+	filters sql.Expression
+	cursor  int
+	tree    *object.Tree
+	entry   *TreeEntry
+	row     sql.Row
+	virtual bool
+}
+
+// NewTreeTreeEntriesIter returns an iterator that will return all tree
+// entries for the trees returned by the given iterator.
+func NewTreeTreeEntriesIter(
+	trees TreesIter,
+	filters sql.Expression,
+	virtual bool,
+) TreeEntriesIter {
+	return &squashTreeTreeEntriesIter{
+		trees:   trees,
+		virtual: virtual,
+		filters: filters,
 	}
 }
 
-func (i *squashRecursiveTreeFileIter) Close() error { return nil }
+func (i *squashTreeTreeEntriesIter) TreeEntry() *TreeEntry { return i.entry }
+func (i *squashTreeTreeEntriesIter) Close() error {
+	if i.trees != nil {
+		return i.trees.Close()
+	}
+
+	return nil
+}
+func (i *squashTreeTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.trees.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashTreeTreeEntriesIter{
+		ctx:     ctx,
+		repoID:  repo.ID,
+		trees:   iter.(TreesIter),
+		filters: i.filters,
+		virtual: i.virtual,
+	}, nil
+}
+func (i *squashTreeTreeEntriesIter) Row() sql.Row { return i.row }
+func (i *squashTreeTreeEntriesIter) Advance() error {
+	for {
+		if i.tree == nil {
+			err := i.trees.Advance()
+			if err != nil {
+				return err
+			}
+
+			i.tree = i.trees.Tree()
+			i.cursor = 0
+		}
+
+		if i.cursor >= len(i.tree.Entries) {
+			i.tree = nil
+			continue
+		}
+
+		i.entry = &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
+		i.cursor++
+
+		if i.virtual {
+			i.row = i.trees.Row()
+		} else {
+			i.row = append(
+				i.trees.Row(),
+				treeEntryToRow(i.repoID, i.entry)...,
+			)
+		}
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+
+func (i *squashTreeTreeEntriesIter) Schema() sql.Schema {
+	if i.virtual {
+		return i.trees.Schema()
+	}
+	return append(i.trees.Schema(), TreeEntriesSchema...)
+}
 
 // BlobsIter is a chainable iterator that operates on blobs.
 type BlobsIter interface {
@@ -2097,16 +2438,21 @@ func (i *squashTreeEntryBlobsIter) Advance() error {
 		}
 
 		err := i.treeEntries.Advance()
-		if err == io.EOF {
-			i.treeEntries = nil
-			return io.EOF
-		}
-
 		if err != nil {
+			if err == io.EOF {
+				i.treeEntries = nil
+				return io.EOF
+			}
+
 			return err
 		}
 
-		blob, err := i.repo.Repo.BlobObject(i.treeEntries.TreeEntry().Hash)
+		entry := i.treeEntries.TreeEntry()
+		if !entry.Mode.IsFile() {
+			continue
+		}
+
+		blob, err := i.repo.Repo.BlobObject(entry.Hash)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"repo":  i.repo.ID,

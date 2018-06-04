@@ -235,7 +235,7 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = &refCommitsIter{gitbase.NewRepoRefsIter(it, nil, true), f, false}
+				iter = gitbase.NewRefRefCommitsIter(gitbase.NewRepoRefsIter(it, nil, true), f)
 			case gitbase.RefsIter:
 				var f sql.Expression
 				onlyHead := hasRefHEADFilter(filters)
@@ -249,19 +249,23 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = &refCommitsIter{it, f, onlyHead}
+				if onlyHead {
+					iter = gitbase.NewRefHeadRefCommitsIter(it, f)
+				} else {
+					iter = gitbase.NewRefRefCommitsIter(it, f)
+				}
 			case nil:
 				var f sql.Expression
 				f, filters, err = filtersForTable(
-					gitbase.ReferencesTableName,
+					gitbase.RefCommitsTableName,
 					filters,
-					gitbase.RefsSchema,
+					gitbase.RefCommitsSchema,
 				)
 				if err != nil {
 					return nil, err
 				}
 
-				iter = &refCommitsIter{gitbase.NewAllRefsIter(nil, true), f, false}
+				iter = gitbase.NewAllRefCommitsIter(f)
 			default:
 				return nil, errInvalidIteratorChain.New("ref_commits", iter)
 			}
@@ -293,27 +297,19 @@ func buildSquashedTable(
 				}
 
 				iter = gitbase.NewRefHEADCommitsIter(it, f, false)
-			case *refCommitsIter:
+			case gitbase.CommitsIter:
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
 					gitbase.RefCommitsTableName,
 					gitbase.CommitsTableName,
 					filters,
-					append(append(it.underlying.Schema(), gitbase.RefCommitsSchema...), gitbase.CommitsSchema...),
+					append(it.Schema(), gitbase.CommitsSchema...),
 				)
 				if err != nil {
 					return nil, err
 				}
 
-				if it.filter != nil {
-					f = expression.NewAnd(f, it.filter)
-				}
-
-				if it.onlyHead {
-					iter = gitbase.NewRefHeadIndexedCommitsIter(it.underlying, f)
-				} else {
-					iter = gitbase.NewRefIndexedCommitsIter(it.underlying, f)
-				}
+				iter = gitbase.NewRefCommitCommitsIter(it, f)
 			case nil:
 				var f sql.Expression
 				f, filters, err = filtersForTable(
@@ -324,11 +320,11 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
-				iter = gitbase.NewAllCommitsIter(f)
+				iter = gitbase.NewAllCommitsIter(f, false)
 			default:
 				return nil, errInvalidIteratorChain.New("commits", iter)
 			}
-		case gitbase.TreeEntriesTableName:
+		case gitbase.CommitTreesTableName:
 			switch it := iter.(type) {
 			case gitbase.ReposIter:
 				var f sql.Expression
@@ -347,6 +343,71 @@ func buildSquashedTable(
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
 					gitbase.ReferencesTableName,
+					gitbase.CommitTreesTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitTreesSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitTreesIter(
+					gitbase.NewRefHEADCommitsIter(it, nil, true),
+					f,
+					false,
+				)
+			case gitbase.RefCommitsIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RefCommitsTableName,
+					gitbase.CommitTreesTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitTreesSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitTreesIter(it, f, false)
+			case gitbase.CommitsIter:
+				onlyMainTree := hasMainTreeFilter(filters)
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.CommitsTableName,
+					gitbase.CommitTreesTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitTreesSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				if onlyMainTree {
+					iter = gitbase.NewCommitMainTreeIter(it, f, false)
+				} else {
+					iter = gitbase.NewCommitTreesIter(it, f, false)
+				}
+			case nil:
+				var f sql.Expression
+				f, filters, err = filtersForTable(
+					gitbase.CommitTreesTableName,
+					filters,
+					gitbase.CommitTreesSchema,
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewAllCommitTreesIter(f)
+			default:
+				return nil, errInvalidIteratorChain.New("commit_trees", iter)
+			}
+		case gitbase.TreeEntriesTableName:
+			switch it := iter.(type) {
+			case gitbase.ReposIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RepositoriesTableName,
 					gitbase.TreeEntriesTableName,
 					filters,
 					append(it.Schema(), gitbase.TreeEntriesSchema...),
@@ -355,17 +416,8 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewCommitTreeEntriesIter(
-					gitbase.NewRefHEADCommitsIter(
-						it,
-						nil,
-						true,
-					),
-					f,
-					false,
-				)
+				iter = gitbase.NewRepoTreeEntriesIter(it, f)
 			case gitbase.CommitsIter:
-				onlyMainTree := hasMainTreeFilter(filters)
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
 					gitbase.CommitsTableName,
@@ -377,11 +429,21 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				if onlyMainTree {
-					iter = gitbase.NewCommitMainTreeEntriesIter(it, f, false)
-				} else {
-					iter = gitbase.NewCommitTreeEntriesIter(it, f, false)
-				}
+				iter = gitbase.NewTreeTreeEntriesIter(
+					gitbase.NewCommitMainTreeIter(it, nil, true),
+					f,
+					false,
+				)
+			case gitbase.TreesIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.CommitTreesTableName,
+					gitbase.TreeEntriesTableName,
+					filters,
+					append(it.Schema(), gitbase.TreeEntriesSchema...),
+				)
+
+				iter = gitbase.NewTreeTreeEntriesIter(it, f, false)
 			case nil:
 				var f sql.Expression
 				f, filters, err = filtersForTable(
@@ -523,6 +585,7 @@ var tableHierarchy = []string{
 	gitbase.ReferencesTableName,
 	gitbase.RefCommitsTableName,
 	gitbase.CommitsTableName,
+	gitbase.CommitTreesTableName,
 	gitbase.TreeEntriesTableName,
 	gitbase.BlobsTableName,
 }
@@ -863,7 +926,7 @@ func hasMainTreeFilter(filters []sql.Expression) bool {
 	for _, f := range filters {
 		ok := isEq(
 			isCol(gitbase.CommitsTableName, "tree_hash"),
-			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
+			isCol(gitbase.CommitTreesTableName, "tree_hash"),
 		)(f)
 		if ok {
 			return true
@@ -928,10 +991,7 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 			isCol(gitbase.CommitsTableName, "commit_hash"),
 		)(f)
 	case t1 == gitbase.ReferencesTableName && t2 == gitbase.TreeEntriesTableName:
-		return isCommitHasTree(
-			isCol(gitbase.ReferencesTableName, "commit_hash"),
-			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
-		)(f) || isCommitHasBlob(
+		return isCommitHasBlob(
 			isCol(gitbase.ReferencesTableName, "commit_hash"),
 			isCol(gitbase.TreeEntriesTableName, "blob_hash"),
 		)(f)
@@ -944,12 +1004,6 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 		return isEq(
 			isCol(gitbase.CommitsTableName, "tree_hash"),
 			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
-		)(f) || isCommitHasTree(
-			isCol(gitbase.CommitsTableName, "commit_hash"),
-			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
-		)(f) || isCommitHasBlob(
-			isCol(gitbase.CommitsTableName, "commit_hash"),
-			isCol(gitbase.TreeEntriesTableName, "blob_hash"),
 		)(f)
 	case t1 == gitbase.CommitsTableName && t2 == gitbase.BlobsTableName:
 		return isCommitHasBlob(
@@ -975,6 +1029,29 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 		return isEq(
 			isCol(gitbase.RepositoriesTableName, "repository_id"),
 			isCol(gitbase.BlobsTableName, "repository_id"),
+		)(f)
+	case t1 == gitbase.ReferencesTableName && t2 == gitbase.CommitTreesTableName:
+		return isEq(
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.CommitTreesTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.RefCommitsTableName && t2 == gitbase.CommitTreesTableName:
+		return isEq(
+			isCol(gitbase.RefCommitsTableName, "commit_hash"),
+			isCol(gitbase.CommitTreesTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.CommitsTableName && t2 == gitbase.CommitTreesTableName:
+		return isEq(
+			isCol(gitbase.CommitsTableName, "commit_hash"),
+			isCol(gitbase.CommitTreesTableName, "commit_hash"),
+		)(f) || isEq(
+			isCol(gitbase.CommitsTableName, "tree_hash"),
+			isCol(gitbase.CommitTreesTableName, "tree_hash"),
+		)(f)
+	case t1 == gitbase.CommitTreesTableName && t2 == gitbase.TreeEntriesTableName:
+		return isEq(
+			isCol(gitbase.CommitTreesTableName, "tree_hash"),
+			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
 		)(f)
 	}
 	return false
@@ -1002,17 +1079,6 @@ func isCol(table, name string) validator {
 		}
 
 		return gf.Table() == table && gf.Name() == name
-	}
-}
-
-func isCommitHasTree(left, right validator) validator {
-	return func(e sql.Expression) bool {
-		f, ok := e.(*function.CommitHasTree)
-		if !ok {
-			return false
-		}
-
-		return left(f.Left) && right(f.Right)
 	}
 }
 
@@ -1098,26 +1164,4 @@ func fixFieldIndexes(e sql.Expression, schema sql.Schema) (sql.Expression, error
 
 		return nil, analyzer.ErrColumnTableNotFound.New(gf.Table(), gf.Name())
 	})
-}
-
-type refCommitsIter struct {
-	underlying gitbase.RefsIter
-	filter     sql.Expression
-	onlyHead   bool
-}
-
-func (i *refCommitsIter) New(*sql.Context, *gitbase.Repository) (gitbase.ChainableIter, error) {
-	panic("refCommitsIter is just a placeholder, New called")
-}
-func (i *refCommitsIter) Close() error {
-	panic("refCommitsIter is just a placeholder, Close called")
-}
-func (i *refCommitsIter) Row() sql.Row {
-	panic("refCommitsIter is just a placeholder, Row called")
-}
-func (i *refCommitsIter) Advance() error {
-	panic("refCommitsIter is just a placeholder, Advance called")
-}
-func (i *refCommitsIter) Schema() sql.Schema {
-	return i.underlying.Schema()
 }

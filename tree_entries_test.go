@@ -36,7 +36,7 @@ func TestTreeEntriesTable_RowIter(t *testing.T) {
 
 	rows, err := sql.NodeToRows(session, table)
 	require.NoError(err)
-	require.Len(rows, 49)
+	require.Len(rows, 45)
 
 	schema := table.Schema()
 	for idx, row := range rows {
@@ -57,19 +57,19 @@ func TestTreeEntriesPushdown(t *testing.T) {
 
 	rows, err := sql.RowIterToRows(iter)
 	require.NoError(err)
-	require.Len(rows, 49)
+	require.Len(rows, 45)
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(4, sql.Text, TreeEntriesTableName, "tree_entry_name", false),
-			expression.NewLiteral("go/example.go", sql.Text),
+			expression.NewGetFieldWithTable(1, sql.Text, TreeEntriesTableName, "tree_entry_name", false),
+			expression.NewLiteral("example.go", sql.Text),
 		),
 	})
 	require.NoError(err)
 
 	rows, err = sql.RowIterToRows(iter)
 	require.NoError(err)
-	require.Len(rows, 3)
+	require.Len(rows, 1)
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
@@ -81,11 +81,11 @@ func TestTreeEntriesPushdown(t *testing.T) {
 
 	rows, err = sql.RowIterToRows(iter)
 	require.NoError(err)
-	require.Len(rows, 4)
+	require.Len(rows, 1)
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(4, sql.Text, TreeEntriesTableName, "tree_entry_name", false),
+			expression.NewGetFieldWithTable(1, sql.Text, TreeEntriesTableName, "tree_entry_name", false),
 			expression.NewLiteral("not_exists.json", sql.Text),
 		),
 	})
@@ -97,23 +97,7 @@ func TestTreeEntriesPushdown(t *testing.T) {
 
 	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
 		expression.NewEquals(
-			expression.NewGetFieldWithTable(1, sql.Text, TreeEntriesTableName, "tree_hash", false),
-			expression.NewLiteral("fb72698cab7617ac416264415f13224dfd7a165e", sql.Text),
-		),
-		expression.NewRegexp(
-			expression.NewGetFieldWithTable(4, sql.Text, TreeEntriesTableName, "tree_entry_name", false),
-			expression.NewLiteral(`\.go$`, sql.Text),
-		),
-	})
-	require.NoError(err)
-
-	rows, err = sql.RowIterToRows(iter)
-	require.NoError(err)
-	require.Len(rows, 1)
-
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
-		expression.NewEquals(
-			expression.NewGetFieldWithTable(1, sql.Text, TreeEntriesTableName, "tree_hash", false),
+			expression.NewGetFieldWithTable(3, sql.Text, TreeEntriesTableName, "tree_hash", false),
 			expression.NewLiteral("4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd", sql.Text),
 		),
 	})
@@ -121,5 +105,5 @@ func TestTreeEntriesPushdown(t *testing.T) {
 
 	rows, err = sql.RowIterToRows(iter)
 	require.NoError(err)
-	require.Len(rows, 6)
+	require.Len(rows, 5)
 }

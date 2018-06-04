@@ -15,10 +15,10 @@ type treeEntriesTable struct{}
 // TreeEntriesSchema is the schema for the tree entries table.
 var TreeEntriesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "blob_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "tree_entry_mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 	{Name: "tree_entry_name", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "blob_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "tree_entry_mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*treeEntriesTable)(nil)
@@ -111,7 +111,8 @@ func (r treeEntriesTable) String() string {
 
 type treeEntryIter struct {
 	i      *object.TreeIter
-	fi     *fileIter
+	tree   *object.Tree
+	cursor int
 	repoID string
 }
 
@@ -126,24 +127,25 @@ func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 
 func (i *treeEntryIter) Next() (sql.Row, error) {
 	for {
-		if i.fi == nil {
-			tree, err := i.i.Next()
+		if i.tree == nil {
+			var err error
+			i.tree, err = i.i.Next()
 			if err != nil {
 				return nil, err
 			}
 
-			i.fi = &fileIter{repoID: i.repoID, t: tree, fi: tree.Files()}
+			i.cursor = 0
 		}
 
-		row, err := i.fi.Next()
-		if err == io.EOF {
-			i.fi = nil
+		if i.cursor >= len(i.tree.Entries) {
+			i.tree = nil
 			continue
-		} else if err != nil {
-			return nil, err
 		}
 
-		return row, nil
+		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
+		i.cursor++
+
+		return treeEntryToRow(i.repoID, entry), nil
 	}
 }
 
@@ -158,8 +160,9 @@ func (i *treeEntryIter) Close() error {
 type treeEntriesByHashIter struct {
 	hashes []string
 	pos    int
+	tree   *object.Tree
+	cursor int
 	repo   *Repository
-	fi     *fileIter
 }
 
 func (i *treeEntriesByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -168,34 +171,34 @@ func (i *treeEntriesByHashIter) NewIterator(repo *Repository) (RowRepoIter, erro
 
 func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
 	for {
-		if i.pos >= len(i.hashes) && i.fi == nil {
+		if i.pos >= len(i.hashes) && i.tree == nil {
 			return nil, io.EOF
 		}
 
-		if i.fi == nil {
+		if i.tree == nil {
 			hash := plumbing.NewHash(i.hashes[i.pos])
 			i.pos++
-			tree, err := i.repo.Repo.TreeObject(hash)
-			if err == plumbing.ErrObjectNotFound {
-				continue
-			}
-
+			var err error
+			i.tree, err = i.repo.Repo.TreeObject(hash)
 			if err != nil {
+				if err == plumbing.ErrObjectNotFound {
+					continue
+				}
 				return nil, err
 			}
 
-			i.fi = &fileIter{repoID: i.repo.ID, t: tree, fi: tree.Files()}
+			i.cursor = 0
 		}
 
-		row, err := i.fi.Next()
-		if err == io.EOF {
-			i.fi = nil
+		if i.cursor >= len(i.tree.Entries) {
+			i.tree = nil
 			continue
-		} else if err != nil {
-			return nil, err
 		}
 
-		return row, nil
+		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
+		i.cursor++
+
+		return treeEntryToRow(i.repo.ID, entry), nil
 	}
 }
 
@@ -203,32 +206,18 @@ func (i *treeEntriesByHashIter) Close() error {
 	return nil
 }
 
-type fileIter struct {
-	repoID string
-	t      *object.Tree
-	fi     *object.FileIter
+// TreeEntry is a tree entry object.
+type TreeEntry struct {
+	TreeHash plumbing.Hash
+	object.TreeEntry
 }
 
-func (i *fileIter) Next() (sql.Row, error) {
-	f, err := i.fi.Next()
-	if err != nil {
-		return nil, err
-	}
-
-	return treeEntryFileToRow(i.repoID, i.t, f), nil
-}
-
-func (i *fileIter) Close() error {
-	i.fi.Close()
-	return nil
-}
-
-func treeEntryFileToRow(repoID string, t *object.Tree, f *object.File) sql.Row {
+func treeEntryToRow(repoID string, entry *TreeEntry) sql.Row {
 	return sql.NewRow(
 		repoID,
-		t.ID().String(),
-		f.Hash.String(),
-		strconv.FormatInt(int64(f.Mode), 8),
-		f.Name,
+		entry.Name,
+		entry.Hash.String(),
+		entry.TreeHash.String(),
+		strconv.FormatInt(int64(entry.Mode), 8),
 	)
 }
