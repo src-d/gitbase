@@ -1444,7 +1444,7 @@ func (i *squashTreeEntriesIter) Advance() error {
 		}
 
 		i.entry = &TreeEntry{i.tree.Hash, file}
-		i.row = fileToRow(i.repoID, i.tree, i.entry.File)
+		i.row = treeEntryFileToRow(i.repoID, i.tree, i.entry.File)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -1548,7 +1548,10 @@ func (i *squashRepoTreeEntriesIter) Advance() error {
 		}
 
 		i.entry = &TreeEntry{i.tree.Hash, file}
-		i.row = append(i.repos.Row(), fileToRow(i.repos.Repo().ID, i.tree, i.entry.File)...)
+		i.row = append(
+			i.repos.Row(),
+			treeEntryFileToRow(i.repos.Repo().ID, i.tree, i.entry.File)...,
+		)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -1676,7 +1679,7 @@ func (i *squashCommitMainTreeEntriesIter) Advance() error {
 		if i.virtual {
 			i.row = i.commits.Row()
 		} else {
-			i.row = append(i.commits.Row(), fileToRow(i.repoID, i.tree, file)...)
+			i.row = append(i.commits.Row(), treeEntryFileToRow(i.repoID, i.tree, file)...)
 		}
 
 		if i.filters != nil {
@@ -1807,7 +1810,7 @@ func (i *squashCommitTreeEntriesIter) Advance() error {
 		if i.virtual {
 			i.row = i.commits.Row()
 		} else {
-			i.row = append(i.commits.Row(), fileToRow(i.repo.ID, tree, file)...)
+			i.row = append(i.commits.Row(), treeEntryFileToRow(i.repo.ID, tree, file)...)
 		}
 
 		if i.filters != nil {

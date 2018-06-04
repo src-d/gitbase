@@ -3,6 +3,7 @@ package gitbase
 import (
 	"reflect"
 
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
@@ -358,6 +359,23 @@ func rowIterWithSelectors(
 func stringContains(slice []string, target string) bool {
 	for _, s := range slice {
 		if s == target {
+			return true
+		}
+	}
+	return false
+}
+
+func stringsToHashes(strs []string) []plumbing.Hash {
+	var hashes = make([]plumbing.Hash, len(strs))
+	for i, s := range strs {
+		hashes[i] = plumbing.NewHash(s)
+	}
+	return hashes
+}
+
+func hashContains(hashes []plumbing.Hash, hash plumbing.Hash) bool {
+	for _, h := range hashes {
+		if h == hash {
 			return true
 		}
 	}
