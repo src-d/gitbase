@@ -1253,283 +1253,6 @@ func (i *squashRepoCommitsIter) Schema() sql.Schema {
 	return append(RepositoriesSchema, CommitsSchema...)
 }
 
-type squashRefIndexedCommitsIter struct {
-	ctx     *sql.Context
-	repo    *Repository
-	filters sql.Expression
-	refs    RefsIter
-	commits *indexedCommitIter
-	commit  *object.Commit
-	row     sql.Row
-}
-
-// NewRefIndexedCommitsIter returns an iterator that will return all commits
-// for the given iter references that match the given filters.
-// The rows returned by this iterator contains the columns in ref_commits and
-// commits tables.
-func NewRefIndexedCommitsIter(
-	refsIter RefsIter,
-	filters sql.Expression,
-) CommitsIter {
-	return &squashRefIndexedCommitsIter{refs: refsIter, filters: filters}
-}
-
-func (i *squashRefIndexedCommitsIter) Commit() *object.Commit { return i.commit }
-func (i *squashRefIndexedCommitsIter) Close() error {
-	if i.refs != nil {
-		return i.refs.Close()
-	}
-
-	return nil
-}
-func (i *squashRefIndexedCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	iter, err := i.refs.New(ctx, repo)
-	if err != nil {
-		return nil, err
-	}
-
-	return &squashRefIndexedCommitsIter{
-		ctx:     ctx,
-		repo:    repo,
-		refs:    iter.(RefsIter),
-		filters: i.filters,
-	}, nil
-}
-func (i *squashRefIndexedCommitsIter) Row() sql.Row { return i.row }
-func (i *squashRefIndexedCommitsIter) Advance() error {
-	session, err := getSession(i.ctx)
-	if err != nil {
-		return err
-	}
-
-	for {
-		if i.refs == nil {
-			return io.EOF
-		}
-
-		if i.commits == nil {
-			err := i.refs.Advance()
-			if err != nil {
-				if err == io.EOF {
-					i.refs = nil
-					return io.EOF
-				}
-
-				return err
-			}
-
-			_, err = resolveCommit(i.repo, i.refs.Ref().Hash())
-			if err != nil {
-				if errInvalidCommit.Is(err) {
-					logrus.WithFields(logrus.Fields{
-						"ref":  i.refs.Ref().Name(),
-						"hash": i.refs.Ref().Hash(),
-					}).Debug("skipping reference, it's not pointing to a commit")
-					continue
-				}
-
-				logrus.WithFields(logrus.Fields{
-					"ref":   i.refs.Ref().Name(),
-					"hash":  i.refs.Ref().Hash(),
-					"error": err,
-				}).Error("unable to resolve commit")
-
-				if session.SkipGitErrors {
-					continue
-				}
-
-				return err
-			}
-
-			commit, err := i.repo.Repo.CommitObject(i.refs.Ref().Hash())
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"ref":   i.refs.Ref().Name(),
-					"hash":  i.refs.Ref().Hash(),
-					"error": err,
-				}).Error("unable to retrieve commits")
-
-				if session.SkipGitErrors {
-					continue
-				}
-
-				return err
-			}
-
-			i.commits = newIndexedCommitIter(session.SkipGitErrors, i.repo.Repo, commit)
-		}
-
-		var err error
-		var idx int
-		i.commit, idx, err = i.commits.Next()
-		if err == io.EOF {
-			i.commits = nil
-			continue
-		}
-
-		if err != nil {
-			return err
-		}
-
-		i.row = append(
-			append(
-				i.refs.Row(),
-				i.repo.ID,
-				i.commit.Hash.String(),
-				i.refs.Ref().Name().String(),
-				int64(idx),
-			),
-			commitToRow(i.repo.ID, i.commit)...,
-		)
-
-		if i.filters != nil {
-			ok, err := evalFilters(i.ctx, i.row, i.filters)
-			if err != nil {
-				return err
-			}
-
-			if !ok {
-				continue
-			}
-		}
-
-		return nil
-	}
-}
-func (i *squashRefIndexedCommitsIter) Schema() sql.Schema {
-	return append(append(i.refs.Schema(), RefCommitsSchema...), CommitsSchema...)
-}
-
-type squashRefHeadIndexedCommitsIter struct {
-	ctx     *sql.Context
-	repo    *Repository
-	filters sql.Expression
-	refs    RefsIter
-	commit  *object.Commit
-	row     sql.Row
-}
-
-// NewRefHeadIndexedCommitsIter returns an iterator that will return all
-// head commits for the given iter references that match the given filters.
-// The rows returned by this iterator contains the columns in ref_commits and
-// commits tables.
-func NewRefHeadIndexedCommitsIter(
-	refsIter RefsIter,
-	filters sql.Expression,
-) CommitsIter {
-	return &squashRefHeadIndexedCommitsIter{refs: refsIter, filters: filters}
-}
-
-func (i *squashRefHeadIndexedCommitsIter) Commit() *object.Commit { return i.commit }
-func (i *squashRefHeadIndexedCommitsIter) Close() error {
-	if i.refs != nil {
-		return i.refs.Close()
-	}
-
-	return nil
-}
-func (i *squashRefHeadIndexedCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	iter, err := i.refs.New(ctx, repo)
-	if err != nil {
-		return nil, err
-	}
-
-	return &squashRefHeadIndexedCommitsIter{
-		ctx:     ctx,
-		repo:    repo,
-		refs:    iter.(RefsIter),
-		filters: i.filters,
-	}, nil
-}
-func (i *squashRefHeadIndexedCommitsIter) Row() sql.Row { return i.row }
-func (i *squashRefHeadIndexedCommitsIter) Advance() error {
-	session, err := getSession(i.ctx)
-	if err != nil {
-		return err
-	}
-
-	for {
-		if i.refs == nil {
-			return io.EOF
-		}
-
-		err := i.refs.Advance()
-		if err != nil {
-			if err == io.EOF {
-				i.refs = nil
-				return io.EOF
-			}
-
-			return err
-		}
-
-		_, err = resolveCommit(i.repo, i.refs.Ref().Hash())
-		if err != nil {
-			if errInvalidCommit.Is(err) {
-				logrus.WithFields(logrus.Fields{
-					"ref":  i.refs.Ref().Name(),
-					"hash": i.refs.Ref().Hash(),
-				}).Debug("skipping reference, it's not pointing to a commit")
-				continue
-			}
-
-			logrus.WithFields(logrus.Fields{
-				"ref":   i.refs.Ref().Name(),
-				"hash":  i.refs.Ref().Hash(),
-				"error": err,
-			}).Error("unable to resolve commit")
-
-			if session.SkipGitErrors {
-				continue
-			}
-
-			return err
-		}
-
-		i.commit, err = i.repo.Repo.CommitObject(i.refs.Ref().Hash())
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"ref":   i.refs.Ref().Name(),
-				"hash":  i.refs.Ref().Hash(),
-				"error": err,
-			}).Error("unable to retrieve commits")
-
-			if session.SkipGitErrors {
-				continue
-			}
-
-			return err
-		}
-
-		i.row = append(
-			append(
-				i.refs.Row(),
-				i.repo.ID,
-				i.commit.Hash.String(),
-				i.refs.Ref().Name().String(),
-				int64(0),
-			),
-			commitToRow(i.repo.ID, i.commit)...,
-		)
-
-		if i.filters != nil {
-			ok, err := evalFilters(i.ctx, i.row, i.filters)
-			if err != nil {
-				return err
-			}
-
-			if !ok {
-				continue
-			}
-		}
-
-		return nil
-	}
-}
-func (i *squashRefHeadIndexedCommitsIter) Schema() sql.Schema {
-	return append(append(i.refs.Schema(), RefCommitsSchema...), CommitsSchema...)
-}
-
 type squashRefHeadCommitsIter struct {
 	ctx     *sql.Context
 	repo    *Repository
@@ -2281,6 +2004,153 @@ func (i *squashTreeTreeEntriesIter) Schema() sql.Schema {
 	return append(i.trees.Schema(), TreeEntriesSchema...)
 }
 
+// FilesIter is an iterator that operates on files.
+type FilesIter interface {
+	ChainableIter
+	File() *object.File
+}
+
+type squashCommitBlobsIter struct {
+	ctx           *sql.Context
+	repo          *Repository
+	filters       sql.Expression
+	commits       CommitsIter
+	files         *object.FileIter
+	file          *object.File
+	tree          *object.Tree
+	row           sql.Row
+	skipGitErrors bool
+	seen          map[plumbing.Hash]struct{}
+}
+
+// NewAllCommitBlobsIter returns all commit_blobs.
+func NewAllCommitBlobsIter(filters sql.Expression) FilesIter {
+	return NewCommitBlobsIter(NewAllCommitsIter(nil, true), filters)
+}
+
+// NewCommitBlobsIter returns an iterator that will return all commit blobs
+// of each commit in the given iterator.
+func NewCommitBlobsIter(
+	commits CommitsIter,
+	filters sql.Expression,
+) FilesIter {
+	return &squashCommitBlobsIter{
+		commits: commits,
+		filters: filters,
+	}
+}
+
+func (i *squashCommitBlobsIter) Close() error {
+	if i.files != nil {
+		i.files.Close()
+	}
+
+	if i.commits != nil {
+		return i.commits.Close()
+	}
+
+	return nil
+}
+
+func (i *squashCommitBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.commits.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashCommitBlobsIter{
+		ctx:           ctx,
+		repo:          repo,
+		commits:       iter.(CommitsIter),
+		filters:       i.filters,
+		skipGitErrors: session.SkipGitErrors,
+	}, nil
+}
+
+func (i *squashCommitBlobsIter) Row() sql.Row       { return i.row }
+func (i *squashCommitBlobsIter) File() *object.File { return i.file }
+
+func (i *squashCommitBlobsIter) Advance() error {
+	for {
+		if i.commits == nil {
+			return io.EOF
+		}
+
+		if i.files == nil {
+			err := i.commits.Advance()
+			if err == io.EOF {
+				i.commits = nil
+				return io.EOF
+			}
+
+			if err != nil {
+				return err
+			}
+
+			i.tree, err = i.repo.Repo.TreeObject(i.commits.Commit().TreeHash)
+			if err != nil {
+				logrus.WithFields(logrus.Fields{
+					"repo":      i.repo.ID,
+					"tree_hash": i.commits.Commit().TreeHash.String(),
+					"error":     err,
+				}).Error("unable to retrieve tree object")
+
+				if i.skipGitErrors {
+					continue
+				}
+
+				return err
+			}
+
+			i.files = i.tree.Files()
+			// uniqueness of blob is per commit, so we need to reset the seen map
+			i.seen = make(map[plumbing.Hash]struct{})
+		}
+
+		var err error
+		i.file, err = i.files.Next()
+		if err == io.EOF {
+			i.files = nil
+			continue
+		}
+
+		if _, ok := i.seen[i.file.Hash]; ok {
+			continue
+		}
+
+		i.seen[i.file.Hash] = struct{}{}
+
+		i.row = append(
+			i.commits.Row(),
+			i.repo.ID,
+			i.commits.Commit().Hash.String(),
+			i.file.Blob.Hash.String(),
+		)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+
+func (i *squashCommitBlobsIter) Schema() sql.Schema {
+	return append(i.commits.Schema(), CommitBlobsSchema...)
+}
+
 // BlobsIter is a chainable iterator that operates on blobs.
 type BlobsIter interface {
 	ChainableIter
@@ -2378,9 +2248,6 @@ func (i *squashRepoBlobsIter) Schema() sql.Schema {
 	return append(i.repos.Schema(), BlobsSchema...)
 }
 
-// The only blob iterator is the chained one, because it's the last step
-// in the table hierarchy and it makes no sense to join with no other
-// table in the squashing.
 type squashTreeEntryBlobsIter struct {
 	ctx         *sql.Context
 	repo        *Repository
@@ -2457,7 +2324,8 @@ func (i *squashTreeEntryBlobsIter) Advance() error {
 			logrus.WithFields(logrus.Fields{
 				"repo":  i.repo.ID,
 				"error": err,
-			})
+				"blob":  entry.Hash,
+			}).Error("blob object found not be found")
 
 			if session.SkipGitErrors {
 				continue
@@ -2491,118 +2359,65 @@ func (i *squashTreeEntryBlobsIter) Schema() sql.Schema {
 	return append(i.treeEntries.Schema(), BlobsSchema...)
 }
 
-type squashCommitBlobsIter struct {
+type squashCommitBlobBlobsIter struct {
 	ctx         *sql.Context
-	readContent bool
 	repo        *Repository
 	filters     sql.Expression
-	commits     CommitsIter
-	files       *object.FileIter
+	commitBlobs FilesIter
 	row         sql.Row
-	seen        map[plumbing.Hash]struct{}
+	readContent bool
 }
 
-// NewCommitBlobsIter returns an iterator that will return all blobs
-// for the commit in the given iter that match the given filters.
-func NewCommitBlobsIter(
-	commits CommitsIter,
+// NewCommitBlobBlobsIter returns the blobs for all commit blobs in the given
+// iterator.
+func NewCommitBlobBlobsIter(
+	commitBlobs FilesIter,
 	filters sql.Expression,
 	readContent bool,
 ) BlobsIter {
-	return &squashCommitBlobsIter{
-		commits:     commits,
+	return &squashCommitBlobBlobsIter{
+		commitBlobs: commitBlobs,
 		filters:     filters,
 		readContent: readContent,
 	}
 }
 
-func (i *squashCommitBlobsIter) Close() error {
-	if i.commits != nil {
-		return i.commits.Close()
+func (i *squashCommitBlobBlobsIter) Close() error {
+	if i.commitBlobs != nil {
+		return i.commitBlobs.Close()
 	}
 
 	return nil
 }
-func (i *squashCommitBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	iter, err := i.commits.New(ctx, repo)
+func (i *squashCommitBlobBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.commitBlobs.New(ctx, repo)
 	if err != nil {
 		return nil, err
 	}
 
-	return &squashCommitBlobsIter{
+	return &squashCommitBlobBlobsIter{
 		ctx:         ctx,
 		repo:        repo,
-		commits:     iter.(CommitsIter),
+		commitBlobs: iter.(FilesIter),
 		filters:     i.filters,
-		seen:        make(map[plumbing.Hash]struct{}),
 		readContent: i.readContent,
 	}, nil
 }
-func (i *squashCommitBlobsIter) Row() sql.Row { return i.row }
-func (i *squashCommitBlobsIter) Advance() error {
-	session, err := getSession(i.ctx)
-	if err != nil {
-		return err
-	}
-
+func (i *squashCommitBlobBlobsIter) Row() sql.Row { return i.row }
+func (i *squashCommitBlobBlobsIter) Advance() error {
 	for {
-		if i.commits == nil {
-			return io.EOF
-		}
-
-		if i.files == nil {
-			err := i.commits.Advance()
-			if err == io.EOF {
-				i.commits = nil
-				return io.EOF
-			}
-
-			if err != nil {
-				return err
-			}
-
-			tree, err := i.repo.Repo.TreeObject(i.commits.Commit().TreeHash)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"repo":      i.repo.ID,
-					"tree_hash": i.commits.Commit().TreeHash.String(),
-					"error":     err,
-				}).Error("unable to retrieve tree object")
-
-				if session.SkipGitErrors {
-					continue
-				}
-
-				return err
-			}
-
-			i.files = tree.Files()
-			// uniqueness of blob is per commit, so we need to reset the seen map
-			i.seen = make(map[plumbing.Hash]struct{})
-		}
-
-		file, err := i.files.Next()
-		if err == io.EOF {
-			i.files = nil
-			continue
-		}
-
-		if _, ok := i.seen[file.Hash]; ok {
-			continue
-		}
-
-		i.seen[file.Hash] = struct{}{}
-		blob, err := i.repo.Repo.BlobObject(file.Hash)
+		err := i.commitBlobs.Advance()
 		if err != nil {
 			return err
 		}
 
-		row, err := blobToRow(i.repo.ID, blob, i.readContent)
+		file := i.commitBlobs.File()
+		row, err := blobToRow(i.repo.ID, &file.Blob, i.readContent)
 		if err != nil {
 			return err
 		}
 
-		i.row = append(i.commits.Row(), row...)
+		i.row = append(i.commitBlobs.Row(), row...)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -2618,8 +2433,8 @@ func (i *squashCommitBlobsIter) Advance() error {
 		return nil
 	}
 }
-func (i *squashCommitBlobsIter) Schema() sql.Schema {
-	return append(i.commits.Schema(), BlobsSchema...)
+func (i *squashCommitBlobBlobsIter) Schema() sql.Schema {
+	return append(i.commitBlobs.Schema(), BlobsSchema...)
 }
 
 // NewChainableRowRepoIter creates a new RowRepoIter from a ChainableIter.

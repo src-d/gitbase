@@ -360,85 +360,6 @@ func TestRepoCommitsIter(t *testing.T) {
 	require.Len(rows, 1)
 }
 
-func TestRefIndexedCommitsIter(t *testing.T) {
-	require := require.New(t)
-	ctx, cleanup := setupIter(t)
-	defer cleanup()
-
-	rows := chainableIterRows(
-		t, ctx,
-		NewRefIndexedCommitsIter(
-			NewAllRefsIter(nil, false),
-			nil,
-		),
-	)
-	require.Len(rows, 44)
-
-	expectedRowsLen := len(rows)
-
-	rows = chainableIterRows(
-		t, ctx,
-		NewRefIndexedCommitsIter(
-			NewAllRefsIter(expression.NewEquals(
-				expression.NewGetField(1, sql.Text, "ref_name", false),
-				expression.NewLiteral("HEAD", sql.Text),
-			), false),
-			expression.NewEquals(
-				expression.NewGetField(10, sql.Text, "commit_author_email", false),
-				expression.NewLiteral("mcuadros@gmail.com", sql.Text),
-			),
-		),
-	)
-	require.Len(rows, 11)
-
-	ctx, cleanup2 := setupIterWithErrors(t, true, true)
-	defer cleanup2()
-
-	rows = chainableIterRows(
-		t, ctx,
-		NewRefIndexedCommitsIter(
-			NewAllRefsIter(nil, false),
-			nil,
-		),
-	)
-
-	require.Len(rows, expectedRowsLen)
-
-	ctx, cleanup3 := setupIterWithErrors(t, true, false)
-	defer cleanup3()
-
-	chainableIterRowsError(
-		t, ctx,
-		NewRefIndexedCommitsIter(
-			NewAllRefsIter(nil, false),
-			nil,
-		),
-	)
-}
-
-func TestRefIndexedHeadCommitsIter(t *testing.T) {
-	require := require.New(t)
-	ctx, cleanup := setupIter(t)
-	defer cleanup()
-
-	rows := chainableIterRows(
-		t, ctx,
-		NewRefHeadIndexedCommitsIter(NewAllRefsIter(nil, true), nil),
-	)
-
-	for i, row := range rows {
-		// remove the columns from ref_commits
-		rows[i] = row[4:]
-	}
-
-	expected := chainableIterRows(
-		t, ctx,
-		NewRefHEADCommitsIter(NewAllRefsIter(nil, true), nil, false),
-	)
-
-	require.ElementsMatch(expected, rows)
-}
-
 func TestRefHEADCommitsIter(t *testing.T) {
 	require := require.New(t)
 	ctx, cleanup := setupIter(t)
@@ -738,52 +659,12 @@ func TestCommitBlobsIter(t *testing.T) {
 	rows := chainableIterRows(
 		t, ctx,
 		NewCommitBlobsIter(
-			NewRefHEADCommitsIter(
-				NewAllRefsIter(nil, false),
-				nil,
-				true,
-			),
+			NewAllCommitsIter(nil, true),
 			nil,
-			false,
 		),
 	)
 
-	require.Len(rows, 42)
-	expectedRowsLen := len(rows)
-
-	ctx, cleanup2 := setupIterWithErrors(t, true, true)
-	defer cleanup2()
-
-	rows = chainableIterRows(
-		t, ctx,
-		NewCommitBlobsIter(
-			NewRefHEADCommitsIter(
-				NewAllRefsIter(nil, false),
-				nil,
-				true,
-			),
-			nil,
-			false,
-		),
-	)
-
-	require.Len(rows, expectedRowsLen)
-
-	ctx, cleanup3 := setupIterWithErrors(t, true, false)
-	defer cleanup3()
-
-	chainableIterRowsError(
-		t, ctx,
-		NewCommitBlobsIter(
-			NewRefHEADCommitsIter(
-				NewAllRefsIter(nil, false),
-				nil,
-				true,
-			),
-			nil,
-			false,
-		),
-	)
+	require.Len(rows, 52)
 }
 
 func chainableIterRowsError(t *testing.T, ctx *sql.Context, iter ChainableIter) {

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/src-d/gitbase"
-	"github.com/src-d/gitbase/internal/function"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
@@ -402,6 +401,65 @@ func buildSquashedTable(
 			default:
 				return nil, errInvalidIteratorChain.New("commit_trees", iter)
 			}
+		case gitbase.CommitBlobsTableName:
+			switch it := iter.(type) {
+			case gitbase.RefsIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.ReferencesTableName,
+					gitbase.CommitBlobsTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitBlobsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitBlobsIter(
+					gitbase.NewRefHEADCommitsIter(it, nil, true),
+					f,
+				)
+			case gitbase.RefCommitsIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.RefCommitsTableName,
+					gitbase.CommitBlobsTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitBlobsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitBlobsIter(it, f)
+			case gitbase.CommitsIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.CommitsTableName,
+					gitbase.CommitBlobsTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitBlobsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitBlobsIter(it, f)
+			case nil:
+				var f sql.Expression
+				f, filters, err = filtersForTable(
+					gitbase.CommitBlobsTableName,
+					filters,
+					gitbase.CommitBlobsSchema,
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewAllCommitBlobsIter(f)
+			default:
+				return nil, errInvalidIteratorChain.New("commit_blobs", iter)
+			}
 		case gitbase.TreeEntriesTableName:
 			switch it := iter.(type) {
 			case gitbase.ReposIter:
@@ -481,10 +539,10 @@ func buildSquashedTable(
 				}
 
 				iter = gitbase.NewRepoBlobsIter(it, f, readContent)
-			case gitbase.RefsIter:
+			case gitbase.FilesIter:
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
-					gitbase.ReferencesTableName,
+					gitbase.CommitBlobsTableName,
 					gitbase.BlobsTableName,
 					filters,
 					append(it.Schema(), gitbase.BlobsSchema...),
@@ -493,28 +551,7 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewCommitBlobsIter(
-					gitbase.NewRefHEADCommitsIter(it, nil, true),
-					f,
-					readContent,
-				)
-			case gitbase.CommitsIter:
-				var f sql.Expression
-				f, filters, err = filtersForJoin(
-					gitbase.CommitsTableName,
-					gitbase.BlobsTableName,
-					filters,
-					append(it.Schema(), gitbase.BlobsSchema...),
-				)
-				if err != nil {
-					return nil, err
-				}
-
-				iter = gitbase.NewCommitBlobsIter(
-					it,
-					f,
-					readContent,
-				)
+				iter = gitbase.NewCommitBlobBlobsIter(it, f, readContent)
 			case gitbase.TreeEntriesIter:
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
@@ -587,6 +624,7 @@ var tableHierarchy = []string{
 	gitbase.CommitsTableName,
 	gitbase.CommitTreesTableName,
 	gitbase.TreeEntriesTableName,
+	gitbase.CommitBlobsTableName,
 	gitbase.BlobsTableName,
 }
 
@@ -990,25 +1028,10 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 			isCol(gitbase.RefCommitsTableName, "commit_hash"),
 			isCol(gitbase.CommitsTableName, "commit_hash"),
 		)(f)
-	case t1 == gitbase.ReferencesTableName && t2 == gitbase.TreeEntriesTableName:
-		return isCommitHasBlob(
-			isCol(gitbase.ReferencesTableName, "commit_hash"),
-			isCol(gitbase.TreeEntriesTableName, "blob_hash"),
-		)(f)
-	case t1 == gitbase.ReferencesTableName && t2 == gitbase.BlobsTableName:
-		return isCommitHasBlob(
-			isCol(gitbase.ReferencesTableName, "commit_hash"),
-			isCol(gitbase.BlobsTableName, "blob_hash"),
-		)(f)
 	case t1 == gitbase.CommitsTableName && t2 == gitbase.TreeEntriesTableName:
 		return isEq(
 			isCol(gitbase.CommitsTableName, "tree_hash"),
 			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
-		)(f)
-	case t1 == gitbase.CommitsTableName && t2 == gitbase.BlobsTableName:
-		return isCommitHasBlob(
-			isCol(gitbase.CommitsTableName, "commit_hash"),
-			isCol(gitbase.BlobsTableName, "blob_hash"),
 		)(f)
 	case t1 == gitbase.TreeEntriesTableName && t2 == gitbase.BlobsTableName:
 		return isEq(
@@ -1053,6 +1076,26 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 			isCol(gitbase.CommitTreesTableName, "tree_hash"),
 			isCol(gitbase.TreeEntriesTableName, "tree_hash"),
 		)(f)
+	case t1 == gitbase.ReferencesTableName && t2 == gitbase.CommitBlobsTableName:
+		return isEq(
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.CommitBlobsTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.RefCommitsTableName && t2 == gitbase.CommitBlobsTableName:
+		return isEq(
+			isCol(gitbase.RefCommitsTableName, "commit_hash"),
+			isCol(gitbase.CommitBlobsTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.CommitsTableName && t2 == gitbase.CommitBlobsTableName:
+		return isEq(
+			isCol(gitbase.CommitsTableName, "commit_hash"),
+			isCol(gitbase.CommitBlobsTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.CommitBlobsTableName && t2 == gitbase.BlobsTableName:
+		return isEq(
+			isCol(gitbase.CommitBlobsTableName, "blob_hash"),
+			isCol(gitbase.BlobsTableName, "blob_hash"),
+		)(f)
 	}
 	return false
 }
@@ -1079,17 +1122,6 @@ func isCol(table, name string) validator {
 		}
 
 		return gf.Table() == table && gf.Name() == name
-	}
-}
-
-func isCommitHasBlob(left, right validator) validator {
-	return func(e sql.Expression) bool {
-		f, ok := e.(*function.CommitHasBlob)
-		if !ok {
-			return false
-		}
-
-		return left(f.Left) && right(f.Right)
 	}
 }
 
