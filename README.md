@@ -26,9 +26,9 @@ SELECT * FROM refs WHERE ref_name = 'HEAD'
 ```sql
 SELECT * FROM (
     SELECT COUNT(c.commit_hash) AS num, c.commit_hash
-    FROM refs r
+    FROM ref_commits r
     INNER JOIN commits c
-        ON history_idx(r.commit_hash, c.commit_hash) >= 0
+        ON r.commit_hash = c.commit_hash
     GROUP BY c.commit_hash
 ) t WHERE num > 1
 ```
@@ -37,11 +37,11 @@ SELECT * FROM (
 
 ```sql
 SELECT COUNT(c.commit_hash), c.commit_hash
-FROM refs r
+FROM ref_commitss r
 INNER JOIN commits c
-    ON r.ref_name = 'HEAD' AND history_idx(r.commit_hash, c.commit_hash) >= 0
-INNER JOIN blobs b
-    ON commit_has_blob(c.commit_hash, b.commit_hash)
+    ON r.ref_name = 'HEAD' AND r.commit_hash = c.commit_hash
+INNER JOIN commit_blobs cb
+    ON cb.commit_hash = c.commit_hash
 GROUP BY c.commit_hash
 ```
 
@@ -54,11 +54,10 @@ FROM (
         MONTH(committer_when) as month,
         r.repository_id as repo_id,
         committer_email
-    FROM repositories r
-        INNER JOIN refs
-            ON refs.repository_id = r.repository_id AND refs.ref_name = 'HEAD'
-        INNER JOIN commits c
-            ON YEAR(committer_when) = 2015 AND history_idx(refs.commit_hash, c.commit_hash) >= 0
+    FROM ref_commits r
+    INNER JOIN commits c 
+            ON YEAR(c.committer_when) = 2015 AND r.commit_hash = c.commit_hash
+    WHERE r.ref_name = 'HEAD'
 ) as t
 GROUP BY committer_email, month, repo_id
 ```
@@ -136,12 +135,14 @@ gitbase exposes the following tables:
 | repositories | repository_id                                                                                                     |
 | remotes      | repository_id, remote_name, remote_push_url, remote_fetch_url, remote_push_refspec, remote_fetch_refspec          |
 | commits      | repository_id, commit_hash, commit_author_name, commit_author_email, commit_author_when, committer_name, committer_email, committer_when, commit_message, tree_hash |
-| blobs        | repository_id, blob_hash, blob_size, blob_content                                                                 |
-| refs         | repository_id, ref_name, commit_hash                                                                              |
-| tree_entries | repository_id, tree_hash, blob_hash, tree_entry_mode, tree_entry_name                                             |
-| references   | repository_id, ref_name, commit_hash                                                                              |
-| ref_commits  | repository_id, commit_hash, ref_name, index                                                                       |
-| commit_trees | repository_id, commit_hash, tree_hash                                                                             |
+| blobs        | repository_id, blob_hash, blob_size, blob_content                                                                                               |
+| refs         | repository_id, ref_name, commit_hash                                                                                         |
+| ref_commits | repository_id, ref_name, commit_hash, index |
+| tree_entries | repository_id, tree_hash, blob_hash, tree_entry_mode, tree_entry_name                                                                                 |
+| references   | repository_id, ref_name, commit_hash                                                                                         |
+| commit_trees | repository_id, commit_hash, tree_hash                                                                                        |
+| commit_blobs | repository_id, commit_hash, blob_hash |
+| files | repository_id, file_path, blob_hash, tree_hash, tree_entry_mode, blob_content, blob_size |
 
 ## Functions
 
@@ -149,9 +150,6 @@ To make some common tasks easier for the user, there are some functions to inter
 
 |     Name     |                                               Description                                           |
 |:-------------|:----------------------------------------------------------------------------------------------------|
-|commit_has_blob(commit_hash,blob_hash)bool| get if the specified commit contains the specified blob                 |
-|commit_has_tree(commit_hash,tree_hash)bool| get if the specified commit contains the specified tree                 |
-|history_idx(start_hash, target_hash)int| get the index of a commit in the history of another commit                 |
 |is_remote(reference_name)bool| check if the given reference name is from a remote one                               |
 |is_tag(reference_name)bool| check if the given reference name is a tag                                              |
 |language(path, [blob])text| gets the language of a file given its path and the optional content of the file         |
