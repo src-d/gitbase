@@ -98,7 +98,7 @@ func TestAllRefsIter(t *testing.T) {
 
 	rows := chainableIterRows(
 		t, ctx,
-		NewAllRefsIter(nil),
+		NewAllRefsIter(nil, false),
 	)
 
 	expectedRowsLen := len(rows)
@@ -117,6 +117,7 @@ func TestAllRefsIter(t *testing.T) {
 				expression.NewGetField(1, sql.Text, "name", false),
 				expression.NewLiteral("HEAD", sql.Text),
 			),
+			false,
 		),
 	)
 
@@ -127,7 +128,7 @@ func TestAllRefsIter(t *testing.T) {
 
 	rows = chainableIterRows(
 		t, ctx,
-		NewAllRefsIter(nil),
+		NewAllRefsIter(nil, false),
 	)
 
 	require.Len(rows, expectedRowsLen)
@@ -137,7 +138,7 @@ func TestAllRefsIter(t *testing.T) {
 
 	chainableIterRowsError(
 		t, ctx,
-		NewAllRefsIter(nil),
+		NewAllRefsIter(nil, false),
 	)
 }
 
@@ -151,6 +152,7 @@ func TestRepoRefsIter(t *testing.T) {
 		NewRepoRefsIter(
 			NewAllReposIter(nil),
 			nil,
+			false,
 		),
 	)
 
@@ -158,7 +160,7 @@ func TestRepoRefsIter(t *testing.T) {
 
 	expected := chainableIterRows(
 		t, ctx,
-		NewAllRefsIter(nil),
+		NewAllRefsIter(nil, false),
 	)
 
 	for i := range rows {
@@ -175,6 +177,7 @@ func TestRepoRefsIter(t *testing.T) {
 				expression.NewGetField(2, sql.Text, "name", false),
 				expression.NewLiteral("HEAD", sql.Text),
 			),
+			false,
 		),
 	)
 
@@ -188,6 +191,7 @@ func TestRepoRefsIter(t *testing.T) {
 		NewRepoRefsIter(
 			NewAllReposIter(nil),
 			nil,
+			false,
 		),
 	)
 
@@ -201,6 +205,7 @@ func TestRepoRefsIter(t *testing.T) {
 		NewRepoRefsIter(
 			NewAllReposIter(nil),
 			nil,
+			false,
 		),
 	)
 }
@@ -222,7 +227,7 @@ func TestRemoteRefsIter(t *testing.T) {
 
 	expected := chainableIterRows(
 		t, ctx,
-		NewAllRefsIter(nil),
+		NewAllRefsIter(nil, false),
 	)
 
 	for i := range rows {
@@ -357,15 +362,15 @@ func TestRepoCommitsIter(t *testing.T) {
 	require.Len(rows, 1)
 }
 
-func TestRefCommitsIter(t *testing.T) {
+func TestRefIndexedCommitsIter(t *testing.T) {
 	require := require.New(t)
 	ctx, cleanup := setupIter(t)
 	defer cleanup()
 
 	rows := chainableIterRows(
 		t, ctx,
-		NewRefCommitsIter(
-			NewAllRefsIter(nil),
+		NewRefIndexedCommitsIter(
+			NewAllRefsIter(nil, false),
 			nil,
 		),
 	)
@@ -375,13 +380,13 @@ func TestRefCommitsIter(t *testing.T) {
 
 	rows = chainableIterRows(
 		t, ctx,
-		NewRefCommitsIter(
+		NewRefIndexedCommitsIter(
 			NewAllRefsIter(expression.NewEquals(
 				expression.NewGetField(1, sql.Text, "ref_name", false),
 				expression.NewLiteral("HEAD", sql.Text),
-			)),
+			), false),
 			expression.NewEquals(
-				expression.NewGetField(6, sql.Text, "commit_author_email", false),
+				expression.NewGetField(10, sql.Text, "commit_author_email", false),
 				expression.NewLiteral("mcuadros@gmail.com", sql.Text),
 			),
 		),
@@ -393,8 +398,8 @@ func TestRefCommitsIter(t *testing.T) {
 
 	rows = chainableIterRows(
 		t, ctx,
-		NewRefCommitsIter(
-			NewAllRefsIter(nil),
+		NewRefIndexedCommitsIter(
+			NewAllRefsIter(nil, false),
 			nil,
 		),
 	)
@@ -406,11 +411,34 @@ func TestRefCommitsIter(t *testing.T) {
 
 	chainableIterRowsError(
 		t, ctx,
-		NewRefCommitsIter(
-			NewAllRefsIter(nil),
+		NewRefIndexedCommitsIter(
+			NewAllRefsIter(nil, false),
 			nil,
 		),
 	)
+}
+
+func TestRefIndexedHeadCommitsIter(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	rows := chainableIterRows(
+		t, ctx,
+		NewRefHeadIndexedCommitsIter(NewAllRefsIter(nil, true), nil),
+	)
+
+	for i, row := range rows {
+		// remove the columns from ref_commits
+		rows[i] = row[4:]
+	}
+
+	expected := chainableIterRows(
+		t, ctx,
+		NewRefHEADCommitsIter(NewAllRefsIter(nil, true), nil, false),
+	)
+
+	require.ElementsMatch(expected, rows)
 }
 
 func TestRefHEADCommitsIter(t *testing.T) {
@@ -420,7 +448,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 
 	rows := chainableIterRows(
 		t, ctx,
-		NewRefHEADCommitsIter(NewAllRefsIter(nil), nil, false),
+		NewRefHEADCommitsIter(NewAllRefsIter(nil, false), nil, false),
 	)
 
 	expectedRowsLen := len(rows)
@@ -438,7 +466,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 	rows = chainableIterRows(
 		t, ctx,
 		NewRefHEADCommitsIter(
-			NewAllRefsIter(nil),
+			NewAllRefsIter(nil, false),
 			expression.NewEquals(
 				expression.NewGetField(6, sql.Text, "commit_author_email", false),
 				expression.NewLiteral("mcuadros@gmail.com", sql.Text),
@@ -457,7 +485,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 
 	rows = chainableIterRows(
 		t, ctx,
-		NewRefHEADCommitsIter(NewAllRefsIter(nil), nil, false),
+		NewRefHEADCommitsIter(NewAllRefsIter(nil, false), nil, false),
 	)
 
 	require.Len(rows, expectedRowsLen)
@@ -467,7 +495,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 
 	chainableIterRowsError(
 		t, ctx,
-		NewRefHEADCommitsIter(NewAllRefsIter(nil), nil, false),
+		NewRefHEADCommitsIter(NewAllRefsIter(nil, false), nil, false),
 	)
 }
 
@@ -832,7 +860,7 @@ func TestCommitBlobsIter(t *testing.T) {
 		t, ctx,
 		NewCommitBlobsIter(
 			NewRefHEADCommitsIter(
-				NewAllRefsIter(nil),
+				NewAllRefsIter(nil, false),
 				nil,
 				true,
 			),
@@ -851,7 +879,7 @@ func TestCommitBlobsIter(t *testing.T) {
 		t, ctx,
 		NewCommitBlobsIter(
 			NewRefHEADCommitsIter(
-				NewAllRefsIter(nil),
+				NewAllRefsIter(nil, false),
 				nil,
 				true,
 			),
@@ -869,7 +897,7 @@ func TestCommitBlobsIter(t *testing.T) {
 		t, ctx,
 		NewCommitBlobsIter(
 			NewRefHEADCommitsIter(
-				NewAllRefsIter(nil),
+				NewAllRefsIter(nil, false),
 				nil,
 				true,
 			),
