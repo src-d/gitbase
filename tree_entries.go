@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -24,10 +26,7 @@ var TreeEntriesSchema = sql.Schema{
 var _ sql.PushdownProjectionAndFiltersTable = (*treeEntriesTable)(nil)
 
 func newTreeEntriesTable() Indexable {
-	return &indexableTable{
-		PushdownTable:          new(treeEntriesTable),
-		buildIterWithSelectors: treeEntriesIterBuilder,
-	}
+	return new(treeEntriesTable)
 }
 
 var _ Table = (*treeEntriesTable)(nil)
@@ -102,6 +101,46 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*treeEntriesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	return newTreeEntriesKeyValueIter(s.Pool, colNames), nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*treeEntriesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.TreeEntriesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var iter sql.RowIter = &treeEntriesIndexIter{index: index, pool: session.Pool}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
 func treeEntriesIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
 	if len(selectors["tree_hash"]) == 0 {
 		return new(treeEntryIter), nil
@@ -120,11 +159,10 @@ func (r treeEntriesTable) String() string {
 }
 
 type treeEntryIter struct {
-	i        *object.TreeIter
-	tree     *object.Tree
-	cursor   int
-	repoID   string
-	lastHash string
+	i      *object.TreeIter
+	tree   *object.Tree
+	cursor int
+	repoID string
 }
 
 func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -135,10 +173,6 @@ func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 
 	return &treeEntryIter{repoID: repo.ID, i: iter}, nil
 }
-
-func (i *treeEntryIter) Repository() string { return i.repoID }
-
-func (i *treeEntryIter) LastObject() string { return i.lastHash }
 
 func (i *treeEntryIter) Next() (sql.Row, error) {
 	for {
@@ -159,7 +193,6 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 
 		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
 		i.cursor++
-		i.lastHash = i.tree.Hash.String()
 
 		return treeEntryToRow(i.repoID, entry), nil
 	}
@@ -174,21 +207,16 @@ func (i *treeEntryIter) Close() error {
 }
 
 type treeEntriesByHashIter struct {
-	hashes   []string
-	pos      int
-	tree     *object.Tree
-	cursor   int
-	repo     *Repository
-	lastHash string
+	hashes []string
+	pos    int
+	tree   *object.Tree
+	cursor int
+	repo   *Repository
 }
 
 func (i *treeEntriesByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	return &treeEntriesByHashIter{hashes: i.hashes, repo: repo}, nil
 }
-
-func (i *treeEntriesByHashIter) Repository() string { return i.repo.ID }
-
-func (i *treeEntriesByHashIter) LastObject() string { return i.lastHash }
 
 func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
 	for {
@@ -217,7 +245,6 @@ func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
 		}
 
 		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
-		i.lastHash = i.tree.Hash.String()
 		i.cursor++
 
 		return treeEntryToRow(i.repo.ID, entry), nil
@@ -242,4 +269,141 @@ func treeEntryToRow(repoID string, entry *TreeEntry) sql.Row {
 		entry.TreeHash.String(),
 		strconv.FormatInt(int64(entry.Mode), 8),
 	)
+}
+
+type treeEntriesIndexKey struct {
+	repository string
+	packfile   string
+	offset     int64
+	pos        int
+}
+
+type treeEntriesKeyValueIter struct {
+	iter    *objectIter
+	obj     *encodedObject
+	tree    *object.Tree
+	pos     int
+	columns []string
+}
+
+func newTreeEntriesKeyValueIter(pool *RepositoryPool, columns []string) *treeEntriesKeyValueIter {
+	return &treeEntriesKeyValueIter{
+		iter:    newObjectIter(pool, plumbing.TreeObject),
+		columns: columns,
+	}
+}
+
+func (i *treeEntriesKeyValueIter) Next() ([]interface{}, []byte, error) {
+	for {
+		if i.tree == nil {
+			var err error
+			i.obj, err = i.iter.Next()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			var ok bool
+			i.tree, ok = i.obj.Object.(*object.Tree)
+			if !ok {
+				ErrInvalidObjectType.New(i.obj.Object, "*object.Tree")
+			}
+
+			i.pos = 0
+		}
+
+		if i.pos >= len(i.tree.Entries) {
+			i.tree = nil
+			continue
+		}
+
+		entry := i.tree.Entries[i.pos]
+		i.pos++
+
+		key, err := encodeIndexKey(treeEntriesIndexKey{
+			repository: i.obj.RepositoryID,
+			packfile:   i.obj.Packfile.String(),
+			offset:     int64(i.obj.Offset),
+			pos:        i.pos,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		row := treeEntryToRow(i.obj.RepositoryID, &TreeEntry{i.tree.Hash, entry})
+		values, err := rowIndexValues(row, i.columns, TreeEntriesSchema)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return values, key, nil
+	}
+}
+
+func (i *treeEntriesKeyValueIter) Close() error { return i.iter.Close() }
+
+type treeEntriesIndexIter struct {
+	index          sql.IndexValueIter
+	pool           *RepositoryPool
+	decoder        *objectDecoder
+	prevTreeOffset int64
+	tree           *object.Tree
+}
+
+func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
+	data, err := i.index.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	var key treeEntriesIndexKey
+	if err := decodeIndexKey(data, &key); err != nil {
+		return nil, err
+	}
+
+	packfile := plumbing.NewHash(key.packfile)
+	if i.decoder == nil || !i.decoder.equals(key.repository, packfile) {
+		if i.decoder != nil {
+			if err := i.decoder.close(); err != nil {
+				return nil, err
+			}
+		}
+
+		i.decoder, err = newObjectDecoder(i.pool.repositories[key.repository], packfile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var tree *object.Tree
+	if i.prevTreeOffset == key.offset {
+		tree = i.tree
+	} else {
+		obj, err := i.decoder.get(key.offset)
+		if err != nil {
+			return nil, err
+		}
+
+		var ok bool
+		i.tree, ok = obj.(*object.Tree)
+		if !ok {
+			return nil, ErrInvalidObjectType.New(obj, "*object.Tree")
+		}
+
+		tree = i.tree
+	}
+
+	i.prevTreeOffset = key.offset
+	entry := &TreeEntry{tree.Hash, tree.Entries[key.pos]}
+	return treeEntryToRow(key.repository, entry), nil
+}
+
+func (i *treeEntriesIndexIter) Close() error {
+	if i.decoder != nil {
+		if err := i.decoder.close(); err != nil {
+			_ = i.index.Close()
+			return err
+		}
+	}
+
+	return i.index.Close()
 }

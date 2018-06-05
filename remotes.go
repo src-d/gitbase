@@ -4,7 +4,10 @@ import (
 	"io"
 
 	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type remotesTable struct{}
@@ -22,10 +25,7 @@ var RemotesSchema = sql.Schema{
 var _ sql.PushdownProjectionAndFiltersTable = (*remotesTable)(nil)
 
 func newRemotesTable() Indexable {
-	return &indexableTable{
-		PushdownTable:          new(remotesTable),
-		buildIterWithSelectors: remotesIterBuilder,
-	}
+	return new(remotesTable)
 }
 
 var _ Table = (*remotesTable)(nil)
@@ -99,6 +99,46 @@ func (r *remotesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*remotesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := s.Pool.RepoIter()
+	if err != nil {
+		return nil, err
+	}
+
+	return &remotesKeyValueIter{repos: iter, columns: colNames}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*remotesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.ReferencesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &remotesIndexIter{index: index, pool: s.Pool}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
 func remotesIterBuilder(_ *sql.Context, _ selectors, _ []sql.Expression) (RowRepoIter, error) {
 	// it's not worth to manually filter with the selectors
 	return new(remotesIter), nil
@@ -148,15 +188,7 @@ func (i *remotesIter) Next() (sql.Row, error) {
 		i.urlPos = 0
 	}
 
-	row := sql.NewRow(
-		i.repositoryID,
-		config.Name,
-		config.URLs[i.urlPos],
-		config.URLs[i.urlPos],
-		config.Fetch[i.urlPos].String(),
-		config.Fetch[i.urlPos].String(),
-	)
-
+	row := remoteToRow(i.repositoryID, config, i.urlPos)
 	i.urlPos++
 
 	i.lastRemote = config.Name
@@ -166,3 +198,115 @@ func (i *remotesIter) Next() (sql.Row, error) {
 func (i *remotesIter) Close() error {
 	return nil
 }
+
+func remoteToRow(repoID string, config *config.RemoteConfig, pos int) sql.Row {
+	return sql.NewRow(
+		repoID,
+		config.Name,
+		config.URLs[pos],
+		config.URLs[pos],
+		config.Fetch[pos].String(),
+		config.Fetch[pos].String(),
+	)
+}
+
+type remoteIndexKey struct {
+	repository string
+	pos        int
+	urlPos     int
+}
+
+type remotesKeyValueIter struct {
+	repos   *RepositoryIter
+	repo    *Repository
+	columns []string
+	remotes []*git.Remote
+	pos     int
+	urlPos  int
+}
+
+func (i *remotesKeyValueIter) Next() ([]interface{}, []byte, error) {
+	for {
+		if len(i.remotes) == 0 {
+			var err error
+			i.repo, err = i.repos.Next()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			i.remotes, err = i.repo.Repo.Remotes()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			i.pos = 0
+			i.urlPos = 0
+		}
+
+		if i.pos >= len(i.remotes) {
+			i.remotes = nil
+			continue
+		}
+
+		cfg := i.remotes[i.pos].Config()
+		if i.urlPos >= len(cfg.URLs) {
+			i.pos++
+			continue
+		}
+
+		i.urlPos++
+
+		key, err := encodeIndexKey(remoteIndexKey{i.repo.ID, i.pos, i.urlPos})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		row := remoteToRow(i.repo.ID, cfg, i.urlPos)
+		values, err := rowIndexValues(row, i.columns, RemotesSchema)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return values, key, nil
+	}
+}
+
+func (i *remotesKeyValueIter) Close() error {
+	return i.repos.Close()
+}
+
+type remotesIndexIter struct {
+	index   sql.IndexValueIter
+	pool    *RepositoryPool
+	repo    *Repository
+	remotes []*git.Remote
+}
+
+func (i *remotesIndexIter) Next() (sql.Row, error) {
+	data, err := i.index.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	var key remoteIndexKey
+	if err := decodeIndexKey(data, &key); err != nil {
+		return nil, err
+	}
+
+	if i.repo == nil || i.repo.ID != key.repository {
+		i.repo, err = i.pool.GetRepo(key.repository)
+		if err != nil {
+			return nil, err
+		}
+
+		i.remotes, err = i.repo.Repo.Remotes()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	config := i.remotes[key.pos].Config()
+	return remoteToRow(key.repository, config, key.urlPos), nil
+}
+
+func (i *remotesIndexIter) Close() error { return i.index.Close() }
