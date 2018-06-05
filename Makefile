@@ -13,5 +13,7 @@ $(MAKEFILE):
 
 -include $(MAKEFILE)
 
-dependencies:
+bblfsh-client:
 	cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies
+
+dependencies: bblfsh-client

@@ -15,15 +15,14 @@ import (
 func TestAnalyzer_Analyze(t *testing.T) {
 	require := require.New(t)
 
-	table := mem.NewTable("mytable", sql.Schema{{Name: "i", Type: sql.Int32, Source: "mytable"}})
+	table := mem.NewTable("mytable", sql.Schema{
+		{Name: "i", Type: sql.Int32, Source: "mytable"},
+		{Name: "t", Type: sql.Text, Source: "mytable"},
+	})
 	table2 := mem.NewTable("mytable2", sql.Schema{{Name: "i2", Type: sql.Int32, Source: "mytable2"}})
 	db := mem.NewDatabase("mydb")
-
-	memDb, ok := db.(*mem.Database)
-	require.True(ok)
-
-	memDb.AddTable("mytable", table)
-	memDb.AddTable("mytable2", table2)
+	db.AddTable("mytable", table)
+	db.AddTable("mytable2", table2)
 
 	catalog := &sql.Catalog{Databases: []sql.Database{db}}
 	a := New(catalog)
@@ -75,12 +74,8 @@ func TestAnalyzer_Analyze(t *testing.T) {
 		plan.NewUnresolvedTable("mytable"),
 	)
 	analyzed, err = a.Analyze(sql.NewEmptyContext(), notAnalyzed)
-	expected = plan.NewProject(
-		[]sql.Expression{expression.NewGetFieldWithTable(0, sql.Int32, "mytable", "i", false)},
-		table,
-	)
 	require.NoError(err)
-	require.Equal(expected, analyzed)
+	require.Equal(table, analyzed)
 
 	notAnalyzed = plan.NewProject(
 		[]sql.Expression{expression.NewStar()},
@@ -90,15 +85,8 @@ func TestAnalyzer_Analyze(t *testing.T) {
 		),
 	)
 	analyzed, err = a.Analyze(sql.NewEmptyContext(), notAnalyzed)
-	expected = plan.NewProject(
-		[]sql.Expression{expression.NewGetField(0, sql.Int32, "i", false)},
-		plan.NewProject(
-			[]sql.Expression{expression.NewGetFieldWithTable(0, sql.Int32, "mytable", "i", false)},
-			table,
-		),
-	)
 	require.NoError(err)
-	require.Equal(expected, analyzed)
+	require.Equal(table, analyzed)
 
 	notAnalyzed = plan.NewProject(
 		[]sql.Expression{
@@ -162,7 +150,7 @@ func TestAnalyzer_Analyze(t *testing.T) {
 	expected = plan.NewProject(
 		[]sql.Expression{
 			expression.NewGetFieldWithTable(0, sql.Int32, "mytable", "i", false),
-			expression.NewGetFieldWithTable(1, sql.Int32, "mytable2", "i2", false),
+			expression.NewGetFieldWithTable(2, sql.Int32, "mytable2", "i2", false),
 		},
 		plan.NewCrossJoin(table, table2),
 	)
@@ -216,16 +204,16 @@ func TestAddRule(t *testing.T) {
 	require := require.New(t)
 
 	a := New(nil)
-	require.Len(a.Rules, 10)
+	require.Len(a.Rules, len(DefaultRules))
 	a.AddRule("foo", pushdown)
-	require.Len(a.Rules, 11)
+	require.Len(a.Rules, len(DefaultRules)+1)
 }
 
 func TestAddValidationRule(t *testing.T) {
 	require := require.New(t)
 
 	a := New(nil)
-	require.Len(a.ValidationRules, 5)
+	require.Len(a.ValidationRules, len(DefaultValidationRules))
 	a.AddValidationRule("foo", validateGroupBy)
-	require.Len(a.ValidationRules, 6)
+	require.Len(a.ValidationRules, len(DefaultValidationRules)+1)
 }

@@ -63,9 +63,9 @@ func (filesTable) WithProjectAndFilters(
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.FilesTable")
 	iter, err := rowIterWithSelectors(
-		ctx, FilesSchema, FilesTableName, filters,
+		ctx, FilesSchema, FilesTableName, filters, columns,
 		[]string{"repository_id", "blob_hash", "file_path", "tree_hash"},
-		func(selectors selectors) (RowRepoIter, error) {
+		func(ctx *sql.Context, selectors selectors, exprs []sql.Expression) (RowRepoIter, error) {
 			repos, err := selectors.textValues("repository_id")
 			if err != nil {
 				return nil, err
@@ -122,6 +122,15 @@ type filesIter struct {
 	filePaths  []string
 	blobHashes []plumbing.Hash
 	treeHashes []plumbing.Hash
+}
+
+// TODO: remove this once the interface is changed, it's just a placeholder for now
+func (*filesIter) LastObject() string {
+	return ""
+}
+
+func (i *filesIter) Repository() string {
+	return i.repo.ID
 }
 
 func (i *filesIter) NewIterator(repo *Repository) (RowRepoIter, error) {

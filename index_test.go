@@ -153,23 +153,19 @@ func TestIndexableTable(t *testing.T) {
 					idxValue: &indexValue{paths[0], "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
 				},
 				{
-					key:      []interface{}{"go/example.go", "880cd14280f4b9b6ed3986d6671f907d7cc2a198"},
+					key:      []interface{}{"go", "a39771a7651f97faf5c72e08224d857fc35133db"},
 					idxValue: &indexValue{paths[0], "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
 				},
 				{
-					key:      []interface{}{"json/long.json", "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9"},
+					key:      []interface{}{"json", "5a877e6a906a2743ad6e45d99c1793642aaf8eda"},
 					idxValue: &indexValue{paths[0], "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
 				},
 				{
-					key:      []interface{}{"json/short.json", "c8f1d8c61f9da76f4cb49fd86322b6e685dba956"},
+					key:      []interface{}{"php", "586af567d0bb5e771e49bdd9434f5e0fb76d25fa"},
 					idxValue: &indexValue{paths[0], "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
 				},
 				{
-					key:      []interface{}{"php/crappy.php", "9a48f23120e880dfbe41f7c9b7b708e9ee62a492"},
-					idxValue: &indexValue{paths[0], "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
-				},
-				{
-					key:      []interface{}{"vendor/foo.go", "9dea2395f5403188298c1dabe8bdafe562c491e3"},
+					key:      []interface{}{"vendor", "cf4aa3b38974fb7d81f367c0830f7d78d65ab86b"},
 					idxValue: &indexValue{paths[0], "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
 				},
 				{
@@ -189,19 +185,15 @@ func TestIndexableTable(t *testing.T) {
 					idxValue: &indexValue{paths[0], "fb72698cab7617ac416264415f13224dfd7a165e"},
 				},
 				{
-					key:      []interface{}{"go/example.go", "880cd14280f4b9b6ed3986d6671f907d7cc2a198"},
+					key:      []interface{}{"go", "a39771a7651f97faf5c72e08224d857fc35133db"},
 					idxValue: &indexValue{paths[0], "fb72698cab7617ac416264415f13224dfd7a165e"},
 				},
 				{
-					key:      []interface{}{"json/long.json", "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9"},
+					key:      []interface{}{"json", "5a877e6a906a2743ad6e45d99c1793642aaf8eda"},
 					idxValue: &indexValue{paths[0], "fb72698cab7617ac416264415f13224dfd7a165e"},
 				},
 				{
-					key:      []interface{}{"json/short.json", "c8f1d8c61f9da76f4cb49fd86322b6e685dba956"},
-					idxValue: &indexValue{paths[0], "fb72698cab7617ac416264415f13224dfd7a165e"},
-				},
-				{
-					key:      []interface{}{"php/crappy.php", "9a48f23120e880dfbe41f7c9b7b708e9ee62a492"},
+					key:      []interface{}{"php", "586af567d0bb5e771e49bdd9434f5e0fb76d25fa"},
 					idxValue: &indexValue{paths[0], "fb72698cab7617ac416264415f13224dfd7a165e"},
 				},
 				{
@@ -225,19 +217,15 @@ func TestIndexableTable(t *testing.T) {
 					idxValue: &indexValue{paths[0], "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
 				},
 				{
-					key:      []interface{}{"go/example.go", "880cd14280f4b9b6ed3986d6671f907d7cc2a198"},
+					key:      []interface{}{"go", "a39771a7651f97faf5c72e08224d857fc35133db"},
 					idxValue: &indexValue{paths[0], "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
 				},
 				{
-					key:      []interface{}{"json/long.json", "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9"},
+					key:      []interface{}{"json", "5a877e6a906a2743ad6e45d99c1793642aaf8eda"},
 					idxValue: &indexValue{paths[0], "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
 				},
 				{
-					key:      []interface{}{"json/short.json", "c8f1d8c61f9da76f4cb49fd86322b6e685dba956"},
-					idxValue: &indexValue{paths[0], "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
-				},
-				{
-					key:      []interface{}{"php/crappy.php", "9a48f23120e880dfbe41f7c9b7b708e9ee62a492"},
+					key:      []interface{}{"php", "586af567d0bb5e771e49bdd9434f5e0fb76d25fa"},
 					idxValue: &indexValue{paths[0], "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
 				},
 				{
@@ -257,11 +245,7 @@ func TestIndexableTable(t *testing.T) {
 					idxValue: &indexValue{paths[0], "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd"},
 				},
 				{
-					key:      []interface{}{"json/long.json", "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9"},
-					idxValue: &indexValue{paths[0], "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd"},
-				},
-				{
-					key:      []interface{}{"json/short.json", "c8f1d8c61f9da76f4cb49fd86322b6e685dba956"},
+					key:      []interface{}{"json", "5a877e6a906a2743ad6e45d99c1793642aaf8eda"},
 					idxValue: &indexValue{paths[0], "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd"},
 				},
 				{
@@ -321,7 +305,23 @@ func TestIndexableTable(t *testing.T) {
 					idxValue: &indexValue{paths[1], "3bf5d30ad4f23cf517676fee232e3bcb8537c1d0"},
 				},
 				{
+					key:      []interface{}{"basic", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
+					idxValue: &indexValue{paths[1], "3bf5d30ad4f23cf517676fee232e3bcb8537c1d0"},
+				},
+				{
+					key:      []interface{}{"itself", "47770b26e71b0f69c0ecd494b1066f8d1da4fc03"},
+					idxValue: &indexValue{paths[1], "3bf5d30ad4f23cf517676fee232e3bcb8537c1d0"},
+				},
+				{
 					key:      []interface{}{".gitmodules", "278871477afb195f908155a65b5c651f1cfd02d3"},
+					idxValue: &indexValue{paths[1], "8ac3015df16d47179e903d0379b52267359c1499"},
+				},
+				{
+					key:      []interface{}{"basic", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
+					idxValue: &indexValue{paths[1], "8ac3015df16d47179e903d0379b52267359c1499"},
+				},
+				{
+					key:      []interface{}{"itself", "c7431b5bc9d45fb64a87d4a895ce3d1073c898d2"},
 					idxValue: &indexValue{paths[1], "8ac3015df16d47179e903d0379b52267359c1499"},
 				},
 				{
@@ -329,7 +329,19 @@ func TestIndexableTable(t *testing.T) {
 					idxValue: &indexValue{paths[1], "c4db5d7fc75aa3bef9004122d0cf2a2679935ef8"},
 				},
 				{
+					key:      []interface{}{"basic", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
+					idxValue: &indexValue{paths[1], "c4db5d7fc75aa3bef9004122d0cf2a2679935ef8"},
+				},
+				{
+					key:      []interface{}{"itself", "47770b26e71b0f69c0ecd494b1066f8d1da4fc03"},
+					idxValue: &indexValue{paths[1], "c4db5d7fc75aa3bef9004122d0cf2a2679935ef8"},
+				},
+				{
 					key:      []interface{}{".gitmodules", "97b013ecd2cc7f572960509f659d8068798d59ca"},
+					idxValue: &indexValue{paths[1], "efe525d0f1372593df812e3f6faa4e05bb91f498"},
+				},
+				{
+					key:      []interface{}{"basic", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
 					idxValue: &indexValue{paths[1], "efe525d0f1372593df812e3f6faa4e05bb91f498"},
 				},
 			},
@@ -339,19 +351,19 @@ func TestIndexableTable(t *testing.T) {
 			},
 			filters: []sql.Expression{
 				expression.NewEquals(
-					expression.NewGetFieldWithTable(4, sql.Text, TreeEntriesTableName, "tree_entry_name", false),
+					expression.NewGetFieldWithTable(1, sql.Text, TreeEntriesTableName, "tree_entry_name", false),
 					expression.NewLiteral("LICENSE", sql.Text),
 				),
 			},
 			expectedRows: []sql.Row{
-				sql.NewRow(paths[0], "a8d315b2b1c615d43042c3a62402b8a54288cf5c", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
-				sql.NewRow(paths[0], "fb72698cab7617ac416264415f13224dfd7a165e", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
-				sql.NewRow(paths[0], "dbd3641b371024f44d0e469a9c8f5457b0660de1", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
-				sql.NewRow(paths[0], "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
-				sql.NewRow(paths[0], "eba74343e2f15d62adedfd8c883ee0262b5c8021", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
-				sql.NewRow(paths[0], "c2d30fa8ef288618f65f6eed6e168e0d514886f4", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
-				sql.NewRow(paths[0], "8dcef98b1d52143e1e2dbc458ffe38f925786bf2", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
-				sql.NewRow(paths[0], "aa9b383c260e1d05fbbf6b30a02914555e20c725", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "100644", "LICENSE"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "a8d315b2b1c615d43042c3a62402b8a54288cf5c", "100644"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "fb72698cab7617ac416264415f13224dfd7a165e", "100644"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "dbd3641b371024f44d0e469a9c8f5457b0660de1", "100644"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd", "100644"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "eba74343e2f15d62adedfd8c883ee0262b5c8021", "100644"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "c2d30fa8ef288618f65f6eed6e168e0d514886f4", "100644"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "8dcef98b1d52143e1e2dbc458ffe38f925786bf2", "100644"),
+				sql.NewRow(paths[0], "LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "aa9b383c260e1d05fbbf6b30a02914555e20c725", "100644"),
 			},
 		},
 		{

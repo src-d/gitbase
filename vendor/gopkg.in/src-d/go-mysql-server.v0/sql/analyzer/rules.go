@@ -14,14 +14,18 @@ import (
 var DefaultRules = []Rule{
 	{"resolve_subqueries", resolveSubqueries},
 	{"resolve_tables", resolveTables},
+	{"resolve_natural_joins", resolveNaturalJoins},
 	{"resolve_orderby_literals", resolveOrderByLiterals},
 	{"qualify_columns", qualifyColumns},
 	{"resolve_columns", resolveColumns},
 	{"resolve_database", resolveDatabase},
 	{"resolve_star", resolveStar},
 	{"resolve_functions", resolveFunctions},
+	{"reorder_projection", reorderProjection},
 	{"pushdown", pushdown},
 	{"optimize_distinct", optimizeDistinct},
+	{"erase_projection", eraseProjection},
+	{"index_catalog", indexCatalog},
 }
 
 var (
@@ -149,7 +153,10 @@ func qualifyColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 					tables := dedupStrings(colIndex[col.Name()])
 					switch len(tables) {
 					case 0:
-						return nil, ErrColumnNotFound.New(col.Name())
+						// If there are no tables that have any column with the column
+						// name let's just return it as it is. This may be an alias, so
+						// we'll wait for the reorder of the
+						return col, nil
 					case 1:
 						col = expression.NewUnresolvedQualifiedColumn(
 							tables[0],
@@ -258,6 +265,107 @@ func resolveTables(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) 
 	})
 }
 
+func resolveNaturalJoins(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	span, ctx := ctx.Span("resolve_natural_joins")
+	defer span.Finish()
+
+	if n.Resolved() {
+		return n, nil
+	}
+
+	a.Log("resolving natural joins, node of type %T", n)
+	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+		a.Log("transforming node of type: %T", n)
+		if n.Resolved() {
+			return n, nil
+		}
+
+		join, ok := n.(*plan.NaturalJoin)
+		if !ok {
+			return n, nil
+		}
+
+		// we need both leaves resolved before resolving this one
+		if !join.Left.Resolved() || !join.Right.Resolved() {
+			return n, nil
+		}
+
+		leftSchema, rightSchema := join.Left.Schema(), join.Right.Schema()
+
+		var conditions, common, left, right []sql.Expression
+		var seen = make(map[string]struct{})
+
+		for i, lcol := range leftSchema {
+			var found bool
+			leftCol := expression.NewGetFieldWithTable(
+				i,
+				lcol.Type,
+				lcol.Source,
+				lcol.Name,
+				lcol.Nullable,
+			)
+
+			for j, rcol := range rightSchema {
+				if lcol.Name == rcol.Name {
+					common = append(common, leftCol)
+
+					conditions = append(
+						conditions,
+						expression.NewEquals(
+							leftCol,
+							expression.NewGetFieldWithTable(
+								len(leftSchema)+j,
+								rcol.Type,
+								rcol.Source,
+								rcol.Name,
+								rcol.Nullable,
+							),
+						),
+					)
+
+					found = true
+					seen[lcol.Name] = struct{}{}
+					break
+				}
+			}
+
+			if !found {
+				left = append(left, leftCol)
+			}
+		}
+
+		if len(conditions) == 0 {
+			return plan.NewCrossJoin(join.Left, join.Right), nil
+		}
+
+		for i, col := range rightSchema {
+			if _, ok := seen[col.Name]; !ok {
+				right = append(
+					right,
+					expression.NewGetFieldWithTable(
+						len(leftSchema)+i,
+						col.Type,
+						col.Source,
+						col.Name,
+						col.Nullable,
+					),
+				)
+			}
+		}
+
+		projections := append(append(common, left...), right...)
+
+		return plan.NewProject(
+			projections,
+			plan.NewInnerJoin(
+				join.Left,
+				join.Right,
+				expression.JoinAnd(conditions...),
+			),
+		), nil
+	})
+}
+
 func resolveStar(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
 	span, ctx := ctx.Span("resolve_star")
 	defer span.Finish()
@@ -269,42 +377,69 @@ func resolveStar(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
 			return n, nil
 		}
 
-		p, ok := n.(*plan.Project)
-		if !ok {
+		switch n := n.(type) {
+		case *plan.Project:
+			expressions, err := expandStars(n.Projections, n.Child.Schema())
+			if err != nil {
+				return nil, err
+			}
+
+			return plan.NewProject(expressions, n.Child), nil
+		case *plan.GroupBy:
+			aggregate, err := expandStars(n.Aggregate, n.Child.Schema())
+			if err != nil {
+				return nil, err
+			}
+
+			return plan.NewGroupBy(aggregate, n.Grouping, n.Child), nil
+		default:
 			return n, nil
 		}
-
-		var expressions []sql.Expression
-		schema := p.Child.Schema()
-		for _, e := range p.Projections {
-			if s, ok := e.(*expression.Star); ok {
-				var exprs []sql.Expression
-				for i, col := range schema {
-					if s.Table == "" || s.Table == col.Source {
-						exprs = append(exprs, expression.NewGetFieldWithTable(
-							i, col.Type, col.Source, col.Name, col.Nullable,
-						))
-					}
-				}
-
-				if len(exprs) == 0 && s.Table != "" {
-					return nil, sql.ErrTableNotFound.New(s.Table)
-				}
-
-				a.Log("%s replaced with %d fields", e, len(exprs))
-				expressions = append(expressions, exprs...)
-			} else {
-				expressions = append(expressions, e)
-			}
-		}
-
-		return plan.NewProject(expressions, p.Child), nil
 	})
 }
 
-type columnInfo struct {
-	idx int
-	col *sql.Column
+func expandStars(exprs []sql.Expression, schema sql.Schema) ([]sql.Expression, error) {
+	var expressions []sql.Expression
+	for _, e := range exprs {
+		if s, ok := e.(*expression.Star); ok {
+			var exprs []sql.Expression
+			for i, col := range schema {
+				if s.Table == "" || s.Table == col.Source {
+					exprs = append(exprs, expression.NewGetFieldWithTable(
+						i, col.Type, col.Source, col.Name, col.Nullable,
+					))
+				}
+			}
+
+			if len(exprs) == 0 && s.Table != "" {
+				return nil, sql.ErrTableNotFound.New(s.Table)
+			}
+
+			expressions = append(expressions, exprs...)
+		} else {
+			expressions = append(expressions, e)
+		}
+	}
+
+	return expressions, nil
+}
+
+// maybeAlias is a wrapper on UnresolvedColumn used only to defer the
+// resolution of the column because it could be an alias and that
+// phase of the analyzer has not run yet.
+type maybeAlias struct {
+	*expression.UnresolvedColumn
+}
+
+func (e maybeAlias) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
+	return fn(e)
+}
+
+// column is the common interface that groups UnresolvedColumn and maybeAlias.
+type column interface {
+	sql.Nameable
+	sql.Tableable
+	sql.Expression
 }
 
 func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
@@ -318,43 +453,52 @@ func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 			return n, nil
 		}
 
-		colMap := make(map[string][]columnInfo)
-		idx := 0
+		colMap := make(map[string][]*sql.Column)
 		for _, child := range n.Children() {
 			if !child.Resolved() {
 				return n, nil
 			}
 
 			for _, col := range child.Schema() {
-				colMap[col.Name] = append(colMap[col.Name], columnInfo{idx, col})
-				idx++
+				colMap[col.Name] = append(colMap[col.Name], col)
 			}
 		}
 
-		return n.TransformExpressionsUp(func(e sql.Expression) (sql.Expression, error) {
+		expressioner, ok := n.(sql.Expressioner)
+		if !ok {
+			return n, nil
+		}
+
+		return expressioner.TransformExpressions(func(e sql.Expression) (sql.Expression, error) {
 			a.Log("transforming expression of type: %T", e)
-			if n.Resolved() {
+			if e.Resolved() {
 				return e, nil
 			}
 
-			uc, ok := e.(*expression.UnresolvedColumn)
+			uc, ok := e.(column)
 			if !ok {
 				return e, nil
 			}
 
-			columnsInfo, ok := colMap[uc.Name()]
+			columns, ok := colMap[uc.Name()]
 			if !ok {
 				if uc.Table() != "" {
 					return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
 				}
-				return nil, ErrColumnNotFound.New(uc.Name())
+
+				switch uc := uc.(type) {
+				case *expression.UnresolvedColumn:
+					return &maybeAlias{uc}, nil
+				default:
+					return nil, ErrColumnNotFound.New(uc.Name())
+				}
 			}
 
-			var ci columnInfo
+			var col *sql.Column
 			var found bool
-			for _, c := range columnsInfo {
-				if c.col.Source == uc.Table() {
-					ci = c
+			for _, c := range columns {
+				if c.Source == uc.Table() {
+					col = c
 					found = true
 					break
 				}
@@ -364,17 +508,39 @@ func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 				if uc.Table() != "" {
 					return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
 				}
-				return nil, ErrColumnNotFound.New(uc.Name())
+
+				switch uc := uc.(type) {
+				case *expression.UnresolvedColumn:
+					return &maybeAlias{uc}, nil
+				default:
+					return nil, ErrColumnNotFound.New(uc.Name())
+				}
 			}
 
-			a.Log("column resolved to %q.%q", ci.col.Source, ci.col.Name)
+			var schema sql.Schema
+			switch n := n.(type) {
+			// If expressioner and unary node we must take the
+			// child's schema to correctly select the indexes
+			// in the row is going to be evaluated in this node
+			case *plan.Project, *plan.Filter, *plan.GroupBy, *plan.Sort:
+				schema = n.Children()[0].Schema()
+			default:
+				schema = n.Schema()
+			}
+
+			idx := schema.IndexOf(col.Name, col.Source)
+			if idx < 0 {
+				return nil, ErrColumnNotFound.New(col.Name)
+			}
+
+			a.Log("column resolved to %q.%q", col.Source, col.Name)
 
 			return expression.NewGetFieldWithTable(
-				ci.idx,
-				ci.col.Type,
-				ci.col.Source,
-				ci.col.Name,
-				ci.col.Nullable,
+				idx,
+				col.Type,
+				col.Source,
+				col.Name,
+				col.Nullable,
 			), nil
 		})
 	})
@@ -444,6 +610,153 @@ func optimizeDistinct(ctx *sql.Context, a *Analyzer, node sql.Node) (sql.Node, e
 	return node, nil
 }
 
+var errInvalidNodeType = errors.NewKind("reorder projection: invalid node of type: %T")
+
+func reorderProjection(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	span, ctx := ctx.Span("reorder_projection")
+	defer span.Finish()
+
+	if n.Resolved() {
+		return n, nil
+	}
+
+	a.Log("reorder projection, node of type: %T", n)
+
+	// Then we transform the projection
+	return n.TransformUp(func(node sql.Node) (sql.Node, error) {
+		project, ok := node.(*plan.Project)
+		if !ok {
+			return node, nil
+		}
+
+		// We must find all columns that may need to be moved inside the
+		// projection.
+		//var movedColumns = make(map[string]sql.Expression)
+		var newColumns = make(map[string]sql.Expression)
+		for _, col := range project.Projections {
+			alias, ok := col.(*expression.Alias)
+			if ok {
+				newColumns[alias.Name()] = col
+			}
+		}
+
+		// And add projection nodes where needed in the child tree.
+		var didNeedReorder bool
+		child, err := project.Child.TransformUp(func(node sql.Node) (sql.Node, error) {
+			var requiredColumns []string
+			switch node := node.(type) {
+			case *plan.Sort, *plan.Filter:
+				for _, expr := range node.(sql.Expressioner).Expressions() {
+					expression.Inspect(expr, func(e sql.Expression) bool {
+						if e != nil && e.Resolved() {
+							return true
+						}
+
+						uc, ok := e.(column)
+						if ok && uc.Table() == "" {
+							if _, ok := newColumns[uc.Name()]; ok {
+								requiredColumns = append(requiredColumns, uc.Name())
+							}
+						}
+
+						return true
+					})
+				}
+			default:
+				return node, nil
+			}
+
+			didNeedReorder = true
+
+			// Only add the required columns for that node in the projection.
+			child := node.Children()[0]
+			schema := child.Schema()
+			var projections = make([]sql.Expression, 0, len(schema)+len(requiredColumns))
+			for i, col := range schema {
+				projections = append(projections, expression.NewGetFieldWithTable(
+					i, col.Type, col.Source, col.Name, col.Nullable,
+				))
+			}
+
+			for _, col := range requiredColumns {
+				projections = append(projections, newColumns[col])
+				delete(newColumns, col)
+			}
+
+			child = plan.NewProject(projections, child)
+			switch node := node.(type) {
+			case *plan.Filter:
+				return plan.NewFilter(node.Expression, child), nil
+			case *plan.Sort:
+				return plan.NewSort(node.SortFields, child), nil
+			default:
+				return nil, errInvalidNodeType.New(node)
+			}
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		if !didNeedReorder {
+			return project, nil
+		}
+
+		child, err = resolveColumns(ctx, a, child)
+		if err != nil {
+			return nil, err
+		}
+
+		childSchema := child.Schema()
+		// Finally, replace the columns we moved with GetFields since they
+		// have already been projected.
+		var projections = make([]sql.Expression, len(project.Projections))
+		for i, p := range project.Projections {
+			if alias, ok := p.(*expression.Alias); ok {
+				var found bool
+				for idx, col := range childSchema {
+					if col.Name == alias.Name() {
+						projections[i] = expression.NewGetField(
+							idx, col.Type, col.Name, col.Nullable,
+						)
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					projections[i] = p
+				}
+			} else {
+				projections[i] = p
+			}
+		}
+
+		return plan.NewProject(projections, child), nil
+	})
+}
+
+func eraseProjection(ctx *sql.Context, a *Analyzer, node sql.Node) (sql.Node, error) {
+	span, ctx := ctx.Span("erase_projection")
+	defer span.Finish()
+
+	if !node.Resolved() {
+		return node, nil
+	}
+
+	a.Log("erase projection, node of type: %T", node)
+
+	return node.TransformUp(func(node sql.Node) (sql.Node, error) {
+		project, ok := node.(*plan.Project)
+		if ok && project.Schema().Equals(project.Child.Schema()) {
+			a.Log("project erased")
+			return project.Child, nil
+		}
+
+		return node, nil
+	})
+}
+
 func dedupStrings(in []string) []string {
 	var seen = make(map[string]struct{})
 	var result []string
@@ -454,6 +767,27 @@ func dedupStrings(in []string) []string {
 		}
 	}
 	return result
+}
+
+// indexCatalog sets the catalog in the CreateIndex nodes.
+func indexCatalog(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	if !n.Resolved() {
+		return n, nil
+	}
+
+	ci, ok := n.(*plan.CreateIndex)
+	if !ok {
+		return n, nil
+	}
+
+	span, ctx := ctx.Span("index_catalog")
+	defer span.Finish()
+
+	nc := *ci
+	ci.Catalog = a.Catalog
+	ci.CurrentDatabase = a.CurrentDatabase
+
+	return &nc, nil
 }
 
 func pushdown(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
