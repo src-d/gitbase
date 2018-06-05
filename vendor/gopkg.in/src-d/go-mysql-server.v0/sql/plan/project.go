@@ -32,10 +32,17 @@ func (p *Project) Schema() sql.Schema {
 		} else {
 			name = e.String()
 		}
+
+		var table string
+		if t, ok := e.(sql.Tableable); ok {
+			table = t.Table()
+		}
+
 		s[i] = &sql.Column{
 			Name:     name,
 			Type:     e.Type(),
 			Nullable: e.IsNullable(),
+			Source:   table,
 		}
 	}
 	return s
@@ -86,7 +93,7 @@ func (p *Project) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, err
 	return NewProject(exprs, child), nil
 }
 
-func (p Project) String() string {
+func (p *Project) String() string {
 	pr := sql.NewTreePrinter()
 	var exprs = make([]string, len(p.Projections))
 	for i, expr := range p.Projections {
@@ -98,8 +105,18 @@ func (p Project) String() string {
 }
 
 // Expressions implements the Expressioner interface.
-func (p Project) Expressions() []sql.Expression {
+func (p *Project) Expressions() []sql.Expression {
 	return p.Projections
+}
+
+// TransformExpressions implements the Expressioner interface.
+func (p *Project) TransformExpressions(f sql.TransformExprFunc) (sql.Node, error) {
+	projects, err := transformExpressionsUp(f, p.Projections)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewProject(projects, p.Child), nil
 }
 
 type iter struct {
