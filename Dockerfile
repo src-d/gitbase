@@ -17,6 +17,7 @@ RUN mkdir -p /opt/repos
 
 ENV GITBASE_USER=gitbase
 ENV GITBASE_PASSWORD=""
+ENV GITBASE_REPOS=/opt/repos
 EXPOSE 3306
 
 ENV TINI_VERSION v0.17.0
@@ -35,4 +36,4 @@ CMD gitbase server -v \
     --port=3306 \
     --user="$GITBASE_USER" \
     --password="$GITBASE_PASSWORD" \
-    --git=/opt/repos
+    --git="$GITBASE_REPOS"
