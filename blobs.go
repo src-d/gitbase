@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -39,10 +40,7 @@ var BlobsSchema = sql.Schema{
 var _ sql.PushdownProjectionAndFiltersTable = (*blobsTable)(nil)
 
 func newBlobsTable() Indexable {
-	return &indexableTable{
-		PushdownTable:          new(blobsTable),
-		buildIterWithSelectors: blobsIterBuilder,
-	}
+	return new(blobsTable)
 }
 
 var _ Table = (*blobsTable)(nil)
@@ -118,6 +116,50 @@ func (r *blobsTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*blobsTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	return newBlobsKeyValueIter(s.Pool, colNames), nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*blobsTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.BlobsTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var iter sql.RowIter = &blobsIndexIter{
+		index:       index,
+		pool:        session.Pool,
+		readContent: shouldReadContent(columns),
+	}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
 func blobsIterBuilder(_ *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
 	if len(selectors["blob_hash"]) == 0 {
 		return &blobIter{readContent: shouldReadContent(columns)}, nil
@@ -138,7 +180,6 @@ type blobIter struct {
 	repoID      string
 	iter        *object.BlobIter
 	readContent bool
-	lastHash    string
 }
 
 func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -150,17 +191,11 @@ func (i *blobIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	return &blobIter{repoID: repo.ID, iter: iter, readContent: i.readContent}, nil
 }
 
-func (i *blobIter) Repository() string { return i.repoID }
-
-func (i *blobIter) LastObject() string { return i.lastHash }
-
 func (i *blobIter) Next() (sql.Row, error) {
 	o, err := i.iter.Next()
 	if err != nil {
 		return nil, err
 	}
-
-	i.lastHash = o.Hash.String()
 	return blobToRow(i.repoID, o, i.readContent)
 }
 
@@ -177,16 +212,11 @@ type blobsByHashIter struct {
 	pos         int
 	hashes      []string
 	readContent bool
-	lastHash    string
 }
 
 func (i *blobsByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	return &blobsByHashIter{repo, 0, i.hashes, i.readContent, ""}, nil
+	return &blobsByHashIter{repo, 0, i.hashes, i.readContent}, nil
 }
-
-func (i *blobsByHashIter) Repository() string { return i.repo.ID }
-
-func (i *blobsByHashIter) LastObject() string { return i.lastHash }
 
 func (i *blobsByHashIter) Next() (sql.Row, error) {
 	for {
@@ -205,7 +235,6 @@ func (i *blobsByHashIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		i.lastHash = hash.String()
 		return blobToRow(i.repo.ID, blob, i.readContent)
 	}
 }
@@ -303,4 +332,113 @@ func shouldReadContent(columns []sql.Expression) bool {
 		}
 	}
 	return false
+}
+
+type blobIndexKey struct {
+	repository string
+	packfile   string
+	offset     int64
+}
+
+type blobsKeyValueIter struct {
+	iter    *objectIter
+	columns []string
+}
+
+func newBlobsKeyValueIter(pool *RepositoryPool, columns []string) *blobsKeyValueIter {
+	return &blobsKeyValueIter{
+		iter:    newObjectIter(pool, plumbing.BlobObject),
+		columns: columns,
+	}
+}
+
+func (i *blobsKeyValueIter) Next() ([]interface{}, []byte, error) {
+	obj, err := i.iter.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	key, err := encodeIndexKey(blobIndexKey{
+		repository: obj.RepositoryID,
+		packfile:   obj.Packfile.String(),
+		offset:     int64(obj.Offset),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	blob, ok := obj.Object.(*object.Blob)
+	if !ok {
+		ErrInvalidObjectType.New(obj.Object, "*object.Blob")
+	}
+
+	row, err := blobToRow(obj.RepositoryID, blob, stringContains(i.columns, "content"))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	values, err := rowIndexValues(row, i.columns, BlobsSchema)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return values, key, nil
+}
+
+func (i *blobsKeyValueIter) Close() error { return i.iter.Close() }
+
+type blobsIndexIter struct {
+	index       sql.IndexValueIter
+	pool        *RepositoryPool
+	decoder     *objectDecoder
+	readContent bool
+}
+
+func (i *blobsIndexIter) Next() (sql.Row, error) {
+	data, err := i.index.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	var key blobIndexKey
+	if err := decodeIndexKey(data, &key); err != nil {
+		return nil, err
+	}
+
+	packfile := plumbing.NewHash(key.packfile)
+	if i.decoder == nil || !i.decoder.equals(key.repository, packfile) {
+		if i.decoder != nil {
+			if err := i.decoder.close(); err != nil {
+				return nil, err
+			}
+		}
+
+		i.decoder, err = newObjectDecoder(i.pool.repositories[key.repository], packfile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	obj, err := i.decoder.get(key.offset)
+	if err != nil {
+		return nil, err
+	}
+
+	blob, ok := obj.(*object.Blob)
+	if !ok {
+		return nil, ErrInvalidObjectType.New(obj, "*object.Blob")
+	}
+
+	return blobToRow(key.repository, blob, i.readContent)
+}
+
+func (i *blobsIndexIter) Close() error {
+	if i.decoder != nil {
+		if err := i.decoder.close(); err != nil {
+			_ = i.index.Close()
+			return err
+		}
+	}
+
+	return i.index.Close()
 }

@@ -269,8 +269,6 @@ func (i *RepositoryIter) Close() error {
 // implementation
 type RowRepoIter interface {
 	NewIterator(*Repository) (RowRepoIter, error)
-	Repository() string
-	LastObject() string
 	Next() (sql.Row, error)
 	Close() error
 }

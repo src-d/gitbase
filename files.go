@@ -4,8 +4,11 @@ import (
 	"io"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type filesTable struct{}
@@ -99,6 +102,50 @@ func (filesTable) WithProjectAndFilters(
 	if err != nil {
 		span.Finish()
 		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*filesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	return newFilesKeyValueIter(s.Pool, colNames)
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*filesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.FilesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var iter sql.RowIter = &filesIndexIter{
+		index:       index,
+		pool:        session.Pool,
+		readContent: shouldReadContent(columns),
+	}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
 	}
 
 	return sql.NewSpanIter(span, iter), nil
@@ -250,4 +297,188 @@ func fileToRow(
 		content,
 		file.Size,
 	), nil
+}
+
+type fileIndexKey struct {
+	repository string
+	packfile   string
+	offset     int64
+	name       string
+	mode       int64
+	tree       string
+}
+
+type filesKeyValueIter struct {
+	pool    *RepositoryPool
+	repo    *Repository
+	repos   *RepositoryIter
+	commits object.CommitIter
+	files   *object.FileIter
+	commit  *object.Commit
+	idx     *repositoryIndex
+	columns []string
+}
+
+func newFilesKeyValueIter(pool *RepositoryPool, columns []string) (*filesKeyValueIter, error) {
+	repos, err := pool.RepoIter()
+	if err != nil {
+		return nil, err
+	}
+
+	return &filesKeyValueIter{
+		pool:    pool,
+		repos:   repos,
+		columns: columns,
+	}, nil
+}
+
+func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
+	for {
+		if i.commits == nil {
+			var err error
+			i.repo, err = i.repos.Next()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			i.commits, err = i.repo.Repo.CommitObjects()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			repo := i.pool.repositories[i.repo.ID]
+			i.idx, err = newRepositoryIndex(repo.path, repo.kind)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+
+		if i.files == nil {
+			var err error
+			i.commit, err = i.commits.Next()
+			if err != nil {
+				if err == io.EOF {
+					i.commits = nil
+					continue
+				}
+				return nil, nil, err
+			}
+
+			i.files, err = i.commit.Files()
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+
+		f, err := i.files.Next()
+		if err != nil {
+			if err == io.EOF {
+				i.files = nil
+				continue
+			}
+		}
+
+		offset, packfile, err := i.idx.find(f.Blob.Hash)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		key, err := encodeIndexKey(fileIndexKey{
+			repository: i.repo.ID,
+			packfile:   packfile.String(),
+			offset:     offset,
+			name:       f.Name,
+			tree:       i.commit.TreeHash.String(),
+			mode:       int64(f.Mode),
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		row, err := fileToRow(i.repo.ID, i.commit.TreeHash, f, stringContains(i.columns, "content"))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		values, err := rowIndexValues(row, i.columns, FilesSchema)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return values, key, nil
+	}
+}
+
+func (i *filesKeyValueIter) Close() error {
+	if i.commits != nil {
+		i.commits.Close()
+	}
+
+	if i.files != nil {
+		i.files.Close()
+	}
+
+	return i.repos.Close()
+}
+
+type filesIndexIter struct {
+	index       sql.IndexValueIter
+	pool        *RepositoryPool
+	decoder     *objectDecoder
+	readContent bool
+}
+
+func (i *filesIndexIter) Next() (sql.Row, error) {
+	data, err := i.index.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	var key fileIndexKey
+	if err := decodeIndexKey(data, &key); err != nil {
+		return nil, err
+	}
+
+	packfile := plumbing.NewHash(key.packfile)
+	if i.decoder == nil || !i.decoder.equals(key.repository, packfile) {
+		if i.decoder != nil {
+			if err := i.decoder.close(); err != nil {
+				return nil, err
+			}
+		}
+
+		i.decoder, err = newObjectDecoder(i.pool.repositories[key.repository], packfile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	obj, err := i.decoder.get(key.offset)
+	if err != nil {
+		return nil, err
+	}
+
+	blob, ok := obj.(*object.Blob)
+	if !ok {
+		return nil, ErrInvalidObjectType.New(obj, "*object.Blob")
+	}
+
+	file := &object.File{
+		Blob: *blob,
+		Name: key.name,
+		Mode: filemode.FileMode(key.mode),
+	}
+
+	return fileToRow(key.repository, plumbing.NewHash(key.tree), file, i.readContent)
+}
+
+func (i *filesIndexIter) Close() error {
+	if i.decoder != nil {
+		if err := i.decoder.close(); err != nil {
+			_ = i.index.Close()
+			return err
+		}
+	}
+
+	return i.index.Close()
 }

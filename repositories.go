@@ -4,6 +4,8 @@ import (
 	"io"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type repositoriesTable struct{}
@@ -16,10 +18,7 @@ var RepositoriesSchema = sql.Schema{
 var _ sql.PushdownProjectionAndFiltersTable = (*repositoriesTable)(nil)
 
 func newRepositoriesTable() Indexable {
-	return &indexableTable{
-		PushdownTable:          new(repositoriesTable),
-		buildIterWithSelectors: repositoriesIterBuilder,
-	}
+	return new(repositoriesTable)
 }
 
 var _ Table = (*repositoriesTable)(nil)
@@ -93,6 +92,46 @@ func (r *repositoriesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*repositoriesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := s.Pool.RepoIter()
+	if err != nil {
+		return nil, err
+	}
+
+	return &repositoriesKeyValueIter{iter}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (r *repositoriesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.RepositoriesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &repositoriesIndexIter{index}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
 func repositoriesIterBuilder(_ *sql.Context, _ selectors, _ []sql.Expression) (RowRepoIter, error) {
 	// it's not worth to manually filter with the selectors
 	return new(repositoriesIter), nil
@@ -110,10 +149,6 @@ func (i *repositoriesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	}, nil
 }
 
-func (i *repositoriesIter) Repository() string { return i.id }
-
-func (i *repositoriesIter) LastObject() string { return i.id }
-
 func (i *repositoriesIter) Next() (sql.Row, error) {
 	if i.visited {
 		return nil, io.EOF
@@ -126,3 +161,35 @@ func (i *repositoriesIter) Next() (sql.Row, error) {
 func (i *repositoriesIter) Close() error {
 	return nil
 }
+
+type repositoriesKeyValueIter struct {
+	iter *RepositoryIter
+}
+
+func (i *repositoriesKeyValueIter) Next() ([]interface{}, []byte, error) {
+	repo, err := i.iter.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return []interface{}{repo.ID}, []byte(repo.ID), nil
+}
+
+func (i *repositoriesKeyValueIter) Close() error { return i.iter.Close() }
+
+var _ sql.IndexKeyValueIter = (*repositoriesKeyValueIter)(nil)
+
+type repositoriesIndexIter struct {
+	values sql.IndexValueIter
+}
+
+func (i *repositoriesIndexIter) Next() (sql.Row, error) {
+	bytes, err := i.values.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	return sql.NewRow(string(bytes)), nil
+}
+
+func (i *repositoriesIndexIter) Close() error { return i.values.Close() }

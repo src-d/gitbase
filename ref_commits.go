@@ -10,6 +10,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type refCommitsTable struct{}
@@ -25,10 +27,7 @@ var RefCommitsSchema = sql.Schema{
 var _ sql.PushdownProjectionAndFiltersTable = (*refCommitsTable)(nil)
 
 func newRefCommitsTable() Indexable {
-	return &indexableTable{
-		PushdownTable:          new(refCommitsTable),
-		buildIterWithSelectors: refCommitsIterBuilder,
-	}
+	return new(refCommitsTable)
 }
 
 func (refCommitsTable) isGitbaseTable() {}
@@ -85,6 +84,46 @@ func (t *refCommitsTable) WithProjectAndFilters(
 	if err != nil {
 		span.Finish()
 		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*refCommitsTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := NewRowRepoIter(ctx, new(refCommitsIter))
+	if err != nil {
+		return nil, err
+	}
+
+	return &rowKeyValueIter{iter, colNames, RefCommitsSchema}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*refCommitsTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.RefCommitsTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &rowIndexIter{index}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
 	}
 
 	return sql.NewSpanIter(span, iter), nil
