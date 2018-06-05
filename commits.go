@@ -28,8 +28,11 @@ var CommitsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
 
-func newCommitsTable() sql.Table {
-	return new(commitsTable)
+func newCommitsTable() Indexable {
+	return &indexableTable{
+		PushdownTable:          new(commitsTable),
+		buildIterWithSelectors: commitsIterBuilder,
+	}
 }
 
 var _ Table = (*commitsTable)(nil)
@@ -81,22 +84,20 @@ func (commitsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 	return handledFilters(CommitsTableName, CommitsSchema, filters)
 }
 
+func (commitsTable) handledColumns() []string {
+	return []string{"commit_hash"}
+}
+
 func (r *commitsTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.CommitsTable")
 	iter, err := rowIterWithSelectors(
-		ctx, CommitsSchema, CommitsTableName, filters,
-		[]string{"commit_hash"},
-		func(selectors selectors) (RowRepoIter, error) {
-			hashes, err := selectors.textValues("commit_hash")
-			if err != nil {
-				return nil, err
-			}
-
-			return &commitIter{hashes: hashes}, nil
-		},
+		ctx, CommitsSchema, CommitsTableName,
+		filters, nil,
+		r.handledColumns(),
+		commitsIterBuilder,
 	)
 
 	if err != nil {
@@ -107,10 +108,20 @@ func (r *commitsTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+func commitsIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
+	hashes, err := selectors.textValues("commit_hash")
+	if err != nil {
+		return nil, err
+	}
+
+	return &commitIter{hashes: hashes}, nil
+}
+
 type commitIter struct {
-	repoID string
-	iter   object.CommitIter
-	hashes []string
+	repoID   string
+	iter     object.CommitIter
+	hashes   []string
+	lastHash string
 }
 
 func (i *commitIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -122,12 +133,17 @@ func (i *commitIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	return &commitIter{repoID: repo.ID, iter: iter}, nil
 }
 
+func (i *commitIter) Repository() string { return i.repoID }
+
+func (i *commitIter) LastObject() string { return i.lastHash }
+
 func (i *commitIter) Next() (sql.Row, error) {
 	o, err := i.iter.Next()
 	if err != nil {
 		return nil, err
 	}
 
+	i.lastHash = o.Hash.String()
 	return commitToRow(i.repoID, o), nil
 }
 

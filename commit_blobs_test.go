@@ -13,7 +13,7 @@ func TestCommitBlobsTableRowIter(t *testing.T) {
 	require := require.New(t)
 
 	table := newCommitBlobsTable()
-	require.IsType(&commitBlobsTable{}, table)
+	require.NotNil(table)
 
 	ctx, paths, cleanup := setupRepos(t)
 	defer cleanup()
