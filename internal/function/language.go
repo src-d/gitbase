@@ -110,7 +110,11 @@ func (f *Language) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		blob = right.([]byte)
 	}
 
-	return enry.GetLanguage(path, blob), nil
+	if lang := enry.GetLanguage(path, blob); lang != "" {
+		return lang, nil
+	}
+
+	return nil, nil
 }
 
 // Children implements the Expression interface.

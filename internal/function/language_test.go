@@ -20,6 +20,7 @@ func TestLanguage(t *testing.T) {
 		{"right is null", sql.NewRow("foo", nil), nil, nil},
 		{"both are null", sql.NewRow(nil, nil), nil, nil},
 		{"only path is given", sql.NewRow("foo.rb"), "Ruby", nil},
+		{"only path is given", sql.NewRow("foo.foobar"), nil, nil},
 		{"too many args given", sql.NewRow("foo.rb", "bar", "baz"), nil, sql.ErrInvalidArgumentNumber},
 		{"path and blob are given", sql.NewRow("foo", "#!/usr/bin/env python\n\nprint 'foo'"), "Python", nil},
 		{"invalid blob type given", sql.NewRow("foo", 5), nil, sql.ErrInvalidType},
