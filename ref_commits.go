@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -30,6 +31,9 @@ func newRefCommitsTable() Indexable {
 	return new(refCommitsTable)
 }
 
+var _ Squashable = (*refCommitsTable)(nil)
+
+func (refCommitsTable) isSquashable()   {}
 func (refCommitsTable) isGitbaseTable() {}
 
 func (refCommitsTable) String() string {
@@ -99,7 +103,7 @@ func (*refCommitsTable) IndexKeyValueIter(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	iter, err := NewRowRepoIter(ctx, new(refCommitsIter))
+	iter, err := NewRowRepoIter(ctx, &refCommitsIter{ctx: ctx})
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +147,8 @@ func refCommitsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.
 	for i := range names {
 		names[i] = strings.ToLower(names[i])
 	}
+
+	fmt.Println("CTX from builder", ctx)
 
 	return &refCommitsIter{
 		ctx:      ctx,

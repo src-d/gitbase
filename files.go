@@ -24,12 +24,13 @@ var FilesSchema = sql.Schema{
 	{Name: "blob_size", Type: sql.Int64, Source: "files"},
 }
 
-func newFilesTable() sql.Table {
+func newFilesTable() Indexable {
 	return new(filesTable)
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*filesTable)(nil)
 
+func (filesTable) isGitbaseTable()      {}
 func (filesTable) Resolved() bool       { return true }
 func (filesTable) Name() string         { return FilesTableName }
 func (filesTable) Schema() sql.Schema   { return FilesSchema }
@@ -300,12 +301,12 @@ func fileToRow(
 }
 
 type fileIndexKey struct {
-	repository string
-	packfile   string
-	offset     int64
-	name       string
-	mode       int64
-	tree       string
+	Repository string
+	Packfile   string
+	Offset     int64
+	Name       string
+	Mode       int64
+	Tree       string
 }
 
 type filesKeyValueIter struct {
@@ -317,6 +318,7 @@ type filesKeyValueIter struct {
 	commit  *object.Commit
 	idx     *repositoryIndex
 	columns []string
+	seen    map[plumbing.Hash]struct{}
 }
 
 func newFilesKeyValueIter(pool *RepositoryPool, columns []string) (*filesKeyValueIter, error) {
@@ -341,6 +343,8 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 				return nil, nil, err
 			}
 
+			i.seen = make(map[plumbing.Hash]struct{})
+
 			i.commits, err = i.repo.Repo.CommitObjects()
 			if err != nil {
 				return nil, nil, err
@@ -364,6 +368,11 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 				return nil, nil, err
 			}
 
+			if _, ok := i.seen[i.commit.TreeHash]; ok {
+				continue
+			}
+			i.seen[i.commit.TreeHash] = struct{}{}
+
 			i.files, err = i.commit.Files()
 			if err != nil {
 				return nil, nil, err
@@ -384,18 +393,18 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 		}
 
 		key, err := encodeIndexKey(fileIndexKey{
-			repository: i.repo.ID,
-			packfile:   packfile.String(),
-			offset:     offset,
-			name:       f.Name,
-			tree:       i.commit.TreeHash.String(),
-			mode:       int64(f.Mode),
+			Repository: i.repo.ID,
+			Packfile:   packfile.String(),
+			Offset:     offset,
+			Name:       f.Name,
+			Tree:       i.commit.TreeHash.String(),
+			Mode:       int64(f.Mode),
 		})
 		if err != nil {
 			return nil, nil, err
 		}
 
-		row, err := fileToRow(i.repo.ID, i.commit.TreeHash, f, stringContains(i.columns, "content"))
+		row, err := fileToRow(i.repo.ID, i.commit.TreeHash, f, stringContains(i.columns, "blob_content"))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -439,21 +448,21 @@ func (i *filesIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	packfile := plumbing.NewHash(key.packfile)
-	if i.decoder == nil || !i.decoder.equals(key.repository, packfile) {
+	packfile := plumbing.NewHash(key.Packfile)
+	if i.decoder == nil || !i.decoder.equals(key.Repository, packfile) {
 		if i.decoder != nil {
-			if err := i.decoder.close(); err != nil {
+			if err := i.decoder.Close(); err != nil {
 				return nil, err
 			}
 		}
 
-		i.decoder, err = newObjectDecoder(i.pool.repositories[key.repository], packfile)
+		i.decoder, err = newObjectDecoder(i.pool.repositories[key.Repository], packfile)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	obj, err := i.decoder.get(key.offset)
+	obj, err := i.decoder.get(key.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -465,16 +474,16 @@ func (i *filesIndexIter) Next() (sql.Row, error) {
 
 	file := &object.File{
 		Blob: *blob,
-		Name: key.name,
-		Mode: filemode.FileMode(key.mode),
+		Name: key.Name,
+		Mode: filemode.FileMode(key.Mode),
 	}
 
-	return fileToRow(key.repository, plumbing.NewHash(key.tree), file, i.readContent)
+	return fileToRow(key.Repository, plumbing.NewHash(key.Tree), file, i.readContent)
 }
 
 func (i *filesIndexIter) Close() error {
 	if i.decoder != nil {
-		if err := i.decoder.close(); err != nil {
+		if err := i.decoder.Close(); err != nil {
 			_ = i.index.Close()
 			return err
 		}

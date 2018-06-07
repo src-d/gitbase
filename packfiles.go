@@ -71,7 +71,7 @@ func openPackfileIndex(
 	path string,
 	hash plumbing.Hash,
 ) (*packfile.Index, error) {
-	path = fs.Join(path, "objects", "pack", fmt.Sprintf("pack-%s.idx", hash))
+	path = fs.Join("objects", "pack", fmt.Sprintf("pack-%s.idx", hash))
 	f, err := fs.Open(path)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func findDotGit(fs billy.Filesystem) (billy.Filesystem, error) {
 		return nil, err
 	}
 
-	if fi.IsDir() {
+	if fi != nil && fi.IsDir() {
 		return fs.Chroot(".git")
 	}
 
@@ -199,15 +199,15 @@ func (i *objectIter) Next() (*encodedObject, error) {
 			Object:       obj,
 			Offset:       offset,
 			RepositoryID: i.packs.repo.path,
-			Packfile:     i.packs.packfiles[i.packs.packpos],
+			Packfile:     i.packs.packfiles[i.packs.packpos-1],
 		}, nil
 	}
 }
 
 func (i *objectIter) Close() error {
-	if i.packObjects != nil {
+	/*if i.packObjects != nil {
 		return i.packObjects.Close()
-	}
+	}*/
 	return nil
 }
 
@@ -283,8 +283,8 @@ func newPackObjectIter(
 	storage storer.EncodedObjectStorer,
 	typ plumbing.ObjectType,
 ) (*packObjectIter, error) {
-	packfilePath := fs.Join(path, "objects", "pack", fmt.Sprintf("pack-%s.pack", hash))
-	idxfilePath := fs.Join(path, "objects", "pack", fmt.Sprintf("pack-%s.idx", hash))
+	packfilePath := fs.Join("objects", "pack", fmt.Sprintf("pack-%s.pack", hash))
+	idxfilePath := fs.Join("objects", "pack", fmt.Sprintf("pack-%s.idx", hash))
 
 	packf, err := fs.Open(packfilePath)
 	if err != nil {
@@ -313,14 +313,7 @@ func newPackObjectIter(
 		dec:     decoder,
 		typ:     typ,
 		storage: storage,
-		close: func() error {
-			if err := packf.Close(); err != nil {
-				_ = decoder.Close()
-				return err
-			}
-
-			return decoder.Close()
-		},
+		close:   func() error { return decoder.Close() },
 	}, nil
 }
 
@@ -363,7 +356,6 @@ type objectDecoder struct {
 	packfile plumbing.Hash
 	decoder  *packfile.Decoder
 	storage  storer.EncodedObjectStorer
-	close    func() error
 }
 
 func newObjectDecoder(
@@ -380,7 +372,7 @@ func newObjectDecoder(
 		return nil, err
 	}
 
-	packfilePath := fs.Join(repo.path, "objects", "pack", fmt.Sprintf("pack-%s.pack", hash))
+	packfilePath := fs.Join("objects", "pack", fmt.Sprintf("pack-%s.pack", hash))
 	packf, err := fs.Open(packfilePath)
 	if err != nil {
 		return nil, err
@@ -403,14 +395,6 @@ func newObjectDecoder(
 		packfile: hash,
 		decoder:  decoder,
 		storage:  storage,
-		close: func() error {
-			if err := packf.Close(); err != nil {
-				_ = decoder.Close()
-				return err
-			}
-
-			return decoder.Close()
-		},
 	}, nil
 }
 
@@ -426,3 +410,5 @@ func (d *objectDecoder) get(offset int64) (object.Object, error) {
 
 	return object.DecodeObject(d.storage, encodedObj)
 }
+
+func (d *objectDecoder) Close() error { return d.decoder.Close() }

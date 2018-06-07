@@ -124,3 +124,33 @@ func TestRemotesPushdown(t *testing.T) {
 	require.NoError(err)
 	require.Len(rows, 1)
 }
+
+func TestRemotesIndexKeyValueIter(t *testing.T) {
+	require := require.New(t)
+	ctx, path, cleanup := setup(t)
+	defer cleanup()
+
+	table := new(remotesTable)
+	iter, err := table.IndexKeyValueIter(ctx, []string{"remote_name", "remote_push_url"})
+	require.NoError(err)
+
+	var expected = []keyValue{
+		{
+			key:    assertEncodeKey(t, remoteIndexKey{path, 0, 0}),
+			values: []interface{}{"origin", "git@github.com:git-fixtures/basic.git"},
+		},
+	}
+
+	assertIndexKeyValueIter(t, iter, expected)
+}
+
+func TestRemotesIndex(t *testing.T) {
+	testTableIndex(
+		t,
+		new(remotesTable),
+		[]sql.Expression{expression.NewEquals(
+			expression.NewGetField(1, sql.Text, "remote_name", false),
+			expression.NewLiteral("foo", sql.Text),
+		)},
+	)
+}

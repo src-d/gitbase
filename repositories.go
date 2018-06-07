@@ -22,7 +22,9 @@ func newRepositoriesTable() Indexable {
 }
 
 var _ Table = (*repositoriesTable)(nil)
+var _ Squashable = (*repositoriesTable)(nil)
 
+func (repositoriesTable) isSquashable()   {}
 func (repositoriesTable) isGitbaseTable() {}
 
 func (repositoriesTable) Resolved() bool {
@@ -102,12 +104,12 @@ func (*repositoriesTable) IndexKeyValueIter(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	iter, err := s.Pool.RepoIter()
+	iter, err := NewRowRepoIter(ctx, new(repositoriesIter))
 	if err != nil {
 		return nil, err
 	}
 
-	return &repositoriesKeyValueIter{iter}, nil
+	return &rowKeyValueIter{iter, colNames, RepositoriesSchema}, nil
 }
 
 // WithProjectFiltersAndIndex implements sql.Indexable interface.
@@ -123,7 +125,7 @@ func (r *repositoriesTable) WithProjectFiltersAndIndex(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	var iter sql.RowIter = &repositoriesIndexIter{index}
+	var iter sql.RowIter = &rowIndexIter{index}
 
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
@@ -161,35 +163,3 @@ func (i *repositoriesIter) Next() (sql.Row, error) {
 func (i *repositoriesIter) Close() error {
 	return nil
 }
-
-type repositoriesKeyValueIter struct {
-	iter *RepositoryIter
-}
-
-func (i *repositoriesKeyValueIter) Next() ([]interface{}, []byte, error) {
-	repo, err := i.iter.Next()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return []interface{}{repo.ID}, []byte(repo.ID), nil
-}
-
-func (i *repositoriesKeyValueIter) Close() error { return i.iter.Close() }
-
-var _ sql.IndexKeyValueIter = (*repositoriesKeyValueIter)(nil)
-
-type repositoriesIndexIter struct {
-	values sql.IndexValueIter
-}
-
-func (i *repositoriesIndexIter) Next() (sql.Row, error) {
-	bytes, err := i.values.Next()
-	if err != nil {
-		return nil, err
-	}
-
-	return sql.NewRow(string(bytes)), nil
-}
-
-func (i *repositoriesIndexIter) Close() error { return i.values.Close() }
