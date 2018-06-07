@@ -652,7 +652,7 @@ func isJoinLeafSquashable(node sql.Node) bool {
 	plan.Inspect(node, func(node sql.Node) bool {
 		switch node := node.(type) {
 		case *plan.PushdownProjectionAndFiltersTable:
-			_, ok := node.PushdownProjectionAndFiltersTable.(gitbase.Table)
+			_, ok := node.PushdownProjectionAndFiltersTable.(gitbase.Squashable)
 			if !ok {
 				hasUnsquashableNodes = true
 				return false

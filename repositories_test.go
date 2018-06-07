@@ -109,3 +109,29 @@ func TestRepositoriesPushdown(t *testing.T) {
 	require.NoError(err)
 	require.Len(rows, 1)
 }
+
+func TestRepositoriesIndexKeyValueIter(t *testing.T) {
+	require := require.New(t)
+	ctx, path, cleanup := setup(t)
+	defer cleanup()
+
+	iter, err := new(repositoriesTable).IndexKeyValueIter(ctx, []string{"repository_id"})
+	require.NoError(err)
+
+	assertIndexKeyValueIter(t, iter,
+		[]keyValue{
+			{
+				assertEncodeKey(t, sql.NewRow(path)),
+				[]interface{}{path},
+			},
+		},
+	)
+}
+
+func TestRepositoriesIndex(t *testing.T) {
+	testTableIndex(
+		t,
+		new(repositoriesTable),
+		nil,
+	)
+}

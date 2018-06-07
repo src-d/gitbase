@@ -35,7 +35,9 @@ func newCommitsTable() Indexable {
 }
 
 var _ Table = (*commitsTable)(nil)
+var _ Squashable = (*commitsTable)(nil)
 
+func (commitsTable) isSquashable()   {}
 func (commitsTable) isGitbaseTable() {}
 
 func (commitsTable) String() string {
@@ -295,12 +297,6 @@ func (i *commitsByHashIter) nextList() (*object.Commit, error) {
 	}
 }
 
-type commitIndexKey struct {
-	repository string
-	packfile   string
-	offset     int64
-}
-
 type commitsKeyValueIter struct {
 	iter    *objectIter
 	columns []string
@@ -319,10 +315,10 @@ func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
 		return nil, nil, err
 	}
 
-	key, err := encodeIndexKey(commitIndexKey{
-		repository: obj.RepositoryID,
-		packfile:   obj.Packfile.String(),
-		offset:     int64(obj.Offset),
+	key, err := encodeIndexKey(packOffsetIndexKey{
+		Repository: obj.RepositoryID,
+		Packfile:   obj.Packfile.String(),
+		Offset:     int64(obj.Offset),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -356,26 +352,26 @@ func (i *commitsIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	var key commitIndexKey
+	var key packOffsetIndexKey
 	if err := decodeIndexKey(data, &key); err != nil {
 		return nil, err
 	}
 
-	packfile := plumbing.NewHash(key.packfile)
-	if i.decoder == nil || !i.decoder.equals(key.repository, packfile) {
+	packfile := plumbing.NewHash(key.Packfile)
+	if i.decoder == nil || !i.decoder.equals(key.Repository, packfile) {
 		if i.decoder != nil {
-			if err := i.decoder.close(); err != nil {
+			if err := i.decoder.Close(); err != nil {
 				return nil, err
 			}
 		}
 
-		i.decoder, err = newObjectDecoder(i.pool.repositories[key.repository], packfile)
+		i.decoder, err = newObjectDecoder(i.pool.repositories[key.Repository], packfile)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	obj, err := i.decoder.get(key.offset)
+	obj, err := i.decoder.get(key.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -385,12 +381,12 @@ func (i *commitsIndexIter) Next() (sql.Row, error) {
 		return nil, ErrInvalidObjectType.New(obj, "*object.Commit")
 	}
 
-	return commitToRow(key.repository, commit), nil
+	return commitToRow(key.Repository, commit), nil
 }
 
 func (i *commitsIndexIter) Close() error {
 	if i.decoder != nil {
-		if err := i.decoder.close(); err != nil {
+		if err := i.decoder.Close(); err != nil {
 			_ = i.index.Close()
 			return err
 		}

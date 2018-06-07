@@ -110,3 +110,38 @@ func TestReferencesPushdown(t *testing.T) {
 	require.NoError(err)
 	require.Len(rows, 0)
 }
+
+func TestReferencesIndexKeyValueIter(t *testing.T) {
+	require := require.New(t)
+	ctx, _, cleanup := setup(t)
+	defer cleanup()
+
+	iter, err := new(referencesTable).IndexKeyValueIter(ctx, []string{"ref_name"})
+	require.NoError(err)
+
+	i, err := new(referencesTable).RowIter(ctx)
+	require.NoError(err)
+	rows, err := sql.RowIterToRows(i)
+	require.NoError(err)
+
+	var expected []keyValue
+	for _, row := range rows {
+		var kv keyValue
+		kv.key = assertEncodeKey(t, row)
+		kv.values = append(kv.values, row[1])
+		expected = append(expected, kv)
+	}
+
+	assertIndexKeyValueIter(t, iter, expected)
+}
+
+func TestReferencesIndex(t *testing.T) {
+	testTableIndex(
+		t,
+		new(referencesTable),
+		[]sql.Expression{expression.NewEquals(
+			expression.NewGetField(1, sql.Text, "ref_name", false),
+			expression.NewLiteral("HEAD", sql.Text),
+		)},
+	)
+}

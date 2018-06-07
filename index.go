@@ -3,6 +3,7 @@ package gitbase
 import (
 	"bytes"
 	"encoding/gob"
+	"time"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -96,3 +97,15 @@ func (i *rowIndexIter) Next() (sql.Row, error) {
 }
 
 func (i *rowIndexIter) Close() error { return i.index.Close() }
+
+type packOffsetIndexKey struct {
+	Repository string
+	Packfile   string
+	Offset     int64
+}
+
+func init() {
+	gob.Register(sql.Row{})
+	gob.Register(time.Time{})
+	gob.Register([]interface{}{})
+}

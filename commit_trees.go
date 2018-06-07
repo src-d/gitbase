@@ -27,6 +27,9 @@ func newCommitTreesTable() Indexable {
 	return new(commitTreesTable)
 }
 
+var _ Squashable = (*commitTreesTable)(nil)
+
+func (commitTreesTable) isSquashable()   {}
 func (commitTreesTable) isGitbaseTable() {}
 
 func (commitTreesTable) String() string {
@@ -96,7 +99,7 @@ func (*commitTreesTable) IndexKeyValueIter(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	iter, err := NewRowRepoIter(ctx, new(commitTreesIter))
+	iter, err := NewRowRepoIter(ctx, &commitTreesIter{ctx: ctx})
 	if err != nil {
 		return nil, err
 	}

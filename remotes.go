@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"fmt"
 	"io"
 
 	git "gopkg.in/src-d/go-git.v4"
@@ -29,7 +30,9 @@ func newRemotesTable() Indexable {
 }
 
 var _ Table = (*remotesTable)(nil)
+var _ Squashable = (*remotesTable)(nil)
 
+func (remotesTable) isSquashable()   {}
 func (remotesTable) isGitbaseTable() {}
 
 func (remotesTable) Resolved() bool {
@@ -149,7 +152,6 @@ type remotesIter struct {
 	remotes      []*git.Remote
 	remotePos    int
 	urlPos       int
-	lastRemote   string
 }
 
 func (i *remotesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -164,10 +166,6 @@ func (i *remotesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		remotePos:    0,
 		urlPos:       0}, nil
 }
-
-func (i *remotesIter) Repository() string { return i.repositoryID }
-
-func (i *remotesIter) LastObject() string { return i.lastRemote }
 
 func (i *remotesIter) Next() (sql.Row, error) {
 	if i.remotePos >= len(i.remotes) {
@@ -191,7 +189,6 @@ func (i *remotesIter) Next() (sql.Row, error) {
 	row := remoteToRow(i.repositoryID, config, i.urlPos)
 	i.urlPos++
 
-	i.lastRemote = config.Name
 	return row, nil
 }
 
@@ -211,9 +208,9 @@ func remoteToRow(repoID string, config *config.RemoteConfig, pos int) sql.Row {
 }
 
 type remoteIndexKey struct {
-	repository string
-	pos        int
-	urlPos     int
+	Repository string
+	Pos        int
+	URLPos     int
 }
 
 type remotesKeyValueIter struct {
@@ -256,12 +253,14 @@ func (i *remotesKeyValueIter) Next() ([]interface{}, []byte, error) {
 
 		i.urlPos++
 
-		key, err := encodeIndexKey(remoteIndexKey{i.repo.ID, i.pos, i.urlPos})
+		fmt.Println(remoteIndexKey{i.repo.ID, i.pos, i.urlPos - 1})
+
+		key, err := encodeIndexKey(remoteIndexKey{i.repo.ID, i.pos, i.urlPos - 1})
 		if err != nil {
 			return nil, nil, err
 		}
 
-		row := remoteToRow(i.repo.ID, cfg, i.urlPos)
+		row := remoteToRow(i.repo.ID, cfg, i.urlPos-1)
 		values, err := rowIndexValues(row, i.columns, RemotesSchema)
 		if err != nil {
 			return nil, nil, err
@@ -293,8 +292,8 @@ func (i *remotesIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	if i.repo == nil || i.repo.ID != key.repository {
-		i.repo, err = i.pool.GetRepo(key.repository)
+	if i.repo == nil || i.repo.ID != key.Repository {
+		i.repo, err = i.pool.GetRepo(key.Repository)
 		if err != nil {
 			return nil, err
 		}
@@ -305,8 +304,8 @@ func (i *remotesIndexIter) Next() (sql.Row, error) {
 		}
 	}
 
-	config := i.remotes[key.pos].Config()
-	return remoteToRow(key.repository, config, key.urlPos), nil
+	config := i.remotes[key.Pos].Config()
+	return remoteToRow(key.Repository, config, key.URLPos), nil
 }
 
 func (i *remotesIndexIter) Close() error { return i.index.Close() }
