@@ -130,3 +130,39 @@ func TestRefCommitsPushdown(t *testing.T) {
 		})
 	}
 }
+
+func TestRefCommitsIndexKeyValueIter(t *testing.T) {
+	require := require.New(t)
+	ctx, _, cleanup := setup(t)
+	defer cleanup()
+
+	table := new(refCommitsTable)
+	iter, err := table.IndexKeyValueIter(ctx, []string{"ref_name", "commit_hash"})
+	require.NoError(err)
+
+	i, err := table.RowIter(ctx)
+	require.NoError(err)
+	rows, err := sql.RowIterToRows(i)
+	require.NoError(err)
+
+	var expected []keyValue
+	for _, row := range rows {
+		var kv keyValue
+		kv.key = assertEncodeKey(t, row)
+		kv.values = append(kv.values, row[2], row[1])
+		expected = append(expected, kv)
+	}
+
+	assertIndexKeyValueIter(t, iter, expected)
+}
+
+func TestRefCommitsIndex(t *testing.T) {
+	testTableIndex(
+		t,
+		new(refCommitsTable),
+		[]sql.Expression{expression.NewEquals(
+			expression.NewGetField(2, sql.Text, "ref_name", false),
+			expression.NewLiteral("HEAD", sql.Text),
+		)},
+	)
+}

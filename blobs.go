@@ -44,7 +44,9 @@ func newBlobsTable() Indexable {
 }
 
 var _ Table = (*blobsTable)(nil)
+var _ Squashable = (*blobsTable)(nil)
 
+func (blobsTable) isSquashable()   {}
 func (blobsTable) isGitbaseTable() {}
 
 func (blobsTable) String() string {
@@ -334,12 +336,6 @@ func shouldReadContent(columns []sql.Expression) bool {
 	return false
 }
 
-type blobIndexKey struct {
-	repository string
-	packfile   string
-	offset     int64
-}
-
 type blobsKeyValueIter struct {
 	iter    *objectIter
 	columns []string
@@ -358,10 +354,10 @@ func (i *blobsKeyValueIter) Next() ([]interface{}, []byte, error) {
 		return nil, nil, err
 	}
 
-	key, err := encodeIndexKey(blobIndexKey{
-		repository: obj.RepositoryID,
-		packfile:   obj.Packfile.String(),
-		offset:     int64(obj.Offset),
+	key, err := encodeIndexKey(packOffsetIndexKey{
+		Repository: obj.RepositoryID,
+		Packfile:   obj.Packfile.String(),
+		Offset:     int64(obj.Offset),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -372,7 +368,7 @@ func (i *blobsKeyValueIter) Next() ([]interface{}, []byte, error) {
 		ErrInvalidObjectType.New(obj.Object, "*object.Blob")
 	}
 
-	row, err := blobToRow(obj.RepositoryID, blob, stringContains(i.columns, "content"))
+	row, err := blobToRow(obj.RepositoryID, blob, stringContains(i.columns, "blob_content"))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -400,26 +396,26 @@ func (i *blobsIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	var key blobIndexKey
+	var key packOffsetIndexKey
 	if err := decodeIndexKey(data, &key); err != nil {
 		return nil, err
 	}
 
-	packfile := plumbing.NewHash(key.packfile)
-	if i.decoder == nil || !i.decoder.equals(key.repository, packfile) {
+	packfile := plumbing.NewHash(key.Packfile)
+	if i.decoder == nil || !i.decoder.equals(key.Repository, packfile) {
 		if i.decoder != nil {
-			if err := i.decoder.close(); err != nil {
+			if err := i.decoder.Close(); err != nil {
 				return nil, err
 			}
 		}
 
-		i.decoder, err = newObjectDecoder(i.pool.repositories[key.repository], packfile)
+		i.decoder, err = newObjectDecoder(i.pool.repositories[key.Repository], packfile)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	obj, err := i.decoder.get(key.offset)
+	obj, err := i.decoder.get(key.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -429,12 +425,12 @@ func (i *blobsIndexIter) Next() (sql.Row, error) {
 		return nil, ErrInvalidObjectType.New(obj, "*object.Blob")
 	}
 
-	return blobToRow(key.repository, blob, i.readContent)
+	return blobToRow(key.Repository, blob, i.readContent)
 }
 
 func (i *blobsIndexIter) Close() error {
 	if i.decoder != nil {
-		if err := i.decoder.close(); err != nil {
+		if err := i.decoder.Close(); err != nil {
 			_ = i.index.Close()
 			return err
 		}

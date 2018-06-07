@@ -272,10 +272,10 @@ func treeEntryToRow(repoID string, entry *TreeEntry) sql.Row {
 }
 
 type treeEntriesIndexKey struct {
-	repository string
-	packfile   string
-	offset     int64
-	pos        int
+	Repository string
+	Packfile   string
+	Offset     int64
+	Pos        int
 }
 
 type treeEntriesKeyValueIter struct {
@@ -320,10 +320,10 @@ func (i *treeEntriesKeyValueIter) Next() ([]interface{}, []byte, error) {
 		i.pos++
 
 		key, err := encodeIndexKey(treeEntriesIndexKey{
-			repository: i.obj.RepositoryID,
-			packfile:   i.obj.Packfile.String(),
-			offset:     int64(i.obj.Offset),
-			pos:        i.pos,
+			Repository: i.obj.RepositoryID,
+			Packfile:   i.obj.Packfile.String(),
+			Offset:     int64(i.obj.Offset),
+			Pos:        i.pos - 1,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -360,25 +360,25 @@ func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	packfile := plumbing.NewHash(key.packfile)
-	if i.decoder == nil || !i.decoder.equals(key.repository, packfile) {
+	packfile := plumbing.NewHash(key.Packfile)
+	if i.decoder == nil || !i.decoder.equals(key.Repository, packfile) {
 		if i.decoder != nil {
-			if err := i.decoder.close(); err != nil {
+			if err := i.decoder.Close(); err != nil {
 				return nil, err
 			}
 		}
 
-		i.decoder, err = newObjectDecoder(i.pool.repositories[key.repository], packfile)
+		i.decoder, err = newObjectDecoder(i.pool.repositories[key.Repository], packfile)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	var tree *object.Tree
-	if i.prevTreeOffset == key.offset {
+	if i.prevTreeOffset == key.Offset {
 		tree = i.tree
 	} else {
-		obj, err := i.decoder.get(key.offset)
+		obj, err := i.decoder.get(key.Offset)
 		if err != nil {
 			return nil, err
 		}
@@ -392,14 +392,14 @@ func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
 		tree = i.tree
 	}
 
-	i.prevTreeOffset = key.offset
-	entry := &TreeEntry{tree.Hash, tree.Entries[key.pos]}
-	return treeEntryToRow(key.repository, entry), nil
+	i.prevTreeOffset = key.Offset
+	entry := &TreeEntry{tree.Hash, tree.Entries[key.Pos]}
+	return treeEntryToRow(key.Repository, entry), nil
 }
 
 func (i *treeEntriesIndexIter) Close() error {
 	if i.decoder != nil {
-		if err := i.decoder.close(); err != nil {
+		if err := i.decoder.Close(); err != nil {
 			_ = i.index.Close()
 			return err
 		}

@@ -1,7 +1,6 @@
 package gitbase
 
 import (
-	"io"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -29,7 +28,9 @@ func newReferencesTable() Indexable {
 }
 
 var _ Table = (*referencesTable)(nil)
+var _ Squashable = (*referencesTable)(nil)
 
+func (referencesTable) isSquashable()   {}
 func (referencesTable) isGitbaseTable() {}
 
 func (r referencesTable) String() string {
@@ -109,12 +110,12 @@ func (*referencesTable) IndexKeyValueIter(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	iter, err := s.Pool.RepoIter()
+	iter, err := NewRowRepoIter(ctx, new(referenceIter))
 	if err != nil {
 		return nil, err
 	}
 
-	return &referenceKeyValueIter{repos: iter, columns: colNames}, nil
+	return &rowKeyValueIter{iter, colNames, RefsSchema}, nil
 }
 
 // WithProjectFiltersAndIndex implements sql.Indexable interface.
@@ -130,7 +131,7 @@ func (*referencesTable) WithProjectFiltersAndIndex(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	var iter sql.RowIter = &referencesIndexIter{index}
+	var iter sql.RowIter = &rowIndexIter{index}
 
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
@@ -320,103 +321,3 @@ func referenceToRow(repositoryID string, c *plumbing.Reference) sql.Row {
 		hash,
 	)
 }
-
-type referenceKeyValueIter struct {
-	repos   *RepositoryIter
-	repo    *Repository
-	head    *plumbing.Reference
-	refs    storer.ReferenceIter
-	columns []string
-}
-
-type refIndexKey struct {
-	repository string
-	name       string
-	commit     string
-}
-
-func (i *referenceKeyValueIter) Next() ([]interface{}, []byte, error) {
-	for {
-		if i.refs == nil {
-			var err error
-			i.repo, err = i.repos.Next()
-			if err != nil {
-				return nil, nil, err
-			}
-
-			i.head, err = i.repo.Repo.Head()
-			if err != nil && err != plumbing.ErrReferenceNotFound {
-				return nil, nil, err
-			}
-
-			i.refs, err = i.repo.Repo.References()
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
-		var ref *plumbing.Reference
-		if i.head != nil {
-			ref = plumbing.NewHashReference(
-				plumbing.ReferenceName("HEAD"),
-				i.head.Hash(),
-			)
-			i.head = nil
-		} else {
-			var err error
-			ref, err = i.refs.Next()
-			if err != nil {
-				if err == io.EOF {
-					i.refs = nil
-					continue
-				}
-				return nil, nil, err
-			}
-		}
-
-		key, err := encodeIndexKey(refIndexKey{i.repo.ID, ref.Name().String(), ref.Hash().String()})
-		if err != nil {
-			return nil, nil, err
-		}
-
-		values, err := rowIndexValues(referenceToRow(i.repo.ID, ref), i.columns, RefsSchema)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return values, key, nil
-	}
-}
-
-func (i *referenceKeyValueIter) Close() error {
-	if i.refs != nil {
-		i.refs.Close()
-	}
-	return i.repos.Close()
-}
-
-type referencesIndexIter struct {
-	index sql.IndexValueIter
-}
-
-func (i *referencesIndexIter) Next() (sql.Row, error) {
-	data, err := i.index.Next()
-	if err != nil {
-		return nil, err
-	}
-
-	var key refIndexKey
-	if err := decodeIndexKey(data, &key); err != nil {
-		return nil, err
-	}
-
-	return referenceToRow(
-		key.repository,
-		plumbing.NewHashReference(
-			plumbing.ReferenceName(key.name),
-			plumbing.NewHash(key.commit),
-		),
-	), nil
-}
-
-func (i *referencesIndexIter) Close() error { return i.index.Close() }
