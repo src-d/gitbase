@@ -158,7 +158,7 @@ To make some common tasks easier for the user, there are some functions to inter
 
 ## Unstable features
 
-- **Table squashing:** there is an optimization that collects inner joins between tables with a set of supported conditions and converts them into a single node that retrieves the data in chained steps (getting first the commits and then the blobs of every commit instead of joinin all commits and all blobs, for example). It can be enabled with the environment variable `GITBASE_UNSTABLE_SQUASH_ENABLE`.
+- **Table squashing:** there is an optimization that collects inner joins between tables with a set of supported conditions and converts them into a single node that retrieves the data in chained steps (getting first the commits and then the blobs of every commit instead of joining all commits and all blobs, for example). It can be enabled with the environment variable `GITBASE_UNSTABLE_SQUASH_ENABLE`.
 
 ## License
 
