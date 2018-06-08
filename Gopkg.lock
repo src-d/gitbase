@@ -397,7 +397,7 @@
     "plumbing/transport/ssh",
     "storage",
     "storage/filesystem",
-    "storage/filesystem/internal/dotgit",
+    "storage/filesystem/dotgit",
     "storage/memory",
     "utils/binary",
     "utils/diff",
@@ -408,9 +408,9 @@
     "utils/merkletrie/internal/frame",
     "utils/merkletrie/noder"
   ]
-  revision = "1d28459504251497e0ce6132a0fadd5eb44ffd22"
+  revision = "b23570073eaee3489e5e3d666f22ba5cbeb53243"
   source = "github.com/src-d/go-git"
-  version = "v4.2.0"
+  version = "v4.4.1"
 
 [[projects]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
@@ -473,6 +473,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6abe7ca012dfe4335e71168bb653994ce974beed86f6dabd253586fcfa52ba96"
+  inputs-digest = "f590911328a58f805ea58a06e5eeef52b048635b6aab345da74bf95d14a4b43d"
   solver-name = "gps-cdcl"
   solver-version = 1
