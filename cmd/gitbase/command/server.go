@@ -83,7 +83,7 @@ func (c *Server) Execute(args []string) error {
 		return err
 	}
 
-	logrus.Info("starting server")
+	logrus.Infof("server started and listening on %s:%d", c.Host, c.Port)
 	return s.Start()
 }
 
