@@ -137,9 +137,8 @@ func TestRepositoryPoolIterator(t *testing.T) {
 }
 
 type testCommitIter struct {
-	iter     object.CommitIter
-	repoID   string
-	lastHash string
+	iter   object.CommitIter
+	repoID string
 }
 
 func (d *testCommitIter) NewIterator(
@@ -153,17 +152,13 @@ func (d *testCommitIter) NewIterator(
 	return &testCommitIter{iter: iter, repoID: repo.ID}, nil
 }
 
-func (d *testCommitIter) Repository() string { return d.repoID }
-
-func (d *testCommitIter) LastObject() string { return d.lastHash }
-
 func (d *testCommitIter) Next() (sql.Row, error) {
-	c, err := d.iter.Next()
-	if err == nil {
-		d.lastHash = c.Hash.String()
+	commit, err := d.iter.Next()
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, err
+	return commitToRow(d.repoID, commit), nil
 }
 
 func (d *testCommitIter) Close() error {
@@ -188,7 +183,7 @@ func testRepoIter(num int, require *require.Assertions, ctx *sql.Context) {
 			break
 		}
 
-		require.Nil(row)
+		require.NotNil(row)
 
 		count++
 	}

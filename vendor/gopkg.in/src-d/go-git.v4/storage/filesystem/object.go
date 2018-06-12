@@ -11,7 +11,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/format/objfile"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/packfile"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem/internal/dotgit"
+	"gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit"
 	"gopkg.in/src-d/go-git.v4/storage/memory"
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 
@@ -26,7 +26,8 @@ type ObjectStorage struct {
 	index map[plumbing.Hash]*packfile.Index
 }
 
-func newObjectStorage(dir *dotgit.DotGit) (ObjectStorage, error) {
+// NewObjectStorage creates a new ObjectStorage with the given .git directory.
+func NewObjectStorage(dir *dotgit.DotGit) (ObjectStorage, error) {
 	s := ObjectStorage{
 		deltaBaseCache: cache.NewObjectLRUDefault(),
 		dir:            dir,
@@ -55,7 +56,7 @@ func (s *ObjectStorage) requireIndex() error {
 	return nil
 }
 
-func (s *ObjectStorage) loadIdxFile(h plumbing.Hash) error {
+func (s *ObjectStorage) loadIdxFile(h plumbing.Hash) (err error) {
 	f, err := s.dir.ObjectPackIdx(h)
 	if err != nil {
 		return err
@@ -94,7 +95,7 @@ func (s *ObjectStorage) PackfileWriter() (io.WriteCloser, error) {
 }
 
 // SetEncodedObject adds a new object to the storage.
-func (s *ObjectStorage) SetEncodedObject(o plumbing.EncodedObject) (plumbing.Hash, error) {
+func (s *ObjectStorage) SetEncodedObject(o plumbing.EncodedObject) (h plumbing.Hash, err error) {
 	if o.Type() == plumbing.OFSDeltaObject || o.Type() == plumbing.REFDeltaObject {
 		return plumbing.ZeroHash, plumbing.ErrInvalidType
 	}
@@ -113,11 +114,11 @@ func (s *ObjectStorage) SetEncodedObject(o plumbing.EncodedObject) (plumbing.Has
 
 	defer ioutil.CheckClose(or, &err)
 
-	if err := ow.WriteHeader(o.Type(), o.Size()); err != nil {
+	if err = ow.WriteHeader(o.Type(), o.Size()); err != nil {
 		return plumbing.ZeroHash, err
 	}
 
-	if _, err := io.Copy(ow, or); err != nil {
+	if _, err = io.Copy(ow, or); err != nil {
 		return plumbing.ZeroHash, err
 	}
 
@@ -166,7 +167,7 @@ func (s *ObjectStorage) EncodedObject(t plumbing.ObjectType, h plumbing.Hash) (p
 			// Create a new object storage with the DotGit(s) and check for the
 			// required hash object. Skip when not found.
 			for _, dg := range dotgits {
-				o, oe := newObjectStorage(dg)
+				o, oe := NewObjectStorage(dg)
 				if oe != nil {
 					continue
 				}
