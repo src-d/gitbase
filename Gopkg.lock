@@ -8,6 +8,27 @@
   revision = "9c5fe88206d7765837fed3732a42ef88fc51f1a1"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/alecthomas/template"
+  packages = [
+    ".",
+    "parse"
+  ]
+  revision = "a0175ee3bccc567396460bf5acd36800cb10c49c"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/alecthomas/units"
+  packages = ["."]
+  revision = "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
+
+[[projects]]
+  name = "github.com/boltdb/bolt"
+  packages = ["."]
+  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
+  version = "v1.3.1"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
@@ -126,6 +147,15 @@
   version = "v0.2.0"
 
 [[projects]]
+  name = "github.com/pilosa/go-pilosa"
+  packages = [
+    ".",
+    "gopilosa_pbuf"
+  ]
+  revision = "2a176035ff61f2aa4bac197314e0f4464bfea4a4"
+  version = "v0.9.0"
+
+[[projects]]
   name = "github.com/pkg/errors"
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
@@ -136,6 +166,12 @@
   packages = ["difflib"]
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/prometheus/common"
+  packages = ["log"]
+  revision = "7600349dcfe1abd18d72d3a1770870d9800a7801"
 
 [[projects]]
   name = "github.com/satori/go.uuid"
@@ -233,10 +269,18 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/sync"
+  packages = ["errgroup"]
+  revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
   packages = [
     "unix",
-    "windows"
+    "windows",
+    "windows/registry",
+    "windows/svc/eventlog"
   ]
   revision = "f8f1a95d4d780e4e1a82ed8289c8806e4dba7733"
   source = "github.com/golang/sys"
@@ -300,6 +344,12 @@
   version = "v1.10.0"
 
 [[projects]]
+  name = "gopkg.in/alecthomas/kingpin.v2"
+  packages = ["."]
+  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
+  version = "v2.2.6"
+
+[[projects]]
   name = "gopkg.in/bblfsh/client-go.v2"
   packages = [
     ".",
@@ -351,6 +401,12 @@
   ]
   revision = "027dceab1aa836eb310d92c2eb2266e4dc9f4b81"
   version = "v4.1.0"
+
+[[projects]]
+  name = "gopkg.in/src-d/go-errors.v0"
+  packages = ["."]
+  revision = "6f07baca276330431b44ece8ee84ac98167bc4ea"
+  version = "v0.1.0"
 
 [[projects]]
   name = "gopkg.in/src-d/go-errors.v1"
@@ -423,10 +479,12 @@
     "sql/expression",
     "sql/expression/function",
     "sql/expression/function/aggregation",
+    "sql/index",
+    "sql/index/pilosa",
     "sql/parse",
     "sql/plan"
   ]
-  revision = "3160f31ce695a939ad054ec4df889b4d27b321fd"
+  revision = "1ee3534e486e3dd3ef00effa2d215d10fc9badc9"
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
@@ -470,9 +528,15 @@
   revision = "ec4a0fea49c7b46c2aeb0b51aac55779c607e52b"
   version = "v0.1.2"
 
+[[projects]]
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d455d28619d2ad302ecebda84f06c9db7df40dd16dda25037a53fe05ec479e46"
+  inputs-digest = "b64bd8b567ed8204c03abc0892408584f172114c369f281a9473ce4879b43e30"
   solver-name = "gps-cdcl"
   solver-version = 1

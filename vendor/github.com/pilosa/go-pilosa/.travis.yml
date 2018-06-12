@@ -1,0 +1,20 @@
+language: go
+go:
+  - "1.9"
+  - "1.10"
+  - master
+sudo: required
+group: deprecated-2017Q2
+before_install:
+  - openssl req -x509 -newkey rsa:4096 -keyout test.pilosa.local.key -out test.pilosa.local.crt -days 3650 -nodes -subj "/C=US/ST=Texas/L=Austin/O=Pilosa/OU=Com/CN=test.pilosa.local"
+  - wget https://s3.amazonaws.com/build.pilosa.com/pilosa-master-linux-amd64.tar.gz && tar xf pilosa-master-linux-amd64.tar.gz
+  - go get github.com/mattn/goveralls
+  - go get -u github.com/golang/dep/cmd/dep
+  - dep ensure
+script:
+  - ./pilosa-master-linux-amd64/pilosa server --metric.diagnostics=false -b https://:20101 -d https_data --tls.skip-verify --tls.certificate test.pilosa.local.crt --tls.key test.pilosa.local.key --cluster.disabled static &
+  - PILOSA_BIND="https://:20101" make test-all-race
+  - pkill pilosa
+  - ./pilosa-master-linux-amd64/pilosa server --metric.diagnostics=false -d http_data &
+  - GOARCH=386 make test-all
+  - $HOME/gopath/bin/goveralls -service=travis-ci -ignore "gopilosa_pbuf/public.pb.go" -flags="-tags=integration fullcoverage"
