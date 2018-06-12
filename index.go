@@ -19,7 +19,7 @@ var (
 // Indexable represents an indexable gitbase table.
 type Indexable interface {
 	sql.Indexable
-	Table
+	gitBase
 }
 
 func encodeIndexKey(k interface{}) ([]byte, error) {
