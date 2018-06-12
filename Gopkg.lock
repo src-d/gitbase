@@ -408,9 +408,8 @@
     "utils/merkletrie/internal/frame",
     "utils/merkletrie/noder"
   ]
-  revision = "b23570073eaee3489e5e3d666f22ba5cbeb53243"
+  revision = "0710c6cb710a0cdab04ab7f61cc62e23cfcacbee"
   source = "github.com/src-d/go-git"
-  version = "v4.4.1"
 
 [[projects]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
@@ -473,6 +472,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f590911328a58f805ea58a06e5eeef52b048635b6aab345da74bf95d14a4b43d"
+  inputs-digest = "f64276b9d0a2816ec92e200752139d87f1b31807c1bf61d3c6020478377bf7d4"
   solver-name = "gps-cdcl"
   solver-version = 1
