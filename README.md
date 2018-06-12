@@ -72,8 +72,11 @@ Check the [Release](https://github.com/src-d/gitbase/releases) page to download 
 
 Because gitbase uses [bblfsh's client-go](https://github.com/bblfsh/client-go), which uses cgo, you need to install some dependencies by hand instead of just using `go get`.
 
+_Note_: we use `go get -d` so the code is not compiled yet, as it would
+fail before `make dependencies` is executed successfully.
+
 ```
-go get github.com/src-d/gitbase/...
+go get -d github.com/src-d/gitbase
 cd $GOPATH/src/github.com/src-d/gitbase
 make dependencies
 ```
