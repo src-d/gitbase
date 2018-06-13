@@ -1,4 +1,4 @@
-package sqle
+package sqle // import "gopkg.in/src-d/go-mysql-server.v0"
 
 import (
 	opentracing "github.com/opentracing/opentracing-go"
@@ -53,4 +53,9 @@ func (e *Engine) Query(
 func (e *Engine) AddDatabase(db sql.Database) {
 	e.Catalog.Databases = append(e.Catalog.Databases, db)
 	e.Analyzer.CurrentDatabase = db.Name()
+}
+
+// Init performs all the initialization requirements for the engine to work.
+func (e *Engine) Init() error {
+	return e.Catalog.LoadIndexes(e.Catalog.Databases)
 }

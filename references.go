@@ -5,6 +5,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
@@ -22,14 +24,13 @@ var RefsSchema = sql.Schema{
 var _ sql.PushdownProjectionAndFiltersTable = (*referencesTable)(nil)
 
 func newReferencesTable() Indexable {
-	return &indexableTable{
-		PushdownTable:          new(referencesTable),
-		buildIterWithSelectors: referencesIterBuilder,
-	}
+	return new(referencesTable)
 }
 
 var _ Table = (*referencesTable)(nil)
+var _ Squashable = (*referencesTable)(nil)
 
+func (referencesTable) isSquashable()   {}
 func (referencesTable) isGitbaseTable() {}
 
 func (r referencesTable) String() string {
@@ -99,6 +100,46 @@ func (r *referencesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*referencesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := NewRowRepoIter(ctx, new(referenceIter))
+	if err != nil {
+		return nil, err
+	}
+
+	return &rowKeyValueIter{iter, colNames, RefsSchema}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*referencesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.ReferencesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &rowIndexIter{index}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
 func referencesIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
 	if len(selectors["commit_hash"]) == 0 && len(selectors["ref_name"]) == 0 {
 		return new(referenceIter), nil
@@ -125,7 +166,6 @@ type referenceIter struct {
 	head         *plumbing.Reference
 	repositoryID string
 	iter         storer.ReferenceIter
-	lastRef      string
 }
 
 func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -150,16 +190,11 @@ func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	}, nil
 }
 
-func (i *referenceIter) Repository() string { return i.repositoryID }
-
-func (i *referenceIter) LastObject() string { return i.lastRef }
-
 func (i *referenceIter) Next() (sql.Row, error) {
 	for {
 		if i.head != nil {
 			o := i.head
 			i.head = nil
-			i.lastRef = "HEAD"
 			return sql.NewRow(
 				i.repositoryID,
 				"HEAD",
@@ -180,7 +215,6 @@ func (i *referenceIter) Next() (sql.Row, error) {
 			continue
 		}
 
-		i.lastRef = o.Name().String()
 		return referenceToRow(i.repositoryID, o), nil
 	}
 }
@@ -194,12 +228,11 @@ func (i *referenceIter) Close() error {
 }
 
 type filteredReferencesIter struct {
-	head    *plumbing.Reference
-	hashes  []plumbing.Hash
-	names   []string
-	repoID  string
-	iter    storer.ReferenceIter
-	lastRef string
+	head   *plumbing.Reference
+	hashes []plumbing.Hash
+	names  []string
+	repoID string
+	iter   storer.ReferenceIter
 }
 
 func (i *filteredReferencesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
@@ -225,10 +258,6 @@ func (i *filteredReferencesIter) NewIterator(repo *Repository) (RowRepoIter, err
 		iter:   iter,
 	}, nil
 }
-
-func (i *filteredReferencesIter) Repository() string { return i.repoID }
-
-func (i *filteredReferencesIter) LastObject() string { return i.lastRef }
 
 func (i *filteredReferencesIter) Next() (sql.Row, error) {
 	for {
@@ -272,7 +301,6 @@ func (i *filteredReferencesIter) Next() (sql.Row, error) {
 			continue
 		}
 
-		i.lastRef = o.Name().String()
 		return referenceToRow(i.repoID, o), nil
 	}
 }

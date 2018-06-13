@@ -8,6 +8,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type commitTreesTable struct{}
@@ -22,12 +24,12 @@ var CommitTreesSchema = sql.Schema{
 var _ sql.PushdownProjectionAndFiltersTable = (*commitTreesTable)(nil)
 
 func newCommitTreesTable() Indexable {
-	return &indexableTable{
-		PushdownTable:          new(commitTreesTable),
-		buildIterWithSelectors: commitTreesIterBuilder,
-	}
+	return new(commitTreesTable)
 }
 
+var _ Squashable = (*commitTreesTable)(nil)
+
+func (commitTreesTable) isSquashable()   {}
 func (commitTreesTable) isGitbaseTable() {}
 
 func (commitTreesTable) String() string {
@@ -82,6 +84,46 @@ func (t *commitTreesTable) WithProjectAndFilters(
 	if err != nil {
 		span.Finish()
 		return nil, err
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*commitTreesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := NewRowRepoIter(ctx, &commitTreesIter{ctx: ctx})
+	if err != nil {
+		return nil, err
+	}
+
+	return &rowKeyValueIter{iter, colNames, CommitTreesSchema}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*commitTreesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.CommitTreesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &rowIndexIter{index}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
 	}
 
 	return sql.NewSpanIter(span, iter), nil

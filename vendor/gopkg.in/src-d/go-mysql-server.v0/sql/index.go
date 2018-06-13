@@ -1,10 +1,10 @@
 package sql
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"io"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -77,7 +77,7 @@ type DescendIndex interface {
 // implemented to grant more capabilities to the index lookup.
 type IndexLookup interface {
 	// Values returns the values in the subset of the index.
-	Values() IndexValueIter
+	Values() (IndexValueIter, error)
 }
 
 // SetOperations is a specialization of IndexLookup that enables set operations
@@ -128,9 +128,10 @@ type IndexRegistry struct {
 	// Root path where all the data of the indexes is stored on disk.
 	Root string
 
-	mut      sync.RWMutex
-	indexes  map[indexKey]Index
-	statuses map[indexKey]IndexStatus
+	mut        sync.RWMutex
+	indexes    map[indexKey]Index
+	indexOrder []indexKey
+	statuses   map[indexKey]IndexStatus
 
 	driversMut sync.RWMutex
 	drivers    map[string]IndexDriver
@@ -158,6 +159,21 @@ func (r *IndexRegistry) IndexDriver(id string) IndexDriver {
 	return r.drivers[id]
 }
 
+// DefaultIndexDriver returns the default index driver, which is the only
+// driver when there is 1 driver in the registry. If there are more than
+// 1 drivers in the registry, this will return the empty string, as there
+// is no clear default driver.
+func (r *IndexRegistry) DefaultIndexDriver() IndexDriver {
+	r.driversMut.RLock()
+	defer r.driversMut.RUnlock()
+	if len(r.drivers) == 1 {
+		for _, d := range r.drivers {
+			return d
+		}
+	}
+	return nil
+}
+
 // RegisterIndexDriver registers a new index driver.
 func (r *IndexRegistry) RegisterIndexDriver(driver IndexDriver) {
 	r.driversMut.Lock()
@@ -165,18 +181,52 @@ func (r *IndexRegistry) RegisterIndexDriver(driver IndexDriver) {
 	r.drivers[driver.ID()] = driver
 }
 
+// LoadIndexes loads all indexes for all dbs, tables and drivers.
+func (r *IndexRegistry) LoadIndexes(dbs Databases) error {
+	r.driversMut.RLock()
+	defer r.driversMut.RUnlock()
+	r.mut.Lock()
+	defer r.mut.Unlock()
+
+	for _, driver := range r.drivers {
+		for _, db := range dbs {
+			for t := range db.Tables() {
+				indexes, err := driver.LoadAll(db.Name(), t)
+				if err != nil {
+					return err
+				}
+
+				for _, idx := range indexes {
+					k := indexKey{db.Name(), idx.ID()}
+					r.indexes[k] = idx
+					r.indexOrder = append(r.indexOrder, k)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func (r *IndexRegistry) retainIndex(db, id string) {
 	r.rcmut.Lock()
 	defer r.rcmut.Unlock()
 	key := indexKey{db, id}
-	r.refCounts[key] = r.refCounts[key] + 1
+	r.refCounts[key]++
 }
 
 // CanUseIndex returns whether the given index is ready to use or not.
 func (r *IndexRegistry) CanUseIndex(idx Index) bool {
 	r.mut.RLock()
 	defer r.mut.RUnlock()
-	return bool(r.statuses[indexKey{idx.Database(), idx.ID()}])
+	return r.canUseIndex(idx)
+}
+
+func (r *IndexRegistry) canUseIndex(idx Index) bool {
+	if idx == nil {
+		return false
+	}
+	return r.statuses[indexKey{idx.Database(), idx.ID()}].IsUsable()
 }
 
 // setStatus is not thread-safe, it should be guarded using mut.
@@ -189,8 +239,7 @@ func (r *IndexRegistry) ReleaseIndex(idx Index) {
 	r.rcmut.Lock()
 	defer r.rcmut.Unlock()
 	key := indexKey{idx.Database(), idx.ID()}
-	r.refCounts[key] = r.refCounts[key] - 1
-
+	r.refCounts[key]--
 	if r.refCounts[key] > 0 {
 		return
 	}
@@ -206,7 +255,12 @@ func (r *IndexRegistry) ReleaseIndex(idx Index) {
 func (r *IndexRegistry) Index(db, id string) Index {
 	r.mut.RLock()
 	defer r.mut.RUnlock()
-	return r.indexes[indexKey{db, strings.ToLower(id)}]
+	idx := r.indexes[indexKey{db, strings.ToLower(id)}]
+	if idx != nil && !r.canUseIndex(idx) {
+		return nil
+	}
+
+	return idx
 }
 
 // IndexByExpression returns an index by the given expression. It will return
@@ -221,9 +275,14 @@ func (r *IndexRegistry) IndexByExpression(db string, expr ...Expression) Index {
 		expressionHashes = append(expressionHashes, NewExpressionHash(e))
 	}
 
-	for _, idx := range r.indexes {
+	for _, k := range r.indexOrder {
+		idx := r.indexes[k]
+		if !r.canUseIndex(idx) {
+			continue
+		}
+
 		if idx.Database() == db {
-			if exprListsEqual(idx.ExpressionHashes(), expressionHashes) {
+			if exprListsMatch(idx.ExpressionHashes(), expressionHashes) {
 				r.retainIndex(db, idx.ID())
 				return idx
 			}
@@ -231,6 +290,69 @@ func (r *IndexRegistry) IndexByExpression(db string, expr ...Expression) Index {
 	}
 
 	return nil
+}
+
+// ExpressionsWithIndexes finds all the combinations of expressions with
+// matching indexes. This only matches multi-column indexes.
+func (r *IndexRegistry) ExpressionsWithIndexes(
+	db string,
+	exprs ...Expression,
+) [][]Expression {
+	r.mut.RLock()
+	defer r.mut.RUnlock()
+
+	var results [][]Expression
+Indexes:
+	for _, idx := range r.indexes {
+		if !r.canUseIndex(idx) {
+			continue
+		}
+
+		if ln := len(idx.ExpressionHashes()); ln <= len(exprs) && ln > 1 {
+			var used = make(map[int]struct{})
+			var matched []Expression
+			for _, ie := range idx.ExpressionHashes() {
+				var found bool
+				for i, e := range exprs {
+					if _, ok := used[i]; ok {
+						continue
+					}
+
+					if expressionsEqual(ie, NewExpressionHash(e)) {
+						used[i] = struct{}{}
+						found = true
+						matched = append(matched, e)
+						break
+					}
+				}
+
+				if !found {
+					continue Indexes
+				}
+			}
+
+			results = append(results, matched)
+		}
+	}
+
+	return results
+}
+
+type withIndexer interface {
+	WithIndex(int) Expression
+}
+
+func removeIndexes(e Expression) (Expression, error) {
+	i, ok := e.(withIndexer)
+	if !ok {
+		return e, nil
+	}
+
+	return i.WithIndex(-1), nil
+}
+
+func expressionsEqual(a, b ExpressionHash) bool {
+	return bytes.Compare(a, b) == 0
 }
 
 var (
@@ -275,16 +397,50 @@ func (r *IndexRegistry) validateIndexToAdd(idx Index) error {
 	return nil
 }
 
-func exprListsEqual(a, b []ExpressionHash) bool {
+// exprListsMatch returns whether any subset of a is the entirety of b.
+func exprListsMatch(a, b []ExpressionHash) bool {
 	var visited = make([]bool, len(b))
+
 	for _, va := range a {
 		found := false
+
 		for j, vb := range b {
 			if visited[j] {
 				continue
 			}
 
-			if reflect.DeepEqual(va, vb) {
+			if bytes.Equal(va, vb) {
+				visited[j] = true
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
+
+// exprListsEqual returns whether a and b have the same items.
+func exprListsEqual(a, b []ExpressionHash) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	var visited = make([]bool, len(b))
+
+	for _, va := range a {
+		found := false
+
+		for j, vb := range b {
+			if visited[j] {
+				continue
+			}
+
+			if bytes.Equal(va, vb) {
 				visited[j] = true
 				found = true
 				break
@@ -311,7 +467,9 @@ func (r *IndexRegistry) AddIndex(idx Index) (chan<- struct{}, error) {
 
 	r.mut.Lock()
 	r.setStatus(idx, IndexNotReady)
-	r.indexes[indexKey{idx.Database(), idx.ID()}] = idx
+	key := indexKey{idx.Database(), idx.ID()}
+	r.indexes[key] = idx
+	r.indexOrder = append(r.indexOrder, key)
 	r.mut.Unlock()
 
 	var created = make(chan struct{})
@@ -359,6 +517,16 @@ func (r *IndexRegistry) DeleteIndex(db, id string) (<-chan struct{}, error) {
 		defer r.rcmut.Unlock()
 
 		delete(r.indexes, key)
+		var pos = -1
+		for i, k := range r.indexOrder {
+			if k == key {
+				pos = i
+				break
+			}
+		}
+		if pos >= 0 {
+			r.indexOrder = append(r.indexOrder[:pos], r.indexOrder[pos+1:]...)
+		}
 		close(done)
 		return done, nil
 	}
