@@ -125,7 +125,7 @@ func (*remotesTable) WithProjectFiltersAndIndex(
 	columns, filters []sql.Expression,
 	index sql.IndexValueIter,
 ) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.ReferencesTable.WithProjectFiltersAndIndex")
+	span, ctx := ctx.Span("gitbase.RemotesTable.WithProjectFiltersAndIndex")
 	s, ok := ctx.Session.(*Session)
 	if !ok || s == nil {
 		span.Finish()
