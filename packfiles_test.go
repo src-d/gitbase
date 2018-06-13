@@ -1,7 +1,6 @@
 package gitbase
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -16,7 +15,6 @@ func TestRepositoryPackfiles(t *testing.T) {
 
 	fs, packfiles, err := repositoryPackfiles(testSivaFilePath, sivaRepo)
 
-	fmt.Println(packfiles[0].String())
 	require.NoError(err)
 	require.Equal([]plumbing.Hash{
 		plumbing.NewHash("5d2ce6a45cb07803f9b0c8040e730f5715fc7144"),

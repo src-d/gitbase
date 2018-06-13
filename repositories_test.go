@@ -132,6 +132,11 @@ func TestRepositoriesIndex(t *testing.T) {
 	testTableIndex(
 		t,
 		new(repositoriesTable),
-		nil,
+		[]sql.Expression{
+			expression.NewEquals(
+				expression.NewGetFieldWithTable(0, sql.Text, RepositoriesTableName, "repository_id", false),
+				expression.NewLiteral("non-existent-repo", sql.Text),
+			),
+		},
 	)
 }
