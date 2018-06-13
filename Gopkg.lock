@@ -8,21 +8,6 @@
   revision = "9c5fe88206d7765837fed3732a42ef88fc51f1a1"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/alecthomas/template"
-  packages = [
-    ".",
-    "parse"
-  ]
-  revision = "a0175ee3bccc567396460bf5acd36800cb10c49c"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/alecthomas/units"
-  packages = ["."]
-  revision = "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
-
-[[projects]]
   name = "github.com/boltdb/bolt"
   packages = ["."]
   revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
@@ -168,12 +153,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/prometheus/common"
-  packages = ["log"]
-  revision = "7600349dcfe1abd18d72d3a1770870d9800a7801"
-
-[[projects]]
   name = "github.com/satori/go.uuid"
   packages = ["."]
   revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
@@ -278,9 +257,7 @@
   name = "golang.org/x/sys"
   packages = [
     "unix",
-    "windows",
-    "windows/registry",
-    "windows/svc/eventlog"
+    "windows"
   ]
   revision = "f8f1a95d4d780e4e1a82ed8289c8806e4dba7733"
   source = "github.com/golang/sys"
@@ -342,12 +319,6 @@
   ]
   revision = "8e4536a86ab602859c20df5ebfd0bd4228d08655"
   version = "v1.10.0"
-
-[[projects]]
-  name = "gopkg.in/alecthomas/kingpin.v2"
-  packages = ["."]
-  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
-  version = "v2.2.6"
 
 [[projects]]
   name = "gopkg.in/bblfsh/client-go.v2"
@@ -453,7 +424,7 @@
     "plumbing/transport/ssh",
     "storage",
     "storage/filesystem",
-    "storage/filesystem/internal/dotgit",
+    "storage/filesystem/dotgit",
     "storage/memory",
     "utils/binary",
     "utils/diff",
@@ -464,9 +435,8 @@
     "utils/merkletrie/internal/frame",
     "utils/merkletrie/noder"
   ]
-  revision = "1d28459504251497e0ce6132a0fadd5eb44ffd22"
+  revision = "0710c6cb710a0cdab04ab7f61cc62e23cfcacbee"
   source = "github.com/src-d/go-git"
-  version = "v4.2.0"
 
 [[projects]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
@@ -537,6 +507,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b64bd8b567ed8204c03abc0892408584f172114c369f281a9473ce4879b43e30"
+  inputs-digest = "b70473a3f75db7d2626bc3bf269e4f49f6e04db33788fd1f0cb5fcbae5c192e2"
   solver-name = "gps-cdcl"
   solver-version = 1
