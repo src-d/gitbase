@@ -454,7 +454,7 @@
     "sql/parse",
     "sql/plan"
   ]
-  revision = "1ee3534e486e3dd3ef00effa2d215d10fc9badc9"
+  revision = "22325c6e91f9d632f846c3c0633278dfd24eae86"
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
@@ -507,6 +507,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b70473a3f75db7d2626bc3bf269e4f49f6e04db33788fd1f0cb5fcbae5c192e2"
+  inputs-digest = "d3cdcffe6b336f24d0c3a302b110f5993fbab1b6759278556c79c96da483aa35"
   solver-name = "gps-cdcl"
   solver-version = 1
