@@ -6,12 +6,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
+	"gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit"
 
 	"gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
@@ -25,7 +25,7 @@ type packRepository struct {
 	packs map[plumbing.Hash]packfile.Index
 }
 
-func repositoryPackfiles(path string, kind repoKind) (billy.Filesystem, []plumbing.Hash, error) {
+func repositoryPackfiles(path string, kind repoKind) (*dotgit.DotGit, []plumbing.Hash, error) {
 	fs, err := repoFilesystem(path, kind)
 	if err != nil {
 		return nil, nil, err
@@ -36,8 +36,13 @@ func repositoryPackfiles(path string, kind repoKind) (billy.Filesystem, []plumbi
 		return nil, nil, err
 	}
 
-	packfiles, err := findPackfiles(fs)
-	return fs, packfiles, err
+	dot := dotgit.New(fs)
+	packfiles, err := dot.ObjectPacks()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return dot, packfiles, nil
 }
 
 type packfileIndex struct {
@@ -48,14 +53,14 @@ type packfileIndex struct {
 type repositoryIndex []*packfileIndex
 
 func newRepositoryIndex(path string, kind repoKind) (*repositoryIndex, error) {
-	fs, packfiles, err := repositoryPackfiles(path, kind)
+	dot, packfiles, err := repositoryPackfiles(path, kind)
 	if err != nil {
 		return nil, err
 	}
 
 	var result repositoryIndex
 	for _, p := range packfiles {
-		idx, err := openPackfileIndex(fs, path, p)
+		idx, err := openPackfileIndex(dot, p)
 		if err != nil {
 			return nil, err
 		}
@@ -67,12 +72,10 @@ func newRepositoryIndex(path string, kind repoKind) (*repositoryIndex, error) {
 }
 
 func openPackfileIndex(
-	fs billy.Filesystem,
-	path string,
+	dotGit *dotgit.DotGit,
 	hash plumbing.Hash,
 ) (*packfile.Index, error) {
-	path = fs.Join("objects", "pack", fmt.Sprintf("pack-%s.idx", hash))
-	f, err := fs.Open(path)
+	f, err := dotGit.ObjectPackIdx(hash)
 	if err != nil {
 		return nil, err
 	}
@@ -125,32 +128,6 @@ func findDotGit(fs billy.Filesystem) (billy.Filesystem, error) {
 	}
 
 	return fs, nil
-}
-
-func findPackfiles(fs billy.Filesystem) ([]plumbing.Hash, error) {
-	packDir := fs.Join("objects", "pack")
-	files, err := fs.ReadDir(packDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	var packs []plumbing.Hash
-	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".pack") {
-			continue
-		}
-
-		n := f.Name()
-		h := plumbing.NewHash(n[5 : len(n)-5]) //pack-(hash).pack
-		packs = append(packs, h)
-
-	}
-
-	return packs, nil
 }
 
 type objectIter struct {
@@ -219,7 +196,7 @@ type packIter struct {
 	repo *repository
 
 	storage   storer.EncodedObjectStorer
-	fs        billy.Filesystem
+	dotGit    *dotgit.DotGit
 	packfiles []plumbing.Hash
 	packpos   int
 }
@@ -242,15 +219,17 @@ func (i *packIter) Next() (*packObjectIter, error) {
 
 		if len(i.packfiles) == 0 {
 			var err error
-			i.fs, i.packfiles, err = repositoryPackfiles(i.repo.path, i.repo.kind)
+			i.dotGit, i.packfiles, err = repositoryPackfiles(i.repo.path, i.repo.kind)
 			if err != nil {
 				return nil, err
 			}
 			i.packpos = 0
-			i.storage, err = filesystem.NewStorage(i.fs)
+
+			storage, err := filesystem.NewObjectStorage(i.dotGit)
 			if err != nil {
 				return nil, err
 			}
+			i.storage = &storage
 		}
 
 		if i.packpos >= len(i.packfiles) {
@@ -262,7 +241,7 @@ func (i *packIter) Next() (*packObjectIter, error) {
 		pf := i.packfiles[i.packpos]
 		i.packpos++
 
-		return newPackObjectIter(i.repo.path, i.fs, pf, i.storage, i.typ)
+		return newPackObjectIter(i.repo.path, i.dotGit, pf, i.storage, i.typ)
 	}
 }
 
@@ -278,20 +257,17 @@ type packObjectIter struct {
 
 func newPackObjectIter(
 	path string,
-	fs billy.Filesystem,
+	dotGit *dotgit.DotGit,
 	hash plumbing.Hash,
 	storage storer.EncodedObjectStorer,
 	typ plumbing.ObjectType,
 ) (*packObjectIter, error) {
-	packfilePath := fs.Join("objects", "pack", fmt.Sprintf("pack-%s.pack", hash))
-	idxfilePath := fs.Join("objects", "pack", fmt.Sprintf("pack-%s.idx", hash))
-
-	packf, err := fs.Open(packfilePath)
+	packf, err := dotGit.ObjectPack(hash)
 	if err != nil {
 		return nil, err
 	}
 
-	idxf, err := fs.Open(idxfilePath)
+	idxf, err := dotGit.ObjectPackIdx(hash)
 	if err != nil {
 		return nil, err
 	}
