@@ -118,7 +118,7 @@ func (c *Server) buildDatabase() error {
 		c.engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
 	}
 
-	return nil
+	return c.engine.Init()
 }
 
 func (c *Server) registerDrivers() error {
