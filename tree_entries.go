@@ -30,7 +30,9 @@ func newTreeEntriesTable() Indexable {
 }
 
 var _ Table = (*treeEntriesTable)(nil)
+var _ Squashable = (*treeEntriesTable)(nil)
 
+func (treeEntriesTable) isSquashable()   {}
 func (treeEntriesTable) isGitbaseTable() {}
 
 func (treeEntriesTable) Resolved() bool {
