@@ -1,7 +1,6 @@
 package gitbase
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -147,8 +146,6 @@ func refCommitsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.
 	for i := range names {
 		names[i] = strings.ToLower(names[i])
 	}
-
-	fmt.Println("CTX from builder", ctx)
 
 	return &refCommitsIter{
 		ctx:      ctx,

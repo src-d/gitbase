@@ -1,7 +1,6 @@
 package gitbase
 
 import (
-	"fmt"
 	"io"
 
 	git "gopkg.in/src-d/go-git.v4"
@@ -252,8 +251,6 @@ func (i *remotesKeyValueIter) Next() ([]interface{}, []byte, error) {
 		}
 
 		i.urlPos++
-
-		fmt.Println(remoteIndexKey{i.repo.ID, i.pos, i.urlPos - 1})
 
 		key, err := encodeIndexKey(remoteIndexKey{i.repo.ID, i.pos, i.urlPos - 1})
 		if err != nil {

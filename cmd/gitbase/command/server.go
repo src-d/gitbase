@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/prometheus/common/log"
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/src-d/gitbase/internal/rule"
@@ -110,22 +109,34 @@ func (c *Server) buildDatabase() error {
 	c.engine.Catalog.RegisterFunctions(function.Functions)
 	logrus.Debug("registered all available functions in catalog")
 
+	if err := c.registerDrivers(); err != nil {
+		return err
+	}
+
+	if c.UnstableSquash {
+		logrus.Warn("unstable squash tables rule is enabled")
+		c.engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+	}
+
+	return nil
+}
+
+func (c *Server) registerDrivers() error {
 	if err := os.MkdirAll(c.IndexDir, 0755); err != nil {
 		return err
 	}
+
+	logrus.Debug("created index storage")
 
 	client, err := gopilosa.NewClient(c.PilosaURL)
 	if err != nil {
 		return err
 	}
 
-	c.engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(c.IndexDir, client))
-	log.Debug("registered pilosa index driver")
+	logrus.Debug("established connection with pilosa")
 
-	if c.UnstableSquash {
-		logrus.Warn("unstable squash tables rule is enabled")
-		c.engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
-	}
+	c.engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(c.IndexDir, client))
+	logrus.Debug("registered pilosa index driver")
 
 	return nil
 }

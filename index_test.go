@@ -42,21 +42,24 @@ type keyValue struct {
 
 func assertIndexKeyValueIter(t *testing.T, iter sql.IndexKeyValueIter, expected []keyValue) {
 	t.Helper()
+	require := require.New(t)
+
 	var result []keyValue
 	for {
 		values, key, err := iter.Next()
 		if err == io.EOF {
 			break
 		}
-		require.NoError(t, err)
+		require.NoError(err)
 
 		result = append(result, keyValue{key, values})
 	}
 
-	require.Equal(t, len(expected), len(result), "size does not match")
+	require.NoError(iter.Close())
+	require.Equal(len(expected), len(result), "size does not match")
 
 	for i, r := range result {
-		require.Equal(t, expected[i], r, "at position %d", i)
+		require.Equal(expected[i], r, "at position %d", i)
 	}
 }
 
@@ -73,6 +76,8 @@ func tableIndexValues(t *testing.T, table Indexable, ctx *sql.Context) sql.Index
 		require.NoError(t, err)
 		values = append(values, val)
 	}
+
+	require.NoError(t, kvIter.Close())
 
 	return newIndexValueIter(values...)
 }
