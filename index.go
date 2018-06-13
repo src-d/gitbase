@@ -83,7 +83,11 @@ type rowIndexIter struct {
 }
 
 func (i *rowIndexIter) Next() (sql.Row, error) {
-	data, err := i.index.Next()
+	var err error
+	var data []byte
+	defer closeIndexOnError(&err, i.index)
+
+	data, err = i.index.Next()
 	if err != nil {
 		return nil, err
 	}
@@ -102,10 +106,17 @@ type packOffsetIndexKey struct {
 	Repository string
 	Packfile   string
 	Offset     int64
+	Hash       string
 }
 
 func init() {
 	gob.Register(sql.Row{})
 	gob.Register(time.Time{})
 	gob.Register([]interface{}{})
+}
+
+func closeIndexOnError(err *error, index sql.IndexValueIter) {
+	if *err != nil {
+		_ = index.Close()
+	}
 }
