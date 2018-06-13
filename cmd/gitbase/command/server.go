@@ -39,7 +39,7 @@ type Server struct {
 	User      string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
 	Password  string   `short:"P" long:"password" default:"" description:"Password used for connection"`
 	PilosaURL string   `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server"`
-	IndexDir  string   `short:"i" long:"index" default:"/var/gitbase/index" description:"Directory where the gitbase indexes information will be persisted."`
+	IndexDir  string   `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted."`
 
 	// UnstableSquash quashing tables and pushing down join conditions is still
 	// a work in progress and unstable. To enable it, the GITBASE_UNSTABLE_SQUASH_ENABLE
