@@ -279,7 +279,11 @@ type remotesIndexIter struct {
 }
 
 func (i *remotesIndexIter) Next() (sql.Row, error) {
-	data, err := i.index.Next()
+	var err error
+	var data []byte
+	defer closeIndexOnError(&err, i.index)
+
+	data, err = i.index.Next()
 	if err != nil {
 		return nil, err
 	}

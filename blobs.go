@@ -128,7 +128,7 @@ func (*blobsTable) IndexKeyValueIter(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	return newBlobsKeyValueIter(s.Pool, colNames), nil
+	return newBlobsKeyValueIter(s.Pool, colNames)
 }
 
 // WithProjectFiltersAndIndex implements sql.Indexable interface.
@@ -149,11 +149,7 @@ func (*blobsTable) WithProjectFiltersAndIndex(
 		return nil, err
 	}
 
-	var iter sql.RowIter = &blobsIndexIter{
-		index:       index,
-		pool:        session.Pool,
-		readContent: shouldReadContent(columns),
-	}
+	var iter sql.RowIter = newBlobsIndexIter(index, session.Pool, shouldReadContent(columns))
 
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
@@ -337,61 +333,112 @@ func shouldReadContent(columns []sql.Expression) bool {
 }
 
 type blobsKeyValueIter struct {
-	iter    *objectIter
+	pool    *RepositoryPool
+	repos   *RepositoryIter
+	repo    *Repository
+	blobs   *object.BlobIter
+	idx     *repositoryIndex
 	columns []string
 }
 
-func newBlobsKeyValueIter(pool *RepositoryPool, columns []string) *blobsKeyValueIter {
-	return &blobsKeyValueIter{
-		iter:    newObjectIter(pool, plumbing.BlobObject),
-		columns: columns,
+func newBlobsKeyValueIter(pool *RepositoryPool, columns []string) (*blobsKeyValueIter, error) {
+	repos, err := pool.RepoIter()
+	if err != nil {
+		return nil, err
 	}
+
+	return &blobsKeyValueIter{
+		pool:    pool,
+		repos:   repos,
+		columns: columns,
+	}, nil
 }
 
 func (i *blobsKeyValueIter) Next() ([]interface{}, []byte, error) {
-	obj, err := i.iter.Next()
-	if err != nil {
-		return nil, nil, err
-	}
+	for {
+		if i.blobs == nil {
+			var err error
+			i.repo, err = i.repos.Next()
+			if err != nil {
+				return nil, nil, err
+			}
 
-	key, err := encodeIndexKey(packOffsetIndexKey{
-		Repository: obj.RepositoryID,
-		Packfile:   obj.Packfile.String(),
-		Offset:     int64(obj.Offset),
-	})
-	if err != nil {
-		return nil, nil, err
-	}
+			i.blobs, err = i.repo.Repo.BlobObjects()
+			if err != nil {
+				return nil, nil, err
+			}
 
-	blob, ok := obj.Object.(*object.Blob)
-	if !ok {
-		ErrInvalidObjectType.New(obj.Object, "*object.Blob")
-	}
+			repo := i.pool.repositories[i.repo.ID]
+			i.idx, err = newRepositoryIndex(repo.path, repo.kind)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 
-	row, err := blobToRow(obj.RepositoryID, blob, stringContains(i.columns, "blob_content"))
-	if err != nil {
-		return nil, nil, err
-	}
+		blob, err := i.blobs.Next()
+		if err != nil {
+			if err == io.EOF {
+				i.blobs = nil
+				continue
+			}
+		}
 
-	values, err := rowIndexValues(row, i.columns, BlobsSchema)
-	if err != nil {
-		return nil, nil, err
-	}
+		offset, packfile, err := i.idx.find(blob.Hash)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	return values, key, nil
+		var hash string
+		if offset < 0 {
+			hash = blob.Hash.String()
+		}
+
+		key, err := encodeIndexKey(packOffsetIndexKey{
+			Repository: i.repo.ID,
+			Packfile:   packfile.String(),
+			Offset:     offset,
+			Hash:       hash,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		row, err := blobToRow(i.repo.ID, blob, stringContains(i.columns, "blob_content"))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		values, err := rowIndexValues(row, i.columns, BlobsSchema)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return values, key, nil
+	}
 }
 
-func (i *blobsKeyValueIter) Close() error { return i.iter.Close() }
+func (i *blobsKeyValueIter) Close() error { return i.repos.Close() }
 
 type blobsIndexIter struct {
 	index       sql.IndexValueIter
-	pool        *RepositoryPool
 	decoder     *objectDecoder
 	readContent bool
 }
 
+func newBlobsIndexIter(index sql.IndexValueIter, pool *RepositoryPool, readContent bool) *blobsIndexIter {
+	return &blobsIndexIter{
+		index:       index,
+		decoder:     newObjectDecoder(pool),
+		readContent: readContent,
+	}
+}
+
 func (i *blobsIndexIter) Next() (sql.Row, error) {
-	data, err := i.index.Next()
+	var err error
+	var data []byte
+	defer closeIndexOnError(&err, i.index)
+
+	data, err = i.index.Next()
 	if err != nil {
 		return nil, err
 	}
@@ -401,21 +448,12 @@ func (i *blobsIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	packfile := plumbing.NewHash(key.Packfile)
-	if i.decoder == nil || !i.decoder.equals(key.Repository, packfile) {
-		if i.decoder != nil {
-			if err := i.decoder.Close(); err != nil {
-				return nil, err
-			}
-		}
-
-		i.decoder, err = newObjectDecoder(i.pool.repositories[key.Repository], packfile)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	obj, err := i.decoder.get(key.Offset)
+	obj, err := i.decoder.decode(
+		key.Repository,
+		plumbing.NewHash(key.Packfile),
+		key.Offset,
+		plumbing.NewHash(key.Hash),
+	)
 	if err != nil {
 		return nil, err
 	}

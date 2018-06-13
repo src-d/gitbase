@@ -119,7 +119,7 @@ func (*commitsTable) IndexKeyValueIter(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	return newCommitsKeyValueIter(s.Pool, colNames), nil
+	return newCommitsKeyValueIter(s.Pool, colNames)
 }
 
 // WithProjectFiltersAndIndex implements sql.Indexable interface.
@@ -140,7 +140,7 @@ func (*commitsTable) WithProjectFiltersAndIndex(
 		return nil, err
 	}
 
-	var iter sql.RowIter = &commitsIndexIter{index: index, pool: session.Pool}
+	var iter sql.RowIter = newCommitsIndexIter(index, session.Pool)
 
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
@@ -298,80 +298,123 @@ func (i *commitsByHashIter) nextList() (*object.Commit, error) {
 }
 
 type commitsKeyValueIter struct {
-	iter    *objectIter
+	repo    *Repository
+	pool    *RepositoryPool
+	repos   *RepositoryIter
+	commits object.CommitIter
+	idx     *repositoryIndex
 	columns []string
 }
 
-func newCommitsKeyValueIter(pool *RepositoryPool, columns []string) *commitsKeyValueIter {
-	return &commitsKeyValueIter{
-		iter:    newObjectIter(pool, plumbing.CommitObject),
-		columns: columns,
+func newCommitsKeyValueIter(pool *RepositoryPool, columns []string) (*commitsKeyValueIter, error) {
+	repos, err := pool.RepoIter()
+	if err != nil {
+		return nil, err
 	}
+
+	return &commitsKeyValueIter{
+		pool:    pool,
+		repos:   repos,
+		columns: columns,
+	}, nil
 }
 
 func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
-	obj, err := i.iter.Next()
-	if err != nil {
-		return nil, nil, err
-	}
+	for {
+		if i.commits == nil {
+			var err error
+			i.repo, err = i.repos.Next()
+			if err != nil {
+				return nil, nil, err
+			}
 
-	key, err := encodeIndexKey(packOffsetIndexKey{
-		Repository: obj.RepositoryID,
-		Packfile:   obj.Packfile.String(),
-		Offset:     int64(obj.Offset),
-	})
-	if err != nil {
-		return nil, nil, err
-	}
+			i.commits, err = i.repo.Repo.CommitObjects()
+			if err != nil {
+				return nil, nil, err
+			}
 
-	commit, ok := obj.Object.(*object.Commit)
-	if !ok {
-		ErrInvalidObjectType.New(obj.Object, "*object.Commit")
-	}
+			r := i.pool.repositories[i.repo.ID]
+			i.idx, err = newRepositoryIndex(r.path, r.kind)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 
-	row := commitToRow(obj.RepositoryID, commit)
-	values, err := rowIndexValues(row, i.columns, CommitsSchema)
-	if err != nil {
-		return nil, nil, err
-	}
+		commit, err := i.commits.Next()
+		if err != nil {
+			if err == io.EOF {
+				i.commits = nil
+				continue
+			}
 
-	return values, key, nil
+			return nil, nil, err
+		}
+
+		offset, packfile, err := i.idx.find(commit.Hash)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var hash string
+		if offset < 0 {
+			hash = commit.Hash.String()
+		}
+
+		key, err := encodeIndexKey(packOffsetIndexKey{
+			Repository: i.repo.ID,
+			Packfile:   packfile.String(),
+			Offset:     offset,
+			Hash:       hash,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		row := commitToRow(i.repo.ID, commit)
+		values, err := rowIndexValues(row, i.columns, CommitsSchema)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return values, key, nil
+	}
 }
 
-func (i *commitsKeyValueIter) Close() error { return i.iter.Close() }
+func (i *commitsKeyValueIter) Close() error { return i.repos.Close() }
 
 type commitsIndexIter struct {
 	index   sql.IndexValueIter
-	pool    *RepositoryPool
 	decoder *objectDecoder
 }
 
+func newCommitsIndexIter(index sql.IndexValueIter, pool *RepositoryPool) *commitsIndexIter {
+	return &commitsIndexIter{
+		index:   index,
+		decoder: newObjectDecoder(pool),
+	}
+}
+
 func (i *commitsIndexIter) Next() (sql.Row, error) {
-	data, err := i.index.Next()
+	var err error
+	var data []byte
+	defer closeIndexOnError(&err, i.index)
+
+	data, err = i.index.Next()
 	if err != nil {
 		return nil, err
 	}
 
 	var key packOffsetIndexKey
-	if err := decodeIndexKey(data, &key); err != nil {
+	if err = decodeIndexKey(data, &key); err != nil {
 		return nil, err
 	}
 
-	packfile := plumbing.NewHash(key.Packfile)
-	if i.decoder == nil || !i.decoder.equals(key.Repository, packfile) {
-		if i.decoder != nil {
-			if err := i.decoder.Close(); err != nil {
-				return nil, err
-			}
-		}
-
-		i.decoder, err = newObjectDecoder(i.pool.repositories[key.Repository], packfile)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	obj, err := i.decoder.get(key.Offset)
+	obj, err := i.decoder.decode(
+		key.Repository,
+		plumbing.NewHash(key.Packfile),
+		key.Offset,
+		plumbing.NewHash(key.Hash),
+	)
 	if err != nil {
 		return nil, err
 	}

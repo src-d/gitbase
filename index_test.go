@@ -56,11 +56,7 @@ func assertIndexKeyValueIter(t *testing.T, iter sql.IndexKeyValueIter, expected 
 	}
 
 	require.NoError(iter.Close())
-	require.Equal(len(expected), len(result), "size does not match")
-
-	for i, r := range result {
-		require.Equal(expected[i], r, "at position %d", i)
-	}
+	require.ElementsMatch(expected, result)
 }
 
 func tableIndexValues(t *testing.T, table Indexable, ctx *sql.Context) sql.IndexValueIter {
