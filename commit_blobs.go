@@ -24,6 +24,9 @@ func newCommitBlobsTable() Indexable {
 	return new(commitBlobsTable)
 }
 
+var _ Squashable = (*blobsTable)(nil)
+
+func (commitBlobsTable) isSquashable()   {}
 func (commitBlobsTable) isGitbaseTable() {}
 
 func (commitBlobsTable) String() string {
