@@ -139,12 +139,7 @@ func (*filesTable) WithProjectFiltersAndIndex(
 		return nil, err
 	}
 
-	var iter sql.RowIter = &filesIndexIter{
-		index:       index,
-		pool:        session.Pool,
-		readContent: shouldReadContent(columns),
-	}
-
+	var iter sql.RowIter = newFilesIndexIter(index, session.Pool, shouldReadContent(columns))
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
 	}
@@ -303,6 +298,7 @@ func fileToRow(
 type fileIndexKey struct {
 	Repository string
 	Packfile   string
+	Hash       string
 	Offset     int64
 	Name       string
 	Mode       int64
@@ -392,9 +388,16 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 			return nil, nil, err
 		}
 
+		// only fill hash if the object is an unpacked object
+		var hash string
+		if offset < 0 {
+			hash = f.Blob.Hash.String()
+		}
+
 		key, err := encodeIndexKey(fileIndexKey{
 			Repository: i.repo.ID,
 			Packfile:   packfile.String(),
+			Hash:       hash,
 			Offset:     offset,
 			Name:       f.Name,
 			Tree:       i.commit.TreeHash.String(),
@@ -432,13 +435,24 @@ func (i *filesKeyValueIter) Close() error {
 
 type filesIndexIter struct {
 	index       sql.IndexValueIter
-	pool        *RepositoryPool
 	decoder     *objectDecoder
 	readContent bool
 }
 
+func newFilesIndexIter(index sql.IndexValueIter, pool *RepositoryPool, readContent bool) *filesIndexIter {
+	return &filesIndexIter{
+		index:       index,
+		decoder:     newObjectDecoder(pool),
+		readContent: readContent,
+	}
+}
+
 func (i *filesIndexIter) Next() (sql.Row, error) {
-	data, err := i.index.Next()
+	var err error
+	var data []byte
+	defer closeIndexOnError(&err, i.index)
+
+	data, err = i.index.Next()
 	if err != nil {
 		return nil, err
 	}
@@ -448,21 +462,12 @@ func (i *filesIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	packfile := plumbing.NewHash(key.Packfile)
-	if i.decoder == nil || !i.decoder.equals(key.Repository, packfile) {
-		if i.decoder != nil {
-			if err := i.decoder.Close(); err != nil {
-				return nil, err
-			}
-		}
-
-		i.decoder, err = newObjectDecoder(i.pool.repositories[key.Repository], packfile)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	obj, err := i.decoder.get(key.Offset)
+	obj, err := i.decoder.decode(
+		key.Repository,
+		plumbing.NewHash(key.Packfile),
+		key.Offset,
+		plumbing.NewHash(key.Hash),
+	)
 	if err != nil {
 		return nil, err
 	}

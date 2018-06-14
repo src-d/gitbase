@@ -2,6 +2,7 @@ package gitbase_test
 
 import (
 	"context"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,6 +15,8 @@ import (
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 )
 
 func TestIntegration(t *testing.T) {
@@ -158,19 +161,9 @@ func TestIntegration(t *testing.T) {
 
 func TestUastQueries(t *testing.T) {
 	require := require.New(t)
-	engine := sqle.New()
-	require.NoError(fixtures.Init())
-	defer func() {
-		require.NoError(fixtures.Clean())
-	}()
 
-	pool := gitbase.NewRepositoryPool()
-	for _, f := range fixtures.ByTag("worktree") {
-		pool.AddGit(f.Worktree().Root())
-	}
-
-	engine.AddDatabase(gitbase.NewDatabase("foo"))
-	engine.Catalog.RegisterFunctions(function.Functions)
+	engine, pool, cleanup := setup(t)
+	defer cleanup()
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -190,21 +183,10 @@ func TestUastQueries(t *testing.T) {
 }
 
 func TestSquashCorrectness(t *testing.T) {
-	engine := sqle.New()
+	engine, pool, cleanup := setup(t)
+	defer cleanup()
+
 	squashEngine := sqle.New()
-	require.NoError(t, fixtures.Init())
-	defer func() {
-		require.NoError(t, fixtures.Clean())
-	}()
-
-	pool := gitbase.NewRepositoryPool()
-	for _, f := range fixtures.ByTag("worktree") {
-		pool.AddGit(f.Worktree().Root())
-	}
-
-	engine.AddDatabase(gitbase.NewDatabase("foo"))
-	engine.Catalog.RegisterFunctions(function.Functions)
-
 	squashEngine.AddDatabase(gitbase.NewDatabase("foo"))
 	squashEngine.Catalog.RegisterFunctions(function.Functions)
 	squashEngine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
@@ -411,20 +393,9 @@ func BenchmarkQueries(b *testing.B) {
 }
 
 func benchmarkQuery(b *testing.B, query string) {
-	engine := sqle.New()
-	require.NoError(b, fixtures.Init())
-	defer func() {
-		require.NoError(b, fixtures.Clean())
-	}()
+	engine, pool, cleanup := setup(b)
+	defer cleanup()
 
-	path := fixtures.ByTag("worktree").One().Worktree().Root()
-
-	engine.AddDatabase(gitbase.NewDatabase("foo"))
-	engine.Catalog.RegisterFunctions(function.Functions)
-
-	pool := gitbase.NewRepositoryPool()
-	_, err := pool.AddGit(path)
-	require.NoError(b, err)
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
@@ -442,4 +413,211 @@ func benchmarkQuery(b *testing.B, query string) {
 
 	engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
 	b.Run("squash", run)
+}
+
+func TestIndexes(t *testing.T) {
+	engine, pool, cleanup := setup(t)
+	defer cleanup()
+
+	tmpDir, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+	engine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
+
+	ctx := sql.NewContext(
+		context.TODO(),
+		sql.WithSession(gitbase.NewSession(pool)),
+	)
+
+	db, err := engine.Catalog.Database("foo")
+	require.NoError(t, err)
+	tables := db.Tables()
+
+	baseEngine := sqle.New()
+	baseEngine.AddDatabase(gitbase.NewDatabase("foo"))
+	baseEngine.Catalog.RegisterFunctions(function.Functions)
+
+	var indexes = []indexData{
+		{
+			table:   tables[gitbase.ReferencesTableName],
+			columns: []string{"ref_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.RefsSchema, "ref_name"),
+			},
+		},
+		{
+			table:   tables[gitbase.RemotesTableName],
+			columns: []string{"remote_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.RemotesSchema, "remote_name"),
+			},
+		},
+		{
+			table:   tables[gitbase.RefCommitsTableName],
+			columns: []string{"ref_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.RefCommitsSchema, "ref_name"),
+			},
+		},
+		{
+			table:   tables[gitbase.CommitsTableName],
+			columns: []string{"commit_author_email"},
+			expressions: []sql.Expression{
+				col(t, gitbase.CommitsSchema, "commit_author_email"),
+			},
+		},
+		{
+			table:   tables[gitbase.CommitTreesTableName],
+			columns: []string{"commit_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.CommitTreesSchema, "commit_hash"),
+			},
+		},
+		{
+			table:   tables[gitbase.CommitBlobsTableName],
+			columns: []string{"commit_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.CommitBlobsSchema, "commit_hash"),
+			},
+		},
+		{
+			table:   tables[gitbase.TreeEntriesTableName],
+			columns: []string{"tree_entry_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.TreeEntriesSchema, "tree_entry_name"),
+			},
+		},
+		{
+			table:   tables[gitbase.BlobsTableName],
+			columns: []string{"blob_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.BlobsSchema, "blob_hash"),
+			},
+		},
+		{
+			table:   tables[gitbase.FilesTableName],
+			columns: []string{"file_path"},
+			expressions: []sql.Expression{
+				col(t, gitbase.FilesSchema, "file_path"),
+			},
+		},
+	}
+
+	for _, idx := range indexes {
+		createIndex(t, engine, idx, ctx)
+		defer deleteIndex(t, engine, idx)
+	}
+
+	testCases := []string{
+		`SELECT ref_name, commit_hash FROM refs WHERE ref_name = 'refs/heads/master'`,
+		`SELECT remote_name, remote_push_url FROM remotes WHERE remote_name = 'origin'`,
+		`SELECT commit_hash, commit_author_email FROM commits WHERE commit_author_email = 'mcuadros@gmail.com'`,
+		`SELECT commit_hash, ref_name FROM ref_commits WHERE ref_name = 'refs/heads/master'`,
+		`SELECT commit_hash, tree_hash FROM commit_trees WHERE commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
+		`SELECT commit_hash, blob_hash FROM commit_blobs WHERE commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
+		`SELECT tree_entry_name, blob_hash FROM tree_entries WHERE tree_entry_name = 'LICENSE'`,
+		`SELECT blob_hash, blob_size FROM blobs WHERE blob_hash = 'd5c0f4ab811897cadf03aec358ae60d21f91c50d'`,
+		`SELECT file_path, blob_hash FROM files WHERE file_path = 'LICENSE'`,
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt, func(t *testing.T) {
+			require := require.New(t)
+
+			_, iter, err := engine.Query(ctx, tt)
+			require.NoError(err)
+
+			rows, err := sql.RowIterToRows(iter)
+			require.NoError(err)
+
+			_, iter, err = baseEngine.Query(ctx, tt)
+			require.NoError(err)
+
+			expected, err := sql.RowIterToRows(iter)
+			require.NoError(err)
+
+			require.ElementsMatch(expected, rows)
+		})
+	}
+}
+
+func col(t *testing.T, schema sql.Schema, name string) sql.Expression {
+	for i, col := range schema {
+		if col.Name == name {
+			return expression.NewGetFieldWithTable(i, col.Type, col.Source, col.Name, col.Nullable)
+		}
+	}
+
+	t.Fatalf("unknown column %s in schema", name)
+	return nil
+}
+
+type indexData struct {
+	expressions []sql.Expression
+	table       sql.Table
+	columns     []string
+}
+
+func createIndex(
+	t testing.TB,
+	e *sqle.Engine,
+	data indexData,
+	ctx *sql.Context,
+) {
+	t.Helper()
+	require := require.New(t)
+	driver := e.Catalog.IndexDriver(pilosa.DriverID)
+	require.NotNil(driver)
+
+	var hashes []sql.ExpressionHash
+	for _, e := range data.expressions {
+		hashes = append(hashes, sql.NewExpressionHash(e))
+	}
+
+	idx, err := driver.Create(
+		"foo", data.table.Name(),
+		data.table.Name()+"_idx", hashes,
+		make(map[string]string),
+	)
+	require.NoError(err)
+
+	done, err := e.Catalog.AddIndex(idx)
+	require.NoError(err)
+
+	iter, err := data.table.(sql.Indexable).IndexKeyValueIter(ctx, data.columns)
+	require.NoError(err)
+
+	require.NoError(driver.Save(context.Background(), idx, iter))
+
+	done <- struct{}{}
+}
+
+func deleteIndex(
+	t testing.TB,
+	e *sqle.Engine,
+	data indexData,
+) {
+	t.Helper()
+	done, err := e.Catalog.DeleteIndex("foo", data.table.Name()+"_idx")
+	require.NoError(t, err)
+	<-done
+}
+
+func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
+	t.Helper()
+	engine := sqle.New()
+	require.NoError(t, fixtures.Init())
+	cleanup := func() {
+		require.NoError(t, fixtures.Clean())
+	}
+
+	pool := gitbase.NewRepositoryPool()
+	for _, f := range fixtures.ByTag("worktree") {
+		pool.AddGit(f.Worktree().Root())
+	}
+
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
+	engine.Catalog.RegisterFunctions(function.Functions)
+
+	return engine, pool, cleanup
 }
