@@ -271,7 +271,9 @@ func (d *repoObjectDecoder) get(offset int64) (object.Object, error) {
 	return object.DecodeObject(d.storage, encodedObj)
 }
 
-func (d *repoObjectDecoder) Close() error { return d.decoder.Close() }
+func (d *repoObjectDecoder) Close() error {
+	return d.decoder.Close()
+}
 
 type objectDecoder struct {
 	pool    *RepositoryPool
@@ -309,4 +311,9 @@ func (d *objectDecoder) decode(
 	return getUnpackedObject(d.pool.repositories[repository], hash)
 }
 
-func (d *objectDecoder) Close() error { return d.decoder.Close() }
+func (d *objectDecoder) Close() error {
+	if d.decoder != nil {
+		return d.decoder.Close()
+	}
+	return nil
+}

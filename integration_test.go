@@ -321,6 +321,22 @@ func BenchmarkQueries(b *testing.B) {
 			ON r.repository_id = rr.repository_id`,
 		},
 		{
+			"select by specific id",
+			`SELECT * FROM ref_commits r
+			INNER JOIN commits c
+				ON c.commit_hash = r.commit_hash
+			WHERE c.commit_hash = '6ecf0ef2c2dffb796033e5a02219af86ec6584e5'
+				AND r.ref_name = 'refs/heads/master'`,
+		},
+		{
+			"select file by name",
+			`SELECT * FROM files WHERE file_path = 'LICENSE'`,
+		},
+		{
+			"select files by language",
+			`SELECT * FROM files WHERE language(file_path, blob_content) = 'Go'`,
+		},
+		{
 			"query with commit_blobs",
 			`SELECT COUNT(c.commit_hash), c.commit_hash
 			FROM ref_commits r
@@ -336,9 +352,9 @@ func BenchmarkQueries(b *testing.B) {
 			FROM (
 				SELECT YEAR(c.commit_author_when) AS first_commit_year
 				FROM ref_commits r
-				INNER JOIN commits c 
+				INNER JOIN commits c
 					ON r.commit_hash = c.commit_hash
-				ORDER BY c.commit_author_when 
+				ORDER BY c.commit_author_when
 				LIMIT 1
 			) repo_years
 			GROUP BY first_commit_year`,
@@ -369,7 +385,7 @@ func BenchmarkQueries(b *testing.B) {
 		{
 			"join refs and blobs",
 			`SELECT * FROM refs r
-			INNER JOIN commit_blobs cb 
+			INNER JOIN commit_blobs cb
 				ON r.commit_hash = cb.commit_hash
 			INNER JOIN blobs b
 				ON cb.blob_hash = b.blob_hash`,
@@ -377,7 +393,7 @@ func BenchmarkQueries(b *testing.B) {
 		{
 			"join refs and blobs with filters",
 			`SELECT * FROM refs r
-			INNER JOIN commit_blobs cb 
+			INNER JOIN commit_blobs cb
 				ON r.commit_hash = cb.commit_hash
 			INNER JOIN blobs b
 				ON cb.blob_hash = b.blob_hash
@@ -385,34 +401,56 @@ func BenchmarkQueries(b *testing.B) {
 		},
 	}
 
+	indexesEngine, pool, cleanup := setup(b)
+	defer cleanup()
+
+	tmpDir, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
+	require.NoError(b, err)
+	defer os.RemoveAll(tmpDir)
+	indexesEngine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
+
+	ctx := sql.NewContext(
+		context.TODO(),
+		sql.WithSession(gitbase.NewSession(pool)),
+	)
+
+	engine := sqle.New()
+	engine.AddDatabase(gitbase.NewDatabase("foo"))
+	engine.Catalog.RegisterFunctions(function.Functions)
+
+	squashEngine := sqle.New()
+	squashEngine.AddDatabase(gitbase.NewDatabase("foo"))
+	squashEngine.Catalog.RegisterFunctions(function.Functions)
+	squashEngine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+
+	cleanupIndexes := createTestIndexes(b, indexesEngine, ctx)
+	defer cleanupIndexes()
+
 	for _, qq := range queries {
 		b.Run(qq.name, func(b *testing.B) {
-			benchmarkQuery(b, qq.query)
+			b.Run("base", func(b *testing.B) {
+				benchmarkQuery(b, qq.query, engine, ctx)
+			})
+
+			b.Run("indexes", func(b *testing.B) {
+				benchmarkQuery(b, qq.query, indexesEngine, ctx)
+			})
+
+			b.Run("squash", func(b *testing.B) {
+				benchmarkQuery(b, qq.query, squashEngine, ctx)
+			})
 		})
 	}
 }
 
-func benchmarkQuery(b *testing.B, query string) {
-	engine, pool, cleanup := setup(b)
-	defer cleanup()
+func benchmarkQuery(b *testing.B, query string, engine *sqle.Engine, ctx *sql.Context) {
+	for i := 0; i < b.N; i++ {
+		_, rows, err := engine.Query(ctx, query)
+		require.NoError(b, err)
 
-	session := gitbase.NewSession(pool)
-	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
-
-	run := func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, rows, err := engine.Query(ctx, query)
-			require.NoError(b, err)
-
-			_, err = sql.RowIterToRows(rows)
-			require.NoError(b, err)
-		}
+		_, err = sql.RowIterToRows(rows)
+		require.NoError(b, err)
 	}
-
-	b.Run("no squash", run)
-
-	engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
-	b.Run("squash", run)
 }
 
 func TestIndexes(t *testing.T) {
@@ -429,89 +467,17 @@ func TestIndexes(t *testing.T) {
 		sql.WithSession(gitbase.NewSession(pool)),
 	)
 
-	db, err := engine.Catalog.Database("foo")
-	require.NoError(t, err)
-	tables := db.Tables()
-
 	baseEngine := sqle.New()
 	baseEngine.AddDatabase(gitbase.NewDatabase("foo"))
 	baseEngine.Catalog.RegisterFunctions(function.Functions)
 
-	var indexes = []indexData{
-		{
-			table:   tables[gitbase.ReferencesTableName],
-			columns: []string{"ref_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.RefsSchema, "ref_name"),
-			},
-		},
-		{
-			table:   tables[gitbase.RemotesTableName],
-			columns: []string{"remote_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.RemotesSchema, "remote_name"),
-			},
-		},
-		{
-			table:   tables[gitbase.RefCommitsTableName],
-			columns: []string{"ref_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.RefCommitsSchema, "ref_name"),
-			},
-		},
-		{
-			table:   tables[gitbase.CommitsTableName],
-			columns: []string{"commit_author_email"},
-			expressions: []sql.Expression{
-				col(t, gitbase.CommitsSchema, "commit_author_email"),
-			},
-		},
-		{
-			table:   tables[gitbase.CommitTreesTableName],
-			columns: []string{"commit_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.CommitTreesSchema, "commit_hash"),
-			},
-		},
-		{
-			table:   tables[gitbase.CommitBlobsTableName],
-			columns: []string{"commit_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.CommitBlobsSchema, "commit_hash"),
-			},
-		},
-		{
-			table:   tables[gitbase.TreeEntriesTableName],
-			columns: []string{"tree_entry_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.TreeEntriesSchema, "tree_entry_name"),
-			},
-		},
-		{
-			table:   tables[gitbase.BlobsTableName],
-			columns: []string{"blob_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.BlobsSchema, "blob_hash"),
-			},
-		},
-		{
-			table:   tables[gitbase.FilesTableName],
-			columns: []string{"file_path"},
-			expressions: []sql.Expression{
-				col(t, gitbase.FilesSchema, "file_path"),
-			},
-		},
-	}
-
-	for _, idx := range indexes {
-		createIndex(t, engine, idx, ctx)
-		defer deleteIndex(t, engine, idx)
-	}
+	cleanupIndexes := createTestIndexes(t, engine, ctx)
+	defer cleanupIndexes()
 
 	testCases := []string{
 		`SELECT ref_name, commit_hash FROM refs WHERE ref_name = 'refs/heads/master'`,
 		`SELECT remote_name, remote_push_url FROM remotes WHERE remote_name = 'origin'`,
-		`SELECT commit_hash, commit_author_email FROM commits WHERE commit_author_email = 'mcuadros@gmail.com'`,
+		`SELECT commit_hash, commit_author_email FROM commits WHERE commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
 		`SELECT commit_hash, ref_name FROM ref_commits WHERE ref_name = 'refs/heads/master'`,
 		`SELECT commit_hash, tree_hash FROM commit_trees WHERE commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
 		`SELECT commit_hash, blob_hash FROM commit_blobs WHERE commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
@@ -541,7 +507,7 @@ func TestIndexes(t *testing.T) {
 	}
 }
 
-func col(t *testing.T, schema sql.Schema, name string) sql.Expression {
+func col(t testing.TB, schema sql.Schema, name string) sql.Expression {
 	for i, col := range schema {
 		if col.Name == name {
 			return expression.NewGetFieldWithTable(i, col.Type, col.Source, col.Name, col.Nullable)
@@ -553,9 +519,115 @@ func col(t *testing.T, schema sql.Schema, name string) sql.Expression {
 }
 
 type indexData struct {
+	id          string
 	expressions []sql.Expression
 	table       sql.Table
 	columns     []string
+}
+
+func createTestIndexes(t testing.TB, engine *sqle.Engine, ctx *sql.Context) func() {
+	db, err := engine.Catalog.Database("foo")
+	require.NoError(t, err)
+	tables := db.Tables()
+
+	var indexes = []indexData{
+		{
+			id:      "refs_idx",
+			table:   tables[gitbase.ReferencesTableName],
+			columns: []string{"ref_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.RefsSchema, "ref_name"),
+			},
+		},
+		{
+			id:      "remotes_idx",
+			table:   tables[gitbase.RemotesTableName],
+			columns: []string{"remote_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.RemotesSchema, "remote_name"),
+			},
+		},
+		{
+			id:      "ref_commits_idx",
+			table:   tables[gitbase.RefCommitsTableName],
+			columns: []string{"ref_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.RefCommitsSchema, "ref_name"),
+			},
+		},
+		{
+			id:      "commits_idx",
+			table:   tables[gitbase.CommitsTableName],
+			columns: []string{"commit_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.CommitsSchema, "commit_hash"),
+			},
+		},
+		{
+			id:      "commit_trees_idx",
+			table:   tables[gitbase.CommitTreesTableName],
+			columns: []string{"commit_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.CommitTreesSchema, "commit_hash"),
+			},
+		},
+		{
+			id:      "commit_blobs_idx",
+			table:   tables[gitbase.CommitBlobsTableName],
+			columns: []string{"commit_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.CommitBlobsSchema, "commit_hash"),
+			},
+		},
+		{
+			id:      "tree_entries_idx",
+			table:   tables[gitbase.TreeEntriesTableName],
+			columns: []string{"tree_entry_name"},
+			expressions: []sql.Expression{
+				col(t, gitbase.TreeEntriesSchema, "tree_entry_name"),
+			},
+		},
+		{
+			id:      "blobs_idx",
+			table:   tables[gitbase.BlobsTableName],
+			columns: []string{"blob_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.BlobsSchema, "blob_hash"),
+			},
+		},
+		{
+			id:      "files_idx",
+			table:   tables[gitbase.FilesTableName],
+			columns: []string{"file_path"},
+			expressions: []sql.Expression{
+				col(t, gitbase.FilesSchema, "file_path"),
+			},
+		},
+		{
+			id:      "files_lang_idx",
+			table:   tables[gitbase.FilesTableName],
+			columns: []string{"file_path"},
+			expressions: []sql.Expression{
+				func() sql.Expression {
+					f, _ := function.NewLanguage(
+						col(t, gitbase.FilesSchema, "file_path"),
+						col(t, gitbase.FilesSchema, "blob_content"),
+					)
+					return f
+				}(),
+			},
+		},
+	}
+
+	for _, idx := range indexes {
+		createIndex(t, engine, idx, ctx)
+	}
+
+	return func() {
+		for _, idx := range indexes {
+			defer deleteIndex(t, engine, idx)
+		}
+	}
 }
 
 func createIndex(
@@ -576,7 +648,7 @@ func createIndex(
 
 	idx, err := driver.Create(
 		"foo", data.table.Name(),
-		data.table.Name()+"_idx", hashes,
+		data.id, hashes,
 		make(map[string]string),
 	)
 	require.NoError(err)
@@ -598,7 +670,7 @@ func deleteIndex(
 	data indexData,
 ) {
 	t.Helper()
-	done, err := e.Catalog.DeleteIndex("foo", data.table.Name()+"_idx")
+	done, err := e.Catalog.DeleteIndex("foo", data.id)
 	require.NoError(t, err)
 	<-done
 }
