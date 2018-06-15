@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 )
 
@@ -231,9 +230,11 @@ func TestLoadIndexes(t *testing.T) {
 		result = append(result, idx)
 	}
 
-	spew.Dump(result)
-
 	require.ElementsMatch(expected, result)
+
+	for _, idx := range expected {
+		require.Equal(registry.statuses[indexKey{idx.Database(), idx.ID()}], IndexReady)
+	}
 }
 
 type dummyDB struct {
@@ -295,6 +296,7 @@ func (i dummyIdx) Get(...interface{}) (IndexLookup, error) { panic("not implemen
 func (i dummyIdx) Has(...interface{}) (bool, error)        { panic("not implemented") }
 func (i dummyIdx) Database() string                        { return i.database }
 func (i dummyIdx) Table() string                           { return i.table }
+func (i dummyIdx) Driver() string                          { return "dummy" }
 
 type dummyExpr struct {
 	index   int

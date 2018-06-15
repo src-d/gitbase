@@ -9,17 +9,9 @@ import (
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
-	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-vitess.v0/vt/sqlparser"
 )
-
-var (
-	errUnexpectedSyntax       = errors.NewKind("expecting %q but got %q instead")
-	errInvalidIndexExpression = errors.NewKind("invalid expression to index: %s")
-)
-
-type parseFunc func(*bufio.Reader) error
 
 func parseCreateIndex(s string) (sql.Node, error) {
 	r := bufio.NewReader(strings.NewReader(s))
@@ -52,6 +44,7 @@ func parseCreateIndex(s string) (sql.Node, error) {
 			readKeyValue(config),
 			skipSpaces,
 		),
+		checkEOF,
 	}
 
 	for _, step := range steps {
@@ -76,23 +69,6 @@ func parseCreateIndex(s string) (sql.Node, error) {
 		driver,
 		config,
 	), nil
-}
-
-func optional(steps ...parseFunc) parseFunc {
-	return func(rd *bufio.Reader) error {
-		for _, step := range steps {
-			err := step(rd)
-			if err == io.EOF || errUnexpectedSyntax.Is(err) {
-				return nil
-			}
-
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
 }
 
 func readKeyValue(kv map[string]string) parseFunc {
@@ -195,6 +171,36 @@ func readValue(val *string) parseFunc {
 	}
 }
 
+func parseDropIndex(str string) (sql.Node, error) {
+	r := bufio.NewReader(strings.NewReader(str))
+
+	var name, table string
+	steps := []parseFunc{
+		expect("drop"),
+		skipSpaces,
+		expect("index"),
+		skipSpaces,
+		readIdent(&name),
+		skipSpaces,
+		expect("on"),
+		skipSpaces,
+		readIdent(&table),
+		skipSpaces,
+		checkEOF,
+	}
+
+	for _, step := range steps {
+		if err := step(r); err != nil {
+			return nil, err
+		}
+	}
+
+	return plan.NewDropIndex(
+		name,
+		plan.NewUnresolvedTable(table),
+	), nil
+}
+
 func parseIndexExpr(str string) (sql.Expression, error) {
 	stmt, err := sqlparser.Parse("SELECT " + str)
 	if err != nil {
@@ -216,34 +222,6 @@ func parseIndexExpr(str string) (sql.Expression, error) {
 	}
 
 	return exprToExpression(selectExpr.Expr)
-}
-
-func readIdent(ident *string) parseFunc {
-	return func(r *bufio.Reader) error {
-		var buf bytes.Buffer
-		for {
-			ru, _, err := r.ReadRune()
-			if err == io.EOF {
-				break
-			}
-
-			if err != nil {
-				return err
-			}
-
-			if !unicode.IsLetter(ru) && ru != '_' {
-				if err := r.UnreadRune(); err != nil {
-					return err
-				}
-				break
-			}
-
-			buf.WriteRune(ru)
-		}
-
-		*ident = strings.ToLower(buf.String())
-		return nil
-	}
 }
 
 func readExprs(exprs *[]string) parseFunc {
@@ -317,54 +295,6 @@ func readExprs(exprs *[]string) parseFunc {
 			}
 
 			buf.WriteRune(r)
-		}
-	}
-}
-
-func expectRune(expected rune) parseFunc {
-	return func(rd *bufio.Reader) error {
-		r, _, err := rd.ReadRune()
-		if err != nil {
-			return err
-		}
-
-		if r != expected {
-			return errUnexpectedSyntax.New(expected, string(r))
-		}
-
-		return nil
-	}
-}
-
-func expect(expected string) parseFunc {
-	return func(r *bufio.Reader) error {
-		var ident string
-
-		if err := readIdent(&ident)(r); err != nil {
-			return err
-		}
-
-		if ident == expected {
-			return nil
-		}
-
-		return errUnexpectedSyntax.New(expected, ident)
-	}
-}
-
-func skipSpaces(r *bufio.Reader) error {
-	for {
-		ru, _, err := r.ReadRune()
-		if err == io.EOF {
-			return nil
-		}
-
-		if err != nil {
-			return err
-		}
-
-		if !unicode.IsSpace(ru) {
-			return r.UnreadRune()
 		}
 	}
 }

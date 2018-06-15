@@ -215,6 +215,33 @@ var queries = []struct {
 			{"c", int32(3), int64(3), "third row", "first", int64(3)},
 		},
 	},
+	{
+		`DESCRIBE FORMAT=TREE SELECT * FROM mytable`,
+		[]sql.Row{
+			{"PushdownProjectionAndFiltersTable"},
+			{" ├─ Columns(mytable.i, mytable.s)"},
+			{" ├─ Filters()"},
+			{" └─ Table(mytable)"},
+			{"     ├─ Column(i, INT64, nullable=false)"},
+			{"     └─ Column(s, TEXT, nullable=false)"},
+		},
+	},
+	{
+		`SELECT split(s," ") FROM mytable`,
+		[]sql.Row{
+			sql.NewRow([]interface{}{"first", "row"}),
+			sql.NewRow([]interface{}{"second", "row"}),
+			sql.NewRow([]interface{}{"third", "row"}),
+		},
+	},
+	{
+		`SELECT split(s,"s") FROM mytable`,
+		[]sql.Row{
+			sql.NewRow([]interface{}{"fir", "t row"}),
+			sql.NewRow([]interface{}{"", "econd row"}),
+			sql.NewRow([]interface{}{"third row"}),
+		},
+	},
 }
 
 func TestQueries(t *testing.T) {

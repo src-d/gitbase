@@ -31,6 +31,8 @@ var (
 var (
 	describeTablesRegex = regexp.MustCompile(`^describe\s+table\s+(.*)`)
 	createIndexRegex    = regexp.MustCompile(`^create\s+index\s+`)
+	dropIndexRegex      = regexp.MustCompile(`^drop\s+index\s+`)
+	describeRegex       = regexp.MustCompile(`^(describe|desc|explain)\s+(.*)\s+`)
 )
 
 // Parse parses the given SQL sentence and returns the corresponding node.
@@ -48,6 +50,10 @@ func Parse(ctx *sql.Context, s string) (sql.Node, error) {
 		return parseDescribeTables(lowerQuery)
 	case createIndexRegex.MatchString(lowerQuery):
 		return parseCreateIndex(s)
+	case dropIndexRegex.MatchString(lowerQuery):
+		return parseDropIndex(s)
+	case describeRegex.MatchString(lowerQuery):
+		return parseDescribeQuery(ctx, s)
 	}
 
 	stmt, err := sqlparser.Parse(s)
@@ -78,7 +84,7 @@ func convert(ctx *sql.Context, stmt sqlparser.Statement, query string) (sql.Node
 	case *sqlparser.Insert:
 		return convertInsert(ctx, n)
 	case *sqlparser.DDL:
-		return convertDDL(n, query)
+		return convertDDL(n)
 	}
 }
 
@@ -141,7 +147,7 @@ func convertSelect(ctx *sql.Context, s *sqlparser.Select) (sql.Node, error) {
 	return node, nil
 }
 
-func convertDDL(c *sqlparser.DDL, query string) (sql.Node, error) {
+func convertDDL(c *sqlparser.DDL) (sql.Node, error) {
 	switch c.Action {
 	case sqlparser.CreateStr:
 		return convertCreateTable(c)

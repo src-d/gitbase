@@ -27,17 +27,7 @@ go get gopkg.in/src-d/go-mysql-server.v0
 
 ## SQL syntax
 
-We are continuously adding more functionality to go-mysql-server. We support a subset of what is supported in MySQL, currently including:
-
-|                        |                                     Supported                                     |
-|:----------------------:|:---------------------------------------------------------------------------------:|
-| Comparison expressions | !=, ==, >, <, >=,<=, BETWEEN, REGEXP, IN, NOT IN |
-| Null check expressions  | IS NULL, IS NOT NULL |
-| Grouping expressions | COUNT, MIN, MAX ,AVG |
-| Standard expressions  | ALIAS, LITERAL, STAR (*) |
-| Statements  | CROSS JOIN, INNER JOIN, DESCRIBE, FILTER (WHERE), GROUP BY, LIMIT/OFFSET, SELECT, SHOW TABLES, SORT, DISTINCT, CREATE TABLE, INSERT |
-| Functions | SUBSTRING, ARRAY_LENGTH |
-| Time functions | YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, DAYOFYEAR |
+We are continuously adding more functionality to go-mysql-server. We support a subset of what is supported in MySQL, to see what is currently included check the [SUPPORTED](./SUPPORTED.md) file.
 
 ## Custom functions
 
@@ -45,6 +35,7 @@ We are continuously adding more functionality to go-mysql-server. We support a s
 - `SUBSTRING(str,pos)`, ` SUBSTRING(str,pos,len)`: return a substring from the provided string.
 - Date and Timestamp functions: `YEAR(date)`, `MONTH(date)`, `DAY(date)`, `HOUR(date)`, `MINUTE(date)`, `SECOND(date)`, `DAYOFYEAR(date)`.
 - `ARRAY_LENGTH(json)`: If the json representation is an array, this function returns its size.
+- `SPLIT(str,sep)`: receives a string and a delimiter and returns the parts of the string splitted by the delimiter as a JSON array of strings.
 
 ## Example
 

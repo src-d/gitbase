@@ -3,10 +3,11 @@ package parse
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
+
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 var fixtures = map[string]sql.Node{
@@ -586,6 +587,17 @@ var fixtures = map[string]sql.Node{
 				plan.NewUnresolvedTable("bar"),
 			),
 			plan.NewUnresolvedTable("baz"),
+		),
+	),
+	`DROP INDEX foo ON bar`: plan.NewDropIndex(
+		"foo",
+		plan.NewUnresolvedTable("bar"),
+	),
+	`DESCRIBE FORMAT=TREE SELECT * FROM foo`: plan.NewDescribeQuery(
+		"tree",
+		plan.NewProject(
+			[]sql.Expression{expression.NewStar()},
+			plan.NewUnresolvedTable("foo"),
 		),
 	),
 }

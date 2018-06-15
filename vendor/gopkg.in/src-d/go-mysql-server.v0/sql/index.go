@@ -45,6 +45,8 @@ type Index interface {
 	// one expression, it means the index has multiple columns indexed. If it's
 	// just one, it means it may be an expression or a column.
 	ExpressionHashes() []ExpressionHash
+	// Driver ID of the index.
+	Driver() string
 }
 
 // AscendIndex is an index that is sorted in ascending order.
@@ -200,6 +202,7 @@ func (r *IndexRegistry) LoadIndexes(dbs Databases) error {
 					k := indexKey{db.Name(), idx.ID()}
 					r.indexes[k] = idx
 					r.indexOrder = append(r.indexOrder, k)
+					r.statuses[k] = IndexReady
 				}
 			}
 		}
@@ -255,6 +258,8 @@ func (r *IndexRegistry) ReleaseIndex(idx Index) {
 func (r *IndexRegistry) Index(db, id string) Index {
 	r.mut.RLock()
 	defer r.mut.RUnlock()
+
+	r.retainIndex(db, id)
 	idx := r.indexes[indexKey{db, strings.ToLower(id)}]
 	if idx != nil && !r.canUseIndex(idx) {
 		return nil
