@@ -57,7 +57,9 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool.Add("1", path, gitRepo)
+	err = pool.Add("1", path, gitRepo)
+	require.NoError(err)
+
 	repo, err = pool.GetPos(1)
 	require.NoError(err)
 	require.Equal("1", repo.ID)
@@ -67,6 +69,13 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.NoError(err)
 	require.Equal("1", repo.ID)
 	require.NotNil(repo.Repo)
+
+	err = pool.Add("1", path, gitRepo)
+	require.Error(err)
+	require.True(errRepoAlreadyRegistered.Is(err))
+
+	_, err = pool.GetPos(0)
+	require.Equal(git.ErrRepositoryNotExists, err)
 
 	_, err = pool.GetPos(2)
 	require.Equal(io.EOF, err)
@@ -78,6 +87,11 @@ func TestRepositoryPoolGit(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
+
+	_, err := pool.AddGit("/do/not/exist")
+	require.Error(err)
+	require.True(errRepoCanNotOpen.Is(err))
+
 	id, err := pool.AddGit(path)
 	require.Equal(path, id)
 	require.NoError(err)
