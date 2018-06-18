@@ -29,7 +29,7 @@ func TestIntegration(t *testing.T) {
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
 
 	pool := gitbase.NewRepositoryPool()
-	_, err := pool.AddGit(path)
+	_, err := pool.AddGitWithID("worktree", path)
 	require.NoError(t, err)
 
 	engine.AddDatabase(gitbase.NewDatabase("foo"))
@@ -110,9 +110,9 @@ func TestIntegration(t *testing.T) {
 			) as t
 			GROUP BY committer_email, month, repo_id`,
 			[]sql.Row{
-				{int32(6), int32(3), path, "mcuadros@gmail.com"},
-				{int32(1), int32(4), path, "mcuadros@gmail.com"},
-				{int32(1), int32(3), path, "daniel@lordran.local"},
+				{int32(6), int32(3), "worktree", "mcuadros@gmail.com"},
+				{int32(1), int32(4), "worktree", "mcuadros@gmail.com"},
+				{int32(1), int32(3), "worktree", "daniel@lordran.local"},
 			},
 		},
 		{
@@ -685,7 +685,7 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 
 	pool := gitbase.NewRepositoryPool()
 	for _, f := range fixtures.ByTag("worktree") {
-		pool.AddGit(f.Worktree().Root())
+		pool.AddGitWithID("worktree", f.Worktree().Root())
 	}
 
 	engine.AddDatabase(gitbase.NewDatabase("foo"))
