@@ -10,6 +10,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type refCommitsTable struct{}
@@ -24,10 +26,13 @@ var RefCommitsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*refCommitsTable)(nil)
 
-func newRefCommitsTable() sql.Table {
+func newRefCommitsTable() Indexable {
 	return new(refCommitsTable)
 }
 
+var _ Squashable = (*refCommitsTable)(nil)
+
+func (refCommitsTable) isSquashable()   {}
 func (refCommitsTable) isGitbaseTable() {}
 
 func (refCommitsTable) String() string {
@@ -65,35 +70,18 @@ func (refCommitsTable) HandledFilters(filters []sql.Expression) []sql.Expression
 	return handledFilters(RefCommitsTableName, RefCommitsSchema, filters)
 }
 
-func (refCommitsTable) WithProjectAndFilters(
+func (refCommitsTable) handledColumns() []string { return []string{"ref_name", "repository_id"} }
+
+func (t *refCommitsTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.RefCommitsTable")
 	iter, err := rowIterWithSelectors(
-		ctx, RefCommitsSchema, RefCommitsTableName, filters,
-		[]string{"ref_name", "repository_id"},
-		func(selectors selectors) (RowRepoIter, error) {
-			repos, err := selectors.textValues("repository_id")
-			if err != nil {
-				return nil, err
-			}
-
-			names, err := selectors.textValues("ref_name")
-			if err != nil {
-				return nil, err
-			}
-
-			for i := range names {
-				names[i] = strings.ToLower(names[i])
-			}
-
-			return &refCommitsIter{
-				ctx:      ctx,
-				refNames: names,
-				repos:    repos,
-			}, nil
-		},
+		ctx, RefCommitsSchema, RefCommitsTableName,
+		filters, nil,
+		t.handledColumns(),
+		refCommitsIterBuilder,
 	)
 
 	if err != nil {
@@ -104,6 +92,68 @@ func (refCommitsTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*refCommitsTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := NewRowRepoIter(ctx, &refCommitsIter{ctx: ctx})
+	if err != nil {
+		return nil, err
+	}
+
+	return &rowKeyValueIter{iter, colNames, RefCommitsSchema}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*refCommitsTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.RefCommitsTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &rowIndexIter{index}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
+func refCommitsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
+	repos, err := selectors.textValues("repository_id")
+	if err != nil {
+		return nil, err
+	}
+
+	names, err := selectors.textValues("ref_name")
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range names {
+		names[i] = strings.ToLower(names[i])
+	}
+
+	return &refCommitsIter{
+		ctx:      ctx,
+		refNames: names,
+		repos:    repos,
+	}, nil
+}
+
 type refCommitsIter struct {
 	ctx     *sql.Context
 	repo    *Repository
@@ -111,6 +161,7 @@ type refCommitsIter struct {
 	head    *plumbing.Reference
 	commits *indexedCommitIter
 	ref     *plumbing.Reference
+	lastRef string
 
 	// selectors for faster filtering
 	repos    []string
@@ -142,6 +193,10 @@ func (i *refCommitsIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		refNames: i.refNames,
 	}, nil
 }
+
+func (i *refCommitsIter) Repository() string { return i.repo.ID }
+
+func (i *refCommitsIter) LastObject() string { return i.lastRef }
 
 func (i *refCommitsIter) shouldVisitRef(ref *plumbing.Reference) bool {
 	if len(i.refNames) > 0 && !stringContains(i.refNames, strings.ToLower(ref.Name().String())) {
@@ -213,6 +268,7 @@ func (i *refCommitsIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
+		i.lastRef = i.ref.Name().String()
 		return sql.NewRow(
 			i.repo.ID,
 			commit.Hash.String(),

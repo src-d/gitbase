@@ -39,17 +39,18 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	pool := NewRepositoryPool()
 
-	// GetPos
-
 	repo, err := pool.GetPos(0)
 	require.Nil(repo)
 	require.Equal(io.EOF, err)
 
-	// Add and GetPos
+	repo, err = pool.GetRepo("foo")
+	require.Nil(repo)
+	require.EqualError(err, ErrPoolRepoNotFound.New("foo").Error())
 
 	pool.Add("0", "/directory/should/not/exist", gitRepo)
 	repo, err = pool.GetPos(0)
-	require.Error(err)
+	require.Nil(repo)
+	require.EqualError(err, git.ErrRepositoryNotExists.Error())
 
 	_, err = pool.GetPos(1)
 	require.Equal(io.EOF, err)
@@ -62,8 +63,11 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Equal("1", repo.ID)
 	require.NotNil(repo.Repo)
 
-	_, err = pool.GetPos(0)
-	require.Equal(git.ErrRepositoryNotExists, err)
+	repo, err = pool.GetRepo("1")
+	require.NoError(err)
+	require.Equal("1", repo.ID)
+	require.NotNil(repo.Repo)
+
 	_, err = pool.GetPos(2)
 	require.Equal(io.EOF, err)
 }
@@ -133,7 +137,8 @@ func TestRepositoryPoolIterator(t *testing.T) {
 }
 
 type testCommitIter struct {
-	iter object.CommitIter
+	iter   object.CommitIter
+	repoID string
 }
 
 func (d *testCommitIter) NewIterator(
@@ -144,12 +149,16 @@ func (d *testCommitIter) NewIterator(
 		return nil, err
 	}
 
-	return &testCommitIter{iter: iter}, nil
+	return &testCommitIter{iter: iter, repoID: repo.ID}, nil
 }
 
 func (d *testCommitIter) Next() (sql.Row, error) {
-	_, err := d.iter.Next()
-	return nil, err
+	commit, err := d.iter.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	return commitToRow(d.repoID, commit), nil
 }
 
 func (d *testCommitIter) Close() error {
@@ -174,7 +183,7 @@ func testRepoIter(num int, require *require.Assertions, ctx *sql.Context) {
 			break
 		}
 
-		require.Nil(row)
+		require.NotNil(row)
 
 		count++
 	}
@@ -319,6 +328,10 @@ func (d *testErrorIter) NewIterator(
 
 	return nil, errIter
 }
+
+func (d *testErrorIter) Repository() string { return "RepoTestError" }
+
+func (d *testErrorIter) LastObject() string { return "ObjectTestError" }
 
 func (d *testErrorIter) Next() (sql.Row, error) {
 	if d.next != nil {

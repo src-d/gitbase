@@ -1,15 +1,40 @@
-package sql
+package sql // import "gopkg.in/src-d/go-mysql-server.v0/sql"
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 
 	"gopkg.in/src-d/go-errors.v1"
+)
+
+var (
+	// ErrInvalidType is thrown when there is an unexpected type at some part of
+	// the execution tree.
+	ErrInvalidType = errors.NewKind("invalid type: %s")
+
+	// ErrTableAlreadyExists is thrown when someone tries to create a
+	// table with a name of an existing one
+	ErrTableAlreadyExists = errors.NewKind("table with name %s already exists")
+
+	// ErrTableNotFound is returned when the table is not available from the
+	// current scope.
+	ErrTableNotFound = errors.NewKind("table not found: %s")
+
+	//ErrUnexpectedRowLength is thrown when the obtained row has more columns than the schema
+	ErrUnexpectedRowLength = errors.NewKind("expected %d values, got %d")
 )
 
 // Nameable is something that has a name.
 type Nameable interface {
 	// Name returns the name.
 	Name() string
+}
+
+// Tableable is something that has a table.
+type Tableable interface {
+	// Table returns the table name.
+	Table() string
 }
 
 // Resolvable is something that can be resolved or not.
@@ -54,6 +79,30 @@ type Expression interface {
 	Children() []Expression
 }
 
+// ExpressionHash is a SHA-1 checksum
+type ExpressionHash []byte
+
+// NewExpressionHash returns a new SHA1 hash for given Expression instance.
+// SHA1 checksum will be calculated based on ex.String().
+func NewExpressionHash(ex Expression) ExpressionHash {
+	h := sha1.Sum([]byte(ex.String()))
+	return ExpressionHash(h[:])
+}
+
+// DecodeExpressionHash  decodes a hexadecimal string to ExpressionHash
+func DecodeExpressionHash(hexstr string) (ExpressionHash, error) {
+	h, err := hex.DecodeString(hexstr)
+	if err != nil {
+		return nil, err
+	}
+	return ExpressionHash(h), nil
+}
+
+// EncodeExpressionHash encodes an ExpressionHash to hexadecimal string
+func EncodeExpressionHash(h ExpressionHash) string {
+	return hex.EncodeToString(h)
+}
+
 // Aggregation implements an aggregation expression, where an
 // aggregation buffer is created for each grouping (NewBuffer) and rows in the
 // grouping are fed to the buffer (Update). Multiple buffers can be merged
@@ -87,12 +136,34 @@ type Node interface {
 type Expressioner interface {
 	// Expressions returns the list of expressions contained by the node.
 	Expressions() []Expression
+	// TransformExpressions applies for each expression in this node
+	// the expression's TransformUp method with the given function, and
+	// return a new node with the transformed expressions.
+	TransformExpressions(TransformExprFunc) (Node, error)
 }
 
 // Table represents a SQL table.
 type Table interface {
 	Nameable
 	Node
+}
+
+// Indexable represents a table that supports being indexed and receiving
+// indexes to be able to speed up its execution.
+type Indexable interface {
+	PushdownProjectionAndFiltersTable
+	// IndexKeyValueIter returns an iterator with the values of each row in
+	// the table for the given column names.
+	IndexKeyValueIter(ctx *Context, colNames []string) (IndexKeyValueIter, error)
+	// WithProjectFiltersAndIndex is meant to be called instead of RowIter
+	// method of the table. Returns a new iterator given the columns,
+	// filters and the index so the table can improve its speed instead of
+	// making a full scan.
+	WithProjectFiltersAndIndex(
+		ctx *Context,
+		columns, filters []Expression,
+		index IndexValueIter,
+	) (RowIter, error)
 }
 
 // PushdownProjectionTable is a table that can produce a specific RowIter
@@ -135,18 +206,3 @@ type Database interface {
 type Alterable interface {
 	Create(name string, schema Schema) error
 }
-
-// ErrInvalidType is thrown when there is an unexpected type at some part of
-// the execution tree.
-var ErrInvalidType = errors.NewKind("invalid type: %s")
-
-// ErrTableAlreadyExists is thrown when someone tries to create a
-// table with a name of an existing one
-var ErrTableAlreadyExists = errors.NewKind("table with name %s already exists")
-
-// ErrTableNotFound is returned when the table is not available from the
-// current scope.
-var ErrTableNotFound = errors.NewKind("table not found: %s")
-
-//ErrUnexpectedRowLength is thrown when the obtained row has more columns than the schema
-var ErrUnexpectedRowLength = errors.NewKind("expected %d values, got %d")

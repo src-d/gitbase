@@ -2456,6 +2456,19 @@ func (it *chainableRowRepoIter) NewIterator(repo *Repository) (RowRepoIter, erro
 	return NewChainableRowRepoIter(it.ctx, i), nil
 }
 
+// Repository and LastObject methods are suppossed not to be called
+// since thay are used to build squashed tables ant those aren't indexable
+// for the moment.
+// These methods are implemented just to complain with RowRepoIter interface.
+
+func (it *chainableRowRepoIter) Repository() string {
+	panic("Repository method shouldn't be called on a chainable iterator")
+}
+
+func (it *chainableRowRepoIter) LastObject() string {
+	panic("LatObject method shouldn't be called on a chainable iterator")
+}
+
 func (it *chainableRowRepoIter) Next() (sql.Row, error) {
 	if err := it.Advance(); err != nil {
 		return nil, err

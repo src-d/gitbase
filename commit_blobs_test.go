@@ -13,7 +13,7 @@ func TestCommitBlobsTableRowIter(t *testing.T) {
 	require := require.New(t)
 
 	table := newCommitBlobsTable()
-	require.IsType(&commitBlobsTable{}, table)
+	require.NotNil(table)
 
 	ctx, paths, cleanup := setupRepos(t)
 	defer cleanup()
@@ -162,4 +162,40 @@ func TestCommitBlobsTablePushdown(t *testing.T) {
 
 		})
 	}
+}
+
+func TestCommitBlobsIndexKeyValueIter(t *testing.T) {
+	require := require.New(t)
+	ctx, _, cleanup := setup(t)
+	defer cleanup()
+
+	table := new(commitBlobsTable)
+	iter, err := table.IndexKeyValueIter(ctx, []string{"blob_hash", "commit_hash"})
+	require.NoError(err)
+
+	i, err := table.RowIter(ctx)
+	require.NoError(err)
+	rows, err := sql.RowIterToRows(i)
+	require.NoError(err)
+
+	var expected []keyValue
+	for _, row := range rows {
+		var kv keyValue
+		kv.key = assertEncodeKey(t, row)
+		kv.values = append(kv.values, row[2], row[1])
+		expected = append(expected, kv)
+	}
+
+	assertIndexKeyValueIter(t, iter, expected)
+}
+
+func TestCommitBlobsIndex(t *testing.T) {
+	testTableIndex(
+		t,
+		new(commitBlobsTable),
+		[]sql.Expression{expression.NewEquals(
+			expression.NewGetField(1, sql.Text, "commit_hash", false),
+			expression.NewLiteral("af2d6a6954d532f8ffb47615169c8fdf9d383a1a", sql.Text),
+		)},
+	)
 }

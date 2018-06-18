@@ -1,4 +1,4 @@
-package parse
+package parse // import "gopkg.in/src-d/go-mysql-server.v0/sql/parse"
 
 import (
 	"fmt"
@@ -28,18 +28,32 @@ var (
 	ErrInvalidSortOrder = errors.NewKind("invalod sort order: %s")
 )
 
+var (
+	describeTablesRegex = regexp.MustCompile(`^describe\s+table\s+(.*)`)
+	createIndexRegex    = regexp.MustCompile(`^create\s+index\s+`)
+	dropIndexRegex      = regexp.MustCompile(`^drop\s+index\s+`)
+	describeRegex       = regexp.MustCompile(`^(describe|desc|explain)\s+(.*)\s+`)
+)
+
 // Parse parses the given SQL sentence and returns the corresponding node.
 func Parse(ctx *sql.Context, s string) (sql.Node, error) {
-	span, ctx := ctx.Span("parse_query", opentracing.Tag{Key: "query", Value: s})
+	span, ctx := ctx.Span("parse", opentracing.Tag{Key: "query", Value: s})
 	defer span.Finish()
 
 	if strings.HasSuffix(s, ";") {
 		s = s[:len(s)-1]
 	}
 
-	t := regexp.MustCompile(`^describe\s+table\s+(.*)`).FindStringSubmatch(strings.ToLower(s))
-	if len(t) == 2 && t[1] != "" {
-		return plan.NewDescribe(plan.NewUnresolvedTable(t[1])), nil
+	lowerQuery := strings.ToLower(s)
+	switch true {
+	case describeTablesRegex.MatchString(lowerQuery):
+		return parseDescribeTables(lowerQuery)
+	case createIndexRegex.MatchString(lowerQuery):
+		return parseCreateIndex(s)
+	case dropIndexRegex.MatchString(lowerQuery):
+		return parseDropIndex(s)
+	case describeRegex.MatchString(lowerQuery):
+		return parseDescribeQuery(ctx, s)
 	}
 
 	stmt, err := sqlparser.Parse(s)
@@ -47,10 +61,19 @@ func Parse(ctx *sql.Context, s string) (sql.Node, error) {
 		return nil, err
 	}
 
-	return convert(ctx, stmt)
+	return convert(ctx, stmt, s)
 }
 
-func convert(ctx *sql.Context, stmt sqlparser.Statement) (sql.Node, error) {
+func parseDescribeTables(s string) (sql.Node, error) {
+	t := describeTablesRegex.FindStringSubmatch(s)
+	if len(t) == 2 && t[1] != "" {
+		return plan.NewDescribe(plan.NewUnresolvedTable(t[1])), nil
+	}
+
+	return nil, ErrUnsupportedSyntax.New(s)
+}
+
+func convert(ctx *sql.Context, stmt sqlparser.Statement, query string) (sql.Node, error) {
 	switch n := stmt.(type) {
 	default:
 		return nil, ErrUnsupportedSyntax.New(n)
@@ -75,8 +98,6 @@ func convertShow(s *sqlparser.Show) (sql.Node, error) {
 }
 
 func convertSelect(ctx *sql.Context, s *sqlparser.Select) (sql.Node, error) {
-	var node sql.Node
-
 	node, err := tableExprsToTable(ctx, s.From)
 	if err != nil {
 		return nil, err
@@ -282,7 +303,7 @@ func tableExprToTable(
 
 			return node, nil
 		case *sqlparser.Subquery:
-			node, err := convert(ctx, e.Select)
+			node, err := convert(ctx, e.Select, "")
 			if err != nil {
 				return nil, err
 			}
@@ -297,7 +318,7 @@ func tableExprToTable(
 		}
 	case *sqlparser.JoinTableExpr:
 		// TODO: add support for the rest of joins
-		if t.Join != sqlparser.JoinStr {
+		if t.Join != sqlparser.JoinStr && t.Join != sqlparser.NaturalJoinStr {
 			return nil, ErrUnsupportedFeature.New(t.Join)
 		}
 
@@ -315,6 +336,10 @@ func tableExprToTable(
 		right, err := tableExprToTable(ctx, t.RightExpr)
 		if err != nil {
 			return nil, err
+		}
+
+		if t.Join == sqlparser.NaturalJoinStr {
+			return plan.NewNaturalJoin(left, right), nil
 		}
 
 		cond, err := exprToExpression(t.Condition.On)
@@ -479,7 +504,7 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 	case *sqlparser.NullVal:
 		return expression.NewLiteral(nil, sql.Null), nil
 	case *sqlparser.ColName:
-		//TODO: add handling of case sensitiveness.
+		// TODO: add handling of case sensitiveness.
 		if !v.Qualifier.IsEmpty() {
 			return expression.NewUnresolvedQualifiedColumn(
 				v.Qualifier.Name.String(),

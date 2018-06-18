@@ -19,32 +19,27 @@ func TestShowTables(t *testing.T) {
 	require.Nil(unresolvedShowTables.Children())
 
 	db := mem.NewDatabase("test")
-
-	memDb, ok := db.(*mem.Database)
-
-	require.True(ok)
-
-	memDb.AddTable("test1", mem.NewTable("test1", nil))
-	memDb.AddTable("test2", mem.NewTable("test2", nil))
-	memDb.AddTable("test3", mem.NewTable("test3", nil))
+	db.AddTable("test1", mem.NewTable("test1", nil))
+	db.AddTable("test2", mem.NewTable("test2", nil))
+	db.AddTable("test3", mem.NewTable("test3", nil))
 
 	resolvedShowTables := NewShowTables(db)
 	require.True(resolvedShowTables.Resolved())
 	require.Nil(resolvedShowTables.Children())
 
 	iter, err := resolvedShowTables.RowIter(ctx)
-	require.Nil(err)
+	require.NoError(err)
 
 	res, err := iter.Next()
-	require.Nil(err)
+	require.NoError(err)
 	require.Equal("test1", res[0])
 
 	res, err = iter.Next()
-	require.Nil(err)
+	require.NoError(err)
 	require.Equal("test2", res[0])
 
 	res, err = iter.Next()
-	require.Nil(err)
+	require.NoError(err)
 	require.Equal("test3", res[0])
 
 	_, err = iter.Next()

@@ -8,7 +8,16 @@ import (
 
 // Table represents a gitbase table.
 type Table interface {
-	sql.Table
+	sql.PushdownProjectionAndFiltersTable
+	gitBase
+}
+
+// Squashable represents a table that can be squashed.
+type Squashable interface {
+	isSquashable()
+}
+
+type gitBase interface {
 	isGitbaseTable()
 }
 

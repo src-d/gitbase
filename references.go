@@ -5,6 +5,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
@@ -21,12 +23,14 @@ var RefsSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*referencesTable)(nil)
 
-func newReferencesTable() sql.Table {
+func newReferencesTable() Indexable {
 	return new(referencesTable)
 }
 
 var _ Table = (*referencesTable)(nil)
+var _ Squashable = (*referencesTable)(nil)
 
+func (referencesTable) isSquashable()   {}
 func (referencesTable) isGitbaseTable() {}
 
 func (r referencesTable) String() string {
@@ -74,35 +78,18 @@ func (referencesTable) HandledFilters(filters []sql.Expression) []sql.Expression
 	return handledFilters(ReferencesTableName, RefsSchema, filters)
 }
 
+func (referencesTable) handledColumns() []string { return []string{"commit_hash", "ref_name"} }
+
 func (r *referencesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.ReferencesTable")
 	iter, err := rowIterWithSelectors(
-		ctx, RefsSchema, ReferencesTableName, filters,
-		[]string{"commit_hash", "ref_name"},
-		func(selectors selectors) (RowRepoIter, error) {
-			if len(selectors["commit_hash"]) == 0 && len(selectors["ref_name"]) == 0 {
-				return new(referenceIter), nil
-			}
-
-			hashes, err := selectors.textValues("commit_hash")
-			if err != nil {
-				return nil, err
-			}
-
-			names, err := selectors.textValues("ref_name")
-			if err != nil {
-				return nil, err
-			}
-
-			for i := range names {
-				names[i] = strings.ToLower(names[i])
-			}
-
-			return &filteredReferencesIter{hashes: stringsToHashes(hashes), names: names}, nil
-		},
+		ctx, RefsSchema, ReferencesTableName,
+		filters, nil,
+		r.handledColumns(),
+		referencesIterBuilder,
 	)
 
 	if err != nil {
@@ -111,6 +98,68 @@ func (r *referencesTable) WithProjectAndFilters(
 	}
 
 	return sql.NewSpanIter(span, iter), nil
+}
+
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*referencesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := NewRowRepoIter(ctx, new(referenceIter))
+	if err != nil {
+		return nil, err
+	}
+
+	return &rowKeyValueIter{iter, colNames, RefsSchema}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*referencesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.ReferencesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &rowIndexIter{index}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
+func referencesIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
+	if len(selectors["commit_hash"]) == 0 && len(selectors["ref_name"]) == 0 {
+		return new(referenceIter), nil
+	}
+
+	hashes, err := selectors.textValues("commit_hash")
+	if err != nil {
+		return nil, err
+	}
+
+	names, err := selectors.textValues("ref_name")
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range names {
+		names[i] = strings.ToLower(names[i])
+	}
+
+	return &filteredReferencesIter{hashes: stringsToHashes(hashes), names: names}, nil
 }
 
 type referenceIter struct {

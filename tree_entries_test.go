@@ -107,3 +107,569 @@ func TestTreeEntriesPushdown(t *testing.T) {
 	require.NoError(err)
 	require.Len(rows, 5)
 }
+
+func TestTreeEntriesKeyValueIter(t *testing.T) {
+	require := require.New(t)
+	ctx, path, cleanup := setup(t)
+	defer cleanup()
+
+	table := new(treeEntriesTable)
+	iter, err := table.IndexKeyValueIter(ctx, []string{"tree_entry_name", "tree_hash"})
+	require.NoError(err)
+
+	var expected = []keyValue{
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78685,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78685,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"CHANGELOG",
+				"4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78685,
+				Pos:        2,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78685,
+				Pos:        3,
+			}),
+			[]interface{}{
+				"binary.jpg",
+				"4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78685,
+				Pos:        4,
+			}),
+			[]interface{}{
+				"json",
+				"4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78264,
+				Pos:        0,
+			}),
+			[]interface{}{
+				"crappy.php",
+				"586af567d0bb5e771e49bdd9434f5e0fb76d25fa",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78184,
+				Pos:        0,
+			}),
+			[]interface{}{
+				"long.json",
+				"5a877e6a906a2743ad6e45d99c1793642aaf8eda",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78184,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"short.json",
+				"5a877e6a906a2743ad6e45d99c1793642aaf8eda",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78833,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"8dcef98b1d52143e1e2dbc458ffe38f925786bf2",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78833,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"8dcef98b1d52143e1e2dbc458ffe38f925786bf2",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78833,
+				Pos:        2,
+			}),
+			[]interface{}{
+				"binary.jpg",
+				"8dcef98b1d52143e1e2dbc458ffe38f925786bf2",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78135,
+				Pos:        0,
+			}),
+			[]interface{}{
+				"example.go",
+				"a39771a7651f97faf5c72e08224d857fc35133db",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"CHANGELOG",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        2,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        3,
+			}),
+			[]interface{}{
+				"binary.jpg",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        4,
+			}),
+			[]interface{}{
+				"go",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        5,
+			}),
+			[]interface{}{
+				"json",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        6,
+			}),
+			[]interface{}{
+				"php",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78358,
+				Pos:        7,
+			}),
+			[]interface{}{
+				"vendor",
+				"a8d315b2b1c615d43042c3a62402b8a54288cf5c",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78852,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"aa9b383c260e1d05fbbf6b30a02914555e20c725",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78852,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"aa9b383c260e1d05fbbf6b30a02914555e20c725",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78720,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"c2d30fa8ef288618f65f6eed6e168e0d514886f4",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78720,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"CHANGELOG",
+				"c2d30fa8ef288618f65f6eed6e168e0d514886f4",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78720,
+				Pos:        2,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"c2d30fa8ef288618f65f6eed6e168e0d514886f4",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78313,
+				Pos:        0,
+			}),
+			[]interface{}{
+				"foo.go",
+				"cf4aa3b38974fb7d81f367c0830f7d78d65ab86b",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"CHANGELOG",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        2,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        3,
+			}),
+			[]interface{}{
+				"README",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        4,
+			}),
+			[]interface{}{
+				"binary.jpg",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        5,
+			}),
+			[]interface{}{
+				"go",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        6,
+			}),
+			[]interface{}{
+				"json",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78636,
+				Pos:        7,
+			}),
+			[]interface{}{
+				"php",
+				"dbd3641b371024f44d0e469a9c8f5457b0660de1",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78704,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"eba74343e2f15d62adedfd8c883ee0262b5c8021",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78704,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"CHANGELOG",
+				"eba74343e2f15d62adedfd8c883ee0262b5c8021",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78704,
+				Pos:        2,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"eba74343e2f15d62adedfd8c883ee0262b5c8021",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78704,
+				Pos:        3,
+			}),
+			[]interface{}{
+				"binary.jpg",
+				"eba74343e2f15d62adedfd8c883ee0262b5c8021",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78619,
+				Pos:        0,
+			}),
+			[]interface{}{
+				".gitignore",
+				"fb72698cab7617ac416264415f13224dfd7a165e",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78619,
+				Pos:        1,
+			}),
+			[]interface{}{
+				"CHANGELOG",
+				"fb72698cab7617ac416264415f13224dfd7a165e",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78619,
+				Pos:        2,
+			}),
+			[]interface{}{
+				"LICENSE",
+				"fb72698cab7617ac416264415f13224dfd7a165e",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78619,
+				Pos:        3,
+			}),
+			[]interface{}{
+				"binary.jpg",
+				"fb72698cab7617ac416264415f13224dfd7a165e",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78619,
+				Pos:        4,
+			}),
+			[]interface{}{
+				"go",
+				"fb72698cab7617ac416264415f13224dfd7a165e",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78619,
+				Pos:        5,
+			}),
+			[]interface{}{
+				"json",
+				"fb72698cab7617ac416264415f13224dfd7a165e",
+			},
+		},
+		{
+			assertEncodeKey(t, treeEntriesIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     78619,
+				Pos:        6,
+			}),
+			[]interface{}{
+				"php",
+				"fb72698cab7617ac416264415f13224dfd7a165e",
+			},
+		},
+	}
+
+	assertIndexKeyValueIter(t, iter, expected)
+}
+
+func TestTreeEntriesIndex(t *testing.T) {
+	testTableIndex(
+		t,
+		new(treeEntriesTable),
+		[]sql.Expression{expression.NewEquals(
+			expression.NewGetField(1, sql.Text, "tree_entry_name", false),
+			expression.NewLiteral("LICENSE", sql.Text),
+		)},
+	)
+}

@@ -8,6 +8,8 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type commitTreesTable struct{}
@@ -21,10 +23,13 @@ var CommitTreesSchema = sql.Schema{
 
 var _ sql.PushdownProjectionAndFiltersTable = (*commitTreesTable)(nil)
 
-func newCommitTreesTable() sql.Table {
+func newCommitTreesTable() Indexable {
 	return new(commitTreesTable)
 }
 
+var _ Squashable = (*commitTreesTable)(nil)
+
+func (commitTreesTable) isSquashable()   {}
 func (commitTreesTable) isGitbaseTable() {}
 
 func (commitTreesTable) String() string {
@@ -62,31 +67,18 @@ func (commitTreesTable) HandledFilters(filters []sql.Expression) []sql.Expressio
 	return handledFilters(CommitTreesTableName, CommitTreesSchema, filters)
 }
 
-func (commitTreesTable) WithProjectAndFilters(
+func (commitTreesTable) handledColumns() []string { return []string{"commit_hash", "repository_id"} }
+
+func (t *commitTreesTable) WithProjectAndFilters(
 	ctx *sql.Context,
 	_, filters []sql.Expression,
 ) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.CommitTreesTable")
 	iter, err := rowIterWithSelectors(
-		ctx, CommitTreesSchema, CommitTreesTableName, filters,
-		[]string{"commit_hash", "repository_id"},
-		func(selectors selectors) (RowRepoIter, error) {
-			repos, err := selectors.textValues("repository_id")
-			if err != nil {
-				return nil, err
-			}
-
-			hashes, err := selectors.textValues("commit_hash")
-			if err != nil {
-				return nil, err
-			}
-
-			return &commitTreesIter{
-				ctx:          ctx,
-				commitHashes: hashes,
-				repos:        repos,
-			}, nil
-		},
+		ctx, CommitTreesSchema, CommitTreesTableName,
+		filters, nil,
+		t.handledColumns(),
+		commitTreesIterBuilder,
 	)
 
 	if err != nil {
@@ -95,6 +87,64 @@ func (commitTreesTable) WithProjectAndFilters(
 	}
 
 	return sql.NewSpanIter(span, iter), nil
+}
+
+// IndexKeyValueIter implements the sql.Indexable interface.
+func (*commitTreesTable) IndexKeyValueIter(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.IndexKeyValueIter, error) {
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	iter, err := NewRowRepoIter(ctx, &commitTreesIter{ctx: ctx})
+	if err != nil {
+		return nil, err
+	}
+
+	return &rowKeyValueIter{iter, colNames, CommitTreesSchema}, nil
+}
+
+// WithProjectFiltersAndIndex implements sql.Indexable interface.
+func (*commitTreesTable) WithProjectFiltersAndIndex(
+	ctx *sql.Context,
+	columns, filters []sql.Expression,
+	index sql.IndexValueIter,
+) (sql.RowIter, error) {
+	span, ctx := ctx.Span("gitbase.CommitTreesTable.WithProjectFiltersAndIndex")
+	s, ok := ctx.Session.(*Session)
+	if !ok || s == nil {
+		span.Finish()
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	var iter sql.RowIter = &rowIndexIter{index}
+
+	if len(filters) > 0 {
+		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
+	}
+
+	return sql.NewSpanIter(span, iter), nil
+}
+
+func commitTreesIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
+	repos, err := selectors.textValues("repository_id")
+	if err != nil {
+		return nil, err
+	}
+
+	hashes, err := selectors.textValues("commit_hash")
+	if err != nil {
+		return nil, err
+	}
+
+	return &commitTreesIter{
+		ctx:          ctx,
+		commitHashes: hashes,
+		repos:        repos,
+	}, nil
 }
 
 type commitTreesIter struct {
@@ -128,6 +178,10 @@ func (i *commitTreesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		commitHashes: i.commitHashes,
 	}, nil
 }
+
+func (i *commitTreesIter) Repository() string { return i.repo.ID }
+
+func (i *commitTreesIter) LastObject() string { return i.commit.Hash.String() }
 
 func (i *commitTreesIter) Next() (sql.Row, error) {
 	s, ok := i.ctx.Session.(*Session)

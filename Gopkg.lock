@@ -8,16 +8,10 @@
   revision = "9c5fe88206d7765837fed3732a42ef88fc51f1a1"
 
 [[projects]]
-  name = "github.com/apache/thrift"
-  packages = ["lib/go/thrift"]
-  revision = "b2a4d4ae21c789b689dd162deb819665567f481c"
-  version = "0.10.0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/codahale/hdrhistogram"
+  name = "github.com/boltdb/bolt"
   packages = ["."]
-  revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
+  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
+  version = "v1.3.1"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -76,15 +70,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/hashicorp/golang-lru"
-  packages = [
-    ".",
-    "simplelru"
-  ]
-  revision = "0fb14efe8c47ae851c0034ed7a448854d3d34cf3"
-
-[[projects]]
-  branch = "master"
   name = "github.com/jbenet/go-context"
   packages = ["io"]
   revision = "d14ea06fba99483203c19d92cfcd13ebe73135f4"
@@ -135,7 +120,6 @@
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
-    "ext",
     "log"
   ]
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
@@ -146,6 +130,15 @@
   packages = ["."]
   revision = "c37440a7cf42ac63b919c752ca73a85067e05992"
   version = "v0.2.0"
+
+[[projects]]
+  name = "github.com/pilosa/go-pilosa"
+  packages = [
+    ".",
+    "gopilosa_pbuf"
+  ]
+  revision = "2a176035ff61f2aa4bac197314e0f4464bfea4a4"
+  version = "v0.9.0"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -209,29 +202,6 @@
   revision = "56fed4a05683322f125e2d78ee269bb102280392"
 
 [[projects]]
-  name = "github.com/uber/jaeger-client-go"
-  packages = [
-    ".",
-    "internal/baggage",
-    "internal/spanlog",
-    "internal/throttler",
-    "log",
-    "thrift-gen/agent",
-    "thrift-gen/jaeger",
-    "thrift-gen/sampling",
-    "thrift-gen/zipkincore",
-    "utils"
-  ]
-  revision = "c107110d057826281414cb964f167bce5be17588"
-  version = "v2.12.0"
-
-[[projects]]
-  name = "github.com/uber/jaeger-lib"
-  packages = ["metrics"]
-  revision = "4267858c0679cd4e47cefed8d7f70fd386cfb567"
-  version = "v1.4.0"
-
-[[projects]]
   branch = "master"
   name = "github.com/xanzy/ssh-agent"
   packages = ["."]
@@ -275,6 +245,12 @@
   ]
   revision = "6078986fec03a1dcc236c34816c71b0e05018fda"
   source = "github.com/golang/net"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sync"
+  packages = ["errgroup"]
+  revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
 
 [[projects]]
   branch = "master"
@@ -398,6 +374,12 @@
   version = "v4.1.0"
 
 [[projects]]
+  name = "gopkg.in/src-d/go-errors.v0"
+  packages = ["."]
+  revision = "6f07baca276330431b44ece8ee84ac98167bc4ea"
+  version = "v0.1.0"
+
+[[projects]]
   name = "gopkg.in/src-d/go-errors.v1"
   packages = ["."]
   revision = "8bbbeeb767dfdd053b9b45d5a16a4f4ce2c6f694"
@@ -442,7 +424,7 @@
     "plumbing/transport/ssh",
     "storage",
     "storage/filesystem",
-    "storage/filesystem/internal/dotgit",
+    "storage/filesystem/dotgit",
     "storage/memory",
     "utils/binary",
     "utils/diff",
@@ -453,9 +435,8 @@
     "utils/merkletrie/internal/frame",
     "utils/merkletrie/noder"
   ]
-  revision = "1d28459504251497e0ce6132a0fadd5eb44ffd22"
+  revision = "0710c6cb710a0cdab04ab7f61cc62e23cfcacbee"
   source = "github.com/src-d/go-git"
-  version = "v4.2.0"
 
 [[projects]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
@@ -468,10 +449,12 @@
     "sql/expression",
     "sql/expression/function",
     "sql/expression/function/aggregation",
+    "sql/index",
+    "sql/index/pilosa",
     "sql/parse",
     "sql/plan"
   ]
-  revision = "a25d2500494956cf33f5ccb182ac809848100eaf"
+  revision = "5620932d8b3ca58edd6bfa4c168073d4c1ff665f"
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
@@ -515,9 +498,15 @@
   revision = "ec4a0fea49c7b46c2aeb0b51aac55779c607e52b"
   version = "v0.1.2"
 
+[[projects]]
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3ca0b7c42f177a7b65889819a720c370c0043d3de424910820df299f24b6a74e"
+  inputs-digest = "9c1db0d3b7ec1c605742d4945d33846f81e91ba9bfa9523eb654155030d90f56"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -3,10 +3,11 @@ package parse
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
+
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 var fixtures = map[string]sql.Node{
@@ -559,6 +560,45 @@ var fixtures = map[string]sql.Node{
 			),
 		},
 		plan.NewUnresolvedTable("dual"),
+	),
+	`CREATE INDEX idx ON foo(fn(bar, baz))`: plan.NewCreateIndex(
+		"idx",
+		plan.NewUnresolvedTable("foo"),
+		[]sql.Expression{expression.NewUnresolvedFunction(
+			"fn", false,
+			expression.NewUnresolvedColumn("bar"),
+			expression.NewUnresolvedColumn("baz"),
+		)},
+		"",
+		make(map[string]string),
+	),
+	`SELECT * FROM foo NATURAL JOIN bar`: plan.NewProject(
+		[]sql.Expression{expression.NewStar()},
+		plan.NewNaturalJoin(
+			plan.NewUnresolvedTable("foo"),
+			plan.NewUnresolvedTable("bar"),
+		),
+	),
+	`SELECT * FROM foo NATURAL JOIN bar NATURAL JOIN baz`: plan.NewProject(
+		[]sql.Expression{expression.NewStar()},
+		plan.NewNaturalJoin(
+			plan.NewNaturalJoin(
+				plan.NewUnresolvedTable("foo"),
+				plan.NewUnresolvedTable("bar"),
+			),
+			plan.NewUnresolvedTable("baz"),
+		),
+	),
+	`DROP INDEX foo ON bar`: plan.NewDropIndex(
+		"foo",
+		plan.NewUnresolvedTable("bar"),
+	),
+	`DESCRIBE FORMAT=TREE SELECT * FROM foo`: plan.NewDescribeQuery(
+		"tree",
+		plan.NewProject(
+			[]sql.Expression{expression.NewStar()},
+			plan.NewUnresolvedTable("foo"),
+		),
 	),
 }
 

@@ -11,6 +11,7 @@ var ErrDatabaseNotFound = errors.NewKind("database not found: %s")
 type Catalog struct {
 	Databases
 	FunctionRegistry
+	*IndexRegistry
 }
 
 // NewCatalog returns a new empty Catalog.
@@ -18,6 +19,7 @@ func NewCatalog() *Catalog {
 	return &Catalog{
 		Databases:        Databases{},
 		FunctionRegistry: NewFunctionRegistry(),
+		IndexRegistry:    NewIndexRegistry(),
 	}
 }
 
@@ -33,6 +35,11 @@ func (d Databases) Database(name string) (Database, error) {
 	}
 
 	return nil, ErrDatabaseNotFound.New(name)
+}
+
+// AddDatabase adds a new database.
+func (d *Databases) AddDatabase(db Database) {
+	*d = append(*d, db)
 }
 
 // Table returns the Table with the given name if it exists.
