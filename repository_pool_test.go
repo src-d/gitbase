@@ -229,6 +229,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "gitbase-test")
 	require.NoError(err)
 
+	tmpDirLen := len(SplitPath(tmpDir))
 	max := 64
 
 	for i := 0; i < max; i++ {
@@ -240,7 +241,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	}
 
 	pool := NewRepositoryPool()
-	err = pool.AddDir(tmpDir)
+	err = pool.AddDir(tmpDirLen, tmpDir)
 	require.NoError(err)
 
 	require.Equal(max, len(pool.repositories))
@@ -252,7 +253,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 		repo, err := pool.GetPos(i)
 		require.NoError(err)
 		arrayID[i] = repo.ID
-		arrayExpected[i] = filepath.Join(tmpDir, strconv.Itoa(i))
+		arrayExpected[i] = strconv.Itoa(i)
 
 		iter, err := repo.Repo.CommitObjects()
 		require.NoError(err)
