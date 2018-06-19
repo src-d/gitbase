@@ -15,6 +15,10 @@ thousands of repositories in a single node. Stay tuned!
 
 ## Examples
 
+To see the SQL subset currently supported take a look at [this list](https://github.com/src-d/go-mysql-server/blob/5620932d8b3ca58edd6bfa4c168073d4c1ff665f/SUPPORTED.md) from [src-d/go-mysql-server](https://github.com/src-d/go-mysql-server).
+
+[src-d/go-mysql-server](https://github.com/src-d/go-mysql-server) is the project where the SQL engine used by ***gitbase*** is implemented.
+
 #### Get all the HEAD references from all the repositories
 
 ```sql
@@ -55,7 +59,7 @@ FROM (
         r.repository_id as repo_id,
         committer_email
     FROM ref_commits r
-    INNER JOIN commits c 
+    INNER JOIN commits c
             ON YEAR(c.committer_when) = 2015 AND r.commit_hash = c.commit_hash
     WHERE r.ref_name = 'HEAD'
 ) as t
