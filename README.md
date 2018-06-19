@@ -37,7 +37,7 @@ SELECT * FROM (
 
 ```sql
 SELECT COUNT(c.commit_hash), c.commit_hash
-FROM ref_commitss r
+FROM ref_commits as r
 INNER JOIN commits c
     ON r.ref_name = 'HEAD' AND r.commit_hash = c.commit_hash
 INNER JOIN commit_blobs cb
