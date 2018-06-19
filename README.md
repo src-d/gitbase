@@ -87,6 +87,7 @@ make dependencies
 
 ## Usage
 
+### Local
 ```bash
 Usage:
   gitbase [OPTIONS] <server | version>
@@ -99,12 +100,30 @@ Available commands:
   version  Show the version information.
 ```
 
-You can start a server by providing a path which contains multiple git repositories `/path/to/repositories` with this command:
+You can start a server providing a path which contains multiple git repositories `/path/to/repositories` with this command:
 
 ```
-$ gitbase server -v -g /path/to/repositories
+$ gitbase server -v -g /path/to/repositories -u gitbase
 ```
 
+### Docker
+
+You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
+```
+docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/gitbase:latest
+```
+
+If you want to speedup gitbase using indexes, you must run a pilosa container:
+```
+docker run -it --rm --name pilosa -p 10101:10101 pilosa/pilosa:v0.9.0
+```
+
+Then link the gitbase container to the pilosa one:
+```
+docker run --rm --name gitbase -p 3306:3306 --link pilosa:pilosa -e PILOSA_ENDPOINT="http://pilosa:10101" -v /my/git/repos:/opt/repos srcd/gitbase:latest
+```
+
+### Client
 A MySQL client is needed to connect to the server. For example:
 
 ```bash
@@ -120,15 +139,22 @@ SELECT commit_hash, commit_author_email, commit_author_name FROM commits LIMIT 2
 2 rows in set (0.01 sec)
 ```
 
+If gitbase is running in a container from the official image, you must use `gitbase` as user:
+```
+mysql -q -u gitbase -h 127.0.0.1
+```
+
 ### Environment variables
 
 | Name                             | Description                                         |
 |:---------------------------------|:----------------------------------------------------|
 | `BBLFSH_ENDPOINT`                | bblfshd endpoint, default "127.0.0.1:9432"          |
+| `PILOSA_ENDPOINT`                | pilosa endpoint, default "http://localhost:10101"   |
 | `GITBASE_BLOBS_MAX_SIZE`         | maximum blob size to return in MiB, default 5 MiB   |
 | `GITBASE_BLOBS_ALLOW_BINARY`     | enable retrieval of binary blobs, default `false`   |
 | `GITBASE_UNSTABLE_SQUASH_ENABLE` | **UNSTABLE** check *Unstable features*              |
 | `GITBASE_SKIP_GIT_ERRORS`        | do not stop queries on git errors, default disabled |
+| `GITBASE_INDEX_DIR`              | directory where indexes will be persisted           |
 
 ## Tables
 
