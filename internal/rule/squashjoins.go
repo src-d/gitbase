@@ -128,6 +128,7 @@ func buildSquashedTable(
 	filters, columns []sql.Expression,
 ) (sql.Node, error) {
 	tableNames := orderedTableNames(tables)
+	allFilters := filters[:]
 
 	var iter gitbase.ChainableIter
 	var err error
@@ -578,7 +579,7 @@ func buildSquashedTable(
 
 	mapping := buildSchemaMapping(originalSchema, iter.Schema())
 
-	var node sql.Node = newSquashedTable(iter, mapping, tableNames...)
+	var node sql.Node = newSquashedTable(iter, mapping, allFilters, tableNames...)
 
 	if len(filters) > 0 {
 		f, err := fixFieldIndexes(expression.JoinAnd(filters...), iter.Schema())
@@ -785,11 +786,17 @@ type squashedTable struct {
 	iter           gitbase.ChainableIter
 	tables         []string
 	schemaMappings []int
+	filters        []sql.Expression
 	schema         sql.Schema
 }
 
-func newSquashedTable(iter gitbase.ChainableIter, mapping []int, tables ...string) *squashedTable {
-	return &squashedTable{iter, tables, mapping, nil}
+func newSquashedTable(
+	iter gitbase.ChainableIter,
+	mapping []int,
+	filters []sql.Expression,
+	tables ...string,
+) *squashedTable {
+	return &squashedTable{iter, tables, mapping, filters, nil}
 }
 
 var _ sql.Node = (*squashedTable)(nil)
@@ -828,7 +835,32 @@ func (t *squashedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	), nil
 }
 func (t *squashedTable) String() string {
-	return fmt.Sprintf("SquashedTable(%s)", strings.Join(t.tables, ", "))
+	s := t.Schema()
+	cp := sql.NewTreePrinter()
+	_ = cp.WriteNode("Columns")
+	var schema = make([]string, len(s))
+	for i, col := range s {
+		schema[i] = fmt.Sprintf(
+			"Column(%s, %s, nullable=%v)",
+			col.Name,
+			col.Type.Type().String(),
+			col.Nullable,
+		)
+	}
+	_ = cp.WriteChildren(schema...)
+
+	fp := sql.NewTreePrinter()
+	_ = fp.WriteNode("Filters")
+	var filters = make([]string, len(t.filters))
+	for i, f := range t.filters {
+		filters[i] = f.String()
+	}
+	_ = fp.WriteChildren(filters...)
+
+	p := sql.NewTreePrinter()
+	_ = p.WriteNode("SquashedTable(%s)", strings.Join(t.tables, ", "))
+	_ = p.WriteChildren(cp.String(), fp.String())
+	return p.String()
 }
 func (t *squashedTable) TransformExpressionsUp(sql.TransformExprFunc) (sql.Node, error) {
 	return t, nil
