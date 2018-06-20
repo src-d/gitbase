@@ -58,18 +58,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/hashicorp/errwrap"
-  packages = ["."]
-  revision = "7554cd9344cec97297fa6649b055a8c98c2a1e55"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/hashicorp/go-multierror"
-  packages = ["."]
-  revision = "b7773ae218740a7be65057fc60b366a49b538a44"
-
-[[projects]]
-  branch = "master"
   name = "github.com/jbenet/go-context"
   packages = ["io"]
   revision = "d14ea06fba99483203c19d92cfcd13ebe73135f4"
@@ -454,7 +442,7 @@
     "sql/parse",
     "sql/plan"
   ]
-  revision = "5620932d8b3ca58edd6bfa4c168073d4c1ff665f"
+  revision = "0084abf48137b4d72c6f948abfde91a00f3f77f0"
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
@@ -507,6 +495,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9c1db0d3b7ec1c605742d4945d33846f81e91ba9bfa9523eb654155030d90f56"
+  inputs-digest = "8631b0a5d0733b4585a757f98a3ccb2797c54c431f8438d2ef57ce5d32ad77e8"
   solver-name = "gps-cdcl"
   solver-version = 1

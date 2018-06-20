@@ -308,7 +308,7 @@ func TestAmbiguousColumnResolution(t *testing.T) {
 	db.AddTable(table.Name(), table)
 	db.AddTable(table2.Name(), table2)
 
-	e := sqle.New()
+	e := sqle.NewDefault()
 	e.AddDatabase(db)
 
 	q := `SELECT f.a, bar.b, f.b FROM foo f INNER JOIN bar ON f.a = bar.c`
@@ -390,7 +390,7 @@ func TestNaturalJoin(t *testing.T) {
 	db.AddTable(t1.Name(), t1)
 	db.AddTable(t2.Name(), t2)
 
-	e := sqle.New()
+	e := sqle.NewDefault()
 	e.AddDatabase(db)
 
 	_, iter, err := e.Query(sql.NewEmptyContext(), `SELECT * FROM t1 NATURAL JOIN t2`)
@@ -434,7 +434,7 @@ func TestNaturalJoinEqual(t *testing.T) {
 	db.AddTable(t1.Name(), t1)
 	db.AddTable(t2.Name(), t2)
 
-	e := sqle.New()
+	e := sqle.NewDefault()
 	e.AddDatabase(db)
 
 	_, iter, err := e.Query(sql.NewEmptyContext(), `SELECT * FROM t1 NATURAL JOIN t2`)
@@ -474,7 +474,7 @@ func TestNaturalJoinDisjoint(t *testing.T) {
 	db.AddTable(t1.Name(), t1)
 	db.AddTable(t2.Name(), t2)
 
-	e := sqle.New()
+	e := sqle.NewDefault()
 	e.AddDatabase(db)
 
 	_, iter, err := e.Query(sql.NewEmptyContext(), `SELECT * FROM t1 NATURAL JOIN t2`)
@@ -494,6 +494,64 @@ func TestNaturalJoinDisjoint(t *testing.T) {
 			{"a3", "b1"},
 			{"a3", "b2"},
 			{"a3", "b3"},
+		},
+		rows,
+	)
+}
+
+func TestInnerNestedInNaturalJoins(t *testing.T) {
+	require := require.New(t)
+
+	table1 := mem.NewTable("table1", sql.Schema{
+		{Name: "i", Type: sql.Int32, Source: "table1"},
+		{Name: "f", Type: sql.Float64, Source: "table1"},
+		{Name: "t", Type: sql.Text, Source: "table1"},
+	})
+
+	require.Nil(table1.Insert(sql.NewRow(int32(1), float64(2.1), "table1")))
+	require.Nil(table1.Insert(sql.NewRow(int32(1), float64(2.1), "table1")))
+	require.Nil(table1.Insert(sql.NewRow(int32(10), float64(2.1), "table1")))
+
+	table2 := mem.NewTable("table2", sql.Schema{
+		{Name: "i2", Type: sql.Int32, Source: "table2"},
+		{Name: "f2", Type: sql.Float64, Source: "table2"},
+		{Name: "t2", Type: sql.Text, Source: "table2"},
+	})
+
+	require.Nil(table2.Insert(sql.NewRow(int32(1), float64(2.2), "table2")))
+	require.Nil(table2.Insert(sql.NewRow(int32(1), float64(2.2), "table2")))
+	require.Nil(table2.Insert(sql.NewRow(int32(20), float64(2.2), "table2")))
+
+	table3 := mem.NewTable("table3", sql.Schema{
+		{Name: "i", Type: sql.Int32, Source: "table3"},
+		{Name: "f2", Type: sql.Float64, Source: "table3"},
+		{Name: "t3", Type: sql.Text, Source: "table3"},
+	})
+
+	require.Nil(table3.Insert(sql.NewRow(int32(1), float64(2.3), "table3")))
+	require.Nil(table3.Insert(sql.NewRow(int32(2), float64(2.3), "table3")))
+	require.Nil(table3.Insert(sql.NewRow(int32(30), float64(2.3), "table3")))
+
+	db := mem.NewDatabase("mydb")
+	db.AddTable("table1", table1)
+	db.AddTable("table2", table2)
+	db.AddTable("table3", table3)
+
+	e := sqle.NewDefault()
+	e.AddDatabase(db)
+
+	_, iter, err := e.Query(sql.NewEmptyContext(), `SELECT * FROM table1 INNER JOIN table2 ON table1.i = table2.i2 NATURAL JOIN table3`)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+
+	require.Equal(
+		[]sql.Row{
+			{int32(1), float64(2.2), float64(2.1), "table1", int32(1), "table2", "table3"},
+			{int32(1), float64(2.2), float64(2.1), "table1", int32(1), "table2", "table3"},
+			{int32(1), float64(2.2), float64(2.1), "table1", int32(1), "table2", "table3"},
+			{int32(1), float64(2.2), float64(2.1), "table1", int32(1), "table2", "table3"},
 		},
 		rows,
 	)
@@ -554,7 +612,7 @@ func newEngine(t *testing.T) *sqle.Engine {
 	db.AddTable(table2.Name(), table2)
 	db.AddTable(table3.Name(), table3)
 
-	e := sqle.New()
+	e := sqle.NewDefault()
 	e.AddDatabase(db)
 
 	return e
