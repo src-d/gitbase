@@ -1,12 +1,15 @@
 package gitbase
 
 import (
+	"context"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
+	"gopkg.in/bblfsh/sdk.v1/protocol"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -20,7 +23,7 @@ type Session struct {
 
 	bblfshMu       sync.Mutex
 	bblfshEndpoint string
-	bblfshClient   *bblfsh.Client
+	bblfshClient   *BblfshClient
 
 	SkipGitErrors bool
 }
@@ -65,17 +68,72 @@ func NewSession(pool *RepositoryPool, opts ...SessionOption) *Session {
 
 const bblfshMaxAttempts = 10
 
+// BblfshClient is a wrapper around a bblfsh client to extend its
+// functionality.
+type BblfshClient struct {
+	*bblfsh.Client
+	supportedLanguages []string
+}
+
+// IsLanguageSupported returns whether the language is supported in the bblfsh
+// server this client is connected to.
+func (c *BblfshClient) IsLanguageSupported(ctx context.Context, lang string) (bool, error) {
+	langs, err := c.SupportedLanguages(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	for _, lng := range langs {
+		if lng == strings.ToLower(lang) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// SupportedLanguages returns the list of supported languages for the bblfsh
+// server this client is connected to.
+func (c *BblfshClient) SupportedLanguages(ctx context.Context) ([]string, error) {
+	if len(c.supportedLanguages) == 0 {
+		resp, err := c.Client.NewSupportedLanguagesRequest().
+			DoWithContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, lang := range resp.Languages {
+			c.supportedLanguages = append(c.supportedLanguages, lang.Language)
+		}
+	}
+
+	return c.supportedLanguages, nil
+}
+
+// Parse the given content with the given language.
+func (c *BblfshClient) Parse(
+	ctx context.Context,
+	lang string,
+	content []byte,
+) (*protocol.ParseResponse, error) {
+	return c.NewParseRequest().
+		Language(lang).
+		Content(string(content)).
+		DoWithContext(ctx)
+}
+
 // BblfshClient returns a BblfshClient.
-func (s *Session) BblfshClient() (*bblfsh.Client, error) {
-	var err error
+func (s *Session) BblfshClient() (*BblfshClient, error) {
 	s.bblfshMu.Lock()
 	defer s.bblfshMu.Unlock()
 
 	if s.bblfshClient == nil {
-		s.bblfshClient, err = bblfsh.NewClient(s.bblfshEndpoint)
+		client, err := bblfsh.NewClient(s.bblfshEndpoint)
 		if err != nil {
 			return nil, err
 		}
+
+		s.bblfshClient = &BblfshClient{Client: client}
 	}
 
 	var attempts, totalAttempts int
@@ -99,10 +157,12 @@ func (s *Session) BblfshClient() (*bblfsh.Client, error) {
 
 			logrus.Debug("bblfsh connection is closed, opening a new one")
 
-			s.bblfshClient, err = bblfsh.NewClient(s.bblfshEndpoint)
+			client, err := bblfsh.NewClient(s.bblfshEndpoint)
 			if err != nil {
 				return nil, err
 			}
+
+			s.bblfshClient = &BblfshClient{Client: client}
 		}
 
 		attempts++
