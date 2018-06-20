@@ -21,7 +21,7 @@ import (
 var (
 	errInvalidRepoKind       = errors.NewKind("invalid repo kind: %d")
 	errRepoAlreadyRegistered = errors.NewKind("the repository is already registered: %s")
-	errRepoCanNotOpen        = errors.NewKind("the repository could not be opened: %s")
+	errRepoCannotOpen        = errors.NewKind("the repository could not be opened: %s")
 )
 
 // Repository struct holds an initialized repository and its ID
@@ -128,7 +128,7 @@ func (p *RepositoryPool) AddGit(path string) (string, error) {
 func (p *RepositoryPool) AddGitWithID(id, path string) (string, error) {
 	_, err := git.PlainOpen(path)
 	if err != nil {
-		return "", errRepoCanNotOpen.New(err)
+		return "", errRepoCannotOpen.Wrap(err, path)
 	}
 
 	err = p.Add(id, path, gitRepo)

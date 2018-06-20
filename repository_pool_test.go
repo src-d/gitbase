@@ -90,7 +90,7 @@ func TestRepositoryPoolGit(t *testing.T) {
 
 	_, err := pool.AddGit("/do/not/exist")
 	require.Error(err)
-	require.True(errRepoCanNotOpen.Is(err))
+	require.True(errRepoCannotOpen.Is(err))
 
 	id, err := pool.AddGit(path)
 	require.Equal(path, id)
