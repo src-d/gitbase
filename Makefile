@@ -27,7 +27,7 @@ prepare-services:
         docker exec -it bblfshd bblfshctl driver install python bblfsh/python-driver && \
         docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
 
-dependencies: install-gcc-6
+bblfsh-client: install-gcc-6
 
 install-gcc-6:
 	export DEBIAN_FRONTEND=noninteractive && \
