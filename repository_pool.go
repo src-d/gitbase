@@ -18,6 +18,12 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
+var (
+	errInvalidRepoKind       = errors.NewKind("invalid repo kind: %d")
+	errRepoAlreadyRegistered = errors.NewKind("the repository is already registered: %s")
+	errRepoCannotOpen        = errors.NewKind("the repository could not be opened: %s")
+)
+
 // Repository struct holds an initialized repository and its ID
 type Repository struct {
 	ID   string
@@ -100,29 +106,42 @@ func NewRepositoryPool() *RepositoryPool {
 }
 
 // Add inserts a new repository in the pool
-func (p *RepositoryPool) Add(id, path string, kind repoKind) {
-	if _, ok := p.repositories[id]; !ok {
-		p.idOrder = append(p.idOrder, id)
+func (p *RepositoryPool) Add(id, path string, kind repoKind) error {
+	if r, ok := p.repositories[id]; ok {
+		return errRepoAlreadyRegistered.New(r.path)
 	}
 
+	p.idOrder = append(p.idOrder, id)
 	p.repositories[id] = repository{kind, path}
+
+	return nil
 }
 
 // AddGit checks if a git repository can be opened and adds it to the pool. It
 // also sets its path as ID.
 func (p *RepositoryPool) AddGit(path string) (string, error) {
+	return p.AddGitWithID(path, path)
+}
+
+// AddGitWithID checks if a git repository can be opened and adds it to the
+// pool. ID should be specified.
+func (p *RepositoryPool) AddGitWithID(id, path string) (string, error) {
 	_, err := git.PlainOpen(path)
+	if err != nil {
+		return "", errRepoCannotOpen.Wrap(err, path)
+	}
+
+	err = p.Add(id, path, gitRepo)
 	if err != nil {
 		return "", err
 	}
 
-	p.Add(path, path, gitRepo)
-
 	return path, nil
 }
 
-// AddDir adds all direct subdirectories from path as git repos.
-func (p *RepositoryPool) AddDir(path string) error {
+// AddDir adds all direct subdirectories from path as git repos. Prefix is the
+// number of directories to strip from the ID.
+func (p *RepositoryPool) AddDir(prefix int, path string) error {
 	dirs, err := ioutil.ReadDir(path)
 	if err != nil {
 		return err
@@ -130,11 +149,16 @@ func (p *RepositoryPool) AddDir(path string) error {
 
 	for _, f := range dirs {
 		if f.IsDir() {
-			name := filepath.Join(path, f.Name())
-			if _, err := p.AddGit(name); err != nil {
-				logrus.WithField("path", name).Error("repository could not be opened")
+			pa := filepath.Join(path, f.Name())
+			id := IDFromPath(prefix, pa)
+			if _, err := p.AddGitWithID(id, pa); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"id":    id,
+					"path":  pa,
+					"error": err,
+				}).Error("repository could not be added")
 			} else {
-				logrus.WithField("path", name).Debug("repository added")
+				logrus.WithField("path", pa).Debug("repository added")
 			}
 		}
 	}
@@ -188,8 +212,6 @@ func (p *RepositoryPool) addSivaFile(root, path string, f os.FileInfo) {
 		logrus.WithField("file", relativeFileName).Warn("found a non-siva file, skipping")
 	}
 }
-
-var errInvalidRepoKind = errors.NewKind("invalid repo kind: %d")
 
 // GetPos retrieves a repository at a given position. If the position is
 // out of bounds it returns io.EOF.

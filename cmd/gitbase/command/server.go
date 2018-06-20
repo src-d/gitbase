@@ -162,14 +162,14 @@ func (c *Server) addDirectories() error {
 }
 
 func (c *Server) addGitPattern(pattern string) error {
-	matches, err := filepath.Glob(pattern)
+	prefix, matches, err := gitbase.PatternMatches(pattern)
 	if err != nil {
 		return err
 	}
 
 	for _, m := range matches {
 		logrus.WithField("dir", m).Debug("git repositories directory added")
-		if err := c.pool.AddDir(m); err != nil {
+		if err := c.pool.AddDir(prefix, m); err != nil {
 			return err
 		}
 	}

@@ -57,7 +57,9 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool.Add("1", path, gitRepo)
+	err = pool.Add("1", path, gitRepo)
+	require.NoError(err)
+
 	repo, err = pool.GetPos(1)
 	require.NoError(err)
 	require.Equal("1", repo.ID)
@@ -67,6 +69,13 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.NoError(err)
 	require.Equal("1", repo.ID)
 	require.NotNil(repo.Repo)
+
+	err = pool.Add("1", path, gitRepo)
+	require.Error(err)
+	require.True(errRepoAlreadyRegistered.Is(err))
+
+	_, err = pool.GetPos(0)
+	require.Equal(git.ErrRepositoryNotExists, err)
 
 	_, err = pool.GetPos(2)
 	require.Equal(io.EOF, err)
@@ -78,6 +87,11 @@ func TestRepositoryPoolGit(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
+
+	_, err := pool.AddGit("/do/not/exist")
+	require.Error(err)
+	require.True(errRepoCannotOpen.Is(err))
+
 	id, err := pool.AddGit(path)
 	require.Equal(path, id)
 	require.NoError(err)
@@ -229,6 +243,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "gitbase-test")
 	require.NoError(err)
 
+	tmpDirLen := len(SplitPath(tmpDir))
 	max := 64
 
 	for i := 0; i < max; i++ {
@@ -240,7 +255,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 	}
 
 	pool := NewRepositoryPool()
-	err = pool.AddDir(tmpDir)
+	err = pool.AddDir(tmpDirLen, tmpDir)
 	require.NoError(err)
 
 	require.Equal(max, len(pool.repositories))
@@ -252,7 +267,7 @@ func TestRepositoryPoolAddDir(t *testing.T) {
 		repo, err := pool.GetPos(i)
 		require.NoError(err)
 		arrayID[i] = repo.ID
-		arrayExpected[i] = filepath.Join(tmpDir, strconv.Itoa(i))
+		arrayExpected[i] = strconv.Itoa(i)
 
 		iter, err := repo.Repo.CommitObjects()
 		require.NoError(err)
