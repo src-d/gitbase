@@ -3,7 +3,7 @@ package bblfsh
 import (
 	"context"
 	"io/ioutil"
-	"path"
+	"path/filepath"
 
 	"gopkg.in/bblfsh/sdk.v1/protocol"
 )
@@ -24,13 +24,13 @@ func (r *ParseRequest) Language(language string) *ParseRequest {
 
 // ReadFile loads a file given a local path and sets the content and the
 // filename of the request.
-func (r *ParseRequest) ReadFile(filepath string) *ParseRequest {
-	data, err := ioutil.ReadFile(filepath)
+func (r *ParseRequest) ReadFile(fp string) *ParseRequest {
+	data, err := ioutil.ReadFile(fp)
 	if err != nil {
 		r.err = err
 	} else {
 		r.internal.Content = string(data)
-		r.internal.Filename = path.Base(filepath)
+		r.internal.Filename = filepath.Base(fp)
 	}
 
 	return r
@@ -87,13 +87,13 @@ func (r *NativeParseRequest) Language(language string) *NativeParseRequest {
 
 // ReadFile loads a file given a local path and sets the content and the
 // filename of the request.
-func (r *NativeParseRequest) ReadFile(filepath string) *NativeParseRequest {
-	data, err := ioutil.ReadFile(filepath)
+func (r *NativeParseRequest) ReadFile(fp string) *NativeParseRequest {
+	data, err := ioutil.ReadFile(fp)
 	if err != nil {
 		r.err = err
 	} else {
 		r.internal.Content = string(data)
-		r.internal.Filename = path.Base(filepath)
+		r.internal.Filename = filepath.Base(fp)
 	}
 
 	return r
@@ -154,4 +154,26 @@ func (r *VersionRequest) DoWithContext(ctx context.Context) (*protocol.VersionRe
 	}
 
 	return r.client.service.Version(ctx, &protocol.VersionRequest{})
+}
+
+// SupportedLanguagesRequest is a request to retrieve the supported languages.
+type SupportedLanguagesRequest struct {
+	client *Client
+	err    error
+}
+
+// Do performs the actual parsing by serializing the request, sending it to
+// bblfsd and waiting for the response.
+func (r *SupportedLanguagesRequest) Do() (*protocol.SupportedLanguagesResponse, error) {
+	return r.DoWithContext(context.Background())
+}
+
+// DoWithContext does the same as Do(), but sopporting cancellation by the use
+// of Go contexts.
+func (r *SupportedLanguagesRequest) DoWithContext(ctx context.Context) (*protocol.SupportedLanguagesResponse, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+
+	return r.client.service.SupportedLanguages(ctx, &protocol.SupportedLanguagesRequest{})
 }

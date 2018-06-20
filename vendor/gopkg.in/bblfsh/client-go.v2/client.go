@@ -53,3 +53,8 @@ func (c *Client) NewNativeParseRequest() *NativeParseRequest {
 func (c *Client) NewVersionRequest() *VersionRequest {
 	return &VersionRequest{client: c}
 }
+
+// NewSupportedLanguagesRequest is a parsing request to get the supported languages.
+func (c *Client) NewSupportedLanguagesRequest() *SupportedLanguagesRequest {
+	return &SupportedLanguagesRequest{client: c}
+}
