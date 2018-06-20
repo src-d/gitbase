@@ -160,6 +160,10 @@ func TestIntegration(t *testing.T) {
 }
 
 func TestUastQueries(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping bblfsh integration test")
+	}
+
 	require := require.New(t)
 
 	engine, pool, cleanup := setup(t)
@@ -454,6 +458,10 @@ func benchmarkQuery(b *testing.B, query string, engine *sqle.Engine, ctx *sql.Co
 }
 
 func TestIndexes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping pilosa integration test")
+	}
+
 	engine, pool, cleanup := setup(t)
 	defer cleanup()
 

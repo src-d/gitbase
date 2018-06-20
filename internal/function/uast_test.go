@@ -27,6 +27,10 @@ print(sum(3, 5))
 const testXPath = "//*[@roleIdentifier]"
 
 func TestUAST(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping bblfsh integration test")
+	}
+
 	ctx, cleanup := setup(t)
 	defer cleanup()
 
@@ -83,6 +87,10 @@ func TestUAST(t *testing.T) {
 }
 
 func TestUASTXPath(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping bblfsh integration test")
+	}
+
 	ctx, cleanup := setup(t)
 	defer cleanup()
 

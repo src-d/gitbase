@@ -8,6 +8,10 @@ import (
 )
 
 func TestSessionBblfshClient(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping bblfsh integration test")
+	}
+
 	require := require.New(t)
 
 	session := NewSession(nil, WithBblfshEndpoint(defaultBblfshEndpoint))
