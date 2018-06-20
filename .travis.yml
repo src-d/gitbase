@@ -1,61 +1,44 @@
 language: go
-sudo: required
-
-go:
-  - "1.9.x"
-  - "1.10.x"
-  - tip
-
-services:
-  - docker
-
+go: 1.10.x
 go_import_path: github.com/src-d/gitbase
 
-matrix:
-  fast_finish: true
-  allow_failures:
-    - go: tip
-
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - gcc-6
-    - g++-6
-
-before_install:
-  - docker pull pilosa/pilosa:v0.9.0
-  - docker run -d --name pilosa -p 127.0.0.1:10101:10101 pilosa/pilosa:v0.9.0
-  - docker ps -a
-
 install:
-  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
-  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
-  - cd ./vendor/gopkg.in/bblfsh/client-go.v2
-  - make dependencies
-  - cd ./../../../..
-  - make dependencies
-
-before_script:
-  - docker run -d --name bblfshd --privileged -p 9432:9432 -v /var/lib/bblfshd:/var/lib/bblfshd bblfsh/bblfshd
-  - docker exec -it bblfshd bblfshctl driver install python bblfsh/python-driver
-  - docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
+  - make ci-install
 
 script:
-  - make test-coverage codecov
+  - make ci-script
 
-before_deploy:
-  - make packages
-
-deploy:
-  provider: releases
-  api_key: $GITHUB_TOKEN
-  file_glob: true
-  file: build/*.tar.gz
-  skip_cleanup: true
-  on:
-    tags: true
-
-after_deploy:
-  - DOCKER_PUSH_LATEST=1 make docker-push
+jobs:
+  include:
+    - {os: linux, dist: trusty, sudo: required, services: [docker]}
+    - {os: osx, osx_image: xcode8.3}
+    - {os: osx, osx_image: xcode9.3}
+    - stage: deploy
+      if: tag IS present
+      os: linux
+      services:
+        - docker
+      script:
+        - make dependencies
+        - make PKG_OS=linux packages
+      deploy:
+        provider: releases
+        api_key: $GITHUB_TOKEN
+        file_glob: true
+        file: build/*.tar.gz
+        skip_cleanup: true
+      after_deploy:
+        - DOCKER_PUSH_LATEST=1 make docker-push
+    - stage: deploy
+      if: tag IS present
+      os: osx
+      osx_image: xcode9.3
+      script:
+        - make dependencies
+        - make PKG_OS=darwin packages
+      deploy:
+        provider: releases
+        api_key: $GITHUB_TOKEN
+        file_glob: true
+        file: build/*.tar.gz
+        skip_cleanup: true
