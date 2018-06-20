@@ -11,12 +11,15 @@ MAKEFILE := $(CI_PATH)/Makefile.main
 $(MAKEFILE):
 	git clone --quiet --branch $(CI_VERSION) --depth 1 $(CI_REPOSITORY) $(CI_PATH);
 
+# Run tests with external services only on Travis/Linux
+GO_TEST_FLAGS ?= -v -short
+ifeq ($(TRAVIS),true)
+ifeq ($(TRAVIS_OS),linux)
+GO_TEST_FLAGS = -v
+endif
+endif
+
 -include $(MAKEFILE)
-
-bblfsh-client:
-	cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies
-
-dependencies: bblfsh-client
 
 ifeq ($(TRAVIS),true)
 ifeq ($(TRAVIS_OS),linux)
@@ -39,6 +42,7 @@ install-gcc-6:
 endif
 endif
 
+bblfsh-client:
+	cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies
 
-
-
+dependencies: bblfsh-client
