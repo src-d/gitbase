@@ -1,5 +1,6 @@
-![gitbase logo](https://cdn.rawgit.com/src-d/artwork/efe2dd7d/gitbase/files/gitbase-github-readme-header.png)
+![**gitbase** is a SQL database interface to Git repositories.](https://cdn.rawgit.com/src-d/artwork/efe2dd7d/gitbase/files/gitbase-github-readme-header.png)
 
+-**gitbase**, is a SQL database interface to Git repositories.
 
 # gitbase [![GitHub version](https://badge.fury.io/gh/src-d%2Fgitbase.svg)](https://github.com/mcuadros/ofelia/releases) [![Build Status](https://travis-ci.org/src-d/gitbase.svg?branch=master)](https://travis-ci.org/src-d/gitbase) [![codecov](https://codecov.io/gh/src-d/gitbase/branch/master/graph/badge.svg)](https://codecov.io/gh/src-d/gitbase) [![GoDoc](https://godoc.org/gopkg.in/src-d/gitbase.v0?status.svg)](https://godoc.org/gopkg.in/src-d/gitbase.v0) [![Go Report Card](https://goreportcard.com/badge/github.com/src-d/gitbase)](https://goreportcard.com/report/github.com/src-d/gitbase)
 
