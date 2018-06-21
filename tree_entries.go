@@ -384,7 +384,9 @@ type treeEntriesIndexIter struct {
 	index          sql.IndexValueIter
 	decoder        *objectDecoder
 	prevTreeOffset int64
-	tree           *object.Tree
+	tree           *object.Tree // holds the last obtained tree
+	entry          *TreeEntry   // holds the last obtained tree entry
+	repoID         string       // holds the repo ID of the last tree entry processed
 }
 
 func newTreeEntriesIndexIter(index sql.IndexValueIter, pool *RepositoryPool) *treeEntriesIndexIter {
@@ -408,6 +410,8 @@ func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
 	if err = decodeIndexKey(data, &key); err != nil {
 		return nil, err
 	}
+
+	i.repoID = key.Repository
 
 	var tree *object.Tree
 	if i.prevTreeOffset == key.Offset {
@@ -435,8 +439,8 @@ func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
 	}
 
 	i.prevTreeOffset = key.Offset
-	entry := &TreeEntry{tree.Hash, tree.Entries[key.Pos]}
-	return treeEntryToRow(key.Repository, entry), nil
+	i.entry = &TreeEntry{tree.Hash, tree.Entries[key.Pos]}
+	return treeEntryToRow(key.Repository, i.entry), nil
 }
 
 func (i *treeEntriesIndexIter) Close() error {

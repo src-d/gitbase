@@ -49,7 +49,7 @@ func SquashJoins(
 			return n, nil
 		}
 
-		return buildSquashedTable(t.tables, t.filters, t.columns)
+		return buildSquashedTable(t.tables, t.filters, t.columns, t.indexes)
 	})
 }
 
@@ -70,18 +70,30 @@ func joinTables(join *plan.InnerJoin) (sql.Table, error) {
 	var tables []sql.Table
 	var filters []sql.Expression
 	var columns []sql.Expression
+	var indexes = make(map[string]sql.IndexLookup)
 	plan.Inspect(join, func(node sql.Node) bool {
 		switch node := node.(type) {
 		case *joinedTables:
 			tables = append(tables, node.tables...)
 			columns = append(columns, node.columns...)
 			filters = append(filters, node.filters...)
+			for t, idx := range node.indexes {
+				indexes[t] = idx
+			}
 		case *plan.PushdownProjectionAndFiltersTable:
 			table, ok := node.PushdownProjectionAndFiltersTable.(gitbase.Table)
 			if ok {
 				filters = append(filters, node.Filters...)
 				columns = append(columns, node.Columns...)
 				tables = append(tables, table)
+			}
+		case *plan.IndexableTable:
+			table, ok := node.Indexable.(gitbase.Table)
+			if ok {
+				filters = append(filters, node.Filters...)
+				columns = append(columns, node.Columns...)
+				tables = append(tables, table)
+				indexes[table.Name()] = node.Index
 			}
 		case *plan.InnerJoin:
 			filters = append(filters, exprToFilters(node.Cond)...)
@@ -93,6 +105,7 @@ func joinTables(join *plan.InnerJoin) (sql.Table, error) {
 		tables:  tables,
 		filters: filters,
 		columns: columns,
+		indexes: indexes,
 	}, nil
 }
 
@@ -126,9 +139,16 @@ var errInvalidIteratorChain = errors.NewKind("invalid iterator to chain with %s:
 func buildSquashedTable(
 	tables []sql.Table,
 	filters, columns []sql.Expression,
+	indexes map[string]sql.IndexLookup,
 ) (sql.Node, error) {
 	tableNames := orderedTableNames(tables)
 	allFilters := filters[:]
+
+	firstTable := tableNames[0]
+	var index sql.IndexLookup
+	if idx, ok := indexes[firstTable]; ok {
+		index = idx
+	}
 
 	var iter gitbase.ChainableIter
 	var err error
@@ -265,7 +285,11 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewAllRefCommitsIter(f)
+				if index != nil {
+					iter = gitbase.NewIndexRefCommitsIter(index, f)
+				} else {
+					iter = gitbase.NewAllRefCommitsIter(f)
+				}
 			default:
 				return nil, errInvalidIteratorChain.New("ref_commits", iter)
 			}
@@ -320,7 +344,12 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
-				iter = gitbase.NewAllCommitsIter(f, false)
+
+				if index != nil {
+					iter = gitbase.NewIndexCommitsIter(index, f)
+				} else {
+					iter = gitbase.NewAllCommitsIter(f, false)
+				}
 			default:
 				return nil, errInvalidIteratorChain.New("commits", iter)
 			}
@@ -398,7 +427,11 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewAllCommitTreesIter(f)
+				if index != nil {
+					iter = gitbase.NewIndexCommitTreesIter(index, f)
+				} else {
+					iter = gitbase.NewAllCommitTreesIter(f)
+				}
 			default:
 				return nil, errInvalidIteratorChain.New("commit_trees", iter)
 			}
@@ -457,7 +490,11 @@ func buildSquashedTable(
 					return nil, err
 				}
 
-				iter = gitbase.NewAllCommitBlobsIter(f)
+				if index != nil {
+					iter = gitbase.NewIndexCommitBlobsIter(index, f)
+				} else {
+					iter = gitbase.NewAllCommitBlobsIter(f)
+				}
 			default:
 				return nil, errInvalidIteratorChain.New("commit_blobs", iter)
 			}
@@ -513,7 +550,12 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
-				iter = gitbase.NewAllTreeEntriesIter(f)
+
+				if index != nil {
+					iter = gitbase.NewIndexTreeEntriesIter(index, f)
+				} else {
+					iter = gitbase.NewAllTreeEntriesIter(f)
+				}
 			default:
 				return nil, errInvalidIteratorChain.New("tree_entries", iter)
 			}
@@ -540,7 +582,7 @@ func buildSquashedTable(
 				}
 
 				iter = gitbase.NewRepoBlobsIter(it, f, readContent)
-			case gitbase.FilesIter:
+			case gitbase.BlobsIter:
 				var f sql.Expression
 				f, filters, err = filtersForJoin(
 					gitbase.CommitBlobsTableName,
@@ -659,6 +701,13 @@ func isJoinLeafSquashable(node sql.Node) bool {
 				return false
 			}
 			hasSquashableTables = true
+		case *plan.IndexableTable:
+			_, ok := node.Indexable.(gitbase.Squashable)
+			if !ok {
+				hasUnsquashableNodes = true
+				return false
+			}
+			hasSquashableTables = true
 		case *joinedTables:
 			hasSquashableTables = true
 		case *plan.InnerJoin:
@@ -730,6 +779,9 @@ func findLeafTables(n sql.Node) []string {
 			tables = orderedTableNames(n.tables)
 			return false
 		case *plan.PushdownProjectionAndFiltersTable:
+			tables = []string{n.Name()}
+			return false
+		case *plan.IndexableTable:
 			tables = []string{n.Name()}
 			return false
 		default:
@@ -823,7 +875,7 @@ func (t *squashedTable) Resolved() bool {
 }
 func (t *squashedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.SquashedTable")
-	iter, err := gitbase.NewRowRepoIter(ctx, gitbase.NewChainableRowRepoIter(ctx, t.iter))
+	iter, err := gitbase.NewChainableRowIter(ctx, t.iter)
 	if err != nil {
 		span.Finish()
 		return nil, err
@@ -897,6 +949,7 @@ type joinedTables struct {
 	tables  []sql.Table
 	columns []sql.Expression
 	filters []sql.Expression
+	indexes map[string]sql.IndexLookup
 }
 
 var _ sql.Table = (*joinedTables)(nil)

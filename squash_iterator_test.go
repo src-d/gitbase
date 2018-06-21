@@ -668,14 +668,14 @@ func TestCommitBlobsIter(t *testing.T) {
 }
 
 func chainableIterRowsError(t *testing.T, ctx *sql.Context, iter ChainableIter) {
-	it, err := NewRowRepoIter(ctx, NewChainableRowRepoIter(ctx, iter))
+	it, err := NewChainableRowIter(ctx, iter)
 	require.NoError(t, err)
 	_, err = sql.RowIterToRows(it)
 	require.Error(t, err)
 }
 
 func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql.Row {
-	it, err := NewRowRepoIter(ctx, NewChainableRowRepoIter(ctx, iter))
+	it, err := NewChainableRowIter(ctx, iter)
 	require.NoError(t, err)
 	rows, err := sql.RowIterToRows(it)
 	require.NoError(t, err)
@@ -706,4 +706,171 @@ func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Cont
 	}
 
 	return ctx, cleanup
+}
+
+func TestIndexRefCommitsIter(t *testing.T) {
+	require := require.New(t)
+
+	ctx, index, cleanup := setupWithIndex(t, new(refCommitsTable))
+	defer cleanup()
+
+	it, err := NewChainableRowIter(
+		ctx,
+		NewRefCommitCommitsIter(NewAllRefCommitsIter(nil), nil),
+	)
+	require.NoError(err)
+
+	expected, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	iter := NewRefCommitCommitsIter(
+		NewIndexRefCommitsIter(index, nil),
+		nil,
+	)
+
+	it, err = NewChainableRowIter(ctx, iter)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	require.ElementsMatch(expected, rows)
+}
+
+func TestIndexCommitsIter(t *testing.T) {
+	require := require.New(t)
+
+	ctx, index, cleanup := setupWithIndex(t, new(commitsTable))
+	defer cleanup()
+
+	it, err := NewChainableRowIter(
+		ctx,
+		NewCommitTreesIter(NewAllCommitsIter(nil, false), nil, false),
+	)
+	require.NoError(err)
+
+	expected, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	iter := NewCommitTreesIter(
+		NewIndexCommitsIter(index, nil),
+		nil,
+		false,
+	)
+
+	it, err = NewChainableRowIter(ctx, iter)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	require.ElementsMatch(expected, rows)
+}
+
+func TestIndexCommitTreesIter(t *testing.T) {
+	require := require.New(t)
+
+	ctx, index, cleanup := setupWithIndex(t, new(commitTreesTable))
+	defer cleanup()
+
+	it, err := NewChainableRowIter(
+		ctx,
+		NewTreeTreeEntriesIter(NewAllCommitTreesIter(nil), nil, false),
+	)
+	require.NoError(err)
+
+	expected, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	iter := NewTreeTreeEntriesIter(
+		NewIndexCommitTreesIter(index, nil),
+		nil,
+		false,
+	)
+
+	it, err = NewChainableRowIter(ctx, iter)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	require.ElementsMatch(expected, rows)
+}
+
+func TestIndexCommitBlobsIter(t *testing.T) {
+	require := require.New(t)
+
+	ctx, index, cleanup := setupWithIndex(t, new(commitBlobsTable))
+	defer cleanup()
+
+	it, err := NewChainableRowIter(
+		ctx,
+		NewCommitBlobBlobsIter(NewAllCommitBlobsIter(nil), nil, false),
+	)
+	require.NoError(err)
+
+	expected, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	iter := NewCommitBlobBlobsIter(
+		NewIndexCommitBlobsIter(index, nil),
+		nil,
+		false,
+	)
+
+	it, err = NewChainableRowIter(ctx, iter)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	require.ElementsMatch(expected, rows)
+}
+
+func TestIndexTreeEntriesIter(t *testing.T) {
+	require := require.New(t)
+
+	ctx, index, cleanup := setupWithIndex(t, new(treeEntriesTable))
+	defer cleanup()
+
+	it, err := NewChainableRowIter(
+		ctx,
+		NewTreeEntryBlobsIter(NewAllTreeEntriesIter(nil), nil, false),
+	)
+	require.NoError(err)
+
+	expected, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	iter := NewTreeEntryBlobsIter(
+		NewIndexTreeEntriesIter(index, nil),
+		nil,
+		false,
+	)
+
+	it, err = NewChainableRowIter(ctx, iter)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	require.ElementsMatch(expected, rows)
+}
+
+func setupWithIndex(
+	t *testing.T,
+	table Indexable,
+) (*sql.Context, sql.IndexLookup, CleanupFunc) {
+	t.Helper()
+	ctx, _, cleanup := setup(t)
+	index := &lookup{tableIndexValues(t, table, ctx)}
+	return ctx, index, cleanup
+}
+
+type lookup struct {
+	values sql.IndexValueIter
+}
+
+func (l lookup) Values() (sql.IndexValueIter, error) {
+	return l.values, nil
 }
