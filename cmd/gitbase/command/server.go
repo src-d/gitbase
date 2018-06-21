@@ -14,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 )
@@ -94,7 +95,7 @@ func (c *Server) Execute(args []string) error {
 
 func (c *Server) buildDatabase() error {
 	if c.engine == nil {
-		c.engine = sqle.New()
+		c.engine = sqle.NewDefault()
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
@@ -115,7 +116,12 @@ func (c *Server) buildDatabase() error {
 
 	if c.UnstableSquash {
 		logrus.Warn("unstable squash tables rule is enabled")
-		c.engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+		a := analyzer.NewBuilder(c.engine.Catalog).
+			AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
+			Build()
+
+		a.CurrentDatabase = c.engine.Analyzer.CurrentDatabase
+		c.engine.Analyzer = a
 	}
 
 	return c.engine.Init()

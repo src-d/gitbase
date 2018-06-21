@@ -15,7 +15,7 @@ thousands of repositories in a single node. Stay tuned!
 
 ## Examples
 
-To see the SQL subset currently supported take a look at [this list](https://github.com/src-d/go-mysql-server/blob/5620932d8b3ca58edd6bfa4c168073d4c1ff665f/SUPPORTED.md) from [src-d/go-mysql-server](https://github.com/src-d/go-mysql-server).
+To see the SQL subset currently supported take a look at [this list](https://github.com/src-d/go-mysql-server/blob/0084abf48137b4d72c6f948abfde91a00f3f77f0/SUPPORTED.md) from [src-d/go-mysql-server](https://github.com/src-d/go-mysql-server).
 
 [src-d/go-mysql-server](https://github.com/src-d/go-mysql-server) is the project where the SQL engine used by ***gitbase*** is implemented.
 

@@ -15,12 +15,13 @@ import (
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 )
 
 func TestIntegration(t *testing.T) {
-	engine := sqle.New()
+	engine := sqle.NewDefault()
 	require.NoError(t, fixtures.Init())
 	defer func() {
 		require.NoError(t, fixtures.Clean())
@@ -69,9 +70,9 @@ func TestIntegration(t *testing.T) {
 		},
 		{
 			`SELECT c.commit_hash
-			FROM ref_commits r 
-			INNER JOIN commits c 
-				ON r.ref_name = 'HEAD' 
+			FROM ref_commits r
+			INNER JOIN commits c
+				ON r.ref_name = 'HEAD'
 				AND r.commit_hash = c.commit_hash`,
 			[]sql.Row{
 				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
@@ -89,9 +90,9 @@ func TestIntegration(t *testing.T) {
 			FROM (
 				SELECT YEAR(c.commit_author_when) AS first_commit_year
 				FROM ref_commits rc
-				INNER JOIN commits c 
+				INNER JOIN commits c
 					ON rc.commit_hash = c.commit_hash
-				ORDER BY c.commit_author_when 
+				ORDER BY c.commit_author_when
 				LIMIT 1
 			) repo_years
 			GROUP BY first_commit_year`,
@@ -155,7 +156,12 @@ func TestIntegration(t *testing.T) {
 
 	t.Run("without squash", runTests)
 
-	engine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+	a := analyzer.NewBuilder(engine.Catalog).
+		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
+		Build()
+
+	a.CurrentDatabase = engine.Analyzer.CurrentDatabase
+	engine.Analyzer = a
 	t.Run("with squash", runTests)
 }
 
@@ -186,10 +192,15 @@ func TestSquashCorrectness(t *testing.T) {
 	engine, pool, cleanup := setup(t)
 	defer cleanup()
 
-	squashEngine := sqle.New()
+	squashEngine := sqle.NewDefault()
 	squashEngine.AddDatabase(gitbase.NewDatabase("foo"))
 	squashEngine.Catalog.RegisterFunctions(function.Functions)
-	squashEngine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+	a := analyzer.NewBuilder(squashEngine.Catalog).
+		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
+		Build()
+
+	a.CurrentDatabase = squashEngine.Analyzer.CurrentDatabase
+	squashEngine.Analyzer = a
 
 	queries := []string{
 		`SELECT * FROM repositories`,
@@ -242,7 +253,7 @@ func TestSquashCorrectness(t *testing.T) {
 
 		`SELECT * FROM refs r
 		INNER JOIN ref_commits c
-			ON r.ref_name = c.ref_name 
+			ON r.ref_name = c.ref_name
 			AND c.repository_id = r.repository_id`,
 
 		`SELECT * FROM refs r
@@ -296,7 +307,7 @@ func TestMissingHeadRefs(t *testing.T) {
 	pool := gitbase.NewRepositoryPool()
 	require.NoError(pool.AddSivaDir(path))
 
-	engine := sqle.New()
+	engine := sqle.NewDefault()
 	engine.AddDatabase(gitbase.NewDatabase("foo"))
 
 	session := gitbase.NewSession(pool)
@@ -414,14 +425,19 @@ func BenchmarkQueries(b *testing.B) {
 		sql.WithSession(gitbase.NewSession(pool)),
 	)
 
-	engine := sqle.New()
+	engine := sqle.NewDefault()
 	engine.AddDatabase(gitbase.NewDatabase("foo"))
 	engine.Catalog.RegisterFunctions(function.Functions)
 
-	squashEngine := sqle.New()
+	squashEngine := sqle.NewDefault()
 	squashEngine.AddDatabase(gitbase.NewDatabase("foo"))
 	squashEngine.Catalog.RegisterFunctions(function.Functions)
-	squashEngine.Analyzer.AddRule(rule.SquashJoinsRule, rule.SquashJoins)
+	a := analyzer.NewBuilder(squashEngine.Catalog).
+		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
+		Build()
+
+	a.CurrentDatabase = squashEngine.Analyzer.CurrentDatabase
+	squashEngine.Analyzer = a
 
 	cleanupIndexes := createTestIndexes(b, indexesEngine, ctx)
 	defer cleanupIndexes()
@@ -467,7 +483,7 @@ func TestIndexes(t *testing.T) {
 		sql.WithSession(gitbase.NewSession(pool)),
 	)
 
-	baseEngine := sqle.New()
+	baseEngine := sqle.NewDefault()
 	baseEngine.AddDatabase(gitbase.NewDatabase("foo"))
 	baseEngine.Catalog.RegisterFunctions(function.Functions)
 
@@ -677,7 +693,7 @@ func deleteIndex(
 
 func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 	t.Helper()
-	engine := sqle.New()
+	engine := sqle.NewDefault()
 	require.NoError(t, fixtures.Init())
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())

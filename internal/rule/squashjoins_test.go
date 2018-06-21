@@ -81,7 +81,7 @@ func TestSquashJoins(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -106,7 +106,7 @@ func TestSquashJoinsUnsquashable(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
 	require.Equal(node, result)
 }
@@ -165,7 +165,7 @@ func TestSquashJoinsPartial(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
 	require.Equal(expected, result)
 }
@@ -206,7 +206,7 @@ func TestSquashJoinsSchema(t *testing.T) {
 		),
 	)
 
-	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.New(nil), node)
+	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
 
 	expected := node.Schema()
