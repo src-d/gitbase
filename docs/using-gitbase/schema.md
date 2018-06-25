@@ -117,6 +117,50 @@ This table exposes blob objects, that are the content without path from files.
 
 ## Relation tables
 
+### commit_blobs
+```sql
++---------------+------+
+| name          | type |
++---------------+------+
+| repository_id | TEXT |
+| commit_hash   | TEXT |
+| blob_hash     | TEXT |
++---------------+------+
+```
+
+This table represents the relation between commits and blobs. With this table you can obtain all the blobs contained on a commit object.
+
+### commit_trees
+```sql
++---------------+------+
+| name          | type |
++---------------+------+
+| repository_id | TEXT |
+| commit_hash   | TEXT |
+| tree_hash     | TEXT |
++---------------+------+
+```
+
+This table represents the relation between commits and trees. With this table you can obtain all the tree entries contained on a commit object.
+
+### ref_commits
+```sql
++---------------+-------+
+| name          | type  |
++---------------+-------+
+| repository_id | TEXT  |
+| commit_hash   | TEXT  |
+| ref_name      | TEXT  |
+| index         | INT64 |
++---------------+-------+
+```
+
+This table allow us to get the commit history from a specific reference name. `index` column represent the position of the commit from a specific reference.
+
+This table it's like the [log](https://git-scm.com/docs/git-log) from a specific reference.
+
+Commits will be repeated if they are in several repositories or references.
+
 ## Database diagram
 <!--
 
