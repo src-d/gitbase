@@ -21,7 +21,7 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
-	engine := sqle.NewDefault()
+	engine := newBaseEngine()
 	require.NoError(t, fixtures.Init())
 	defer func() {
 		require.NoError(t, fixtures.Clean())
@@ -32,9 +32,6 @@ func TestIntegration(t *testing.T) {
 	pool := gitbase.NewRepositoryPool()
 	_, err := pool.AddGitWithID("worktree", path)
 	require.NoError(t, err)
-
-	engine.AddDatabase(gitbase.NewDatabase("foo"))
-	engine.Catalog.RegisterFunctions(function.Functions)
 
 	testCases := []struct {
 		query  string
@@ -192,15 +189,7 @@ func TestSquashCorrectness(t *testing.T) {
 	engine, pool, cleanup := setup(t)
 	defer cleanup()
 
-	squashEngine := sqle.NewDefault()
-	squashEngine.AddDatabase(gitbase.NewDatabase("foo"))
-	squashEngine.Catalog.RegisterFunctions(function.Functions)
-	a := analyzer.NewBuilder(squashEngine.Catalog).
-		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
-		Build()
-
-	a.CurrentDatabase = squashEngine.Analyzer.CurrentDatabase
-	squashEngine.Analyzer = a
+	squashEngine := newSquashEngine()
 
 	queries := []string{
 		`SELECT * FROM repositories`,
@@ -307,8 +296,7 @@ func TestMissingHeadRefs(t *testing.T) {
 	pool := gitbase.NewRepositoryPool()
 	require.NoError(pool.AddSivaDir(path))
 
-	engine := sqle.NewDefault()
-	engine.AddDatabase(gitbase.NewDatabase("foo"))
+	engine := newBaseEngine()
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -425,22 +413,20 @@ func BenchmarkQueries(b *testing.B) {
 		sql.WithSession(gitbase.NewSession(pool)),
 	)
 
-	engine := sqle.NewDefault()
-	engine.AddDatabase(gitbase.NewDatabase("foo"))
-	engine.Catalog.RegisterFunctions(function.Functions)
+	engine := newBaseEngine()
+	squashEngine := newSquashEngine()
+	squashIndexEngine := newSquashEngine()
 
-	squashEngine := sqle.NewDefault()
-	squashEngine.AddDatabase(gitbase.NewDatabase("foo"))
-	squashEngine.Catalog.RegisterFunctions(function.Functions)
-	a := analyzer.NewBuilder(squashEngine.Catalog).
-		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
-		Build()
-
-	a.CurrentDatabase = squashEngine.Analyzer.CurrentDatabase
-	squashEngine.Analyzer = a
+	tmpDir2, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
+	require.NoError(b, err)
+	defer os.RemoveAll(tmpDir2)
+	squashIndexEngine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir2))
 
 	cleanupIndexes := createTestIndexes(b, indexesEngine, ctx)
 	defer cleanupIndexes()
+
+	cleanupIndexes2 := createTestIndexes(b, squashIndexEngine, ctx)
+	defer cleanupIndexes2()
 
 	for _, qq := range queries {
 		b.Run(qq.name, func(b *testing.B) {
@@ -454,6 +440,10 @@ func BenchmarkQueries(b *testing.B) {
 
 			b.Run("squash", func(b *testing.B) {
 				benchmarkQuery(b, qq.query, squashEngine, ctx)
+			})
+
+			b.Run("squash indexes", func(b *testing.B) {
+				benchmarkQuery(b, qq.query, squashIndexEngine, ctx)
 			})
 		})
 	}
@@ -483,12 +473,19 @@ func TestIndexes(t *testing.T) {
 		sql.WithSession(gitbase.NewSession(pool)),
 	)
 
-	baseEngine := sqle.NewDefault()
-	baseEngine.AddDatabase(gitbase.NewDatabase("foo"))
-	baseEngine.Catalog.RegisterFunctions(function.Functions)
+	baseEngine := newBaseEngine()
+	squashEngine := newSquashEngine()
+
+	tmpDir2, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir2)
+	squashEngine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir2))
 
 	cleanupIndexes := createTestIndexes(t, engine, ctx)
 	defer cleanupIndexes()
+
+	cleanupIndexes2 := createTestIndexes(t, squashEngine, ctx)
+	defer cleanupIndexes2()
 
 	testCases := []string{
 		`SELECT ref_name, commit_hash FROM refs WHERE ref_name = 'refs/heads/master'`,
@@ -500,6 +497,21 @@ func TestIndexes(t *testing.T) {
 		`SELECT tree_entry_name, blob_hash FROM tree_entries WHERE tree_entry_name = 'LICENSE'`,
 		`SELECT blob_hash, blob_size FROM blobs WHERE blob_hash = 'd5c0f4ab811897cadf03aec358ae60d21f91c50d'`,
 		`SELECT file_path, blob_hash FROM files WHERE file_path = 'LICENSE'`,
+		`SELECT b.* FROM tree_entries t
+		INNER JOIN blobs b ON t.blob_hash = b.blob_hash
+		WHERE t.tree_entry_name = 'LICENSE'`,
+		`SELECT c.* FROM ref_commits r
+		INNER JOIN commits c ON c.commit_hash = r.commit_hash
+		WHERE r.ref_name = 'refs/heads/master'`,
+		`SELECT t.* FROM commits c
+		INNER JOIN tree_entries t ON c.tree_hash = t.tree_hash
+		WHERE c.commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
+		`SELECT t.* FROM commit_trees c
+		INNER JOIN tree_entries t ON c.tree_hash = t.tree_hash
+		WHERE c.commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
+		`SELECT b.* FROM commit_blobs c
+		INNER JOIN blobs b ON c.blob_hash = b.blob_hash
+		WHERE c.commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
 	}
 
 	for _, tt := range testCases {
@@ -518,7 +530,14 @@ func TestIndexes(t *testing.T) {
 			expected, err := sql.RowIterToRows(iter)
 			require.NoError(err)
 
+			_, iter, err = squashEngine.Query(ctx, tt)
+			require.NoError(err)
+
+			squashRows, err := sql.RowIterToRows(iter)
+			require.NoError(err)
+
 			require.ElementsMatch(expected, rows)
+			require.ElementsMatch(expected, squashRows)
 		})
 	}
 }
@@ -693,7 +712,7 @@ func deleteIndex(
 
 func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 	t.Helper()
-	engine := sqle.NewDefault()
+	engine := newBaseEngine()
 	require.NoError(t, fixtures.Init())
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())
@@ -704,8 +723,23 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 		pool.AddGitWithID("worktree", f.Worktree().Root())
 	}
 
+	return engine, pool, cleanup
+}
+
+func newSquashEngine() *sqle.Engine {
+	catalog := sql.NewCatalog()
+	analyzer := analyzer.NewBuilder(catalog).
+		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
+		Build()
+	e := sqle.New(catalog, analyzer)
+	e.AddDatabase(gitbase.NewDatabase("foo"))
+	e.Catalog.RegisterFunctions(function.Functions)
+	return e
+}
+
+func newBaseEngine() *sqle.Engine {
+	engine := sqle.NewDefault()
 	engine.AddDatabase(gitbase.NewDatabase("foo"))
 	engine.Catalog.RegisterFunctions(function.Functions)
-
-	return engine, pool, cleanup
+	return engine
 }

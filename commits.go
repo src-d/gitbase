@@ -385,6 +385,8 @@ func (i *commitsKeyValueIter) Close() error { return i.repos.Close() }
 type commitsIndexIter struct {
 	index   sql.IndexValueIter
 	decoder *objectDecoder
+	commit  *object.Commit // holds the last obtained commit
+	repoID  string         // holds the ID of the last obtained commit repository
 }
 
 func newCommitsIndexIter(index sql.IndexValueIter, pool *RepositoryPool) *commitsIndexIter {
@@ -409,6 +411,8 @@ func (i *commitsIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
+	i.repoID = key.Repository
+
 	obj, err := i.decoder.decode(
 		key.Repository,
 		plumbing.NewHash(key.Packfile),
@@ -419,12 +423,13 @@ func (i *commitsIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	commit, ok := obj.(*object.Commit)
+	var ok bool
+	i.commit, ok = obj.(*object.Commit)
 	if !ok {
 		return nil, ErrInvalidObjectType.New(obj, "*object.Commit")
 	}
 
-	return commitToRow(key.Repository, commit), nil
+	return commitToRow(key.Repository, i.commit), nil
 }
 
 func (i *commitsIndexIter) Close() error {
