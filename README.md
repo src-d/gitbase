@@ -20,6 +20,10 @@ You can see some examples [here](/docs/using-gitbase/examples.md).
 
 For more info about how to use it, see the [docs](/docs).
 
+## Motivation and scope
+
+## Further reading
+
 ## License
 
 Apache License Version 2.0, see [LICENSE](LICENSE)

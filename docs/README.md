@@ -1,6 +1,5 @@
 # gitbase
 
-* [Introduction](introduction.md)
 * [Join the community](join-the-community.md)
 
 ### Using gitbase
