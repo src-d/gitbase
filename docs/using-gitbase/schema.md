@@ -97,6 +97,24 @@ This table exposes blob objects, that are the content without path from files.
 
 `tree_entries` table contains all the objects from all the repositories that are [tree objects](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects#_git_commit_objects).
 
+
+### files
+```sql
++-----------------+-------+
+| name            | type  |
++-----------------+-------+
+| repository_id   | TEXT  |
+| file_path       | TEXT  |
+| blob_hash       | TEXT  |
+| tree_hash       | TEXT  |
+| tree_entry_mode | TEXT  |
+| blob_content    | BLOB  |
+| blob_size       | INT64 |
++-----------------+-------+
+```
+
+`files` is an utility table mixing `tree_entries` and `blobs` to create files. It includes the file path.
+
 ## Relation tables
 
 ## Database diagram
