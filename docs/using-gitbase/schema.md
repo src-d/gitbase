@@ -1,5 +1,10 @@
 # Schema
 
+You can execute the `SHOW TABLES` statement to get a list of the available tables.
+To get all the columns and types of a specific table, you can write `DESCRIBE TABLE [tablename]`.
+
+gitbase exposes the following tables:
+
 ## Main tables
 
 ### repositories
