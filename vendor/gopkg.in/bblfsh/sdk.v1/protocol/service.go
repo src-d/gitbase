@@ -31,6 +31,16 @@ func Version(req *VersionRequest) *VersionResponse {
 	return DefaultService.Version(req)
 }
 
+// SupportedLanguages uses DefaultService to process the given SupportedLanguagesRequest to get the supported drivers.
+//proteus:generate
+func SupportedLanguages(req *SupportedLanguagesRequest) *SupportedLanguagesResponse {
+	if r := checkDefaultService(); r != nil {
+		return &SupportedLanguagesResponse{Response: *r}
+	}
+
+	return DefaultService.SupportedLanguages(req)
+}
+
 func checkDefaultService() *Response {
 	if DefaultService == nil {
 		return &Response{

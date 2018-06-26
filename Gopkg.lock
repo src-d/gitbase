@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/BurntSushi/toml"
+  packages = ["."]
+  revision = "b26d9c308763d68093482582cea63d69be07a0f0"
+  version = "v0.3.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/alcortesm/tgz"
   packages = ["."]
@@ -314,17 +320,18 @@
     ".",
     "tools"
   ]
-  revision = "274b551eb1e5a7a3e4aff84d8ee1a56feb799107"
-  version = "v2.4.1"
+  revision = "3528037b9c4ec657341135ea9701f160189586f4"
+  version = "v2.5.1"
 
 [[projects]]
   name = "gopkg.in/bblfsh/sdk.v1"
   packages = [
+    "manifest",
     "protocol",
     "uast"
   ]
-  revision = "19e77f414dbb893a34f67fc435e5011b99ba6a1f"
-  version = "v1.15.2"
+  revision = "96e92bdde3785e655b8095a576addd52b96c6c61"
+  version = "v1.16.0"
 
 [[projects]]
   branch = "v1"
@@ -495,6 +502,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8631b0a5d0733b4585a757f98a3ccb2797c54c431f8438d2ef57ce5d32ad77e8"
+  inputs-digest = "5f0a47bfa77498d4943aaf34c17124e2a1dd616ef5ff37dc04183fded87782da"
   solver-name = "gps-cdcl"
   solver-version = 1

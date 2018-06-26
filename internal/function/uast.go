@@ -182,10 +182,20 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, err
 	}
 
-	resp, err := client.NewParseRequest().
-		Content(string(bytes)).
-		Language(lang).
-		DoWithContext(ctx)
+	// If we have a language we must check if it's supported. If we don't, bblfsh
+	// is the one that will have to identify the language.
+	if lang != "" {
+		ok, err = client.IsLanguageSupported(ctx, lang)
+		if err != nil {
+			return nil, err
+		}
+
+		if !ok {
+			return nil, nil
+		}
+	}
+
+	resp, err := client.Parse(ctx, lang, bytes)
 	if err != nil {
 		return nil, err
 	}

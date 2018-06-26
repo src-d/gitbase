@@ -69,10 +69,19 @@ func Example() {
 	checkError(err)
 	fmt.Println("Got response with status:", resp.Status)
 
+	reqSupportedLanguages := &protocol.SupportedLanguagesRequest{}
+	fmt.Println("Sending SupportedLanguages request:")
+
+	respSupportedLanguages, err := client.SupportedLanguages(context.TODO(), reqSupportedLanguages)
+	checkError(err)
+	fmt.Println("Got SupportedLanguagesResponse with status:", respSupportedLanguages.Status)
+
 	server.GracefulStop()
 
 	//Output: Sending Parse for: my source code
 	// Got response with status: Ok
+	// Sending SupportedLanguages request:
+	// Got SupportedLanguagesResponse with status: Ok
 }
 
 // do a reply to a mock server that except the encoding to be protocol.Base64 or
@@ -184,6 +193,7 @@ type ServiceMock struct {
 	P func(req *protocol.ParseRequest) *protocol.ParseResponse
 	N func(req *protocol.NativeParseRequest) *protocol.NativeParseResponse
 	V func(*protocol.VersionRequest) *protocol.VersionResponse
+	D func(*protocol.SupportedLanguagesRequest) *protocol.SupportedLanguagesResponse
 }
 
 func NewServiceMock() *ServiceMock {
@@ -199,6 +209,10 @@ func NewServiceMock() *ServiceMock {
 				Response: protocol.Response{Status: protocol.Ok},
 			}
 		},
+
+		D: func(req *protocol.SupportedLanguagesRequest) *protocol.SupportedLanguagesResponse {
+			return &protocol.SupportedLanguagesResponse{}
+		},
 	}
 }
 
@@ -212,4 +226,8 @@ func (m *ServiceMock) NativeParse(req *protocol.NativeParseRequest) *protocol.Na
 
 func (m *ServiceMock) Version(req *protocol.VersionRequest) *protocol.VersionResponse {
 	return m.V(req)
+}
+
+func (m *ServiceMock) SupportedLanguages(req *protocol.SupportedLanguagesRequest) *protocol.SupportedLanguagesResponse {
+	return m.D(req)
 }

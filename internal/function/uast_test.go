@@ -58,6 +58,7 @@ func TestUAST(t *testing.T) {
 		{"lang is nil", fn3, sql.NewRow([]byte{}, nil, nil), nil, nil},
 		{"xpath is nil", fn3, sql.NewRow([]byte{}, "Ruby", nil), nil, nil},
 		{"only blob, can't infer language", fn1, sql.NewRow([]byte(testCode)), nil, ErrParseBlob},
+		{"blob with unsupported lang", fn2, sql.NewRow([]byte(testCode), "YAML"), nil, nil},
 		{"blob with lang", fn2, sql.NewRow([]byte(testCode), "Python"), uast, nil},
 		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPath), filteredNodes, nil},
 	}
@@ -160,10 +161,7 @@ func bblfshFixtures(t *testing.T, ctx *sql.Context) (uast []interface{}, filtere
 	client, err := ctx.Session.(*gitbase.Session).BblfshClient()
 	require.NoError(t, err)
 
-	resp, err := client.NewParseRequest().
-		Content(testCode).
-		Language("python").
-		Do()
+	resp, err := client.Parse(context.Background(), "python", []byte(testCode))
 	require.NoError(t, err)
 	require.Equal(t, protocol.Ok, resp.Status, "errors: %v", resp.Errors)
 	testUAST, err := resp.UAST.Marshal()

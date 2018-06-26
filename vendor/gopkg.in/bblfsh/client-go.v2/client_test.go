@@ -50,3 +50,18 @@ func TestClient_NewVersionRequest(t *testing.T) {
 	require.Equal(t, len(res.Errors), 0)
 	require.NotNil(t, res.Version)
 }
+
+func TestClient_NewSupportedLanguagesRequest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	cli, err := NewClient("localhost:9432")
+	require.Nil(t, err)
+
+	res, err := cli.NewSupportedLanguagesRequest().Do()
+	require.NoError(t, err)
+
+	require.Equal(t, len(res.Errors), 0)
+	require.NotNil(t, res.Languages)
+}

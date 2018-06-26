@@ -20,6 +20,11 @@ func (s *protocolServiceServer) Parse(ctx context.Context, in *ParseRequest) (re
 	result = Parse(in)
 	return
 }
+func (s *protocolServiceServer) SupportedLanguages(ctx context.Context, in *SupportedLanguagesRequest) (result *SupportedLanguagesResponse, err error) {
+	result = new(SupportedLanguagesResponse)
+	result = SupportedLanguages(in)
+	return
+}
 func (s *protocolServiceServer) Version(ctx context.Context, in *VersionRequest) (result *VersionResponse, err error) {
 	result = new(VersionResponse)
 	result = Version(in)
