@@ -25,7 +25,17 @@ func PatternMatches(pattern string) (int, []string, error) {
 
 	depth := PatternPrefixDepth(abs)
 
-	return depth, matches, nil
+	return depth, removeDsStore(matches), nil
+}
+
+func removeDsStore(matches []string) []string {
+	var result []string
+	for _, m := range matches {
+		if filepath.Base(m) != ".DS_Store" {
+			result = append(result, m)
+		}
+	}
+	return result
 }
 
 // PatternPrefixDepth returns the number of directories before the first
