@@ -143,6 +143,23 @@ func TestIntegration(t *testing.T) {
 				{int32(9), "worktree"},
 			},
 		},
+		{
+			`SELECT c.commit_hash, COUNT(*) as num_files
+			FROM commit_files c
+			NATURAL JOIN files f
+			GROUP BY c.commit_hash`,
+			[]sql.Row{
+				{"b8e471f58bcbca63b07bda20e428190409c2db47", int32(3)},
+				{"b029517f6300c2da0f4b651b8642506cd6aaf45d", int32(2)},
+				{"af2d6a6954d532f8ffb47615169c8fdf9d383a1a", int32(6)},
+				{"a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69", int32(3)},
+				{"918c48b83bd081e863dbe1b80f8998f058cd8294", int32(8)},
+				{"1669dce138d9b841a518c64b10914d88f5e488ea", int32(4)},
+				{"35e85108805c84807bc66a02d91535e1e24b38b9", int32(3)},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", int32(9)},
+				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5", int32(9)},
+			},
+		},
 	}
 
 	runTests := func(t *testing.T) {
@@ -157,6 +174,7 @@ func TestIntegration(t *testing.T) {
 				require.NoError(err)
 				rows, err := sql.RowIterToRows(iter)
 				require.NoError(err)
+
 				require.ElementsMatch(tt.result, rows)
 			})
 		}
@@ -230,6 +248,9 @@ func TestSquashCorrectness(t *testing.T) {
 		INNER JOIN blobs b
 			ON cb.blob_hash = b.blob_hash`,
 		`SELECT * FROM tree_entries te INNER JOIN blobs b ON te.blob_hash = b.blob_hash`,
+
+		`SELECT * FROM commit_files NATURAL JOIN files`,
+		`SELECT * FROM commit_files c INNER JOIN files f ON c.tree_hash = f.tree_hash`,
 
 		`SELECT * FROM repositories r
 		INNER JOIN refs re
@@ -523,6 +544,9 @@ func TestIndexes(t *testing.T) {
 		`SELECT b.* FROM commit_blobs c
 		INNER JOIN blobs b ON c.blob_hash = b.blob_hash
 		WHERE c.commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
+		`SELECT f.* FROM commit_files c
+		NATURAL JOIN files f
+		WHERE c.commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'`,
 	}
 
 	for _, tt := range testCases {
@@ -639,6 +663,14 @@ func createTestIndexes(t testing.TB, engine *sqle.Engine, ctx *sql.Context) func
 			columns: []string{"blob_hash"},
 			expressions: []sql.Expression{
 				col(t, gitbase.BlobsSchema, "blob_hash"),
+			},
+		},
+		{
+			id:      "commit_files_idx",
+			table:   tables[gitbase.CommitFilesTableName],
+			columns: []string{"commit_hash"},
+			expressions: []sql.Expression{
+				col(t, gitbase.CommitFilesSchema, "commit_hash"),
 			},
 		},
 		{

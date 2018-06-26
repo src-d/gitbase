@@ -93,7 +93,7 @@ func TestCommitBlobsTableRowIter(t *testing.T) {
 	}
 
 	_, err = rowIter.Next()
-	require.EqualError(err, io.EOF.Error())
+	require.Equal(err, io.EOF)
 }
 
 func TestCommitBlobsTablePushdown(t *testing.T) {
@@ -158,8 +158,7 @@ func TestCommitBlobsTablePushdown(t *testing.T) {
 			}
 
 			_, err = rowIter.Next()
-			require.EqualError(err, io.EOF.Error())
-
+			require.Equal(err, io.EOF)
 		})
 	}
 }

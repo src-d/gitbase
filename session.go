@@ -28,6 +28,21 @@ type Session struct {
 	SkipGitErrors bool
 }
 
+// getSession returns the gitbase session from a context or an error if there
+// is no session or is not of the matching type inside the context.
+func getSession(ctx *sql.Context) (*Session, error) {
+	if ctx == nil || ctx.Session == nil {
+		return nil, ErrInvalidContext.New(ctx)
+	}
+
+	session, ok := ctx.Session.(*Session)
+	if !ok {
+		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	return session, nil
+}
+
 const (
 	bblfshEndpointKey     = "BBLFSH_ENDPOINT"
 	defaultBblfshEndpoint = "127.0.0.1:9432"

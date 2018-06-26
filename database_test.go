@@ -14,9 +14,7 @@ func init() {
 	fixtures.RootFolder = "vendor/gopkg.in/src-d/go-git-fixtures.v3/"
 }
 
-const (
-	testDBName = "foo"
-)
+const testDBName = "foo"
 
 func TestDatabase_Tables(t *testing.T) {
 	require := require.New(t)
@@ -41,6 +39,7 @@ func TestDatabase_Tables(t *testing.T) {
 		RemotesTableName,
 		CommitBlobsTableName,
 		FilesTableName,
+		CommitFilesTableName,
 	}
 	sort.Strings(expected)
 

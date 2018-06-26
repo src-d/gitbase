@@ -344,10 +344,6 @@ func (d *testErrorIter) NewIterator(
 	return nil, errIter
 }
 
-func (d *testErrorIter) Repository() string { return "RepoTestError" }
-
-func (d *testErrorIter) LastObject() string { return "ObjectTestError" }
-
 func (d *testErrorIter) Next() (sql.Row, error) {
 	if d.next != nil {
 		return d.next()
