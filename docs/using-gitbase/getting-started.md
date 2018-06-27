@@ -5,6 +5,7 @@
 Check the [Release](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
 ```bash
+Please specify one command of: server or version
 Usage:
   gitbase [OPTIONS] <server | version>
 
@@ -12,8 +13,39 @@ Help Options:
   -h, --help  Show this help message
 
 Available commands:
-  server   Start SQL server.
-  version  Show the version information.
+  server   Starts a gitbase server instance
+  version  Show the version information
+```
+
+`server` command contains the following options:
+
+```bash
+Usage:
+  gitbase [OPTIONS] server [server-OPTIONS]
+
+Starts a gitbase server instance
+
+The squashing tables and pushing down join conditions is still a
+work in progress and unstable, disable by default. It can be enabled
+using a not empty value at GITBASE_UNSTABLE_SQUASH_ENABLE env variable.
+
+By default when gitbase encounters an error in a repository it
+stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't
+complain and just skip those rows or repositories.
+
+Help Options:
+  -h, --help          Show this help message
+
+[server command options]
+      -v              Activates the verbose mode
+      -g, --git=      Path where the git repositories are located, multiple directories can be defined. Accepts globs.
+          --siva=     Path where the siva repositories are located, multiple directories can be defined. Accepts globs.
+      -h, --host=     Host where the server is going to listen (default: localhost)
+      -p, --port=     Port where the server is going to listen (default: 3306)
+      -u, --user=     User name used for connection (default: root)
+      -P, --password= Password used for connection
+          --pilosa=   URL to your pilosa server (default: http://localhost:10101)
+      -i, --index=    Directory where the gitbase indexes information will be persisted. (default: /var/lib/gitbase/index)
 ```
 
 You can start a server by providing a path which contains multiple git repositories `/path/to/repositories` with this command:
