@@ -1,57 +1,22 @@
 # Getting started
 
+## Prerequisites
+
+**gitbase** has two optional dependencies that should be running on your system if you're planning on using certain functionality.
+
+- [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.5.0 (only if you're planning to use the `UAST` functionality provided in gitbase).
+- [pilosa](https://github.com/pilosa/pilosa) 0.9.0 (only if you're planning on using indexes).
+
 ## Download an use the binary
 
 Check the [Release](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
-```bash
-Please specify one command of: server or version
-Usage:
-  gitbase [OPTIONS] <server | version>
-
-Help Options:
-  -h, --help  Show this help message
-
-Available commands:
-  server   Starts a gitbase server instance
-  version  Show the version information
-```
-
-`server` command contains the following options:
-
-```bash
-Usage:
-  gitbase [OPTIONS] server [server-OPTIONS]
-
-Starts a gitbase server instance
-
-The squashing tables and pushing down join conditions is still a
-work in progress and unstable, disable by default. It can be enabled
-using a not empty value at GITBASE_UNSTABLE_SQUASH_ENABLE env variable.
-
-By default when gitbase encounters an error in a repository it
-stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't
-complain and just skip those rows or repositories.
-
-Help Options:
-  -h, --help          Show this help message
-
-[server command options]
-      -v              Activates the verbose mode
-      -g, --git=      Path where the git repositories are located, multiple directories can be defined. Accepts globs.
-          --siva=     Path where the siva repositories are located, multiple directories can be defined. Accepts globs.
-      -h, --host=     Host where the server is going to listen (default: localhost)
-      -p, --port=     Port where the server is going to listen (default: 3306)
-      -u, --user=     User name used for connection (default: root)
-      -P, --password= Password used for connection
-          --pilosa=   URL to your pilosa server (default: http://localhost:10101)
-      -i, --index=    Directory where the gitbase indexes information will be persisted. (default: /var/lib/gitbase/index)
-```
+For more info about executable parameters, [go here](/docs/using-gitbase/configuration.md#executable-parameters).
 
 You can start a server by providing a path which contains multiple git repositories `/path/to/repositories` with this command:
 
 ```
-$ gitbase server -v -g /path/to/repositories
+$ gitbase server -v -g /path/to/repositories -u gitbase
 ```
 
 ## Installing from source
@@ -86,7 +51,7 @@ docker run --rm --name gitbase -p 3306:3306 --link pilosa:pilosa -e PILOSA_ENDPO
 
 ## Connecting to the server
 
-When the server is started,a MySQL client is needed to connect to the server. For example:
+When the server is started, a MySQL client is needed to connect to the server. For example:
 
 ```bash
 $ mysql -q -u root -h 127.0.0.1
@@ -99,4 +64,9 @@ SELECT commit_hash, commit_author_email, commit_author_name FROM commits LIMIT 2
 | 01ace9e4d144aaeb50eb630fed993375609bcf55 | user2@test.io       | Antonio Navarro Perez |
 +------------------------------------------+---------------------+-----------------------+
 2 rows in set (0.01 sec)
+```
+
+If gitbase is running in a container from the official image, you must use `gitbase` as user:
+```
+mysql -q -u gitbase -h 127.0.0.1
 ```

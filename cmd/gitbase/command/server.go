@@ -23,7 +23,7 @@ const (
 	ServerDescription = "Starts a gitbase server instance"
 	ServerHelp        = ServerDescription + "\n\n" +
 		"The squashing tables and pushing down join conditions is still a\n" +
-		"work in progress and unstable, disable by default. It can be enabled\n" +
+		"work in progress and unstable, disabled by default. It can be enabled\n" +
 		"using a not empty value at GITBASE_UNSTABLE_SQUASH_ENABLE env variable.\n\n" +
 		"By default when gitbase encounters an error in a repository it\n" +
 		"stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't\n" +
