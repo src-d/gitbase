@@ -37,6 +37,21 @@ make dependencies
 
 ## Running with docker
 
+You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
+```
+docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/gitbase:latest
+```
+
+If you want to speedup gitbase using indexes, you must run a pilosa container:
+```
+docker run -it --rm --name pilosa -p 10101:10101 pilosa/pilosa:v0.9.0
+```
+
+Then link the gitbase container to the pilosa one:
+```
+docker run --rm --name gitbase -p 3306:3306 --link pilosa:pilosa -e PILOSA_ENDPOINT="http://pilosa:10101" -v /my/git/repos:/opt/repos srcd/gitbase:latest
+```
+
 ## Connecting to the server
 
 When the server is started,a MySQL client is needed to connect to the server. For example:

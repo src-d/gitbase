@@ -22,7 +22,15 @@ For more info about how to use it, see the [docs](/docs).
 
 ## Motivation and scope
 
+gitbase was born to make easier the task of analyze git repositories and source code contained on them.
+
+Also, making it MySQL compatible, we want the maximum compatibility between languages and existing tools.
+
+Having that running on a simple binary allow us to use as a stand-alone service able to process some local repositories, or integrate it with other existing tools and frameworks like Spark to make large-scale source code analysis.
+
 ## Further reading
+
+From here, you can directly go to [getting started](/docs/using-gitbase/getting-started.md).
 
 ## License
 
