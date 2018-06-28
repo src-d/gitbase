@@ -6,6 +6,7 @@ import (
 	"github.com/src-d/gitbase/cmd/gitbase/command"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -15,18 +16,23 @@ const (
 func main() {
 	parser := flags.NewNamedParser(name, flags.Default)
 
-	parser.AddCommand("server", command.ServerDescription, command.ServerHelp,
+	_, err := parser.AddCommand("server", command.ServerDescription, command.ServerHelp,
 		&command.Server{
-			UnstableSquash: os.Getenv("GITBASE_UNSTABLE_SQUASH_ENABLE") != "",
-			SkipGitErrors:  os.Getenv("GITBASE_SKIP_GIT_ERRORS") != "",
+			SkipGitErrors: os.Getenv("GITBASE_SKIP_GIT_ERRORS") != "",
 		})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
-	parser.AddCommand("version", command.VersionDescription, command.VersionHelp,
+	_, err = parser.AddCommand("version", command.VersionDescription, command.VersionHelp,
 		&command.Version{
 			Name: name,
 		})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
-	_, err := parser.Parse()
+	_, err = parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrCommandRequired {
 			parser.WriteHelp(os.Stdout)

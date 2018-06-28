@@ -22,30 +22,23 @@ import (
 const (
 	ServerDescription = "Starts a gitbase server instance"
 	ServerHelp        = ServerDescription + "\n\n" +
-		"The squashing tables and pushing down join conditions is still a\n" +
-		"work in progress and unstable, disabled by default. It can be enabled\n" +
-		"using a not empty value at GITBASE_UNSTABLE_SQUASH_ENABLE env variable.\n\n" +
-		"By default when gitbase encounters an error in a repository it\n" +
+		"By default when gitbase encounters and error in a repository it\n" +
 		"stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't\n" +
 		"complain and just skip those rows or repositories."
 )
 
 // Server represents the `server` command of gitbase cli tool.
 type Server struct {
-	Verbose   bool     `short:"v" description:"Activates the verbose mode"`
-	Git       []string `short:"g" long:"git" description:"Path where the git repositories are located, multiple directories can be defined. Accepts globs."`
-	Siva      []string `long:"siva" description:"Path where the siva repositories are located, multiple directories can be defined. Accepts globs."`
-	Host      string   `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
-	Port      int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
-	User      string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
-	Password  string   `short:"P" long:"password" default:"" description:"Password used for connection"`
-	PilosaURL string   `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server" env:"PILOSA_ENDPOINT"`
-	IndexDir  string   `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
-
-	// UnstableSquash quashing tables and pushing down join conditions is still
-	// a work in progress and unstable. To enable it, the GITBASE_UNSTABLE_SQUASH_ENABLE
-	// must not be empty.
-	UnstableSquash bool
+	Verbose       bool     `short:"v" description:"Activates the verbose mode"`
+	Git           []string `short:"g" long:"git" description:"Path where the git repositories are located, multiple directories can be defined. Accepts globs."`
+	Siva          []string `long:"siva" description:"Path where the siva repositories are located, multiple directories can be defined. Accepts globs."`
+	Host          string   `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
+	Port          int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
+	User          string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
+	Password      string   `short:"P" long:"password" default:"" description:"Password used for connection"`
+	PilosaURL     string   `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server" env:"PILOSA_ENDPOINT"`
+	IndexDir      string   `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
+	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
 	// IgnoreGitErrors by default when gitbase encounters and error in a
 	// repository it stops the query. With this parameter it won't complain and
 	// just skip those rows or repositories.
@@ -114,14 +107,16 @@ func (c *Server) buildDatabase() error {
 		return err
 	}
 
-	if c.UnstableSquash {
-		logrus.Warn("unstable squash tables rule is enabled")
+	if !c.DisableSquash {
+		logrus.Info("squash tables rule is enabled")
 		a := analyzer.NewBuilder(c.engine.Catalog).
 			AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
 			Build()
 
 		a.CurrentDatabase = c.engine.Analyzer.CurrentDatabase
 		c.engine.Analyzer = a
+	} else {
+		logrus.Warn("squash tables rule is disabled")
 	}
 
 	return c.engine.Init()
