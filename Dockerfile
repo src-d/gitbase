@@ -15,7 +15,7 @@ FROM ubuntu:16.04
 COPY --from=builder /go/bin/gitbase /bin
 RUN mkdir -p /opt/repos
 
-ENV GITBASE_USER=gitbase
+ENV GITBASE_USER=root
 ENV GITBASE_PASSWORD=""
 ENV GITBASE_REPOS=/opt/repos
 EXPOSE 3306
