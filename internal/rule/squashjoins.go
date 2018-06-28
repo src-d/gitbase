@@ -75,9 +75,9 @@ func SquashJoins(
 			return n, nil
 		}
 
-		squashedProject, err := squashProjects(project, child)
-		if err != nil {
-			return nil, err
+		squashedProject, ok := squashProjects(project, child)
+		if !ok {
+			return n, nil
 		}
 
 		projectSquashes--
@@ -100,22 +100,19 @@ func countProjectSquashes(n sql.Node) int {
 	return squashableProjects - 1
 }
 
-// ErrWrongProjection is raised if a plan.Project node contains a wrong expression.
-var ErrWrongProjection = errors.NewKind("wrong expression found in project node %s")
-
-func squashProjects(parent, child *plan.Project) (sql.Node, error) {
+func squashProjects(parent, child *plan.Project) (sql.Node, bool) {
 	projections := []sql.Expression{}
 	for _, expr := range parent.Expressions() {
 		parentField, ok := expr.(*expression.GetField)
 		if !ok {
-			return nil, ErrWrongProjection.New(parent.String())
+			return nil, false
 		}
 
 		index := parentField.Index()
 		for _, e := range child.Expressions() {
 			childField, ok := e.(*expression.GetField)
 			if !ok {
-				return nil, ErrWrongProjection.New(child.String())
+				return nil, false
 			}
 
 			if referenceSameColumn(parentField, childField) {
@@ -134,7 +131,7 @@ func squashProjects(parent, child *plan.Project) (sql.Node, error) {
 		projections = append(projections, projection)
 	}
 
-	return plan.NewProject(projections, child.Child), nil
+	return plan.NewProject(projections, child.Child), true
 }
 
 func referenceSameColumn(parent, child *expression.GetField) bool {
