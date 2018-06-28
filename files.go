@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"bytes"
 	"io"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -298,6 +299,75 @@ type fileIndexKey struct {
 	Tree       string
 }
 
+func (k *fileIndexKey) encode() ([]byte, error) {
+	var buf bytes.Buffer
+	writeString(&buf, k.Repository)
+	if err := writeHash(&buf, k.Packfile); err != nil {
+		return nil, err
+	}
+
+	writeBool(&buf, k.Offset >= 0)
+	if k.Offset >= 0 {
+		writeInt64(&buf, k.Offset)
+	} else {
+		if err := writeHash(&buf, k.Hash); err != nil {
+			return nil, err
+		}
+	}
+
+	writeString(&buf, k.Name)
+	writeInt64(&buf, k.Mode)
+
+	if err := writeHash(&buf, k.Tree); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (k *fileIndexKey) decode(data []byte) error {
+	var buf = bytes.NewBuffer(data)
+	var err error
+	if k.Repository, err = readString(buf); err != nil {
+		return err
+	}
+
+	if k.Packfile, err = readHash(buf); err != nil {
+		return err
+	}
+
+	ok, err := readBool(buf)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		if k.Offset, err = readInt64(buf); err != nil {
+			return err
+		}
+		k.Hash = ""
+	} else {
+		if k.Hash, err = readHash(buf); err != nil {
+			return err
+		}
+		k.Offset = -1
+	}
+
+	if k.Name, err = readString(buf); err != nil {
+		return err
+	}
+
+	if k.Mode, err = readInt64(buf); err != nil {
+		return err
+	}
+
+	if k.Tree, err = readHash(buf); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type filesKeyValueIter struct {
 	pool    *RepositoryPool
 	repo    *Repository
@@ -387,7 +457,7 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 			hash = f.Blob.Hash.String()
 		}
 
-		key, err := encodeIndexKey(fileIndexKey{
+		key, err := encodeIndexKey(&fileIndexKey{
 			Repository: i.repo.ID,
 			Packfile:   packfile.String(),
 			Hash:       hash,

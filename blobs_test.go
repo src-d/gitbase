@@ -147,7 +147,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 
 	var expected = []keyValue{
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -158,7 +158,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     79864,
@@ -169,7 +169,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2418,
@@ -180,7 +180,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78932,
@@ -191,7 +191,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     82000,
@@ -202,7 +202,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     85438,
@@ -213,7 +213,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -224,7 +224,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     81707,
@@ -235,7 +235,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1752,
@@ -246,7 +246,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2436,

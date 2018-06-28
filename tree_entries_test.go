@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -119,7 +120,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 
 	var expected = []keyValue{
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78685,
@@ -131,7 +132,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78685,
@@ -143,7 +144,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78685,
@@ -155,7 +156,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78685,
@@ -167,7 +168,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78685,
@@ -179,7 +180,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78264,
@@ -191,7 +192,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78184,
@@ -203,7 +204,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78184,
@@ -215,7 +216,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78833,
@@ -227,7 +228,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78833,
@@ -239,7 +240,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78833,
@@ -251,7 +252,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78135,
@@ -263,7 +264,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -275,7 +276,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -287,7 +288,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -299,7 +300,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -311,7 +312,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -323,7 +324,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -335,7 +336,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -347,7 +348,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78358,
@@ -359,7 +360,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78852,
@@ -371,7 +372,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78852,
@@ -383,7 +384,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78720,
@@ -395,7 +396,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78720,
@@ -407,7 +408,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78720,
@@ -419,7 +420,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78313,
@@ -431,7 +432,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -443,7 +444,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -455,7 +456,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -467,7 +468,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -479,7 +480,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -491,7 +492,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -503,7 +504,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -515,7 +516,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78636,
@@ -527,7 +528,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78704,
@@ -539,7 +540,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78704,
@@ -551,7 +552,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78704,
@@ -563,7 +564,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78704,
@@ -575,7 +576,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78619,
@@ -587,7 +588,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78619,
@@ -599,7 +600,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78619,
@@ -611,7 +612,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78619,
@@ -623,7 +624,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78619,
@@ -635,7 +636,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78619,
@@ -647,7 +648,7 @@ func TestTreeEntriesKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, treeEntriesIndexKey{
+			assertEncodeKey(t, &treeEntriesIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78619,
@@ -672,4 +673,40 @@ func TestTreeEntriesIndex(t *testing.T) {
 			expression.NewLiteral("LICENSE", sql.Text),
 		)},
 	)
+}
+
+func TestEncodeTreeEntriesIndexKey(t *testing.T) {
+	require := require.New(t)
+
+	k := treeEntriesIndexKey{
+		Repository: "repo1",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     1234,
+		Hash:       "",
+		Pos:        5,
+	}
+
+	data, err := k.encode()
+	require.NoError(err)
+
+	var k2 treeEntriesIndexKey
+	require.NoError(k2.decode(data))
+
+	require.Equal(k, k2)
+
+	k = treeEntriesIndexKey{
+		Repository: "repo1",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     -1,
+		Hash:       plumbing.ZeroHash.String(),
+		Pos:        5,
+	}
+
+	data, err = k.encode()
+	require.NoError(err)
+
+	var k3 treeEntriesIndexKey
+	require.NoError(k3.decode(data))
+
+	require.Equal(k, k3)
 }

@@ -2,8 +2,9 @@ package gitbase
 
 import (
 	"bytes"
-	"encoding/gob"
-	"time"
+	"encoding/binary"
+	"fmt"
+	"io"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -22,14 +23,12 @@ type Indexable interface {
 	gitBase
 }
 
-func encodeIndexKey(k interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	err := gob.NewEncoder(&buf).Encode(k)
-	return buf.Bytes(), err
+func encodeIndexKey(k indexKey) ([]byte, error) {
+	return k.encode()
 }
 
-func decodeIndexKey(data []byte, k interface{}) error {
-	return gob.NewDecoder(bytes.NewBuffer(data)).Decode(k)
+func decodeIndexKey(data []byte, k indexKey) error {
+	return k.decode(data)
 }
 
 func rowIndexValues(row sql.Row, columns []string, schema sql.Schema) ([]interface{}, error) {
@@ -51,7 +50,13 @@ func rowIndexValues(row sql.Row, columns []string, schema sql.Schema) ([]interfa
 	return values, nil
 }
 
+type rowKeyMapper interface {
+	toRow([]byte) (sql.Row, error)
+	fromRow(sql.Row) ([]byte, error)
+}
+
 type rowKeyValueIter struct {
+	mapper  rowKeyMapper
 	iter    sql.RowIter
 	columns []string
 	schema  sql.Schema
@@ -63,7 +68,7 @@ func (i *rowKeyValueIter) Next() ([]interface{}, []byte, error) {
 		return nil, nil, err
 	}
 
-	key, err := encodeIndexKey(row)
+	key, err := i.mapper.fromRow(row)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -78,8 +83,14 @@ func (i *rowKeyValueIter) Next() ([]interface{}, []byte, error) {
 
 func (i *rowKeyValueIter) Close() error { return i.iter.Close() }
 
+var (
+	errRowKeyMapperRowLength = errors.NewKind("row should have %d columns, has: %d")
+	errRowKeyMapperColType   = errors.NewKind("row column %d should have type %T, has: %T")
+)
+
 type rowIndexIter struct {
-	index sql.IndexValueIter
+	mapper rowKeyMapper
+	index  sql.IndexValueIter
 }
 
 func (i *rowIndexIter) Next() (sql.Row, error) {
@@ -92,8 +103,8 @@ func (i *rowIndexIter) Next() (sql.Row, error) {
 		return nil, err
 	}
 
-	var row sql.Row
-	if err := decodeIndexKey(data, &row); err != nil {
+	row, err := i.mapper.toRow(data)
+	if err != nil {
 		return nil, err
 	}
 
@@ -102,6 +113,11 @@ func (i *rowIndexIter) Next() (sql.Row, error) {
 
 func (i *rowIndexIter) Close() error { return i.index.Close() }
 
+type indexKey interface {
+	encode() ([]byte, error)
+	decode([]byte) error
+}
+
 type packOffsetIndexKey struct {
 	Repository string
 	Packfile   string
@@ -109,10 +125,136 @@ type packOffsetIndexKey struct {
 	Hash       string
 }
 
-func init() {
-	gob.Register(sql.Row{})
-	gob.Register(time.Time{})
-	gob.Register([]interface{}{})
+func (k *packOffsetIndexKey) decode(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	var err error
+
+	if k.Repository, err = readString(buf); err != nil {
+		return err
+	}
+
+	if k.Packfile, err = readHash(buf); err != nil {
+		return err
+	}
+
+	ok, err := readBool(buf)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		if k.Offset, err = readInt64(buf); err != nil {
+			return err
+		}
+		k.Hash = ""
+	} else {
+		k.Offset = -1
+		if k.Hash, err = readHash(buf); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (k *packOffsetIndexKey) encode() ([]byte, error) {
+	var buf bytes.Buffer
+	writeString(&buf, k.Repository)
+	if err := writeHash(&buf, k.Packfile); err != nil {
+		return nil, err
+	}
+	writeBool(&buf, k.Offset >= 0)
+	if k.Offset >= 0 {
+		writeInt64(&buf, k.Offset)
+	} else {
+		if err := writeHash(&buf, k.Hash); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func readInt64(buf *bytes.Buffer) (int64, error) {
+	var bs = make([]byte, 8)
+	_, err := io.ReadFull(buf, bs)
+	if err != nil {
+		return 0, fmt.Errorf("can't read int64: %s", err)
+	}
+
+	ux := binary.LittleEndian.Uint64(bs)
+	x := int64(ux >> 1)
+	if ux&1 != 0 {
+		x = ^x
+	}
+
+	return x, nil
+}
+
+func readString(buf *bytes.Buffer) (string, error) {
+	size, err := readInt64(buf)
+	if err != nil {
+		return "", fmt.Errorf("can't read string size: %s", err)
+	}
+
+	var b = make([]byte, int(size))
+	if _, err = io.ReadFull(buf, b); err != nil {
+		return "", fmt.Errorf("can't read string of size %d: %s", size, err)
+	}
+
+	return string(b), nil
+}
+
+func readBool(buf *bytes.Buffer) (bool, error) {
+	b, err := buf.ReadByte()
+	if err != nil {
+		return false, fmt.Errorf("can't read bool: %s", err)
+	}
+
+	return b == 1, nil
+}
+
+func writeInt64(buf *bytes.Buffer, n int64) {
+	ux := uint64(n) << 1
+	if n < 0 {
+		ux = ^ux
+	}
+	var bs = make([]byte, 8)
+	binary.LittleEndian.PutUint64(bs, ux)
+	buf.Write(bs)
+}
+
+func writeString(buf *bytes.Buffer, s string) {
+	bs := []byte(s)
+	writeInt64(buf, int64(len(bs)))
+	buf.Write(bs)
+}
+
+var errInvalidHashSize = errors.NewKind("invalid hash size: %d, expecting 40 bytes")
+
+func writeHash(buf *bytes.Buffer, s string) error {
+	bs := []byte(s)
+	if len(bs) != 40 {
+		return errInvalidHashSize.New(len(bs))
+	}
+	buf.Write(bs)
+	return nil
+}
+
+func readHash(buf *bytes.Buffer) (string, error) {
+	bs := make([]byte, 40)
+	n, err := io.ReadFull(buf, bs)
+	if err != nil {
+		return "", fmt.Errorf("can't read hash, only read %d: %s", n, err)
+	}
+	return string(bs), nil
+}
+
+func writeBool(buf *bytes.Buffer, b bool) {
+	if b {
+		buf.WriteByte(1)
+	} else {
+		buf.WriteByte(0)
+	}
 }
 
 func closeIndexOnError(err *error, index sql.IndexValueIter) {
