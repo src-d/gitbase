@@ -132,6 +132,17 @@ func TestIntegration(t *testing.T) {
 				{int32(4), "b029517f6300c2da0f4b651b8642506cd6aaf45d"},
 			},
 		},
+		{
+			`SELECT count(1), refs.repository_id
+				FROM refs
+				NATURAL JOIN commits
+				NATURAL JOIN commit_blobs
+				WHERE refs.ref_name = 'HEAD'
+				GROUP BY refs.repository_id`,
+			[]sql.Row{
+				{int32(9), "worktree"},
+			},
+		},
 	}
 
 	runTests := func(t *testing.T) {

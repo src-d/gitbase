@@ -31,6 +31,9 @@ func SquashJoins(
 	defer span.Finish()
 
 	a.Log("squashing joins, node of type %T", n)
+
+	projectSquashes := countProjectSquashes(n)
+
 	n, err := n.TransformUp(func(n sql.Node) (sql.Node, error) {
 		join, ok := n.(*plan.InnerJoin)
 		if !ok {
@@ -39,11 +42,12 @@ func SquashJoins(
 
 		return squashJoin(join)
 	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+	n, err = n.TransformUp(func(n sql.Node) (sql.Node, error) {
 		t, ok := n.(*joinedTables)
 		if !ok {
 			return n, nil
@@ -51,6 +55,87 @@ func SquashJoins(
 
 		return buildSquashedTable(t.tables, t.filters, t.columns, t.indexes)
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+		if projectSquashes <= 0 {
+			return n, nil
+		}
+
+		project, ok := n.(*plan.Project)
+		if !ok {
+			return n, nil
+		}
+
+		child, ok := project.Child.(*plan.Project)
+		if !ok {
+			return n, nil
+		}
+
+		squashedProject, ok := squashProjects(project, child)
+		if !ok {
+			return n, nil
+		}
+
+		projectSquashes--
+		return squashedProject, nil
+	})
+}
+
+func countProjectSquashes(n sql.Node) int {
+	var squashableProjects int
+	plan.Inspect(n, func(node sql.Node) bool {
+		if project, ok := node.(*plan.Project); ok {
+			if _, ok := project.Child.(*plan.InnerJoin); ok {
+				squashableProjects++
+			}
+		}
+
+		return true
+	})
+
+	return squashableProjects - 1
+}
+
+func squashProjects(parent, child *plan.Project) (sql.Node, bool) {
+	projections := []sql.Expression{}
+	for _, expr := range parent.Expressions() {
+		parentField, ok := expr.(*expression.GetField)
+		if !ok {
+			return nil, false
+		}
+
+		index := parentField.Index()
+		for _, e := range child.Expressions() {
+			childField, ok := e.(*expression.GetField)
+			if !ok {
+				return nil, false
+			}
+
+			if referenceSameColumn(parentField, childField) {
+				index = childField.Index()
+			}
+		}
+
+		projection := expression.NewGetFieldWithTable(
+			index,
+			parentField.Type(),
+			parentField.Table(),
+			parentField.Name(),
+			parentField.IsNullable(),
+		)
+
+		projections = append(projections, projection)
+	}
+
+	return plan.NewProject(projections, child.Child), true
+}
+
+func referenceSameColumn(parent, child *expression.GetField) bool {
+	return parent.Name() == child.Name() && parent.Table() == child.Table()
 }
 
 func squashJoin(join *plan.InnerJoin) (sql.Node, error) {
