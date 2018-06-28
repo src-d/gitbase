@@ -67,7 +67,7 @@ This table contains all hash [git references](https://git-scm.com/book/en/v2/Git
 +---------------------+-----------+
 ```
 
-Commits contains all the [commits](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects#_git_commit_objects) from all the references from all the repositories, not duplicated by repository. Note that you can have the same commit in several repositories. In that case, the commit will appears two times on the table, one per repository.
+Commits contains all the [commits](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects#_git_commit_objects) from all the references from all the repositories, not duplicated by repository. Note that you can have the same commit in several repositories. In that case the commit will appear two times on the table, one per repository.
 
 > Note that this table is not only showing `HEAD` commits but all the commits on the repository (that can be a lot more than the commits on `HEAD` reference).
 
@@ -119,6 +119,8 @@ This table exposes blob objects, that are the content without path from files.
 ```
 
 `files` is an utility table mixing `tree_entries` and `blobs` to create files. It includes the file path.
+
+Queries to this table are expensive and they should be done carefully (applying filters or using directly `blobs` or `tree_entries` tables).
 
 ## Relation tables
 

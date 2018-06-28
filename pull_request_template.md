@@ -1,6 +1,6 @@
 <!--
 
-All PRs must keep up to date the documentation. If this PR changes or add some new behavior don't forget to check:
+All PRs must keep the documentation up to date. If this PR changes or adds some new behavior don't forget to check:
 
 - Schema changes
 - Syntax changes

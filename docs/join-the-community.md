@@ -6,13 +6,12 @@ If you need support, want to contribute or just want to say hi, join us at the [
 
 ## Contributing
 
-You can start contributing in many ways
+You can start contributing in many ways:
 
-* [Reporting bugs.](/docs/join-the-community.md#reporting-bugs)
-* [Request a feature.](https://github.com/src-d/gitbase/issues)
-* Improve the [documentation](https://github.com/src-d/gitbase/docs).
-* Contribute code to [gitbase](https://github.com/src-d/gitbase),
-* Write a new data source using [go-mysql-server](https://github.com/src-d/go-mysql-server)
+* [Report bugs](/docs/join-the-community.md#reporting-bugs)
+* [Request a feature](https://github.com/src-d/gitbase/issues)
+* Improve the [documentation](https://github.com/src-d/gitbase/docs)
+* Contribute code to [gitbase](https://github.com/src-d/gitbase)
 
 ## Reporting bugs
 

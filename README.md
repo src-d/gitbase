@@ -8,7 +8,7 @@ about the [Universal AST](https://doc.bblf.sh/) of the code itself. gitbase is b
 gitbase implements the *MySQL* wire protocol, it can be accessed using any MySQL
 client or library from any language.
 
-[src-d/go-mysql-server](https://github.com/src-d/go-mysql-server) is the project where the SQL engine used by ***gitbase*** is implemented.
+[src-d/go-mysql-server](https://github.com/src-d/go-mysql-server) is the SQL engine implementation used by `gitbase`.
 
 ## Status
 
@@ -16,17 +16,15 @@ The project is currently in **alpha** stage, meaning it's still lacking performa
 
 ## Examples
 
-You can see some examples [here](/docs/using-gitbase/examples.md).
-
-For more info about how to use it, see the [docs](/docs).
+You can see some [query examples](/docs/using-gitbase/examples.md) in [gitbase documentation](/docs).
 
 ## Motivation and scope
 
-gitbase was born to make easier the task of analyze git repositories and source code contained on them.
+gitbase was born to ease the analysis of git repositories and its source code.
 
-Also, making it MySQL compatible, we want the maximum compatibility between languages and existing tools.
+Also, making it MySQL compatible, we provide the maximum compatibility between languages and existing tools.
 
-Having that running on a simple binary allow us to use as a stand-alone service able to process some local repositories, or integrate it with other existing tools and frameworks like Spark to make large-scale source code analysis.
+As a single binary allows use it as a standalone service. The service is able to process local repositories or integrate with existing tools and frameworks (e.g. spark) to make source code analysis on the large scale.
 
 ## Further reading
 

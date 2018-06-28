@@ -15,7 +15,7 @@ WHERE commits.commit_author_name = 'Javi Fontan' AND refs.ref_name='HEAD';
 SELECT * FROM refs WHERE ref_name = 'HEAD'
 ```
 
-## Commits that appears in more than one reference
+## Commits that appear in more than one reference
 
 ```sql
 SELECT * FROM (
@@ -39,7 +39,7 @@ INNER JOIN commit_blobs cb
 GROUP BY c.commit_hash
 ```
 
-## Get commits per commiter, per month in 2015
+## Get commits per committer, per month in 2015
 
 ```sql
 SELECT COUNT(*) as num_commits, month, repo_id, committer_email

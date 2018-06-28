@@ -11,7 +11,7 @@
 | `GITBASE_UNSTABLE_SQUASH_ENABLE` | enable join squash rule to improve query performance **experimental**. This optimization collects inner joins between tables with a set of supported conditions and converts them into a single node that retrieves the data in chained steps (getting first the commits and then the blobs of every commit instead of joining all commits and all blobs, for example).|
 | `GITBASE_SKIP_GIT_ERRORS`        | do not stop queries on git errors, default disabled |
 
-## Executable parameters
+## Command line arguments
 
 ```bash
 Please specify one command of: server or version
