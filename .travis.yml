@@ -1,13 +1,4 @@
 language: go
-sudo: required
-
-go:
-  - "1.9.x"
-  - "1.10.x"
-  - tip
-
-services:
-  - docker
 
 go_import_path: github.com/src-d/gitbase
 
@@ -28,10 +19,10 @@ before_install:
   - docker pull pilosa/pilosa:v0.9.0
   - docker run -d --name pilosa -p 127.0.0.1:10101:10101 pilosa/pilosa:v0.9.0
   - docker ps -a
-
-install:
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
+
+install:
   - cd ./vendor/gopkg.in/bblfsh/client-go.v2
   - make dependencies
   - cd ./../../../..
@@ -45,17 +36,53 @@ before_script:
 script:
   - make test-coverage codecov
 
-before_deploy:
-  - make packages
+jobs:
+  include:
+    - go: 1.10.x
+      os: linux
+      sudo: required
+      dist: trusty
+      services: [docker]
 
-deploy:
-  provider: releases
-  api_key: $GITHUB_TOKEN
-  file_glob: true
-  file: build/*.tar.gz
-  skip_cleanup: true
-  on:
-    tags: true
+      before_deploy:
+        - make packages
 
-after_deploy:
-  - DOCKER_PUSH_LATEST=1 make docker-push
+      after_deploy:
+        - DOCKER_PUSH_LATEST=1 make docker-push
+
+      deploy:
+        provider: releases
+        api_key: $GITHUB_TOKEN
+        file_glob: true
+        file: build/*linux_amd64.tar.gz
+        skip_cleanup: true
+        on:
+          tags: true
+
+    - {go: tip, os: linux, sudo: required, dist: trusty, services: [docker]}
+
+    - go: 1.10.x
+      os: osx
+      osx_image: xcode9.3
+
+      before_install:
+        - echo "skipping before_install for macOS"
+
+      before_script:
+        - echo "skipping before_script for macOS"
+
+      script:
+        - make packages || echo "" # will fail because of docker being missing
+        - if [ ! -f "build/gitbase_darwin_amd64/gitbase" ]; then echo "gitbase binary not generated" && exit 1; fi
+        - cd build
+        - tar -cvzf "gitbase_${TRAVIS_TAG}_darwin_amd64.tar.gz" gitbase_darwin_amd64
+        - cd ..
+
+      deploy:
+        provider: releases
+        api_key: $GITHUB_TOKEN
+        file_glob: true,
+        file: build/*darwin_amd64.tar.gz
+        skip_cleanup: true
+        on:
+          tags: true
