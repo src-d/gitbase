@@ -737,7 +737,7 @@ func createIndex(
 	iter, err := data.table.(sql.Indexable).IndexKeyValueIter(ctx, data.columns)
 	require.NoError(err)
 
-	require.NoError(driver.Save(context.Background(), idx, iter))
+	require.NoError(driver.Save(sql.NewEmptyContext(), idx, iter))
 
 	done <- struct{}{}
 }
@@ -748,7 +748,7 @@ func deleteIndex(
 	data indexData,
 ) {
 	t.Helper()
-	done, err := e.Catalog.DeleteIndex("foo", data.id)
+	done, err := e.Catalog.DeleteIndex("foo", data.id, true)
 	require.NoError(t, err)
 	<-done
 }

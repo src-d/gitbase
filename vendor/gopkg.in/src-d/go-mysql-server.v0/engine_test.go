@@ -15,9 +15,8 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/parse"
+	"gopkg.in/src-d/go-mysql-server.v0/test"
 
-	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -240,6 +239,40 @@ var queries = []struct {
 			sql.NewRow([]interface{}{"fir", "t row"}),
 			sql.NewRow([]interface{}{"", "econd row"}),
 			sql.NewRow([]interface{}{"third row"}),
+		},
+	},
+	{
+		`SELECT SUM(i) FROM mytable`,
+		[]sql.Row{{float64(6)}},
+	},
+	{
+		`SELECT * FROM mytable mt INNER JOIN othertable ot ON mt.i = ot.i2 AND mt.i > 2`,
+		[]sql.Row{
+			{int64(3), "third row", "first", int64(3)},
+		},
+	},
+	{
+		`SELECT i as foo FROM mytable ORDER BY i DESC`,
+		[]sql.Row{
+			{int64(3)},
+			{int64(2)},
+			{int64(1)},
+		},
+	},
+	{
+		`SELECT COUNT(*) c, i as foo FROM mytable GROUP BY i ORDER BY i DESC`,
+		[]sql.Row{
+			{int32(1), int64(3)},
+			{int32(1), int64(2)},
+			{int32(1), int64(1)},
+		},
+	},
+	{
+		`SELECT COUNT(*) c, i as foo FROM mytable GROUP BY i ORDER BY foo, i DESC`,
+		[]sql.Row{
+			{int32(1), int64(3)},
+			{int32(1), int64(2)},
+			{int32(1), int64(1)},
 		},
 	},
 }
@@ -683,11 +716,11 @@ func TestIndexes(t *testing.T) {
 	iter, err := table.IndexKeyValueIter(sql.NewEmptyContext(), []string{"i"})
 	require.NoError(err)
 
-	require.NoError(driver.Save(context.TODO(), idx, iter))
+	require.NoError(driver.Save(sql.NewEmptyContext(), idx, iter))
 	created <- struct{}{}
 
 	defer func() {
-		done, err := e.Catalog.DeleteIndex("foo", "myidx")
+		done, err := e.Catalog.DeleteIndex("foo", "myidx", true)
 		require.NoError(err)
 		<-done
 	}()
@@ -720,7 +753,7 @@ func TestCreateIndex(t *testing.T) {
 
 	defer func() {
 		time.Sleep(1 * time.Second)
-		done, err := e.Catalog.DeleteIndex("foo", "myidx")
+		done, err := e.Catalog.DeleteIndex("foo", "myidx", true)
 		require.NoError(err)
 		<-done
 
@@ -728,11 +761,49 @@ func TestCreateIndex(t *testing.T) {
 	}()
 }
 
+func TestOrderByGroupBy(t *testing.T) {
+	require := require.New(t)
+
+	table := mem.NewTable("members", sql.Schema{
+		{Name: "id", Type: sql.Int64, Source: "members"},
+		{Name: "team", Type: sql.Text, Source: "members"},
+	})
+	require.NoError(table.Insert(sql.NewRow(int64(3), "red")))
+	require.NoError(table.Insert(sql.NewRow(int64(4), "red")))
+	require.NoError(table.Insert(sql.NewRow(int64(5), "orange")))
+	require.NoError(table.Insert(sql.NewRow(int64(6), "orange")))
+	require.NoError(table.Insert(sql.NewRow(int64(7), "orange")))
+	require.NoError(table.Insert(sql.NewRow(int64(8), "purple")))
+
+	db := mem.NewDatabase("db")
+	db.AddTable(table.Name(), table)
+
+	e := sqle.NewDefault()
+	e.AddDatabase(db)
+
+	_, iter, err := e.Query(
+		sql.NewEmptyContext(),
+		"SELECT team, COUNT(*) FROM members GROUP BY team ORDER BY 2",
+	)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(iter)
+	require.NoError(err)
+
+	expected := []sql.Row{
+		{"purple", int32(1)},
+		{"red", int32(2)},
+		{"orange", int32(3)},
+	}
+
+	require.Equal(expected, rows)
+}
+
 func TestTracing(t *testing.T) {
 	require := require.New(t)
 	e := newEngine(t)
 
-	tracer := new(memTracer)
+	tracer := new(test.MemTracer)
 
 	ctx := sql.NewContext(context.TODO(), sql.WithTracer(tracer))
 
@@ -747,13 +818,12 @@ func TestTracing(t *testing.T) {
 	require.Len(rows, 1)
 	require.NoError(err)
 
-	spans := tracer.spans
-
+	spans := tracer.Spans
 	var expectedSpans = []string{
 		"plan.Limit",
+		"plan.Sort",
 		"plan.Distinct",
 		"plan.Project",
-		"plan.Sort",
 		"plan.Filter",
 		"plan.PushdownProjectionAndFiltersTable",
 		"expression.Equals",
@@ -774,41 +844,3 @@ func TestTracing(t *testing.T) {
 
 	require.Equal(expectedSpans, spanOperations)
 }
-
-type memTracer struct {
-	spans []string
-}
-
-type memSpan struct {
-	opName string
-}
-
-func (t *memTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
-	t.spans = append(t.spans, operationName)
-	return &memSpan{operationName}
-}
-
-func (t *memTracer) Inject(sm opentracing.SpanContext, format interface{}, carrier interface{}) error {
-	panic("not implemented")
-}
-
-func (t *memTracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
-	panic("not implemented")
-}
-
-func (m memSpan) Context() opentracing.SpanContext                      { return m }
-func (m memSpan) SetBaggageItem(key, val string) opentracing.Span       { return m }
-func (m memSpan) BaggageItem(key string) string                         { return "" }
-func (m memSpan) SetTag(key string, value interface{}) opentracing.Span { return m }
-func (m memSpan) LogFields(fields ...log.Field)                         {}
-func (m memSpan) LogKV(keyVals ...interface{})                          {}
-func (m memSpan) Finish()                                               {}
-func (m memSpan) FinishWithOptions(opts opentracing.FinishOptions)      {}
-func (m memSpan) SetOperationName(operationName string) opentracing.Span {
-	return &memSpan{operationName}
-}
-func (m memSpan) Tracer() opentracing.Tracer                            { return &memTracer{} }
-func (m memSpan) LogEvent(event string)                                 {}
-func (m memSpan) LogEventWithPayload(event string, payload interface{}) {}
-func (m memSpan) Log(data opentracing.LogData)                          {}
-func (m memSpan) ForeachBaggageItem(handler func(k, v string) bool)     {}

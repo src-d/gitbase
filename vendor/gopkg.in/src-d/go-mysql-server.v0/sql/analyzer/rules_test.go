@@ -15,6 +15,234 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
+func TestResolveOrderBy(t *testing.T) {
+	rule := getRule("resolve_orderby")
+	a := NewDefault(nil)
+	ctx := sql.NewEmptyContext()
+
+	table := mem.NewTable("foo", sql.Schema{
+		{Name: "a", Type: sql.Int64, Source: "foo"},
+		{Name: "b", Type: sql.Int64, Source: "foo"},
+	})
+
+	t.Run("with project", func(t *testing.T) {
+		require := require.New(t)
+		node := plan.NewSort(
+			[]plan.SortField{
+				{Column: expression.NewUnresolvedColumn("x")},
+			},
+			plan.NewProject(
+				[]sql.Expression{
+					expression.NewAlias(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						"x",
+					),
+				},
+				table,
+			),
+		)
+
+		result, err := rule.Apply(ctx, a, node)
+		require.NoError(err)
+
+		require.Equal(node, result)
+
+		node = plan.NewSort(
+			[]plan.SortField{
+				{Column: expression.NewUnresolvedColumn("a")},
+			},
+			plan.NewProject(
+				[]sql.Expression{
+					expression.NewAlias(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						"x",
+					),
+				},
+				table,
+			),
+		)
+
+		expected := plan.NewProject(
+			[]sql.Expression{
+				expression.NewAlias(
+					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+					"x",
+				),
+			},
+			plan.NewSort(
+				[]plan.SortField{
+					{Column: expression.NewUnresolvedColumn("a")},
+				},
+				table,
+			),
+		)
+
+		result, err = rule.Apply(ctx, a, node)
+		require.NoError(err)
+
+		require.Equal(expected, result)
+
+		node = plan.NewSort(
+			[]plan.SortField{
+				{Column: expression.NewUnresolvedColumn("a")},
+				{Column: expression.NewUnresolvedColumn("x")},
+			},
+			plan.NewProject(
+				[]sql.Expression{
+					expression.NewAlias(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						"x",
+					),
+				},
+				table,
+			),
+		)
+
+		expected = plan.NewProject(
+			[]sql.Expression{
+				expression.NewGetFieldWithTable(0, sql.Int64, "", "x", false),
+			},
+			plan.NewSort(
+				[]plan.SortField{
+					{Column: expression.NewUnresolvedColumn("a")},
+					{Column: expression.NewUnresolvedColumn("x")},
+				},
+				plan.NewProject(
+					[]sql.Expression{
+						expression.NewAlias(
+							expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+							"x",
+						),
+						expression.NewUnresolvedColumn("a"),
+					},
+					table,
+				),
+			),
+		)
+
+		result, err = rule.Apply(ctx, a, node)
+		require.NoError(err)
+
+		require.Equal(expected, result)
+	})
+
+	t.Run("with group by", func(t *testing.T) {
+		require := require.New(t)
+		node := plan.NewSort(
+			[]plan.SortField{
+				{Column: expression.NewUnresolvedColumn("x")},
+			},
+			plan.NewGroupBy(
+				[]sql.Expression{
+					expression.NewAlias(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						"x",
+					),
+				},
+				[]sql.Expression{
+					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				},
+				table,
+			),
+		)
+
+		result, err := rule.Apply(ctx, a, node)
+		require.NoError(err)
+
+		require.Equal(node, result)
+
+		node = plan.NewSort(
+			[]plan.SortField{
+				{Column: expression.NewUnresolvedColumn("a")},
+			},
+			plan.NewGroupBy(
+				[]sql.Expression{
+					expression.NewAlias(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						"x",
+					),
+				},
+				[]sql.Expression{
+					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				},
+				table,
+			),
+		)
+
+		var expected sql.Node = plan.NewGroupBy(
+			[]sql.Expression{
+				expression.NewAlias(
+					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+					"x",
+				),
+			},
+			[]sql.Expression{
+				expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+			},
+			plan.NewSort(
+				[]plan.SortField{
+					{Column: expression.NewUnresolvedColumn("a")},
+				},
+				table,
+			),
+		)
+
+		result, err = rule.Apply(ctx, a, node)
+		require.NoError(err)
+
+		require.Equal(expected, result)
+
+		node = plan.NewSort(
+			[]plan.SortField{
+				{Column: expression.NewUnresolvedColumn("a")},
+				{Column: expression.NewUnresolvedColumn("x")},
+			},
+			plan.NewGroupBy(
+				[]sql.Expression{
+					expression.NewAlias(
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+						"x",
+					),
+				},
+				[]sql.Expression{
+					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+				},
+				table,
+			),
+		)
+
+		expected = plan.NewProject(
+			[]sql.Expression{
+				expression.NewGetFieldWithTable(0, sql.Int64, "", "x", false),
+			},
+			plan.NewSort(
+				[]plan.SortField{
+					{Column: expression.NewUnresolvedColumn("a")},
+					{Column: expression.NewUnresolvedColumn("x")},
+				},
+				plan.NewGroupBy(
+					[]sql.Expression{
+						expression.NewAlias(
+							expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+							"x",
+						),
+						expression.NewUnresolvedColumn("a"),
+					},
+					[]sql.Expression{
+						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
+					},
+					table,
+				),
+			),
+		)
+
+		result, err = rule.Apply(ctx, a, node)
+		require.NoError(err)
+
+		require.Equal(expected, result)
+	})
+}
+
 func TestResolveSubqueries(t *testing.T) {
 	require := require.New(t)
 
@@ -450,6 +678,32 @@ func TestResolveStar(t *testing.T) {
 			require.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestMisusedAlias(t *testing.T) {
+	require := require.New(t)
+	f := getRule("resolve_columns")
+
+	table := mem.NewTable("mytable", sql.Schema{{Name: "i", Type: sql.Int32}})
+
+	node := plan.NewProject(
+		[]sql.Expression{
+			expression.NewAlias(
+				expression.NewUnresolvedColumn("i"),
+				"alias_i",
+			),
+			expression.NewUnresolvedColumn("alias_i"),
+		},
+		table,
+	)
+
+	// the first iteration wrap the unresolved column "alias_i" as a maybeAlias
+	n, err := f.Apply(sql.NewEmptyContext(), nil, node)
+	require.NoError(err)
+
+	// if maybeAlias is not resolved it fails
+	_, err = f.Apply(sql.NewEmptyContext(), nil, n)
+	require.EqualError(err, ErrMisusedAlias.New("alias_i").Error())
 }
 
 func TestQualifyColumns(t *testing.T) {
@@ -1761,6 +2015,152 @@ func TestGetMultiColumnIndexes(t *testing.T) {
 		exprs[5]: struct{}{},
 	}
 	require.Equal(expectedUsed, used)
+}
+
+func TestContainsSources(t *testing.T) {
+	testCases := []struct {
+		name     string
+		haystack []string
+		needle   []string
+		expected bool
+	}{
+		{
+			"needle is in haystack",
+			[]string{"a", "b", "c"},
+			[]string{"c", "b"},
+			true,
+		},
+		{
+			"needle is not in haystack",
+			[]string{"a", "b", "c"},
+			[]string{"d", "b"},
+			false,
+		},
+		{
+			"no elements in needle",
+			[]string{"a", "b", "c"},
+			nil,
+			true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(
+				t,
+				containsSources(tt.haystack, tt.needle),
+				tt.expected,
+			)
+		})
+	}
+}
+
+func TestNodeSources(t *testing.T) {
+	sources := nodeSources(mem.NewTable("foo", sql.Schema{
+		{Source: "foo"},
+		{Source: "foo"},
+		{Source: "bar"},
+		{Source: "baz"},
+	}))
+
+	expected := []string{"foo", "bar", "baz"}
+	require.Equal(t, expected, sources)
+}
+
+func TestExpressionSources(t *testing.T) {
+	sources := expressionSources(expression.JoinAnd(
+		col(0, "foo", "bar"),
+		col(0, "foo", "qux"),
+		and(
+			eq(
+				col(0, "bar", "baz"),
+				lit(1),
+			),
+			eq(
+				col(0, "baz", "baz"),
+				lit(2),
+			),
+		),
+	))
+
+	expected := []string{"foo", "bar", "baz"}
+	require.Equal(t, expected, sources)
+}
+
+func TestMoveJoinConditionsToFilter(t *testing.T) {
+	t1 := mem.NewTable("t1", sql.Schema{
+		{Name: "a", Source: "t1"},
+		{Name: "b", Source: "t1"},
+	})
+
+	t2 := mem.NewTable("t2", sql.Schema{
+		{Name: "c", Source: "t2"},
+		{Name: "d", Source: "t2"},
+	})
+
+	t3 := mem.NewTable("t3", sql.Schema{
+		{Name: "e", Source: "t3"},
+		{Name: "f", Source: "t3"},
+	})
+
+	rule := getRule("move_join_conds_to_filter")
+	require := require.New(t)
+
+	node := plan.NewInnerJoin(
+		t1,
+		plan.NewCrossJoin(t2, t3),
+		expression.JoinAnd(
+			eq(col(0, "t1", "a"), col(2, "t2", "c")),
+			eq(col(0, "t1", "a"), col(4, "t3", "e")),
+			eq(col(2, "t2", "c"), col(4, "t3", "e")),
+			eq(col(0, "t1", "a"), lit(5)),
+		),
+	)
+
+	result, err := rule.Apply(sql.NewEmptyContext(), NewDefault(nil), node)
+	require.NoError(err)
+
+	var expected sql.Node = plan.NewInnerJoin(
+		plan.NewFilter(
+			eq(col(0, "t1", "a"), lit(5)),
+			t1,
+		),
+		plan.NewFilter(
+			eq(col(0, "t2", "c"), col(2, "t3", "e")),
+			plan.NewCrossJoin(t2, t3),
+		),
+		and(
+			eq(col(0, "t1", "a"), col(2, "t2", "c")),
+			eq(col(0, "t1", "a"), col(4, "t3", "e")),
+		),
+	)
+
+	require.Equal(expected, result)
+
+	node = plan.NewInnerJoin(
+		t1,
+		plan.NewCrossJoin(t2, t3),
+		expression.JoinAnd(
+			eq(col(0, "t2", "c"), col(0, "t3", "e")),
+			eq(col(0, "t1", "a"), lit(5)),
+		),
+	)
+
+	result, err = rule.Apply(sql.NewEmptyContext(), NewDefault(nil), node)
+	require.NoError(err)
+
+	expected = plan.NewCrossJoin(
+		plan.NewFilter(
+			eq(col(0, "t1", "a"), lit(5)),
+			t1,
+		),
+		plan.NewFilter(
+			eq(col(0, "t2", "c"), col(2, "t3", "e")),
+			plan.NewCrossJoin(t2, t3),
+		),
+	)
+
+	require.Equal(result, expected)
 }
 
 func or(left, right sql.Expression) sql.Expression {
