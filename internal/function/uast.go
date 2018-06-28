@@ -197,7 +197,7 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	resp, err := client.Parse(ctx, lang, bytes)
 	if err != nil {
-		return nil, err
+		return nil, ErrParseBlob.New(err)
 	}
 
 	if resp.Status != protocol.Ok {
