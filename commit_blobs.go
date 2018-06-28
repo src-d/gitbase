@@ -179,10 +179,6 @@ func (i *commitBlobsIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	}, nil
 }
 
-func (i *commitBlobsIter) Repository() string { return i.repo.ID }
-
-func (i *commitBlobsIter) LastObject() string { return i.currCommit.Hash.String() }
-
 func (i *commitBlobsIter) Next() (sql.Row, error) {
 	for {
 		if i.iter == nil {

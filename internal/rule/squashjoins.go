@@ -696,6 +696,79 @@ func buildSquashedTable(
 			default:
 				return nil, errInvalidIteratorChain.New("blobs", iter)
 			}
+		case gitbase.CommitFilesTableName:
+			switch it := iter.(type) {
+			case gitbase.RefsIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.ReferencesTableName,
+					gitbase.CommitFilesTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitFilesSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitFilesIter(gitbase.NewRefHEADCommitsIter(it, nil, true), f)
+			case gitbase.CommitsIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.CommitsTableName,
+					gitbase.CommitFilesTableName,
+					filters,
+					append(it.Schema(), gitbase.CommitFilesSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitFilesIter(it, f)
+			case nil:
+				var f sql.Expression
+				f, filters, err = filtersForTable(
+					gitbase.CommitFilesTableName,
+					filters,
+					gitbase.CommitFilesSchema,
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				if index != nil {
+					iter = gitbase.NewIndexCommitFilesIter(index, f)
+				} else {
+					iter = gitbase.NewAllCommitFilesIter(f)
+				}
+			default:
+				return nil, errInvalidIteratorChain.New("commit_files", iter)
+			}
+		case gitbase.FilesTableName:
+			var readContent bool
+			for _, e := range columns {
+				if containsField(e, gitbase.FilesTableName, "blob_content") {
+					readContent = true
+					break
+				}
+			}
+
+			switch it := iter.(type) {
+			case gitbase.FilesIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.CommitFilesTableName,
+					gitbase.FilesTableName,
+					filters,
+					append(it.Schema(), gitbase.FilesSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitFileFilesIter(it, f, readContent)
+			default:
+				return nil, errInvalidIteratorChain.New("files", iter)
+			}
 		}
 	}
 
@@ -754,6 +827,8 @@ var tableHierarchy = []string{
 	gitbase.TreeEntriesTableName,
 	gitbase.CommitBlobsTableName,
 	gitbase.BlobsTableName,
+	gitbase.CommitFilesTableName,
+	gitbase.FilesTableName,
 }
 
 func orderedTableNames(tables []sql.Table) []string {
@@ -1106,7 +1181,7 @@ func filtersForTable(
 // t1 MUST be higher in the table hierarchy than t2.
 func removeRedundantFilters(filters []sql.Expression, t1, t2 string) []sql.Expression {
 	var result []sql.Expression
-	for _, f := range filters {
+	for _, f := range removeRedundantCompoundFilters(filters, t1, t2) {
 		if !isRedundantFilter(f, t1, t2) {
 			result = append(result, f)
 		}
@@ -1147,12 +1222,79 @@ func hasMainTreeFilter(filters []sql.Expression) bool {
 // any filter that can be used to build a chainable iterator.
 // t1 with t2. t1 MUST be higher in the table hierarchy than t2.
 func hasChainableJoinCondition(cond sql.Expression, t1, t2 string) bool {
+	filters := exprToFilters(cond)
+	if hasRedundantCompoundFilter(filters, t1, t2) {
+		return true
+	}
+
 	for _, f := range exprToFilters(cond) {
 		if isRedundantFilter(f, t1, t2) {
 			return true
 		}
 	}
 	return false
+}
+
+var (
+	isTreeHashFilter = isEq(
+		isCol(gitbase.CommitFilesTableName, "tree_hash"),
+		isCol(gitbase.FilesTableName, "tree_hash"),
+	)
+
+	isFilePathFilter = isEq(
+		isCol(gitbase.CommitFilesTableName, "file_path"),
+		isCol(gitbase.FilesTableName, "file_path"),
+	)
+
+	isBlobHashFilter = isEq(
+		isCol(gitbase.CommitFilesTableName, "blob_hash"),
+		isCol(gitbase.FilesTableName, "blob_hash"),
+	)
+)
+
+// hasRedundantCompoindFilter returns whether there is any compound redundant
+// filter in the given set of filters for joining t1 with t2. t1 MUST be higher
+// in the table hierarchy than t2.
+// A compound redundant filter is a set of multiple filters that are required
+// for a table t1 to be joined with a table t2.
+func hasRedundantCompoundFilter(filters []sql.Expression, t1, t2 string) bool {
+	if t1 == gitbase.CommitFilesTableName && t2 == gitbase.FilesTableName {
+		var treeHash, filePath, blobHash bool
+		for _, f := range filters {
+			if isFilePathFilter(f) {
+				filePath = true
+			} else if isBlobHashFilter(f) {
+				blobHash = true
+			} else if isTreeHashFilter(f) {
+				treeHash = true
+			}
+		}
+
+		return filePath && treeHash && blobHash
+	}
+
+	return false
+}
+
+// removeRedundantCompoundFilters removes from the given slice of filters the
+// ones that correspond to compound redundant filters for joining table t1 with
+// table t2. t1 must be higher in the table hierarchy than t2.
+func removeRedundantCompoundFilters(
+	filters []sql.Expression,
+	t1, t2 string,
+) []sql.Expression {
+	if t1 == gitbase.CommitFilesTableName && t2 == gitbase.FilesTableName {
+		var result []sql.Expression
+		for _, f := range filters {
+			if !isFilePathFilter(f) && !isBlobHashFilter(f) && !isTreeHashFilter(f) {
+				result = append(result, f)
+			}
+		}
+
+		return result
+	}
+
+	return filters
 }
 
 // isRedundantFilter tells whether the given filter is redundant for joining
@@ -1265,6 +1407,21 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 		return isEq(
 			isCol(gitbase.CommitBlobsTableName, "blob_hash"),
 			isCol(gitbase.BlobsTableName, "blob_hash"),
+		)(f)
+	case t1 == gitbase.CommitsTableName && t2 == gitbase.CommitFilesTableName:
+		return isEq(
+			isCol(gitbase.CommitsTableName, "commit_hash"),
+			isCol(gitbase.CommitFilesTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.RefCommitsTableName && t2 == gitbase.CommitFilesTableName:
+		return isEq(
+			isCol(gitbase.RefCommitsTableName, "commit_hash"),
+			isCol(gitbase.CommitFilesTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.ReferencesTableName && t2 == gitbase.CommitFilesTableName:
+		return isEq(
+			isCol(gitbase.ReferencesTableName, "commit_hash"),
+			isCol(gitbase.CommitFilesTableName, "commit_hash"),
 		)(f)
 	}
 	return false

@@ -29,8 +29,10 @@ func newFilesTable() Indexable {
 }
 
 var _ sql.PushdownProjectionAndFiltersTable = (*filesTable)(nil)
+var _ Squashable = (*filesTable)(nil)
 
 func (filesTable) isGitbaseTable()      {}
+func (filesTable) isSquashable()        {}
 func (filesTable) Resolved() bool       { return true }
 func (filesTable) Name() string         { return FilesTableName }
 func (filesTable) Schema() sql.Schema   { return FilesSchema }
@@ -165,15 +167,6 @@ type filesIter struct {
 	filePaths  []string
 	blobHashes []plumbing.Hash
 	treeHashes []plumbing.Hash
-}
-
-// TODO: remove this once the interface is changed, it's just a placeholder for now
-func (*filesIter) LastObject() string {
-	return ""
-}
-
-func (i *filesIter) Repository() string {
-	return i.repo.ID
 }
 
 func (i *filesIter) NewIterator(repo *Repository) (RowRepoIter, error) {

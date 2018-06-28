@@ -2988,6 +2988,312 @@ func (i *squashCommitBlobBlobsIter) Schema() sql.Schema {
 	return append(i.commitBlobs.Schema(), BlobsSchema...)
 }
 
+// FilesIter is a chainable iterator that operates on files.
+type FilesIter interface {
+	ChainableIter
+	File() *object.File
+	TreeHash() plumbing.Hash
+}
+
+type squashCommitFilesIter struct {
+	commits       CommitsIter
+	files         *object.FileIter
+	file          *object.File
+	treeHash      plumbing.Hash
+	commit        *object.Commit
+	row           sql.Row
+	filters       sql.Expression
+	ctx           *sql.Context
+	skipGitErrors bool
+}
+
+// NewAllCommitFilesIter returns an iterator that will return all commit files.
+func NewAllCommitFilesIter(filters sql.Expression) FilesIter {
+	return NewCommitFilesIter(NewAllCommitsIter(nil, true), filters)
+}
+
+// NewCommitFilesIter returns an iterator that will return all commit files
+// for the commits in the given iterator.
+func NewCommitFilesIter(iter CommitsIter, filters sql.Expression) FilesIter {
+	return &squashCommitFilesIter{commits: iter, filters: filters}
+}
+
+func (i *squashCommitFilesIter) New(ctx *sql.Context, pool *RepositoryPool) (ChainableIter, error) {
+	iter, err := i.commits.New(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashCommitFilesIter{
+		ctx:           ctx,
+		skipGitErrors: session.SkipGitErrors,
+		commits:       iter.(CommitsIter),
+		filters:       i.filters,
+	}, nil
+}
+
+func (i *squashCommitFilesIter) Advance() error {
+	for {
+		if i.files == nil {
+			err := i.commits.Advance()
+			if err != nil {
+				if err != io.EOF && i.skipGitErrors {
+					logrus.WithField("err", err).Error("could not get next commit")
+					continue
+				}
+
+				return err
+			}
+
+			i.commit = i.commits.Commit()
+			i.files, err = i.commit.Files()
+			if err != nil {
+				if i.skipGitErrors {
+					logrus.WithFields(logrus.Fields{
+						"err":    err,
+						"repo":   i.Repository().ID,
+						"commit": i.commit.Hash.String(),
+					}).Error("could not get files for commit")
+					continue
+				}
+
+				return err
+			}
+		}
+
+		var err error
+		i.file, err = i.files.Next()
+		if err != nil {
+			if err == io.EOF {
+				i.files = nil
+				continue
+			}
+
+			if i.skipGitErrors {
+				logrus.WithFields(logrus.Fields{
+					"err":    err,
+					"repo":   i.Repository().ID,
+					"commit": i.commit.Hash.String(),
+				}).Error("could not get files for commit")
+				continue
+			}
+
+			return err
+		}
+
+		i.treeHash = i.commits.Commit().TreeHash
+		i.row = append(
+			i.commits.Row(),
+			newCommitFilesRow(i.Repository(), i.commit, i.file)...,
+		)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+
+func (i *squashCommitFilesIter) Repository() *Repository { return i.commits.Repository() }
+func (i *squashCommitFilesIter) File() *object.File      { return i.file }
+func (i *squashCommitFilesIter) TreeHash() plumbing.Hash { return i.treeHash }
+func (i *squashCommitFilesIter) Row() sql.Row            { return i.row }
+func (i *squashCommitFilesIter) Close() error {
+	if i.files != nil {
+		i.files.Close()
+	}
+
+	return i.commits.Close()
+}
+func (i *squashCommitFilesIter) Schema() sql.Schema {
+	return append(i.commits.Schema(), CommitFilesSchema...)
+}
+
+type squashIndexCommitFilesIter struct {
+	index         sql.IndexLookup
+	pool          *RepositoryPool
+	repo          *Repository
+	iter          *commitFilesIndexIter
+	file          *object.File
+	treeHash      plumbing.Hash
+	row           sql.Row
+	filters       sql.Expression
+	ctx           *sql.Context
+	skipGitErrors bool
+}
+
+// NewIndexCommitFilesIter returns an iterator that will return all commit
+// files for the commits in the given index.
+func NewIndexCommitFilesIter(index sql.IndexLookup, filters sql.Expression) FilesIter {
+	return &squashIndexCommitFilesIter{index: index, filters: filters}
+}
+
+func (i *squashIndexCommitFilesIter) New(ctx *sql.Context, pool *RepositoryPool) (ChainableIter, error) {
+	values, err := i.index.Values()
+	if err != nil {
+		return nil, err
+	}
+
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashIndexCommitFilesIter{
+		iter:          newCommitFilesIndexIter(values, pool),
+		pool:          pool,
+		ctx:           ctx,
+		skipGitErrors: session.SkipGitErrors,
+		filters:       i.filters,
+	}, nil
+}
+
+func (i *squashIndexCommitFilesIter) Advance() error {
+	for {
+		commitFile, err := i.iter.NextCommitFile()
+		if err != nil {
+			if err != io.EOF && i.skipGitErrors {
+				logrus.WithField("err", err).Error("unable to get next file")
+				continue
+			}
+
+			return err
+		}
+
+		i.file = commitFile.File
+
+		if i.repo == nil || i.repo.ID != commitFile.Repository {
+			i.repo, err = i.pool.GetRepo(commitFile.Repository)
+			if err != nil {
+				if i.skipGitErrors {
+					logrus.WithFields(logrus.Fields{
+						"err":  err,
+						"repo": commitFile.Repository,
+					}).Error("unable to get repo")
+					continue
+				}
+				return err
+			}
+		}
+
+		i.treeHash = plumbing.NewHash(commitFile.TreeHash)
+
+		i.row = sql.NewRow(
+			commitFile.Repository,
+			commitFile.CommitHash,
+			i.file.Name,
+			i.file.Blob.Hash.String(),
+			commitFile.TreeHash,
+		)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+
+func (i *squashIndexCommitFilesIter) Repository() *Repository { return i.repo }
+func (i *squashIndexCommitFilesIter) File() *object.File      { return i.file }
+func (i *squashIndexCommitFilesIter) TreeHash() plumbing.Hash { return i.treeHash }
+func (i *squashIndexCommitFilesIter) Row() sql.Row            { return i.row }
+func (i *squashIndexCommitFilesIter) Schema() sql.Schema      { return CommitFilesSchema }
+func (i *squashIndexCommitFilesIter) Close() error            { return i.iter.Close() }
+
+type squashCommitFileFilesIter struct {
+	files       FilesIter
+	readContent bool
+	row         sql.Row
+	filters     sql.Expression
+	ctx         *sql.Context
+}
+
+// NewCommitFileFilesIter returns all files for the commit files in the given
+// iterator.
+func NewCommitFileFilesIter(
+	files FilesIter,
+	filters sql.Expression,
+	readContent bool,
+) ChainableIter {
+	return &squashCommitFileFilesIter{
+		files:       files,
+		filters:     filters,
+		readContent: readContent,
+	}
+}
+
+func (i *squashCommitFileFilesIter) New(ctx *sql.Context, pool *RepositoryPool) (ChainableIter, error) {
+	iter, err := i.files.New(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashCommitFileFilesIter{
+		files:       iter.(FilesIter),
+		ctx:         ctx,
+		filters:     i.filters,
+		readContent: i.readContent,
+	}, nil
+}
+
+func (i *squashCommitFileFilesIter) Advance() error {
+	for {
+		err := i.files.Advance()
+		if err != nil {
+			return err
+		}
+
+		f := i.files.File()
+		row, err := fileToRow(i.Repository().ID, i.files.TreeHash(), f, i.readContent)
+		if err != nil {
+			return err
+		}
+
+		i.row = append(i.files.Row(), row...)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+
+func (i *squashCommitFileFilesIter) Repository() *Repository { return i.files.Repository() }
+func (i *squashCommitFileFilesIter) Row() sql.Row            { return i.row }
+func (i *squashCommitFileFilesIter) Schema() sql.Schema {
+	return append(i.files.Schema(), FilesSchema...)
+}
+func (i *squashCommitFileFilesIter) Close() error { return i.files.Close() }
+
 // NewChainableRowIter creates a new sql.RowIter from a ChainableIter.
 func NewChainableRowIter(ctx *sql.Context, iter ChainableIter) (sql.RowIter, error) {
 	session, err := getSession(ctx)
@@ -3050,17 +3356,4 @@ func resolveCommit(repo *Repository, hash plumbing.Hash) (*object.Commit, error)
 		}).Debug("expecting hash to belong to a commit object")
 		return nil, errInvalidCommit.New(obj)
 	}
-}
-
-func getSession(ctx *sql.Context) (*Session, error) {
-	if ctx == nil || ctx.Session == nil {
-		return nil, ErrInvalidContext.New(ctx)
-	}
-
-	session, ok := ctx.Session.(*Session)
-	if !ok {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	return session, nil
 }

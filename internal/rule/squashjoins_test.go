@@ -1,6 +1,7 @@
 package rule
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/src-d/gitbase"
@@ -298,6 +299,8 @@ func TestBuildSquashedTable(t *testing.T) {
 	blobs := tables[gitbase.BlobsTableName]
 	commitTrees := tables[gitbase.CommitTreesTableName]
 	commitBlobs := tables[gitbase.CommitBlobsTableName]
+	commitFiles := tables[gitbase.CommitFilesTableName]
+	files := tables[gitbase.FilesTableName]
 
 	repoRefCommitsSchema := append(gitbase.RepositoriesSchema, gitbase.RefCommitsSchema...)
 	remoteRefsSchema := append(gitbase.RemotesSchema, gitbase.RefsSchema...)
@@ -317,6 +320,9 @@ func TestBuildSquashedTable(t *testing.T) {
 	refCommitsCommitBlobsSchema := append(gitbase.RefCommitsSchema, gitbase.CommitBlobsSchema...)
 	commitsCommitBlobsSchema := append(gitbase.CommitsSchema, gitbase.CommitBlobsSchema...)
 	commitBlobsBlobsSchema := append(gitbase.CommitBlobsSchema, gitbase.BlobsSchema...)
+	refsCommitFilesSchema := append(gitbase.RefsSchema, gitbase.CommitFilesSchema...)
+	commitsCommitFilesSchema := append(gitbase.CommitsSchema, gitbase.CommitFilesSchema...)
+	commitFilesFilesSchema := append(gitbase.CommitFilesSchema, gitbase.FilesSchema...)
 
 	repoFilter := eq(
 		col(0, gitbase.RepositoriesTableName, "repository_id"),
@@ -571,6 +577,56 @@ func TestBuildSquashedTable(t *testing.T) {
 	commitBlobBlobsRedundantFilter := eq(
 		col(0, gitbase.CommitBlobsTableName, "blob_hash"),
 		col(0, gitbase.BlobsTableName, "blob_hash"),
+	)
+
+	commitFilesFilter := eq(
+		col(0, gitbase.CommitFilesTableName, "commit_hash"),
+		col(0, gitbase.CommitFilesTableName, "commit_hash"),
+	)
+
+	refsCommitFilesFilter := eq(
+		col(0, gitbase.ReferencesTableName, "ref_name"),
+		col(0, gitbase.CommitFilesTableName, "file_path"),
+	)
+
+	refsCommitFilesRedundantFilter := eq(
+		col(0, gitbase.ReferencesTableName, "commit_hash"),
+		col(0, gitbase.CommitFilesTableName, "commit_hash"),
+	)
+
+	commitsCommitFilesFilter := eq(
+		col(0, gitbase.CommitsTableName, "tree_hash"),
+		col(0, gitbase.CommitFilesTableName, "tree_hash"),
+	)
+
+	commitsCommitFilesRedundantFilter := eq(
+		col(0, gitbase.CommitsTableName, "commit_hash"),
+		col(0, gitbase.CommitFilesTableName, "commit_hash"),
+	)
+
+	commitFilesFilesFilePathRedundantFilter := eq(
+		col(0, gitbase.CommitFilesTableName, "file_path"),
+		col(0, gitbase.FilesTableName, "file_path"),
+	)
+
+	commitFilesFilesTreeHashRedundantFilter := eq(
+		col(0, gitbase.CommitFilesTableName, "tree_hash"),
+		col(0, gitbase.FilesTableName, "tree_hash"),
+	)
+
+	commitFilesFilesBlobHashRedundantFilter := eq(
+		col(0, gitbase.CommitFilesTableName, "blob_hash"),
+		col(0, gitbase.FilesTableName, "blob_hash"),
+	)
+
+	commitFilesFilesFilter := eq(
+		col(0, gitbase.CommitFilesTableName, "commit_hash"),
+		col(0, gitbase.FilesTableName, "tree_hash"),
+	)
+
+	filesFilter := eq(
+		col(0, gitbase.FilesTableName, "file_path"),
+		col(0, gitbase.FilesTableName, "file_path"),
 	)
 
 	idx1, idx2 := &dummyLookup{1}, &dummyLookup{2}
@@ -1603,6 +1659,142 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.BlobsTableName,
 			),
 		},
+		{
+			"refs with commit_files",
+			[]sql.Table{refs, commitFiles},
+			[]sql.Expression{
+				refFilter,
+				commitFilesFilter,
+				refsCommitFilesFilter,
+				refsCommitFilesRedundantFilter,
+			},
+			nil,
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitFilesIter(
+					gitbase.NewRefHEADCommitsIter(gitbase.NewAllRefsIter(
+						fixIdx(t, refFilter, gitbase.RefsSchema),
+						false,
+					), nil, true),
+					and(
+						fixIdx(t, commitFilesFilter, refsCommitFilesSchema),
+						fixIdx(t, refsCommitFilesFilter, refsCommitFilesSchema),
+					),
+				),
+				nil,
+				[]sql.Expression{
+					refFilter,
+					commitFilesFilter,
+					refsCommitFilesFilter,
+					refsCommitFilesRedundantFilter,
+				},
+				gitbase.ReferencesTableName,
+				gitbase.CommitFilesTableName,
+			),
+		},
+		{
+			"commits with commit_files",
+			[]sql.Table{commits, commitFiles},
+			[]sql.Expression{
+				commitFilter,
+				commitFilesFilter,
+				commitsCommitFilesFilter,
+				commitsCommitFilesRedundantFilter,
+			},
+			nil,
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitFilesIter(
+					gitbase.NewAllCommitsIter(
+						fixIdx(t, commitFilter, gitbase.CommitsSchema),
+						false,
+					),
+					and(
+						fixIdx(t, commitFilesFilter, commitsCommitFilesSchema),
+						fixIdx(t, commitsCommitFilesFilter, commitsCommitFilesSchema),
+					),
+				),
+				nil,
+				[]sql.Expression{
+					commitFilter,
+					commitFilesFilter,
+					commitsCommitFilesFilter,
+					commitsCommitFilesRedundantFilter,
+				},
+				gitbase.CommitsTableName,
+				gitbase.CommitFilesTableName,
+			),
+		},
+		{
+			"commit_files with files",
+			[]sql.Table{commitFiles, files},
+			[]sql.Expression{
+				filesFilter,
+				commitFilesFilter,
+				commitFilesFilesFilter,
+				commitFilesFilesFilePathRedundantFilter,
+				commitFilesFilesTreeHashRedundantFilter,
+				commitFilesFilesBlobHashRedundantFilter,
+			},
+			nil,
+			nil,
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitFileFilesIter(
+					gitbase.NewAllCommitFilesIter(
+						fixIdx(t, commitFilesFilter, gitbase.CommitFilesSchema),
+					),
+					and(
+						fixIdx(t, filesFilter, commitFilesFilesSchema),
+						fixIdx(t, commitFilesFilesFilter, commitFilesFilesSchema),
+					),
+					false,
+				),
+				nil,
+				[]sql.Expression{
+					filesFilter,
+					commitFilesFilter,
+					commitFilesFilesFilter,
+					commitFilesFilesFilePathRedundantFilter,
+					commitFilesFilesTreeHashRedundantFilter,
+					commitFilesFilesBlobHashRedundantFilter,
+				},
+				gitbase.CommitFilesTableName,
+				gitbase.FilesTableName,
+			),
+		},
+		{
+			"commit_files with indexes",
+			[]sql.Table{commitFiles, files},
+			[]sql.Expression{
+				commitFilesFilesBlobHashRedundantFilter,
+				commitFilesFilesTreeHashRedundantFilter,
+				commitFilesFilesFilePathRedundantFilter,
+			},
+			nil,
+			map[string]sql.IndexLookup{
+				gitbase.CommitFilesTableName: idx1,
+				gitbase.FilesTableName:       idx2,
+			},
+			nil,
+			newSquashedTable(
+				gitbase.NewCommitFileFilesIter(
+					gitbase.NewIndexCommitFilesIter(idx1, nil),
+					nil,
+					false,
+				),
+				nil,
+				[]sql.Expression{
+					commitFilesFilesBlobHashRedundantFilter,
+					commitFilesFilesTreeHashRedundantFilter,
+					commitFilesFilesFilePathRedundantFilter,
+				},
+				gitbase.CommitFilesTableName,
+				gitbase.FilesTableName,
+			),
+		},
 	}
 
 	for _, tt := range testCases {
@@ -1853,6 +2045,35 @@ func TestRemoveRedundantFilters(t *testing.T) {
 	)
 
 	require.Equal(t, []sql.Expression{f2}, result)
+}
+
+func TestRemoveRedundantCompoundFilters(t *testing.T) {
+	f := eq(
+		col(0, gitbase.CommitFilesTableName, "file_path"),
+		col(0, gitbase.FilesTableName, "repository_id"),
+	)
+
+	result := removeRedundantCompoundFilters(
+		[]sql.Expression{
+			f,
+			eq(
+				col(0, gitbase.CommitFilesTableName, "tree_hash"),
+				col(0, gitbase.FilesTableName, "tree_hash"),
+			),
+			eq(
+				col(0, gitbase.CommitFilesTableName, "blob_hash"),
+				col(0, gitbase.FilesTableName, "blob_hash"),
+			),
+			eq(
+				col(0, gitbase.CommitFilesTableName, "file_path"),
+				col(0, gitbase.FilesTableName, "file_path"),
+			),
+		},
+		gitbase.CommitFilesTableName,
+		gitbase.FilesTableName,
+	)
+
+	require.Equal(t, []sql.Expression{f}, result)
 }
 
 func TestIsJoinCondSquashable(t *testing.T) {
@@ -2149,6 +2370,59 @@ func TestIsRedundantFilter(t *testing.T) {
 			require.Equal(
 				tt.expected,
 				isRedundantFilter(tt.filter, tt.t1, tt.t2),
+			)
+		})
+	}
+}
+
+func TestHasRedundantCompoundFilter(t *testing.T) {
+	testCases := []struct {
+		t1, t2   string
+		filters  []sql.Expression
+		expected bool
+	}{
+		{
+			gitbase.ReferencesTableName,
+			gitbase.RefCommitsTableName,
+			[]sql.Expression{
+				eq(
+					col(0, gitbase.ReferencesTableName, "ref_name"),
+					col(0, gitbase.RefCommitsTableName, "ref_name"),
+				),
+				eq(
+					col(0, gitbase.ReferencesTableName, "commit_hash"),
+					col(0, gitbase.RefCommitsTableName, "commit_hash"),
+				),
+			},
+			false,
+		},
+		{
+			gitbase.CommitFilesTableName,
+			gitbase.FilesTableName,
+			[]sql.Expression{
+				eq(
+					col(0, gitbase.CommitFilesTableName, "tree_hash"),
+					col(0, gitbase.FilesTableName, "tree_hash"),
+				),
+				eq(
+					col(0, gitbase.CommitFilesTableName, "blob_hash"),
+					col(0, gitbase.FilesTableName, "blob_hash"),
+				),
+				eq(
+					col(0, gitbase.CommitFilesTableName, "file_path"),
+					col(0, gitbase.FilesTableName, "file_path"),
+				),
+			},
+			true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(fmt.Sprint(and(tt.filters...)), func(t *testing.T) {
+			require.Equal(
+				t,
+				hasRedundantCompoundFilter(tt.filters, tt.t1, tt.t2),
+				tt.expected,
 			)
 		})
 	}

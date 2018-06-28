@@ -161,7 +161,6 @@ type refCommitsIter struct {
 	head    *plumbing.Reference
 	commits *indexedCommitIter
 	ref     *plumbing.Reference
-	lastRef string
 
 	// selectors for faster filtering
 	repos    []string
@@ -193,10 +192,6 @@ func (i *refCommitsIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 		refNames: i.refNames,
 	}, nil
 }
-
-func (i *refCommitsIter) Repository() string { return i.repo.ID }
-
-func (i *refCommitsIter) LastObject() string { return i.lastRef }
 
 func (i *refCommitsIter) shouldVisitRef(ref *plumbing.Reference) bool {
 	if len(i.refNames) > 0 && !stringContains(i.refNames, strings.ToLower(ref.Name().String())) {
@@ -268,7 +263,6 @@ func (i *refCommitsIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		i.lastRef = i.ref.Name().String()
 		return sql.NewRow(
 			i.repo.ID,
 			commit.Hash.String(),

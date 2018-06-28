@@ -179,10 +179,6 @@ func (i *commitTreesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	}, nil
 }
 
-func (i *commitTreesIter) Repository() string { return i.repo.ID }
-
-func (i *commitTreesIter) LastObject() string { return i.commit.Hash.String() }
-
 func (i *commitTreesIter) Next() (sql.Row, error) {
 	s, ok := i.ctx.Session.(*Session)
 	if !ok {
