@@ -14,9 +14,9 @@ func (pool *cstringPool) getCstring(str string) *C.char {
 	return ptr
 }
 
-func (*cstringPool) release() {
+func (pool *cstringPool) release() {
 	for _, ptr := range pool.pointers {
 		C.free(ptr)
 	}
-	pool.pointers = pool.pointers[0:0]
+	pool.pointers = pool.pointers[:0]
 }

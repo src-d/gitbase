@@ -45,9 +45,13 @@ import (
 // #include "bindings.h"
 import "C"
 
-var findMutex sync.Mutex
+var (
+	findMutex sync.Mutex
+	spool     cstringPool
+	kpool     = make(map[*uast.Node][]string)
+)
+
 var itMutex sync.Mutex
-var pool cstringPool
 
 // TreeOrder represents the traversal strategy for UAST trees
 type TreeOrder int
@@ -83,41 +87,40 @@ func ptrToNode(ptr C.uintptr_t) *uast.Node {
 }
 
 // initFilter converts the query string and node pointer to C types. It acquires findMutex
-// and initializes the string pool. The caller should call deferFilter() after to release
+// and initializes the string pool. The caller should defer returned function to release
 // the resources.
-func initFilter(node *uast.Node, xpath string) (*C.char, C.uintptr_t) {
+func initFilter(node *uast.Node, xpath string) (*C.char, C.uintptr_t, func()) {
 	findMutex.Lock()
-	cquery := pool.getCstring(xpath)
+	cquery := spool.getCstring(xpath)
 	ptr := nodeToPtr(node)
 
-	return cquery, ptr
+	return cquery, ptr, func() {
+		spool.release()
+		kpool = make(map[*uast.Node][]string)
+		findMutex.Unlock()
+	}
 }
 
-func deferFilter() {
-	findMutex.Unlock()
-	pool.release()
-}
-
-func errorFilter(name string) error {
-	error := C.Error()
-	errorf := fmt.Errorf("%s() failed: %s", name, C.GoString(error))
-	C.free(unsafe.Pointer(error))
-	return errorf
+func cError(name string) error {
+	e := C.Error()
+	err := fmt.Errorf("%s() failed: %s", name, C.GoString(e))
+	C.free(unsafe.Pointer(e))
+	return err
 }
 
 // Filter takes a `*uast.Node` and a xpath query and filters the tree,
 // returning the list of nodes that satisfy the given query.
 // Filter is thread-safe but not concurrent by an internal global lock.
 func Filter(node *uast.Node, xpath string) ([]*uast.Node, error) {
-	if len(xpath) == 0 {
+	if len(xpath) == 0 || node == nil {
 		return nil, nil
 	}
 
-	cquery, ptr := initFilter(node, xpath)
-	defer deferFilter()
+	cquery, ptr, closer := initFilter(node, xpath)
+	defer closer()
 
 	if !C.Filter(ptr, cquery) {
-		return nil, errorFilter("UastFilter")
+		return nil, cError("UastFilter")
 	}
 
 	nu := int(C.Size())
@@ -132,16 +135,16 @@ func Filter(node *uast.Node, xpath string) ([]*uast.Node, error) {
 // return type (e.g. when using XPath functions returning a boolean type).
 // FilterBool is thread-safe but not concurrent by an internal global lock.
 func FilterBool(node *uast.Node, xpath string) (bool, error) {
-	if len(xpath) == 0 {
+	if len(xpath) == 0 || node == nil {
 		return false, nil
 	}
 
-	cquery, ptr := initFilter(node, xpath)
-	defer deferFilter()
+	cquery, ptr, closer := initFilter(node, xpath)
+	defer closer()
 
 	res := C.FilterBool(ptr, cquery)
 	if res < 0 {
-		return false, errorFilter("UastFilterBool")
+		return false, cError("UastFilterBool")
 	}
 
 	var gores bool
@@ -160,17 +163,17 @@ func FilterBool(node *uast.Node, xpath string) (bool, error) {
 // return type (e.g. when using XPath functions returning a float type).
 // FilterNumber is thread-safe but not concurrent by an internal global lock.
 func FilterNumber(node *uast.Node, xpath string) (float64, error) {
-	if len(xpath) == 0 {
-		return 0.0, nil
+	if len(xpath) == 0 || node == nil {
+		return 0, nil
 	}
 
-	cquery, ptr := initFilter(node, xpath)
-	defer deferFilter()
+	cquery, ptr, closer := initFilter(node, xpath)
+	defer closer()
 
 	var ok C.int
 	res := C.FilterNumber(ptr, cquery, &ok)
 	if ok == 0 {
-		return 0.0, errorFilter("UastFilterNumber")
+		return 0.0, cError("UastFilterNumber")
 	}
 
 	return float64(res), nil
@@ -180,17 +183,17 @@ func FilterNumber(node *uast.Node, xpath string) (float64, error) {
 // return type (e.g. when using XPath functions returning a string type).
 // FilterString is thread-safe but not concurrent by an internal global lock.
 func FilterString(node *uast.Node, xpath string) (string, error) {
-	if len(xpath) == 0 {
+	if len(xpath) == 0 || node == nil {
 		return "", nil
 	}
 
-	cquery, ptr := initFilter(node, xpath)
-	defer deferFilter()
+	cquery, ptr, closer := initFilter(node, xpath)
+	defer closer()
 
 	var res *C.char
 	res = C.FilterString(ptr, cquery)
 	if res == nil {
-		return "", errorFilter("UastFilterString")
+		return "", cError("UastFilterString")
 	}
 
 	return C.GoString(res), nil
@@ -198,12 +201,12 @@ func FilterString(node *uast.Node, xpath string) (string, error) {
 
 //export goGetInternalType
 func goGetInternalType(ptr C.uintptr_t) *C.char {
-	return pool.getCstring(ptrToNode(ptr).InternalType)
+	return spool.getCstring(ptrToNode(ptr).InternalType)
 }
 
 //export goGetToken
 func goGetToken(ptr C.uintptr_t) *C.char {
-	return pool.getCstring(ptrToNode(ptr).Token)
+	return spool.getCstring(ptrToNode(ptr).Token)
 }
 
 //export goGetChildrenSize
@@ -233,25 +236,32 @@ func goGetPropertiesSize(ptr C.uintptr_t) C.int {
 	return C.int(len(ptrToNode(ptr).Properties))
 }
 
-//export goGetPropertyKey
-func goGetPropertyKey(ptr C.uintptr_t, index C.int) *C.char {
-	var keys []string
-	for k := range ptrToNode(ptr).Properties {
-		keys = append(keys, k)
+func getPropertyKeys(ptr C.uintptr_t) []string {
+	node := ptrToNode(ptr)
+	if keys, ok := kpool[node]; ok {
+		return keys
 	}
-	sort.Strings(keys)
-	return pool.getCstring(keys[int(index)])
-}
-
-//export goGetPropertyValue
-func goGetPropertyValue(ptr C.uintptr_t, index C.int) *C.char {
-	p := ptrToNode(ptr).Properties
-	var keys []string
+	p := node.Properties
+	keys := make([]string, 0, len(p))
 	for k := range p {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	return pool.getCstring(p[keys[int(index)]])
+	kpool[node] = keys
+	return keys
+}
+
+//export goGetPropertyKey
+func goGetPropertyKey(ptr C.uintptr_t, index C.int) *C.char {
+	keys := getPropertyKeys(ptr)
+	return spool.getCstring(keys[int(index)])
+}
+
+//export goGetPropertyValue
+func goGetPropertyValue(ptr C.uintptr_t, index C.int) *C.char {
+	keys := getPropertyKeys(ptr)
+	p := ptrToNode(ptr).Properties
+	return spool.getCstring(p[keys[int(index)]])
 }
 
 //export goHasStartOffset
@@ -349,10 +359,7 @@ func NewIterator(node *uast.Node, order TreeOrder) (*Iterator, error) {
 	ptr := nodeToPtr(node)
 	it := C.IteratorNew(ptr, C.int(order))
 	if it == 0 {
-		error := C.Error()
-		errorf := fmt.Errorf("UastIteratorNew() failed: %s", C.GoString(error))
-		C.free(unsafe.Pointer(error))
-		return nil, errorf
+		return nil, cError("UastIteratorNew")
 	}
 
 	return &Iterator{

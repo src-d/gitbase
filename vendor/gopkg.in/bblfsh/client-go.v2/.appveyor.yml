@@ -1,0 +1,19 @@
+version: "{build}"
+platform: x64
+image: Visual Studio 2017
+
+clone_folder: c:\gopath\src\gopkg.in\bblfsh\client-go.v2
+
+environment:
+  GOPATH: c:\gopath
+  MAKE: mingw32-make
+
+install:
+  - set PATH=C:\mingw-w64\x86_64-7.2.0-posix-seh-rt_v5-rev1\mingw64\bin;C:\msys64\usr\bin;%PATH%
+  - "%MAKE% dependencies"
+
+build: off
+
+test_script:
+  - "%MAKE% GO_TEST_ARGS=\"-v -short\" test-coverage codecov"
+

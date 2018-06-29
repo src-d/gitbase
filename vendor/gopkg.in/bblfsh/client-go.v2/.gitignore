@@ -1,11 +1,5 @@
 .idea
 
-# libuast source code
-*.c
-*.cc
-*.h
-!bindings.h
-
 # ci files
 Makefile.main
 .ci

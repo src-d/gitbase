@@ -21,10 +21,15 @@ $ gitbase server -v -g /path/to/repositories
 
 ## Installing from source
 
-Because gitbase uses [bblfsh's client-go](https://github.com/bblfsh/client-go), which uses cgo, you need to install some dependencies by hand instead of just using `go get`.
+On Linux and macOS:
 
-**Note**: we use `go get -d` so the code is not compiled yet, as it would
-fail before `make dependencies` is executed successfully.
+```
+go get -u github.com/src-d/gitbase/...
+```
+
+On Windows:
+
+Because gitbase uses [bblfsh's client-go](https://github.com/bblfsh/client-go), which uses cgo, you need to install some dependencies by hand instead of just using `go get`. Use this instead:
 
 ```
 $ go get -d github.com/src-d/gitbase
