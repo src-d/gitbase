@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"bytes"
 	"io"
 
 	"github.com/sirupsen/logrus"
@@ -291,6 +292,71 @@ type commitFileIndexKey struct {
 	Commit     string
 }
 
+func (k *commitFileIndexKey) encode() ([]byte, error) {
+	var buf bytes.Buffer
+	writeString(&buf, k.Repository)
+	if err := writeHash(&buf, k.Packfile); err != nil {
+		return nil, err
+	}
+
+	if err := writeHash(&buf, k.Hash); err != nil {
+		return nil, err
+	}
+
+	writeInt64(&buf, k.Offset)
+	writeString(&buf, k.Name)
+	writeInt64(&buf, k.Mode)
+
+	if err := writeHash(&buf, k.Tree); err != nil {
+		return nil, err
+	}
+
+	if err := writeHash(&buf, k.Commit); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (k *commitFileIndexKey) decode(data []byte) error {
+	var buf = bytes.NewBuffer(data)
+	var err error
+
+	if k.Repository, err = readString(buf); err != nil {
+		return err
+	}
+
+	if k.Packfile, err = readHash(buf); err != nil {
+		return err
+	}
+
+	if k.Hash, err = readHash(buf); err != nil {
+		return err
+	}
+
+	if k.Offset, err = readInt64(buf); err != nil {
+		return err
+	}
+
+	if k.Name, err = readString(buf); err != nil {
+		return err
+	}
+
+	if k.Mode, err = readInt64(buf); err != nil {
+		return err
+	}
+
+	if k.Tree, err = readHash(buf); err != nil {
+		return err
+	}
+
+	if k.Commit, err = readHash(buf); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type commitFilesKeyValueIter struct {
 	pool    *RepositoryPool
 	repo    *Repository
@@ -369,7 +435,7 @@ func (i *commitFilesKeyValueIter) Next() ([]interface{}, []byte, error) {
 			return nil, nil, err
 		}
 
-		key, err := encodeIndexKey(commitFileIndexKey{
+		key, err := encodeIndexKey(&commitFileIndexKey{
 			Repository: i.repo.ID,
 			Packfile:   packfile.String(),
 			Hash:       f.Blob.Hash.String(),

@@ -2,6 +2,7 @@ package gitbase
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -218,6 +219,7 @@ func writeInt64(buf *bytes.Buffer, n int64) {
 	if n < 0 {
 		ux = ^ux
 	}
+
 	var bs = make([]byte, 8)
 	binary.LittleEndian.PutUint64(bs, ux)
 	buf.Write(bs)
@@ -229,11 +231,14 @@ func writeString(buf *bytes.Buffer, s string) {
 	buf.Write(bs)
 }
 
-var errInvalidHashSize = errors.NewKind("invalid hash size: %d, expecting 40 bytes")
+var (
+	hashSize           = 2 * sha1.Size
+	errInvalidHashSize = errors.NewKind("invalid hash size: %d, expecting 40 bytes")
+)
 
 func writeHash(buf *bytes.Buffer, s string) error {
 	bs := []byte(s)
-	if len(bs) != 40 {
+	if len(bs) != hashSize {
 		return errInvalidHashSize.New(len(bs))
 	}
 	buf.Write(bs)
@@ -241,7 +246,7 @@ func writeHash(buf *bytes.Buffer, s string) error {
 }
 
 func readHash(buf *bytes.Buffer) (string, error) {
-	bs := make([]byte, 40)
+	bs := make([]byte, hashSize)
 	n, err := io.ReadFull(buf, bs)
 	if err != nil {
 		return "", fmt.Errorf("can't read hash, only read %d: %s", n, err)
