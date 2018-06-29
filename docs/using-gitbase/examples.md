@@ -55,3 +55,27 @@ FROM (
 ) as t
 GROUP BY committer_email, month, repo_id
 ```
+
+## Create an index for columns on a table
+
+You can create an index either on a specific column or on several columns:
+
+```sql
+CREATE INDEX commits_hash_idx ON commits USING pilosa (commit_hash)
+
+CREATE INDEX files_commit_path_blob_idx ON commit_files USING pilosa (commit_hash, file_path, blob_hash)
+```
+
+## Create an index for an expression on a table
+
+Note that just one expression at a time is allowed to be indexed.
+
+```sql
+CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_content))
+```
+
+## Drop a table's index
+
+```sql
+DROP INDEX files_lang_idx ON files
+```
