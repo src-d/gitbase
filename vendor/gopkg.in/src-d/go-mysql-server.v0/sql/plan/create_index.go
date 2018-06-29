@@ -3,7 +3,10 @@ package plan
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	opentracing "github.com/opentracing/opentracing-go"
+	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/sirupsen/logrus"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -90,7 +93,7 @@ func (c *CreateIndex) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 		return nil, ErrInvalidIndexDriver.New(c.Driver)
 	}
 
-	columns, exprs, err := getColumnsAndPrepareExpressions(c.Exprs)
+	columns, exprs, exprHashes, err := getColumnsAndPrepareExpressions(c.Exprs)
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +102,14 @@ func (c *CreateIndex) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 		c.CurrentDatabase,
 		nameable.Name(),
 		c.Name,
-		exprs,
+		exprHashes,
 		c.Config,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	iter, err := table.IndexKeyValueIter(ctx, columns)
+	iter, err := getIndexKeyValueIter(ctx, table, columns, exprs)
 	if err != nil {
 		return nil, err
 	}
@@ -121,25 +124,55 @@ func (c *CreateIndex) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 		"driver": index.Driver(),
 	})
 
-	go func() {
-		err := driver.Save(ctx, index, &loggingKeyValueIter{log: log, iter: iter})
-		close(done)
-		if err != nil {
-			logrus.WithField("err", err).Error("unable to save the index")
-			deleted, err := c.Catalog.DeleteIndex(index.Database(), index.ID())
-			if err != nil {
-				logrus.WithField("err", err).Error("unable to delete the index")
-			} else {
-				<-deleted
-			}
-		} else {
-			log.Info("index successfully created")
-		}
-	}()
+	go c.backgroundIndexCreate(ctx, log, driver, index, iter, done)
 
 	log.Info("starting to save the index")
 
 	return sql.RowsToRowIter(), nil
+}
+
+func (c *CreateIndex) backgroundIndexCreate(
+	ctx *sql.Context,
+	log *logrus.Entry,
+	driver sql.IndexDriver,
+	index sql.Index,
+	iter sql.IndexKeyValueIter,
+	done chan<- struct{},
+) {
+	span, ctx := ctx.Span("plan.backgroundIndexCreate")
+	span.LogKV(
+		"index", index.ID(),
+		"table", index.Table(),
+		"driver", index.Driver(),
+	)
+
+	err := driver.Save(ctx, index, newLoggingKeyValueIter(span, log, iter))
+	close(done)
+
+	if err != nil {
+		span.FinishWithOptions(opentracing.FinishOptions{
+			LogRecords: []opentracing.LogRecord{
+				{
+					Timestamp: time.Now(),
+					Fields: []otlog.Field{
+						otlog.String("error", err.Error()),
+					},
+				},
+			},
+		})
+
+		logrus.WithField("err", err).Error("unable to save the index")
+
+		deleted, err := c.Catalog.DeleteIndex(index.Database(), index.ID(), true)
+		if err != nil {
+			logrus.WithField("err", err).Error("unable to delete the index")
+		} else {
+			<-deleted
+		}
+	} else {
+		span.Finish()
+		log.Info("index successfully created")
+	}
 }
 
 // Schema implements the Node interface.
@@ -223,10 +256,11 @@ func (c *CreateIndex) TransformUp(fn sql.TransformNodeFunc) (sql.Node, error) {
 // to match a row with only the returned columns in that same order.
 func getColumnsAndPrepareExpressions(
 	exprs []sql.Expression,
-) ([]string, []sql.ExpressionHash, error) {
+) ([]string, []sql.Expression, []sql.ExpressionHash, error) {
 	var columns []string
 	var seen = make(map[string]int)
-	var expressions = make([]sql.ExpressionHash, len(exprs))
+	var expressions = make([]sql.Expression, len(exprs))
+	var expressionHashes = make([]sql.ExpressionHash, len(exprs))
 
 	for i, e := range exprs {
 		ex, err := e.TransformUp(func(e sql.Expression) (sql.Expression, error) {
@@ -254,28 +288,95 @@ func getColumnsAndPrepareExpressions(
 		})
 
 		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		expressions[i] = ex
+		expressionHashes[i] = sql.NewExpressionHash(ex)
+	}
+
+	return columns, expressions, expressionHashes, nil
+}
+
+type evalKeyValueIter struct {
+	ctx   *sql.Context
+	iter  sql.IndexKeyValueIter
+	exprs []sql.Expression
+}
+
+func (eit *evalKeyValueIter) Next() ([]interface{}, []byte, error) {
+	vals, loc, err := eit.iter.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	row := sql.NewRow(vals...)
+	evals := make([]interface{}, len(eit.exprs))
+	for i, ex := range eit.exprs {
+		eval, err := ex.Eval(eit.ctx, row)
+		if err != nil {
 			return nil, nil, err
 		}
 
-		expressions[i] = sql.NewExpressionHash(ex)
+		evals[i] = eval
 	}
 
-	return columns, expressions, nil
+	return evals, loc, nil
+}
+
+func (eit *evalKeyValueIter) Close() error {
+	return eit.iter.Close()
+}
+
+func getIndexKeyValueIter(ctx *sql.Context, table sql.Indexable, columns []string, exprs []sql.Expression) (*evalKeyValueIter, error) {
+	iter, err := table.IndexKeyValueIter(ctx, columns)
+	if err != nil {
+		return nil, err
+	}
+
+	return &evalKeyValueIter{ctx, iter, exprs}, nil
 }
 
 type loggingKeyValueIter struct {
-	log  *logrus.Entry
-	iter sql.IndexKeyValueIter
-	rows uint64
+	span  opentracing.Span
+	log   *logrus.Entry
+	iter  sql.IndexKeyValueIter
+	rows  uint64
+	start time.Time
+}
+
+func newLoggingKeyValueIter(
+	span opentracing.Span,
+	log *logrus.Entry,
+	iter sql.IndexKeyValueIter,
+) sql.IndexKeyValueIter {
+	return &loggingKeyValueIter{
+		span:  span,
+		log:   log,
+		iter:  iter,
+		start: time.Now(),
+	}
 }
 
 func (i *loggingKeyValueIter) Next() ([]interface{}, []byte, error) {
 	i.rows++
 	if i.rows%100 == 0 {
-		i.log.Debugf("still creating index: %d rows saved so far", i.rows)
+		duration := time.Since(i.start)
+
+		i.log.WithField("duration", duration).
+			Debugf("still creating index: %d rows saved so far", i.rows)
+
+		i.span.LogFields(
+			otlog.String("event", "saved rows"),
+			otlog.Uint64("rows", i.rows),
+			otlog.String("duration", duration.String()),
+		)
+
+		i.start = time.Now()
 	}
 
 	return i.iter.Next()
 }
 
-func (i *loggingKeyValueIter) Close() error { return i.iter.Close() }
+func (i *loggingKeyValueIter) Close() error {
+	return i.iter.Close()
+}

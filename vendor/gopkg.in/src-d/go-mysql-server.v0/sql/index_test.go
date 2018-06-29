@@ -1,7 +1,6 @@
 package sql
 
 import (
-	"context"
 	"crypto/sha1"
 	"fmt"
 	"testing"
@@ -85,15 +84,20 @@ func TestDeleteIndex(t *testing.T) {
 	r := NewIndexRegistry()
 
 	idx := &dummyIdx{"foo", nil, "foo", "foo"}
+	idx2 := &dummyIdx{"foo", nil, "foo", "bar"}
 	r.indexes[indexKey{"foo", "foo"}] = idx
+	r.indexes[indexKey{"foo", "bar"}] = idx2
 
-	_, err := r.DeleteIndex("foo", "foo")
+	_, err := r.DeleteIndex("foo", "foo", false)
 	require.Error(err)
 	require.True(ErrIndexDeleteInvalidStatus.Is(err))
 
-	r.setStatus(idx, IndexReady)
+	_, err = r.DeleteIndex("foo", "foo", true)
+	require.NoError(err)
 
-	_, err = r.DeleteIndex("foo", "foo")
+	r.setStatus(idx2, IndexReady)
+
+	_, err = r.DeleteIndex("foo", "foo", false)
 	require.NoError(err)
 
 	require.Len(r.indexes, 0)
@@ -109,7 +113,7 @@ func TestDeleteIndex_InUse(t *testing.T) {
 	r.setStatus(idx, IndexReady)
 	r.retainIndex("foo", "foo")
 
-	done, err := r.DeleteIndex("foo", "foo")
+	done, err := r.DeleteIndex("foo", "foo", false)
 	require.NoError(err)
 
 	require.Len(r.indexes, 1)
@@ -270,8 +274,8 @@ func (d loadDriver) LoadAll(db, table string) ([]Index, error) {
 	}
 	return result, nil
 }
-func (loadDriver) Save(ctx context.Context, index Index, iter IndexKeyValueIter) error { return nil }
-func (loadDriver) Delete(index Index) error                                            { return nil }
+func (loadDriver) Save(ctx *Context, index Index, iter IndexKeyValueIter) error { return nil }
+func (loadDriver) Delete(index Index) error                                     { return nil }
 
 type dummyIdx struct {
 	id       string

@@ -20,6 +20,7 @@ var DefaultRules = []Rule{
 	{"resolve_tables", resolveTables},
 	{"resolve_natural_joins", resolveNaturalJoins},
 	{"resolve_orderby_literals", resolveOrderByLiterals},
+	{"resolve_orderby", resolveOrderBy},
 	{"qualify_columns", qualifyColumns},
 	{"resolve_columns", resolveColumns},
 	{"resolve_database", resolveDatabase},
@@ -28,6 +29,7 @@ var DefaultRules = []Rule{
 	{"reorder_projection", reorderProjection},
 	{"assign_indexes", assignIndexes},
 	{"pushdown", pushdown},
+	{"move_join_conds_to_filter", moveJoinConditionsToFilter},
 	{"optimize_distinct", optimizeDistinct},
 	{"erase_projection", eraseProjection},
 	{"index_catalog", indexCatalog},
@@ -48,7 +50,171 @@ var (
 	// ErrOrderByColumnIndex is returned when in an order clause there is a
 	// column that is unknown.
 	ErrOrderByColumnIndex = errors.NewKind("unknown column %d in order by clause")
+	// ErrMisusedAlias is returned when a alias is defined and used in the same projection.
+	ErrMisusedAlias = errors.NewKind("column %q does not exist in scope, but there is an alias defined in" +
+		" this projection with that name. Aliases cannot be used in the same projection they're defined in")
 )
+
+func resolveOrderBy(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	span, ctx := ctx.Span("resolve_orderby")
+	defer span.Finish()
+
+	a.Log("resolving order bys, node of type: %T", n)
+	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+		a.Log("transforming node of type: %T", n)
+		sort, ok := n.(*plan.Sort)
+		if !ok {
+			return n, nil
+		}
+
+		if !sort.Child.Resolved() {
+			a.Log("child of type %T is not resolved yet, skipping", sort.Child)
+			return n, nil
+		}
+
+		childNewCols := columnsDefinedInNode(sort.Child)
+		var schemaCols []string
+		for _, col := range sort.Child.Schema() {
+			schemaCols = append(schemaCols, col.Name)
+		}
+
+		var colsFromChild []string
+		var missingCols []string
+		for _, f := range sort.SortFields {
+			n, ok := f.Column.(sql.Nameable)
+			if !ok {
+				continue
+			}
+
+			if stringContains(childNewCols, n.Name()) {
+				colsFromChild = append(colsFromChild, n.Name())
+			} else if !stringContains(schemaCols, n.Name()) {
+				missingCols = append(missingCols, n.Name())
+			}
+		}
+
+		// If all the columns required by the order by are available, do nothing about it.
+		if len(missingCols) == 0 {
+			a.Log("no missing columns, skipping")
+			return n, nil
+		}
+
+		// If there are no columns required by the order by available, then move the order by
+		// below its child.
+		if len(colsFromChild) == 0 && len(missingCols) > 0 {
+			a.Log("pushing down sort, missing columns: %s", strings.Join(missingCols, ", "))
+			return pushSortDown(sort)
+		}
+
+		a.Log("fixing sort dependencies, missing columns: %s", strings.Join(missingCols, ", "))
+
+		// If there are some columns required by the order by on the child but some are missing
+		// we have to do some more complex logic and split the projection in two.
+		return fixSortDependencies(sort, missingCols)
+	})
+}
+
+// fixSortDependencies replaces the sort node by a node with the child projection
+// followed by the sort, an intermediate projection or group by with all the missing
+// columns required for the sort and then the child of the child projection or group by.
+func fixSortDependencies(sort *plan.Sort, missingCols []string) (sql.Node, error) {
+	var expressions []sql.Expression
+	switch child := sort.Child.(type) {
+	case *plan.Project:
+		expressions = child.Projections
+	case *plan.GroupBy:
+		expressions = child.Aggregate
+	default:
+		return nil, errSortPushdown.New(child)
+	}
+
+	var newExpressions = append([]sql.Expression{}, expressions...)
+	for _, col := range missingCols {
+		newExpressions = append(newExpressions, expression.NewUnresolvedColumn(col))
+	}
+
+	for i, e := range expressions {
+		var name string
+		if n, ok := e.(sql.Nameable); ok {
+			name = n.Name()
+		} else {
+			name = e.String()
+		}
+
+		var table string
+		if t, ok := e.(sql.Tableable); ok {
+			table = t.Table()
+		}
+		expressions[i] = expression.NewGetFieldWithTable(
+			i, e.Type(), table, name, e.IsNullable(),
+		)
+	}
+
+	switch child := sort.Child.(type) {
+	case *plan.Project:
+		return plan.NewProject(
+			expressions,
+			plan.NewSort(
+				sort.SortFields,
+				plan.NewProject(newExpressions, child.Child),
+			),
+		), nil
+	case *plan.GroupBy:
+		return plan.NewProject(
+			expressions,
+			plan.NewSort(
+				sort.SortFields,
+				plan.NewGroupBy(newExpressions, child.Grouping, child.Child),
+			),
+		), nil
+	default:
+		return nil, errSortPushdown.New(child)
+	}
+}
+
+// columnsDefinedInNode returns the columns that were defined in this node,
+// which, by definition, can only be plan.Project or plan.GroupBy.
+func columnsDefinedInNode(n sql.Node) []string {
+	var exprs []sql.Expression
+	switch n := n.(type) {
+	case *plan.Project:
+		exprs = n.Projections
+	case *plan.GroupBy:
+		exprs = n.Aggregate
+	}
+
+	var cols []string
+	for _, e := range exprs {
+		alias, ok := e.(*expression.Alias)
+		if ok {
+			cols = append(cols, alias.Name())
+		}
+	}
+
+	return cols
+}
+
+var errSortPushdown = errors.NewKind("unable to push plan.Sort node below %T")
+
+func pushSortDown(sort *plan.Sort) (sql.Node, error) {
+	switch child := sort.Child.(type) {
+	case *plan.Project:
+		return plan.NewProject(
+			child.Projections,
+			plan.NewSort(sort.SortFields, child.Child),
+		), nil
+	case *plan.GroupBy:
+		return plan.NewGroupBy(
+			child.Aggregate,
+			child.Grouping,
+			plan.NewSort(sort.SortFields, child.Child),
+		), nil
+	default:
+		// Can't do anything here, there should be either a project or a groupby
+		// below an order by.
+		return nil, errSortPushdown.New(child)
+	}
+}
 
 func resolveSubqueries(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
 	span, ctx := ctx.Span("resolve_subqueries")
@@ -76,6 +242,11 @@ func resolveOrderByLiterals(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node
 	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
 		sort, ok := n.(*plan.Sort)
 		if !ok {
+			return n, nil
+		}
+
+		// wait for the child to be resolved
+		if !sort.Child.Resolved() {
 			return n, nil
 		}
 
@@ -437,18 +608,18 @@ func expandStars(exprs []sql.Expression, schema sql.Schema) ([]sql.Expression, e
 	return expressions, nil
 }
 
-// maybeAlias is a wrapper on UnresolvedColumn used only to defer the
-// resolution of the column because it could be an alias and that
-// phase of the analyzer has not run yet.
-type maybeAlias struct {
+// deferredColumn is a wrapper on UnresolvedColumn used only to defer the
+// resolution of the column because it may require some work done by
+// other analyzer phases.
+type deferredColumn struct {
 	*expression.UnresolvedColumn
 }
 
-func (e maybeAlias) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
+func (e deferredColumn) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 	return fn(e)
 }
 
-// column is the common interface that groups UnresolvedColumn and maybeAlias.
+// column is the common interface that groups UnresolvedColumn and deferredColumn.
 type column interface {
 	sql.Nameable
 	sql.Tableable
@@ -477,9 +648,27 @@ func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 			}
 		}
 
+		var aliasMap = map[string]struct{}{}
+		var exists = struct{}{}
+		if project, ok := n.(*plan.Project); ok {
+			for _, e := range project.Projections {
+				if alias, ok := e.(*expression.Alias); ok {
+					aliasMap[alias.Name()] = exists
+				}
+			}
+		}
+
 		expressioner, ok := n.(sql.Expressioner)
 		if !ok {
 			return n, nil
+		}
+
+		// make sure all children are resolved before resolving a node
+		for _, c := range n.Children() {
+			if !c.Resolved() {
+				a.Log("a children with type %T of node %T were not resolved, skipping", c, n)
+				return n, nil
+			}
 		}
 
 		return expressioner.TransformExpressions(func(e sql.Expression) (sql.Expression, error) {
@@ -495,14 +684,19 @@ func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 
 			columns, ok := colMap[uc.Name()]
 			if !ok {
-				if uc.Table() != "" {
-					return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
-				}
-
 				switch uc := uc.(type) {
 				case *expression.UnresolvedColumn:
-					return &maybeAlias{uc}, nil
+					a.Log("evaluation of column %q was deferred", uc.Name())
+					return &deferredColumn{uc}, nil
 				default:
+					if uc.Table() != "" {
+						return nil, ErrColumnTableNotFound.New(uc.Table(), uc.Name())
+					}
+
+					if _, ok := aliasMap[uc.Name()]; ok {
+						return nil, ErrMisusedAlias.New(uc.Name())
+					}
+
 					return nil, ErrColumnNotFound.New(uc.Name())
 				}
 			}
@@ -524,7 +718,7 @@ func resolveColumns(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error)
 
 				switch uc := uc.(type) {
 				case *expression.UnresolvedColumn:
-					return &maybeAlias{uc}, nil
+					return &deferredColumn{uc}, nil
 				default:
 					return nil, ErrColumnNotFound.New(uc.Name())
 				}
@@ -1095,6 +1289,124 @@ func assignIndexes(ctx *sql.Context, a *Analyzer, node sql.Node) (sql.Node, erro
 
 		return &indexable{index, table}, nil
 	})
+}
+
+func moveJoinConditionsToFilter(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	if !n.Resolved() {
+		a.Log("node is not resolved, skip moving join conditions to filter")
+		return n, nil
+	}
+
+	a.Log("moving join conditions to filter, node of type: %T", n)
+
+	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+		join, ok := n.(*plan.InnerJoin)
+		if !ok {
+			return n, nil
+		}
+
+		leftSources := nodeSources(join.Left)
+		rightSources := nodeSources(join.Right)
+		var leftFilters, rightFilters, condFilters []sql.Expression
+		for _, e := range splitExpression(join.Cond) {
+			sources := expressionSources(e)
+
+			canMoveLeft := containsSources(leftSources, sources)
+			if canMoveLeft {
+				leftFilters = append(leftFilters, e)
+			}
+
+			canMoveRight := containsSources(rightSources, sources)
+			if canMoveRight {
+				rightFilters = append(rightFilters, e)
+			}
+
+			if !canMoveLeft && !canMoveRight {
+				condFilters = append(condFilters, e)
+			}
+		}
+
+		var left, right sql.Node = join.Left, join.Right
+		if len(leftFilters) > 0 {
+			leftFilters, err := fixFieldIndexes(left.Schema(), expression.JoinAnd(leftFilters...))
+			if err != nil {
+				return nil, err
+			}
+
+			left = plan.NewFilter(leftFilters, left)
+		}
+
+		if len(rightFilters) > 0 {
+			rightFilters, err := fixFieldIndexes(right.Schema(), expression.JoinAnd(rightFilters...))
+			if err != nil {
+				return nil, err
+			}
+
+			right = plan.NewFilter(rightFilters, right)
+		}
+
+		if len(condFilters) > 0 {
+			return plan.NewInnerJoin(
+				left, right,
+				expression.JoinAnd(condFilters...),
+			), nil
+		}
+
+		// if there are no cond filters left we can just convert it to a cross join
+		return plan.NewCrossJoin(left, right), nil
+	})
+}
+
+// containsSources checks that all `needle` sources are contained inside `haystack`.
+func containsSources(haystack, needle []string) bool {
+	for _, s := range needle {
+		var found bool
+		for _, s2 := range haystack {
+			if s2 == s {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
+
+func nodeSources(node sql.Node) []string {
+	var sources = make(map[string]struct{})
+	var result []string
+
+	for _, col := range node.Schema() {
+		if _, ok := sources[col.Source]; !ok {
+			sources[col.Source] = struct{}{}
+			result = append(result, col.Source)
+		}
+	}
+
+	return result
+}
+
+func expressionSources(expr sql.Expression) []string {
+	var sources = make(map[string]struct{})
+	var result []string
+
+	expression.Inspect(expr, func(expr sql.Expression) bool {
+		f, ok := expr.(*expression.GetField)
+		if ok {
+			if _, ok := sources[f.Table()]; !ok {
+				sources[f.Table()] = struct{}{}
+				result = append(result, f.Table())
+			}
+		}
+
+		return true
+	})
+
+	return result
 }
 
 func containsColumns(e sql.Expression) bool {

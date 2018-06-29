@@ -2,7 +2,6 @@ package sql
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"io"
 	"strings"
@@ -52,27 +51,27 @@ type Index interface {
 // AscendIndex is an index that is sorted in ascending order.
 type AscendIndex interface {
 	// AscendGreaterOrEqual returns an IndexLookup for keys that are greater
-	// or equal to the given key.
-	AscendGreaterOrEqual(key interface{}) (IndexLookup, error)
+	// or equal to the given keys.
+	AscendGreaterOrEqual(keys ...interface{}) (IndexLookup, error)
 	// AscendLessThan returns an IndexLookup for keys that are less than the
-	// given key.
-	AscendLessThan(key interface{}) (IndexLookup, error)
+	// given keys.
+	AscendLessThan(keys ...interface{}) (IndexLookup, error)
 	// AscendRange returns an IndexLookup for keys that are within the given
 	// range.
-	AscendRange(greaterOrEqual, lessThan interface{}) (IndexLookup, error)
+	AscendRange(greaterOrEqual, lessThan []interface{}) (IndexLookup, error)
 }
 
 // DescendIndex is an index that is sorted in descending order.
 type DescendIndex interface {
 	// DescendGreater returns an IndexLookup for keys that are greater
-	// than the given key.
-	DescendGreater(key interface{}) (IndexLookup, error)
+	// than the given keys.
+	DescendGreater(keys ...interface{}) (IndexLookup, error)
 	// DescendLessOrEqual returns an IndexLookup for keys that are less than or
-	// equal to the given key.
-	DescendLessOrEqual(key interface{}) (IndexLookup, error)
+	// equal to the given keys.
+	DescendLessOrEqual(keys ...interface{}) (IndexLookup, error)
 	// DescendRange returns an IndexLookup for keys that are within the given
 	// range.
-	DescendRange(lessOrEqual, greaterThan interface{}) (IndexLookup, error)
+	DescendRange(lessOrEqual, greaterThan []interface{}) (IndexLookup, error)
 }
 
 // IndexLookup is a subset of an index. More specific interfaces can be
@@ -116,7 +115,7 @@ type IndexDriver interface {
 	// LoadAll loads all indexes for given db and table
 	LoadAll(db, table string) ([]Index, error)
 	// Save the given index
-	Save(ctx context.Context, index Index, iter IndexKeyValueIter) error
+	Save(ctx *Context, index Index, iter IndexKeyValueIter) error
 	// Delete the given index.
 	Delete(index Index) error
 }
@@ -492,12 +491,14 @@ func (r *IndexRegistry) AddIndex(idx Index) (chan<- struct{}, error) {
 // the index for deletion but does not remove it, so queries that are using it
 // may still do so. The returned channel will send a message when the index can
 // be deleted from disk.
-func (r *IndexRegistry) DeleteIndex(db, id string) (<-chan struct{}, error) {
+// If force is true, it will delete the index even if it's not ready for usage.
+// Only use that parameter if you know what you're doing.
+func (r *IndexRegistry) DeleteIndex(db, id string, force bool) (<-chan struct{}, error) {
 	r.mut.RLock()
 	var key indexKey
 	for k, idx := range r.indexes {
 		if strings.ToLower(id) == idx.ID() {
-			if !r.CanUseIndex(idx) {
+			if !force && !r.CanUseIndex(idx) {
 				r.mut.RUnlock()
 				return nil, ErrIndexDeleteInvalidStatus.New(id)
 			}

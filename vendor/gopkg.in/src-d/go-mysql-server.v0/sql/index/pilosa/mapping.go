@@ -6,6 +6,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/boltdb/bolt"
@@ -25,6 +26,11 @@ type mapping struct {
 	mut sync.RWMutex
 	db  *bolt.DB
 
+	// in create mode there's only one transaction closed explicitly by
+	// commit function
+	create bool
+	tx     *bolt.Tx
+
 	clientMut sync.Mutex
 	clients   int
 }
@@ -34,9 +40,15 @@ func newMapping(dir string) *mapping {
 }
 
 func (m *mapping) open() {
+	m.openCreate(false)
+}
+
+// openCreate opens and sets creation mode in the database.
+func (m *mapping) openCreate(create bool) {
 	m.clientMut.Lock()
 	defer m.clientMut.Unlock()
 	m.clients++
+	m.create = create
 }
 
 func (m *mapping) close() error {
@@ -80,6 +92,87 @@ func (m *mapping) query(fn func() error) error {
 	return fn()
 }
 
+func (m *mapping) rowID(frameName string, value interface{}) (uint64, error) {
+	val, err := m.get(frameName, value)
+	if err != nil {
+		return 0, err
+	}
+	if val == nil {
+		return 0, fmt.Errorf("id is nil")
+	}
+
+	return binary.LittleEndian.Uint64(val), err
+}
+
+// commit saves current transaction, if cont is true a new transaction will be
+// created again in the next query. Only for create mode.
+func (m *mapping) commit(cont bool) error {
+	m.clientMut.Lock()
+	defer m.clientMut.Unlock()
+
+	var err error
+	if m.create && m.tx != nil {
+		err = m.tx.Commit()
+	}
+
+	m.create = cont
+	m.tx = nil
+
+	return err
+}
+
+func (m *mapping) rollback() error {
+	m.clientMut.Lock()
+	defer m.clientMut.Unlock()
+
+	var err error
+	if m.create && m.tx != nil {
+		err = m.tx.Rollback()
+	}
+
+	m.create = false
+	m.tx = nil
+
+	return err
+}
+
+func (m *mapping) transaction(writable bool, f func(*bolt.Tx) error) error {
+	var tx *bolt.Tx
+	var err error
+	if m.create {
+		m.clientMut.Lock()
+		if m.tx == nil {
+			m.tx, err = m.db.Begin(true)
+			if err != nil {
+				m.clientMut.Unlock()
+				return err
+			}
+		}
+
+		m.clientMut.Unlock()
+
+		tx = m.tx
+	} else {
+		tx, err = m.db.Begin(writable)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = f(tx)
+
+	if m.create {
+		return err
+	}
+
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (m *mapping) getRowID(frameName string, value interface{}) (uint64, error) {
 	var id uint64
 	err := m.query(func() error {
@@ -90,7 +183,7 @@ func (m *mapping) getRowID(frameName string, value interface{}) (uint64, error) 
 			return err
 		}
 
-		err = m.db.Update(func(tx *bolt.Tx) error {
+		err = m.transaction(true, func(tx *bolt.Tx) error {
 			b, err := tx.CreateBucketIfNotExists([]byte(frameName))
 			if err != nil {
 				return err
@@ -103,7 +196,10 @@ func (m *mapping) getRowID(frameName string, value interface{}) (uint64, error) 
 				return nil
 			}
 
-			id = uint64(b.Stats().KeyN)
+			// the first NextSequence is 1 so the first id will be 1
+			// this can only fail if the transaction is closed
+			id, _ = b.NextSequence()
+
 			val = make([]byte, 8)
 			binary.LittleEndian.PutUint64(val, id)
 			err = b.Put(key, val)
@@ -118,7 +214,7 @@ func (m *mapping) getRowID(frameName string, value interface{}) (uint64, error) 
 
 func (m *mapping) putLocation(indexName string, colID uint64, location []byte) error {
 	return m.query(func() error {
-		return m.db.Update(func(tx *bolt.Tx) error {
+		return m.transaction(true, func(tx *bolt.Tx) error {
 			b, err := tx.CreateBucketIfNotExists([]byte(indexName))
 			if err != nil {
 				return err
@@ -132,14 +228,57 @@ func (m *mapping) putLocation(indexName string, colID uint64, location []byte) e
 	})
 }
 
+func (m *mapping) sortedLocations(indexName string, cols []uint64, reverse bool) ([][]byte, error) {
+	var result [][]byte
+	err := m.query(func() error {
+		return m.db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(indexName))
+			if b == nil {
+				return fmt.Errorf("bucket %s not found", indexName)
+			}
+
+			for _, col := range cols {
+				key := make([]byte, 8)
+				binary.LittleEndian.PutUint64(key, col)
+				val := b.Get(key)
+
+				// val will point to mmap addresses, so we need to copy the slice
+				dst := make([]byte, len(val))
+				copy(dst, val)
+				result = append(result, dst)
+			}
+
+			return nil
+		})
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if reverse {
+		sort.Stable(sort.Reverse(byBytes(result)))
+	} else {
+		sort.Stable(byBytes(result))
+	}
+
+	return result, nil
+}
+
+type byBytes [][]byte
+
+func (b byBytes) Len() int           { return len(b) }
+func (b byBytes) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byBytes) Less(i, j int) bool { return bytes.Compare(b[i], b[j]) < 0 }
+
 func (m *mapping) getLocation(indexName string, colID uint64) ([]byte, error) {
 	var location []byte
 
 	err := m.query(func() error {
-		err := m.db.View(func(tx *bolt.Tx) error {
+		err := m.transaction(true, func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte(indexName))
 			if b == nil {
-				return fmt.Errorf("Bucket %s not found", indexName)
+				return fmt.Errorf("bucket %s not found", indexName)
 			}
 
 			key := make([]byte, 8)
@@ -158,7 +297,7 @@ func (m *mapping) getLocation(indexName string, colID uint64) ([]byte, error) {
 func (m *mapping) getLocationN(indexName string) (int, error) {
 	var n int
 	err := m.query(func() error {
-		err := m.db.View(func(tx *bolt.Tx) error {
+		err := m.transaction(false, func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte(indexName))
 			if b == nil {
 				return fmt.Errorf("Bucket %s not found", indexName)
@@ -184,7 +323,7 @@ func (m *mapping) get(name string, key interface{}) ([]byte, error) {
 			return err
 		}
 
-		err = m.db.View(func(tx *bolt.Tx) error {
+		err = m.transaction(true, func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte(name))
 			if b != nil {
 				value = b.Get(buf.Bytes())
@@ -197,4 +336,32 @@ func (m *mapping) get(name string, key interface{}) ([]byte, error) {
 		return err
 	})
 	return value, err
+}
+
+func (m *mapping) filter(name string, fn func([]byte) (bool, error)) ([]uint64, error) {
+	var result []uint64
+
+	err := m.query(func() error {
+		return m.db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(name))
+			if b == nil {
+				return nil
+			}
+
+			return b.ForEach(func(k, v []byte) error {
+				ok, err := fn(k)
+				if err != nil {
+					return err
+				}
+
+				if ok {
+					result = append(result, binary.LittleEndian.Uint64(v))
+				}
+
+				return nil
+			})
+		})
+	})
+
+	return result, err
 }
