@@ -150,6 +150,21 @@ This table represents the relation between commits and blobs. With this table yo
 
 This table represents the relation between commits and trees. With this table you can obtain all the tree entries contained on a commit object.
 
+### commit_files
+```sql
++---------------+------+
+| name          | type |
++---------------+------+
+| repository_id | TEXT |
+| commit_hash   | TEXT |
+| file_path     | TEXT |
+| blob_hash     | TEXT |
+| tree_hash     | TEXT |
++---------------+------+
+```
+
+This table represents the relation between commits and [files](#files). Using this table, you can obtain all the files related to a certain commit object.
+
 ### ref_commits
 ```sql
 +---------------+-------+
