@@ -136,7 +136,7 @@ func TestRemotesIndexKeyValueIter(t *testing.T) {
 
 	var expected = []keyValue{
 		{
-			key:    assertEncodeKey(t, remoteIndexKey{path, 0, 0}),
+			key:    assertEncodeKey(t, &remoteIndexKey{path, 0, 0}),
 			values: []interface{}{"origin", "git@github.com:git-fixtures/basic.git"},
 		},
 	}
@@ -153,4 +153,21 @@ func TestRemotesIndex(t *testing.T) {
 			expression.NewLiteral("foo", sql.Text),
 		)},
 	)
+}
+
+func TestEncodeRemoteIndexKey(t *testing.T) {
+	require := require.New(t)
+
+	k := remoteIndexKey{
+		Repository: "repo1",
+		Pos:        5,
+		URLPos:     7,
+	}
+
+	data, err := k.encode()
+	require.NoError(err)
+
+	var k2 remoteIndexKey
+	require.NoError(k2.decode(data))
+	require.Equal(k, k2)
 }

@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"bytes"
 	"io"
 	"strconv"
 
@@ -281,6 +282,60 @@ type treeEntriesIndexKey struct {
 	Hash       string
 }
 
+func (k *treeEntriesIndexKey) encode() ([]byte, error) {
+	var buf bytes.Buffer
+	writeString(&buf, k.Repository)
+	writeHash(&buf, k.Packfile)
+	writeBool(&buf, k.Offset >= 0)
+	if k.Offset >= 0 {
+		writeInt64(&buf, k.Offset)
+	} else {
+		if err := writeHash(&buf, k.Hash); err != nil {
+			return nil, err
+		}
+	}
+	writeInt64(&buf, int64(k.Pos))
+	return buf.Bytes(), nil
+}
+
+func (k *treeEntriesIndexKey) decode(data []byte) error {
+	var buf = bytes.NewBuffer(data)
+	var err error
+
+	if k.Repository, err = readString(buf); err != nil {
+		return err
+	}
+
+	if k.Packfile, err = readHash(buf); err != nil {
+		return err
+	}
+
+	ok, err := readBool(buf)
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		k.Hash = ""
+		if k.Offset, err = readInt64(buf); err != nil {
+			return err
+		}
+	} else {
+		k.Offset = -1
+		if k.Hash, err = readHash(buf); err != nil {
+			return err
+		}
+	}
+
+	pos, err := readInt64(buf)
+	if err != nil {
+		return err
+	}
+
+	k.Pos = int(pos)
+	return nil
+}
+
 type treeEntriesKeyValueIter struct {
 	pool    *RepositoryPool
 	repos   *RepositoryIter
@@ -357,7 +412,7 @@ func (i *treeEntriesKeyValueIter) Next() ([]interface{}, []byte, error) {
 			hash = i.tree.Hash.String()
 		}
 
-		key, err := encodeIndexKey(treeEntriesIndexKey{
+		key, err := encodeIndexKey(&treeEntriesIndexKey{
 			Repository: i.repo.ID,
 			Packfile:   packfile.String(),
 			Offset:     offset,
@@ -414,7 +469,8 @@ func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
 	i.repoID = key.Repository
 
 	var tree *object.Tree
-	if i.prevTreeOffset == key.Offset {
+	if i.prevTreeOffset == key.Offset && key.Offset >= 0 ||
+		(i.tree != nil && i.tree.Hash.String() == key.Hash) {
 		tree = i.tree
 	} else {
 		var obj object.Object

@@ -393,7 +393,7 @@ func (i *blobsKeyValueIter) Next() ([]interface{}, []byte, error) {
 			hash = blob.Hash.String()
 		}
 
-		key, err := encodeIndexKey(packOffsetIndexKey{
+		key, err := encodeIndexKey(&packOffsetIndexKey{
 			Repository: i.repo.ID,
 			Packfile:   packfile.String(),
 			Offset:     offset,

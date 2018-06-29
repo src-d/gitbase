@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -77,4 +78,27 @@ func TestCommitFilesIndex(t *testing.T) {
 			expression.NewLiteral("af2d6a6954d532f8ffb47615169c8fdf9d383a1a", sql.Text),
 		)},
 	)
+}
+
+func TestEncodeCommitFileIndexKey(t *testing.T) {
+	require := require.New(t)
+
+	k := commitFileIndexKey{
+		Repository: "repo1",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     1234,
+		Hash:       plumbing.ZeroHash.String(),
+		Name:       "foo/bar.md",
+		Mode:       5,
+		Tree:       plumbing.ZeroHash.String(),
+		Commit:     plumbing.ZeroHash.String(),
+	}
+
+	data, err := k.encode()
+	require.NoError(err)
+
+	var k2 commitFileIndexKey
+	require.NoError(k2.decode(data))
+
+	require.Equal(k, k2)
 }

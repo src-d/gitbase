@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
@@ -127,12 +128,19 @@ func TestReferencesIndexKeyValueIter(t *testing.T) {
 	var expected []keyValue
 	for _, row := range rows {
 		var kv keyValue
-		kv.key = assertEncodeKey(t, row)
+		kv.key = assertEncodeRefsRow(t, row)
 		kv.values = append(kv.values, row[1])
 		expected = append(expected, kv)
 	}
 
 	assertIndexKeyValueIter(t, iter, expected)
+}
+
+func assertEncodeRefsRow(t *testing.T, row sql.Row) []byte {
+	t.Helper()
+	k, err := new(refRowKeyMapper).fromRow(row)
+	require.NoError(t, err)
+	return k
 }
 
 func TestReferencesIndex(t *testing.T) {
@@ -144,4 +152,18 @@ func TestReferencesIndex(t *testing.T) {
 			expression.NewLiteral("HEAD", sql.Text),
 		)},
 	)
+}
+
+func TestRefRowKeyMapper(t *testing.T) {
+	require := require.New(t)
+	row := sql.Row{"repo1", "ref_name", plumbing.ZeroHash.String()}
+	mapper := new(refRowKeyMapper)
+
+	k, err := mapper.fromRow(row)
+	require.NoError(err)
+
+	row2, err := mapper.toRow(k)
+	require.NoError(err)
+
+	require.Equal(row, row2)
 }

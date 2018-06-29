@@ -215,7 +215,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 
 	var expected = []keyValue{
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     682,
@@ -226,7 +226,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1292,
@@ -237,7 +237,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     186,
@@ -248,7 +248,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     353,
@@ -259,7 +259,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     905,
@@ -270,7 +270,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     516,
@@ -281,7 +281,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1459,
@@ -292,7 +292,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1130,
@@ -303,7 +303,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			},
 		},
 		{
-			assertEncodeKey(t, packOffsetIndexKey{
+			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     12,

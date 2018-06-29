@@ -121,11 +121,18 @@ func TestRepositoriesIndexKeyValueIter(t *testing.T) {
 	assertIndexKeyValueIter(t, iter,
 		[]keyValue{
 			{
-				assertEncodeKey(t, sql.NewRow(path)),
+				assertEncodeRepoRow(t, sql.NewRow(path)),
 				[]interface{}{path},
 			},
 		},
 	)
+}
+
+func assertEncodeRepoRow(t *testing.T, row sql.Row) []byte {
+	t.Helper()
+	k, err := new(repoRowKeyMapper).fromRow(row)
+	require.NoError(t, err)
+	return k
 }
 
 func TestRepositoriesIndex(t *testing.T) {
