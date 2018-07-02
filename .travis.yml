@@ -75,7 +75,7 @@ jobs:
       deploy:
         provider: releases
         api_key: $GITHUB_TOKEN
-        file_glob: true,
+        file_glob: true
         file: build/*darwin_amd64.tar.gz
         skip_cleanup: true
         on:
