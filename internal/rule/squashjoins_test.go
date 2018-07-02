@@ -96,6 +96,16 @@ func TestSquashJoins(t *testing.T) {
 
 	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
+	result, err = result.TransformUp(func(n sql.Node) (sql.Node, error) {
+		t, ok := n.(*squashedTable)
+		if ok {
+			t.schema = nil
+			return t, nil
+		}
+
+		return n, nil
+	})
+	require.NoError(err)
 	require.Equal(expected, result)
 }
 
