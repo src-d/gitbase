@@ -26,7 +26,7 @@ import (
 const (
 	ServerDescription = "Starts a gitbase server instance"
 	ServerHelp        = ServerDescription + "\n\n" +
-		"By default when gitbase encounters and error in a repository it\n" +
+		"By default when gitbase encounters an error in a repository it\n" +
 		"stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't\n" +
 		"complain and just skip those rows or repositories."
 	TracerServiceName = "gitbase"
