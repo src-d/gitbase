@@ -10,8 +10,10 @@ import (
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/src-d/gitbase/internal/rule"
 
+	"github.com/opentracing/opentracing-go"
 	gopilosa "github.com/pilosa/go-pilosa"
 	"github.com/sirupsen/logrus"
+	"github.com/uber/jaeger-client-go/config"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
@@ -22,9 +24,10 @@ import (
 const (
 	ServerDescription = "Starts a gitbase server instance"
 	ServerHelp        = ServerDescription + "\n\n" +
-		"By default when gitbase encounters and error in a repository it\n" +
+		"By default when gitbase encounters an error in a repository it\n" +
 		"stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't\n" +
 		"complain and just skip those rows or repositories."
+	TracerServiceName = "gitbase"
 )
 
 // Server represents the `server` command of gitbase cli tool.
@@ -39,14 +42,22 @@ type Server struct {
 	PilosaURL     string   `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server" env:"PILOSA_ENDPOINT"`
 	IndexDir      string   `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
 	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
-	// IgnoreGitErrors by default when gitbase encounters and error in a
-	// repository it stops the query. With this parameter it won't complain and
-	// just skip those rows or repositories.
+	TraceEnabled  bool     `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
+
+	// SkipGitErrors disables failing when Git errors are found.
 	SkipGitErrors bool
 
 	engine *sqle.Engine
 	pool   *gitbase.RepositoryPool
 	name   string
+}
+
+type jaegerLogrus struct {
+	*logrus.Entry
+}
+
+func (l *jaegerLogrus) Error(s string) {
+	l.Entry.Error(s)
 }
 
 // Execute starts a new gitbase server based on provided configuration, it
@@ -66,12 +77,43 @@ func (c *Server) Execute(args []string) error {
 		{Password: c.Password},
 	}
 
+	var tracer opentracing.Tracer
+	if c.TraceEnabled {
+		cfg, err := config.FromEnv()
+		if err != nil {
+			logrus.WithField("error", err).
+				Fatal("unable to read jaeger environment")
+			return err
+		}
+
+		if cfg.ServiceName == "" {
+			cfg.ServiceName = TracerServiceName
+		}
+
+		logger := &jaegerLogrus{logrus.WithField("subsystem", "jaeger")}
+
+		t, closer, err := cfg.NewTracer(
+			config.Logger(logger),
+		)
+
+		if err != nil {
+			logrus.WithField("error", err).Fatal("unable to initialize tracer")
+			return err
+		}
+
+		tracer = t
+		defer closer.Close()
+
+		logrus.Info("tracing enabled")
+	}
+
 	hostString := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	s, err := server.NewServer(
 		server.Config{
 			Protocol: "tcp",
 			Address:  hostString,
 			Auth:     auth,
+			Tracer:   tracer,
 		},
 		c.engine,
 		gitbase.NewSessionBuilder(c.pool,

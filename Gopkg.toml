@@ -54,3 +54,7 @@
 [[constraint]]
   name = "gopkg.in/bblfsh/sdk.v1"
   version = "1.16.0"
+
+[[constraint]]
+  name = "github.com/uber/jaeger-client-go"
+  version = "^2.7.0"
