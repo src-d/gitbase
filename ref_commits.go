@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"bytes"
 	"io"
 	"strings"
 
@@ -107,7 +108,12 @@ func (*refCommitsTable) IndexKeyValueIter(
 		return nil, err
 	}
 
-	return &rowKeyValueIter{iter, colNames, RefCommitsSchema}, nil
+	return &rowKeyValueIter{
+		new(refCommitsRowKeyMapper),
+		iter,
+		colNames,
+		RefCommitsSchema,
+	}, nil
 }
 
 // WithProjectFiltersAndIndex implements sql.Indexable interface.
@@ -123,13 +129,77 @@ func (*refCommitsTable) WithProjectFiltersAndIndex(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	var iter sql.RowIter = &rowIndexIter{index}
+	var iter sql.RowIter = &rowIndexIter{new(refCommitsRowKeyMapper), index}
 
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
 	}
 
 	return sql.NewSpanIter(span, iter), nil
+}
+
+type refCommitsRowKeyMapper struct{}
+
+func (refCommitsRowKeyMapper) fromRow(row sql.Row) ([]byte, error) {
+	if len(row) != 4 {
+		return nil, errRowKeyMapperRowLength.New(4, len(row))
+	}
+
+	repo, ok := row[0].(string)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(0, repo, row[0])
+	}
+
+	hash, ok := row[1].(string)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(1, hash, row[1])
+	}
+
+	refName, ok := row[2].(string)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(2, refName, row[2])
+	}
+
+	index, ok := row[3].(int64)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(3, index, row[3])
+	}
+
+	var buf bytes.Buffer
+	writeString(&buf, repo)
+	if err := writeHash(&buf, hash); err != nil {
+		return nil, err
+	}
+
+	writeString(&buf, refName)
+	writeInt64(&buf, index)
+	return buf.Bytes(), nil
+}
+
+func (refCommitsRowKeyMapper) toRow(data []byte) (sql.Row, error) {
+	var buf = bytes.NewBuffer(data)
+
+	repo, err := readString(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := readHash(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	refName, err := readString(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	index, err := readInt64(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return sql.Row{repo, hash, refName, index}, nil
 }
 
 func refCommitsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {

@@ -1,14 +1,17 @@
 package gitbase
 
 import (
+	"bytes"
+	"encoding/gob"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
-func assertEncodeKey(t *testing.T, key interface{}) []byte {
+func assertEncodeKey(t *testing.T, key indexKey) []byte {
 	data, err := encodeIndexKey(key)
 	require.NoError(t, err)
 	return data
@@ -116,4 +119,139 @@ func testTableIndex(
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
+}
+
+func TestEncodeKeySize(t *testing.T) {
+	require := require.New(t)
+
+	k1 := packOffsetIndexKey{
+		Repository: "/foo/bar/baz/repo.git",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     12345,
+		Hash:       "",
+	}
+
+	k2 := packOffsetIndexKey{
+		Repository: "/foo/bar/baz/repo.git",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     -1,
+		Hash:       plumbing.ZeroHash.String(),
+	}
+
+	var buf1, buf2 bytes.Buffer
+	require.NoError(gob.NewEncoder(&buf1).Encode(k1))
+
+	bytes1, err := k1.encode()
+	require.NoError(err)
+
+	require.True(len(bytes1) < len(buf1.Bytes()))
+
+	require.NoError(gob.NewEncoder(&buf2).Encode(k2))
+
+	bytes2, err := k2.encode()
+	require.NoError(err)
+
+	require.True(len(bytes2) < len(buf2.Bytes()))
+}
+
+func TestWriteReadInt64(t *testing.T) {
+	require := require.New(t)
+
+	var buf bytes.Buffer
+	writeInt64(&buf, -7)
+
+	n, err := readInt64(&buf)
+	require.NoError(err)
+	require.Equal(int64(-7), n)
+
+	_, err = buf.ReadByte()
+	require.Equal(err, io.EOF)
+
+	buf.Reset()
+	writeInt64(&buf, 7)
+
+	n, err = readInt64(&buf)
+	require.NoError(err)
+	require.Equal(int64(7), n)
+
+	_, err = buf.ReadByte()
+	require.Equal(err, io.EOF)
+}
+
+func TestWriteReadBool(t *testing.T) {
+	require := require.New(t)
+
+	var buf bytes.Buffer
+	writeBool(&buf, true)
+
+	b, err := readBool(&buf)
+	require.NoError(err)
+	require.True(b)
+
+	_, err = buf.ReadByte()
+	require.Equal(err, io.EOF)
+}
+
+func TestWriteReadString(t *testing.T) {
+	require := require.New(t)
+
+	var buf bytes.Buffer
+	writeString(&buf, "foo bar")
+
+	s, err := readString(&buf)
+	require.NoError(err)
+	require.Equal("foo bar", s)
+
+	_, err = buf.ReadByte()
+	require.Equal(err, io.EOF)
+}
+
+func TestWriteReadHash(t *testing.T) {
+	require := require.New(t)
+
+	var buf bytes.Buffer
+
+	require.Error(writeHash(&buf, ""))
+	require.NoError(writeHash(&buf, plumbing.ZeroHash.String()))
+
+	h, err := readHash(&buf)
+	require.NoError(err)
+	require.Equal(plumbing.ZeroHash.String(), h)
+
+	_, err = buf.ReadByte()
+	require.Equal(err, io.EOF)
+}
+
+func TestEncodePackOffsetIndexKey(t *testing.T) {
+	require := require.New(t)
+
+	k := packOffsetIndexKey{
+		Repository: "repo1",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     1234,
+		Hash:       "",
+	}
+
+	data, err := k.encode()
+	require.NoError(err)
+
+	var k2 packOffsetIndexKey
+	require.NoError(k2.decode(data))
+
+	require.Equal(k, k2)
+
+	k = packOffsetIndexKey{
+		Repository: "repo1",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     -1,
+		Hash:       plumbing.ZeroHash.String(),
+	}
+
+	data, err = k.encode()
+	require.NoError(err)
+
+	var k3 packOffsetIndexKey
+	require.NoError(k3.decode(data))
+
+	require.Equal(k, k3)
 }

@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"bytes"
 	"io"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -101,7 +102,12 @@ func (*commitBlobsTable) IndexKeyValueIter(
 		return nil, err
 	}
 
-	return &rowKeyValueIter{iter, colNames, CommitBlobsSchema}, nil
+	return &rowKeyValueIter{
+		new(commitBlobsRowKeyMapper),
+		iter,
+		colNames,
+		CommitBlobsSchema,
+	}, nil
 }
 
 // WithProjectFiltersAndIndex implements sql.Indexable interface.
@@ -117,13 +123,70 @@ func (*commitBlobsTable) WithProjectFiltersAndIndex(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	var iter sql.RowIter = &rowIndexIter{index}
+	var iter sql.RowIter = &rowIndexIter{new(commitBlobsRowKeyMapper), index}
 
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
 	}
 
 	return sql.NewSpanIter(span, iter), nil
+}
+
+type commitBlobsRowKeyMapper struct{}
+
+func (commitBlobsRowKeyMapper) fromRow(row sql.Row) ([]byte, error) {
+	if len(row) != 3 {
+		return nil, errRowKeyMapperRowLength.New(3, len(row))
+	}
+
+	repo, ok := row[0].(string)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(0, repo, row[0])
+	}
+
+	commit, ok := row[1].(string)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(1, commit, row[1])
+	}
+
+	blob, ok := row[2].(string)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(2, blob, row[2])
+	}
+
+	var buf bytes.Buffer
+	writeString(&buf, repo)
+
+	if err := writeHash(&buf, commit); err != nil {
+		return nil, err
+	}
+
+	if err := writeHash(&buf, blob); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (commitBlobsRowKeyMapper) toRow(data []byte) (sql.Row, error) {
+	var buf = bytes.NewBuffer(data)
+
+	repo, err := readString(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	commit, err := readHash(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	blob, err := readHash(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return sql.Row{repo, commit, blob}, nil
 }
 
 func commitBlobsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {

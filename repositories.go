@@ -109,7 +109,12 @@ func (*repositoriesTable) IndexKeyValueIter(
 		return nil, err
 	}
 
-	return &rowKeyValueIter{iter, colNames, RepositoriesSchema}, nil
+	return &rowKeyValueIter{
+		new(repoRowKeyMapper),
+		iter,
+		colNames,
+		RepositoriesSchema,
+	}, nil
 }
 
 // WithProjectFiltersAndIndex implements sql.Indexable interface.
@@ -125,13 +130,32 @@ func (r *repositoriesTable) WithProjectFiltersAndIndex(
 		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
-	var iter sql.RowIter = &rowIndexIter{index}
+	var iter sql.RowIter = &rowIndexIter{new(repoRowKeyMapper), index}
 
 	if len(filters) > 0 {
 		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
 	}
 
 	return sql.NewSpanIter(span, iter), nil
+}
+
+type repoRowKeyMapper struct{}
+
+func (repoRowKeyMapper) fromRow(row sql.Row) ([]byte, error) {
+	if len(row) != 1 {
+		return nil, errRowKeyMapperRowLength.New(1, len(row))
+	}
+
+	repo, ok := row[0].(string)
+	if !ok {
+		return nil, errRowKeyMapperColType.New(0, repo, row[0])
+	}
+
+	return []byte(repo), nil
+}
+
+func (repoRowKeyMapper) toRow(data []byte) (sql.Row, error) {
+	return sql.Row{string(data)}, nil
 }
 
 func repositoriesIterBuilder(_ *sql.Context, _ selectors, _ []sql.Expression) (RowRepoIter, error) {

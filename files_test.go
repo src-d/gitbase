@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -167,7 +168,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 
 	var expected = []keyValue{
 		{
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -180,7 +181,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1752,
@@ -193,7 +194,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d3ff53e0564a9f87d8e84b6e28e5060e517008aa",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -206,7 +207,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2418,
@@ -219,7 +220,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"7e59600739c96546163833214c36459e324bad0a",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2436,
@@ -232,7 +233,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d5c0f4ab811897cadf03aec358ae60d21f91c50d",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78932,
@@ -245,7 +246,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"880cd14280f4b9b6ed3986d6671f907d7cc2a198",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     79864,
@@ -258,7 +259,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"49c6bb89b17060d7b4deacb7b338fcc6ea2352a9",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     81707,
@@ -271,7 +272,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c8f1d8c61f9da76f4cb49fd86322b6e685dba956",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     82000,
@@ -284,7 +285,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"9a48f23120e880dfbe41f7c9b7b708e9ee62a492",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -297,7 +298,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1752,
@@ -310,7 +311,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d3ff53e0564a9f87d8e84b6e28e5060e517008aa",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -323,7 +324,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2436,
@@ -336,7 +337,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d5c0f4ab811897cadf03aec358ae60d21f91c50d",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78932,
@@ -349,7 +350,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"880cd14280f4b9b6ed3986d6671f907d7cc2a198",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     79864,
@@ -362,7 +363,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"49c6bb89b17060d7b4deacb7b338fcc6ea2352a9",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     81707,
@@ -375,7 +376,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c8f1d8c61f9da76f4cb49fd86322b6e685dba956",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     82000,
@@ -388,7 +389,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"9a48f23120e880dfbe41f7c9b7b708e9ee62a492",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     85438,
@@ -401,7 +402,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"9dea2395f5403188298c1dabe8bdafe562c491e3",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -414,7 +415,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1752,
@@ -427,7 +428,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d3ff53e0564a9f87d8e84b6e28e5060e517008aa",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -440,7 +441,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2436,
@@ -453,7 +454,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d5c0f4ab811897cadf03aec358ae60d21f91c50d",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     78932,
@@ -466,7 +467,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"880cd14280f4b9b6ed3986d6671f907d7cc2a198",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     79864,
@@ -479,7 +480,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"49c6bb89b17060d7b4deacb7b338fcc6ea2352a9",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     81707,
@@ -492,7 +493,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c8f1d8c61f9da76f4cb49fd86322b6e685dba956",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     82000,
@@ -505,7 +506,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"9a48f23120e880dfbe41f7c9b7b708e9ee62a492",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -518,7 +519,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1752,
@@ -531,7 +532,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d3ff53e0564a9f87d8e84b6e28e5060e517008aa",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -544,7 +545,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2436,
@@ -557,7 +558,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d5c0f4ab811897cadf03aec358ae60d21f91c50d",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     79864,
@@ -570,7 +571,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"49c6bb89b17060d7b4deacb7b338fcc6ea2352a9",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     81707,
@@ -583,7 +584,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c8f1d8c61f9da76f4cb49fd86322b6e685dba956",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -596,7 +597,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1752,
@@ -609,7 +610,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d3ff53e0564a9f87d8e84b6e28e5060e517008aa",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -622,7 +623,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2436,
@@ -635,7 +636,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d5c0f4ab811897cadf03aec358ae60d21f91c50d",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -648,7 +649,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1752,
@@ -661,7 +662,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d3ff53e0564a9f87d8e84b6e28e5060e517008aa",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -674,7 +675,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -687,7 +688,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -700,7 +701,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     2436,
@@ -713,7 +714,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"d5c0f4ab811897cadf03aec358ae60d21f91c50d",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1591,
@@ -726,7 +727,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 				"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88",
 			},
 		}, {
-			assertEncodeKey(t, fileIndexKey{
+			assertEncodeKey(t, &fileIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1780,
@@ -753,4 +754,44 @@ func TestFilesIndex(t *testing.T) {
 			expression.NewLiteral("LICENSE", sql.Text),
 		)},
 	)
+}
+
+func TestEncodeFileIndexKey(t *testing.T) {
+	require := require.New(t)
+
+	k := fileIndexKey{
+		Repository: "repo1",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     1234,
+		Hash:       "",
+		Name:       "foo/bar.md",
+		Mode:       5,
+		Tree:       plumbing.ZeroHash.String(),
+	}
+
+	data, err := k.encode()
+	require.NoError(err)
+
+	var k2 fileIndexKey
+	require.NoError(k2.decode(data))
+
+	require.Equal(k, k2)
+
+	k = fileIndexKey{
+		Repository: "repo1",
+		Packfile:   plumbing.ZeroHash.String(),
+		Offset:     -1,
+		Hash:       plumbing.ZeroHash.String(),
+		Name:       "foo/bar.md",
+		Mode:       5,
+		Tree:       plumbing.ZeroHash.String(),
+	}
+
+	data, err = k.encode()
+	require.NoError(err)
+
+	var k3 fileIndexKey
+	require.NoError(k3.decode(data))
+
+	require.Equal(k, k3)
 }

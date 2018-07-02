@@ -1,6 +1,7 @@
 package gitbase
 
 import (
+	"bytes"
 	"io"
 
 	git "gopkg.in/src-d/go-git.v4"
@@ -212,6 +213,36 @@ type remoteIndexKey struct {
 	URLPos     int
 }
 
+func (k *remoteIndexKey) encode() ([]byte, error) {
+	var buf bytes.Buffer
+	writeString(&buf, k.Repository)
+	writeInt64(&buf, int64(k.Pos))
+	writeInt64(&buf, int64(k.URLPos))
+	return buf.Bytes(), nil
+}
+
+func (k *remoteIndexKey) decode(data []byte) error {
+	var buf = bytes.NewBuffer(data)
+	var err error
+	if k.Repository, err = readString(buf); err != nil {
+		return err
+	}
+
+	pos, err := readInt64(buf)
+	if err != nil {
+		return err
+	}
+
+	urlPos, err := readInt64(buf)
+	if err != nil {
+		return err
+	}
+
+	k.Pos = int(pos)
+	k.URLPos = int(urlPos)
+	return nil
+}
+
 type remotesKeyValueIter struct {
 	repos   *RepositoryIter
 	repo    *Repository
@@ -252,7 +283,7 @@ func (i *remotesKeyValueIter) Next() ([]interface{}, []byte, error) {
 
 		i.urlPos++
 
-		key, err := encodeIndexKey(remoteIndexKey{i.repo.ID, i.pos, i.urlPos - 1})
+		key, err := encodeIndexKey(&remoteIndexKey{i.repo.ID, i.pos, i.urlPos - 1})
 		if err != nil {
 			return nil, nil, err
 		}

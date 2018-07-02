@@ -1075,7 +1075,7 @@ func (i *squashRefCommitsIndexIter) New(ctx *sql.Context, pool *RepositoryPool) 
 	return &squashRefCommitsIndexIter{
 		ctx:           ctx,
 		index:         i.index,
-		iter:          &rowIndexIter{values},
+		iter:          &rowIndexIter{new(refCommitsRowKeyMapper), values},
 		filters:       i.filters,
 		pool:          pool,
 		skipGitErrors: session.SkipGitErrors,
@@ -1671,7 +1671,7 @@ func (i *squashCommitTreesIndexIter) New(ctx *sql.Context, pool *RepositoryPool)
 	return &squashCommitTreesIndexIter{
 		ctx:           ctx,
 		index:         i.index,
-		iter:          &rowIndexIter{values},
+		iter:          &rowIndexIter{new(commitTreesRowKeyMapper), values},
 		filters:       i.filters,
 		pool:          pool,
 		skipGitErrors: session.SkipGitErrors,
@@ -2512,7 +2512,7 @@ func (i *squashCommitBlobsIndexIter) New(ctx *sql.Context, pool *RepositoryPool)
 	return &squashCommitBlobsIndexIter{
 		ctx:           ctx,
 		index:         i.index,
-		iter:          &rowIndexIter{values},
+		iter:          &rowIndexIter{new(commitBlobsRowKeyMapper), values},
 		filters:       i.filters,
 		pool:          pool,
 		skipGitErrors: session.SkipGitErrors,
