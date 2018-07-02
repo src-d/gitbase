@@ -485,7 +485,7 @@
     "sql/parse",
     "sql/plan"
   ]
-  revision = "24a5925748096dd3116b0073833a438ecb0c34f9"
+  revision = "dcc1c537eb7e2bc20ce69d03732e8aa8feaa8612"
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
