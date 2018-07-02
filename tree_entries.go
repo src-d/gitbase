@@ -414,7 +414,8 @@ func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
 	i.repoID = key.Repository
 
 	var tree *object.Tree
-	if i.prevTreeOffset == key.Offset {
+	if i.prevTreeOffset == key.Offset && key.Offset >= 0 ||
+		(i.tree != nil && i.tree.Hash.String() == key.Hash) {
 		tree = i.tree
 	} else {
 		var obj object.Object
