@@ -61,27 +61,34 @@ func SquashJoins(
 	}
 
 	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
-		if projectSquashes <= 0 {
+		switch n := n.(type) {
+		case *plan.Project:
+			if projectSquashes <= 0 {
+				return n, nil
+			}
+
+			child, ok := n.Child.(*plan.Project)
+			if !ok {
+				return n, nil
+			}
+
+			squashedProject, ok := squashProjects(n, child)
+			if !ok {
+				return n, nil
+			}
+
+			projectSquashes--
+			return squashedProject, nil
+		case *plan.Filter:
+			expr, err := fixFieldIndexes(n.Expression, n.Schema())
+			if err != nil {
+				return nil, err
+			}
+
+			return plan.NewFilter(expr, n.Child), nil
+		default:
 			return n, nil
 		}
-
-		project, ok := n.(*plan.Project)
-		if !ok {
-			return n, nil
-		}
-
-		child, ok := project.Child.(*plan.Project)
-		if !ok {
-			return n, nil
-		}
-
-		squashedProject, ok := squashProjects(project, child)
-		if !ok {
-			return n, nil
-		}
-
-		projectSquashes--
-		return squashedProject, nil
 	})
 }
 
@@ -101,7 +108,7 @@ func countProjectSquashes(n sql.Node) int {
 }
 
 func squashProjects(parent, child *plan.Project) (sql.Node, bool) {
-	projections := []sql.Expression{}
+	var projections []sql.Expression
 	for _, expr := range parent.Expressions() {
 		parentField, ok := expr.(*expression.GetField)
 		if !ok {
@@ -1078,7 +1085,7 @@ func (t *squashedTable) TransformExpressionsUp(sql.TransformExprFunc) (sql.Node,
 	return t, nil
 }
 func (t *squashedTable) TransformUp(fn sql.TransformNodeFunc) (sql.Node, error) {
-	return t, nil
+	return fn(t)
 }
 
 type schemaMapperIter struct {

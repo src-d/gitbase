@@ -17,6 +17,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	sqlfunction "gopkg.in/src-d/go-mysql-server.v0/sql/expression/function"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 )
 
@@ -158,6 +159,26 @@ func TestIntegration(t *testing.T) {
 				{"35e85108805c84807bc66a02d91535e1e24b38b9", int32(3)},
 				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", int32(9)},
 				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5", int32(9)},
+			},
+		},
+		{
+			`SELECT MONTH(committer_when) as month,
+				r.repository_id as repo_id,
+				committer_email
+			FROM ref_commits r
+			INNER JOIN commits c
+				ON YEAR(c.committer_when) = 2015
+				AND r.commit_hash = c.commit_hash
+			WHERE r.ref_name = 'HEAD'`,
+			[]sql.Row{
+				{int32(4), "worktree", "mcuadros@gmail.com"},
+				{int32(3), "worktree", "mcuadros@gmail.com"},
+				{int32(3), "worktree", "mcuadros@gmail.com"},
+				{int32(3), "worktree", "mcuadros@gmail.com"},
+				{int32(3), "worktree", "mcuadros@gmail.com"},
+				{int32(3), "worktree", "mcuadros@gmail.com"},
+				{int32(3), "worktree", "mcuadros@gmail.com"},
+				{int32(3), "worktree", "daniel@lordran.local"},
 			},
 		},
 	}
@@ -776,6 +797,7 @@ func newSquashEngine() *sqle.Engine {
 		Build()
 	e := sqle.New(catalog, analyzer)
 	e.AddDatabase(gitbase.NewDatabase("foo"))
+	e.Catalog.RegisterFunctions(sqlfunction.Defaults)
 	e.Catalog.RegisterFunctions(function.Functions)
 	return e
 }
