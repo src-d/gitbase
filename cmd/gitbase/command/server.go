@@ -20,6 +20,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
+	efunction "gopkg.in/src-d/go-mysql-server.v0/sql/expression/function"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 )
@@ -163,6 +164,7 @@ func (c *Server) buildDatabase() error {
 	logrus.WithField("db", c.name).Debug("registered database to catalog")
 
 	c.engine.Catalog.RegisterFunctions(function.Functions)
+	c.engine.Catalog.RegisterFunctions(efunction.Defaults)
 	logrus.Debug("registered all available functions in catalog")
 
 	if err := c.registerDrivers(); err != nil {
