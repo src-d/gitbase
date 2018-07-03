@@ -14,8 +14,4 @@ To make some common tasks easier for the user, there are some functions to inter
 
 ## Standard functions
 
-<<<<<<< HEAD
 You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/dcc1c537eb7e2bc20ce69d03732e8aa8feaa8612#custom-functions).
-=======
-You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/4785fe821326846e344bb2a77c8bcc34d717096e#custom-functions).
->>>>>>> vendor: upgrade go-mysql-server

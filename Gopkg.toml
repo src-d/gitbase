@@ -1,10 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-<<<<<<< HEAD
   revision = "dcc1c537eb7e2bc20ce69d03732e8aa8feaa8612"
-=======
-  revision = "4785fe821326846e344bb2a77c8bcc34d717096e"
->>>>>>> vendor: upgrade go-mysql-server
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"

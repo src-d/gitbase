@@ -485,11 +485,7 @@
     "sql/parse",
     "sql/plan"
   ]
-<<<<<<< HEAD
   revision = "dcc1c537eb7e2bc20ce69d03732e8aa8feaa8612"
-=======
-  revision = "4785fe821326846e344bb2a77c8bcc34d717096e"
->>>>>>> vendor: upgrade go-mysql-server
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
@@ -542,10 +538,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-<<<<<<< HEAD
   inputs-digest = "cefe7eedc3e61db6656997a3fd8892cccbb3351193b8c36cbc922901d47d44a4"
-=======
-  inputs-digest = "66bbf14ca707be1a63bab6728343586d99d1916dbc8bd6deeb274d4439e7997f"
->>>>>>> vendor: upgrade go-mysql-server
   solver-name = "gps-cdcl"
   solver-version = 1
