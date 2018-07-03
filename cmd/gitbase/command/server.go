@@ -18,6 +18,7 @@ import (
 	"github.com/uber/jaeger-client-go/config"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
@@ -45,7 +46,7 @@ type Server struct {
 	IndexDir      string   `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
 	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
 	TraceEnabled  bool     `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
-
+	ReadOnly      bool     `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
 	// SkipGitErrors disables failing when Git errors are found.
 	SkipGitErrors bool
 
@@ -143,7 +144,13 @@ func (c *Server) Execute(args []string) error {
 
 func (c *Server) buildDatabase() error {
 	if c.engine == nil {
-		c.engine = sqle.NewDefault()
+		catalog := sql.NewCatalog()
+		ab := analyzer.NewBuilder(catalog)
+		if c.ReadOnly {
+			ab = ab.ReadOnly()
+		}
+		a := ab.Build()
+		c.engine = sqle.New(catalog, a)
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
