@@ -56,7 +56,7 @@ Usage:
 
 Starts a gitbase server instance
 
-By default when gitbase encounters an error in a repository it
+By default when gitbase encounters and error in a repository it
 stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't
 complain and just skip those rows or repositories.
 
