@@ -276,6 +276,20 @@ var queries = []struct {
 			{int32(1), int64(1)},
 		},
 	},
+	{
+		`SELECT CONCAT("a", "b", "c")`,
+		[]sql.Row{
+			{string("abc")},
+		},
+	},
+	{
+		"SELECT concat(s, i) FROM mytable",
+		[]sql.Row{
+			{string("first row1")},
+			{string("second row2")},
+			{string("third row3")},
+		},
+	},
 }
 
 func TestQueries(t *testing.T) {
@@ -827,9 +841,6 @@ func TestTracing(t *testing.T) {
 		"plan.Project",
 		"plan.Filter",
 		"plan.PushdownProjectionAndFiltersTable",
-		"expression.Equals",
-		"expression.Equals",
-		"expression.Equals",
 	}
 
 	var spanOperations []string
