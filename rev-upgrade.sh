@@ -54,13 +54,18 @@ echo "Project: $PRJ"
 echo "Old rev: $REV_OLD"
 echo "New rev: $REV_NEW"
 
-if [ $REV_OLD == $REV_NEW ]; then
+if [ "$REV_OLD" == "$REV_NEW" ]; then
     exit 0
 fi
 
-for file in $(git ls-files | xargs egrep -l $REV_OLD); do
+for file in $(git ls-files | xargs egrep -l "$REV_OLD"); do
     echo "# $file"
-    sed -i '' "s/$REV_OLD/$REV_NEW/g" $file
+    if [[ $OSTYPE == darwin* ]]; then
+        sed -i '' "s/$REV_OLD/$REV_NEW/g" "$file"
+    else
+        sed -i'' "s/$REV_OLD/$REV_NEW/g" "$file"
+    fi
+
 done
 
 err=$?
