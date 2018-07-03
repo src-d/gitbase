@@ -150,6 +150,21 @@ This table represents the relation between commits and blobs. With this table yo
 
 This table represents the relation between commits and trees. With this table you can obtain all the tree entries contained on a commit object.
 
+### commit_files
+```sql
++---------------+------+
+| name          | type |
++---------------+------+
+| repository_id | TEXT |
+| commit_hash   | TEXT |
+| file_path     | TEXT |
+| blob_hash     | TEXT |
+| tree_hash     | TEXT |
++---------------+------+
+```
+
+This table represents the relation between commits and [files](#files). Using this table, you can obtain all the files related to a certain commit object.
+
 ### ref_commits
 ```sql
 +---------------+-------+
@@ -171,82 +186,7 @@ Commits will be repeated if they are in several repositories or references.
 ## Database diagram
 <!--
 
-repositories as r
--
-repository_id string
-
-remotes
--
-repository_id string FK - r.repository_id
-remote_name string
-remote_push_url string
-remote_fetch_url string
-remote_push_refspec string
-remote_fetch_refspec string
-
-refs
--
-repository_id string FK >- repositories.repository_id
-ref_name string
-commit_hash string FK >- commits.commit_hash
-
-commits as c
--
-repository_id string FK >- repositories.repository_id
-commit_hash string
-commit_author_name string
-commit_author_email string
-commit_author_when timestamp
-committer_name string
-committer_email string
-committer_when timestamp
-commit_message string
-tree_hash string FK >- tree_entries.tree_hash
-commit_parents array[string]
-
-blobs as b
--
-repository_id string FK >- repositories.repository_id
-blob_hash string
-blob_size number
-blob_content blob
-
-tree_entries as te
--
-repository_id string FK >- repositories.repository_id
-tree_hash string
-blob_hash string FK >- blobs.blob_hash
-tree_entry_mode number
-tree_entry_name string
-
-files as f
--
-repository_id string FK >- repositories.repository_id
-blob_hash string FK >- blobs.blob_hash
-file_path string
-tree_hash string FK >- tree_entries.tree_hash
-tree_entry_mode number
-blob_content blob
-blob_size number
-
-ref_commits
--
-repository_id string FK >- repositories.repository_id
-commit_hash string FK >- commits.commit_hash
-ref_name string FK >- refs.ref_name
-index number
-
-commit_trees
--
-repository_id string FK >- repositories.repository_id
-commit_hash string FK >- commits.commit_hash
-tree_hash string FK >- tree_entries.tree_hash
-
-commit_blobs
--
-repository_id string FK >- repositories.repository_id
-commit_hash string FK >- commits.commit_hash
-blob_hash string FK >- blobs.blob_hash
+Diagram generated with MySQL Workbench. Edit the model in docs/assets/gitbase_model.mwb to generate a new diagram in case it needs some changes.
 
  -->
 
