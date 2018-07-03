@@ -1,7 +1,6 @@
 package command
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	gopilosa "github.com/pilosa/go-pilosa"
 	"github.com/sirupsen/logrus"
-	jaeger "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
@@ -82,15 +80,15 @@ func (c *Server) Execute(args []string) error {
 
 	var tracer opentracing.Tracer
 	if c.TraceEnabled {
-		if os.Getenv("JAEGER_SERVICE_NAME") == "" {
-			os.Setenv("JAEGER_SERVICE_NAME", TracerServiceName)
-		}
-
 		cfg, err := config.FromEnv()
 		if err != nil {
 			logrus.WithField("error", err).
 				Fatal("unable to read jaeger environment")
 			return err
+		}
+
+		if cfg.ServiceName == "" {
+			cfg.ServiceName = TracerServiceName
 		}
 
 		logger := &jaegerLogrus{logrus.WithField("subsystem", "jaeger")}
@@ -107,18 +105,7 @@ func (c *Server) Execute(args []string) error {
 		tracer = t
 		defer closer.Close()
 
-		jaegerHost := os.Getenv("JAEGER_AGENT_HOST")
-		if jaegerHost == "" {
-			jaegerHost = jaeger.DefaultUDPSpanServerHost
-		}
-
-		jaegerPort := os.Getenv("JAEGER_AGENT_PORT")
-		if jaegerPort == "" {
-			jaegerPort = strconv.Itoa(jaeger.DefaultUDPSpanServerPort)
-		}
-
-		endpoint := fmt.Sprintf("%s:%s", jaegerHost, jaegerPort)
-		logrus.WithField("endpoint", endpoint).Info("tracing enabled")
+		logrus.Info("tracing enabled")
 	}
 
 	hostString := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
