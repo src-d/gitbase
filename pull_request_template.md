@@ -5,6 +5,6 @@ All PRs must keep the documentation up to date. If this PR changes or adds some 
 - Schema changes
 - Syntax changes
 - Add or update examples
-- ./rev-upgrade.sh "gopkg.in/src-d/go-mysql-server.v0" "the latest go-mysql-server revision"
+- `go run ./tools/rev-upgrade/main.go -p "gopkg.in/src-d/go-mysql-server.v0" [-r "revision"]`
 
  -->
