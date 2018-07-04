@@ -18,3 +18,6 @@ bblfsh-client:
 	cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies
 
 dependencies: bblfsh-client
+
+mysql-upgrade:
+	go run tools/rev-upgrade/main.go -p "gopkg.in/src-d/go-mysql-server.v0" -r $(shell curl --silent "https://api.github.com/repos/src-d/go-mysql-server/commits/master" -H'Accept: application/vnd.github.VERSION.sha')
