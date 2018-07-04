@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/src-d/gitbase"
 	"gopkg.in/bblfsh/client-go.v2/tools"
 	"gopkg.in/bblfsh/sdk.v1/protocol"
@@ -197,11 +198,12 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	resp, err := client.Parse(ctx, lang, bytes)
 	if err != nil {
-		return nil, ErrParseBlob.New(err)
+		logrus.Warn(ErrParseBlob.New(err))
+		return nil, nil
 	}
 
 	if resp.Status != protocol.Ok {
-		return nil, ErrParseBlob.New(strings.Join(resp.Errors, "\n"))
+		logrus.Warn(ErrParseBlob.New(strings.Join(resp.Errors, "\n")))
 	}
 
 	var nodes []*uast.Node

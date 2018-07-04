@@ -52,32 +52,26 @@ func TestUAST(t *testing.T) {
 		fn       *UAST
 		row      sql.Row
 		expected interface{}
-		err      *errors.Kind
 	}{
-		{"blob is nil", fn3, sql.NewRow(nil, nil, nil), nil, nil},
-		{"lang is nil", fn3, sql.NewRow([]byte{}, nil, nil), nil, nil},
-		{"xpath is nil", fn3, sql.NewRow([]byte{}, "Ruby", nil), nil, nil},
-		{"only blob, can't infer language", fn1, sql.NewRow([]byte(testCode)), nil, ErrParseBlob},
-		{"blob with unsupported lang", fn2, sql.NewRow([]byte(testCode), "YAML"), nil, nil},
-		{"blob with lang", fn2, sql.NewRow([]byte(testCode), "Python"), uast, nil},
-		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPath), filteredNodes, nil},
+		{"blob is nil", fn3, sql.NewRow(nil, nil, nil), nil},
+		{"lang is nil", fn3, sql.NewRow([]byte{}, nil, nil), nil},
+		{"xpath is nil", fn3, sql.NewRow([]byte{}, "Ruby", nil), nil},
+		{"only blob, can't infer language", fn1, sql.NewRow([]byte(testCode)), nil},
+		{"blob with unsupported lang", fn2, sql.NewRow([]byte(testCode), "YAML"), nil},
+		{"blob with lang", fn2, sql.NewRow([]byte(testCode), "Python"), uast},
+		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPath), filteredNodes},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 			result, err := tt.fn.Eval(ctx, tt.row)
-			if tt.err != nil {
-				require.Error(err)
-				require.True(tt.err.Is(err))
-			} else {
-				require.NoError(err)
+			require.NoError(err)
 
-				if _, ok := tt.expected.([]interface{}); ok {
-					assertUASTBlobs(t, tt.expected, result)
-				} else {
-					require.Equal(tt.expected, result)
-				}
+			if _, ok := tt.expected.([]interface{}); ok {
+				assertUASTBlobs(t, tt.expected, result)
+			} else {
+				require.Equal(tt.expected, result)
 			}
 		})
 	}
