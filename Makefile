@@ -7,6 +7,9 @@ CI_REPOSITORY ?= https://github.com/src-d/ci.git
 CI_PATH ?= $(shell pwd)/.ci
 CI_VERSION ?= v1
 
+UPGRADE_PRJ ?= "gopkg.in/src-d/go-mysql-server.v0"
+UPGRADE_REV ?=  $(shell curl --silent "https://api.github.com/repos/src-d/go-mysql-server/commits/master" -H'Accept: application/vnd.github.VERSION.sha')
+
 MAKEFILE := $(CI_PATH)/Makefile.main
 $(MAKEFILE):
 	git clone --quiet --branch $(CI_VERSION) --depth 1 $(CI_REPOSITORY) $(CI_PATH);
@@ -19,5 +22,5 @@ bblfsh-client:
 
 dependencies: bblfsh-client
 
-mysql-upgrade:
-	go run tools/rev-upgrade/main.go -p "gopkg.in/src-d/go-mysql-server.v0" -r $(shell curl --silent "https://api.github.com/repos/src-d/go-mysql-server/commits/master" -H'Accept: application/vnd.github.VERSION.sha')
+upgrade:
+	go run tools/rev-upgrade/main.go -p $(UPGRADE_PRJ) -r $(UPGRADE_REV)
