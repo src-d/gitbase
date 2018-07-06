@@ -2,9 +2,11 @@ package gitbase_test
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/src-d/gitbase/internal/rule"
@@ -610,111 +612,67 @@ func col(t testing.TB, schema sql.Schema, name string) sql.Expression {
 }
 
 type indexData struct {
-	id          string
-	expressions []sql.Expression
-	table       sql.Table
-	columns     []string
+	id    string
+	table string
+	exprs []string
 }
 
 func createTestIndexes(t testing.TB, engine *sqle.Engine, ctx *sql.Context) func() {
-	db, err := engine.Catalog.Database("foo")
-	require.NoError(t, err)
-	tables := db.Tables()
-
 	var indexes = []indexData{
 		{
-			id:      "refs_idx",
-			table:   tables[gitbase.ReferencesTableName],
-			columns: []string{"ref_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.RefsSchema, "ref_name"),
-			},
+			id:    "refs_idx",
+			table: gitbase.ReferencesTableName,
+			exprs: []string{"ref_name"},
 		},
 		{
-			id:      "remotes_idx",
-			table:   tables[gitbase.RemotesTableName],
-			columns: []string{"remote_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.RemotesSchema, "remote_name"),
-			},
+			id:    "remotes_idx",
+			table: gitbase.RemotesTableName,
+			exprs: []string{"remote_name"},
 		},
 		{
-			id:      "ref_commits_idx",
-			table:   tables[gitbase.RefCommitsTableName],
-			columns: []string{"ref_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.RefCommitsSchema, "ref_name"),
-			},
+			id:    "ref_commits_idx",
+			table: gitbase.RefCommitsTableName,
+			exprs: []string{"ref_name"},
 		},
 		{
-			id:      "commits_idx",
-			table:   tables[gitbase.CommitsTableName],
-			columns: []string{"commit_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.CommitsSchema, "commit_hash"),
-			},
+			id:    "commits_idx",
+			table: gitbase.CommitsTableName,
+			exprs: []string{"commit_hash"},
 		},
 		{
-			id:      "commit_trees_idx",
-			table:   tables[gitbase.CommitTreesTableName],
-			columns: []string{"commit_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.CommitTreesSchema, "commit_hash"),
-			},
+			id:    "commit_trees_idx",
+			table: gitbase.CommitTreesTableName,
+			exprs: []string{"commit_hash"},
 		},
 		{
-			id:      "commit_blobs_idx",
-			table:   tables[gitbase.CommitBlobsTableName],
-			columns: []string{"commit_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.CommitBlobsSchema, "commit_hash"),
-			},
+			id:    "commit_blobs_idx",
+			table: gitbase.CommitBlobsTableName,
+			exprs: []string{"commit_hash"},
 		},
 		{
-			id:      "tree_entries_idx",
-			table:   tables[gitbase.TreeEntriesTableName],
-			columns: []string{"tree_entry_name"},
-			expressions: []sql.Expression{
-				col(t, gitbase.TreeEntriesSchema, "tree_entry_name"),
-			},
+			id:    "tree_entries_idx",
+			table: gitbase.TreeEntriesTableName,
+			exprs: []string{"tree_entry_name"},
 		},
 		{
-			id:      "blobs_idx",
-			table:   tables[gitbase.BlobsTableName],
-			columns: []string{"blob_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.BlobsSchema, "blob_hash"),
-			},
+			id:    "blobs_idx",
+			table: gitbase.BlobsTableName,
+			exprs: []string{"blob_hash"},
 		},
 		{
-			id:      "commit_files_idx",
-			table:   tables[gitbase.CommitFilesTableName],
-			columns: []string{"commit_hash"},
-			expressions: []sql.Expression{
-				col(t, gitbase.CommitFilesSchema, "commit_hash"),
-			},
+			id:    "commit_files_idx",
+			table: gitbase.CommitFilesTableName,
+			exprs: []string{"commit_hash"},
 		},
 		{
-			id:      "files_idx",
-			table:   tables[gitbase.FilesTableName],
-			columns: []string{"file_path"},
-			expressions: []sql.Expression{
-				col(t, gitbase.FilesSchema, "file_path"),
-			},
+			id:    "files_idx",
+			table: gitbase.FilesTableName,
+			exprs: []string{"file_path"},
 		},
 		{
-			id:      "files_lang_idx",
-			table:   tables[gitbase.FilesTableName],
-			columns: []string{"file_path"},
-			expressions: []sql.Expression{
-				func() sql.Expression {
-					f, _ := function.NewLanguage(
-						col(t, gitbase.FilesSchema, "file_path"),
-						col(t, gitbase.FilesSchema, "blob_content"),
-					)
-					return f
-				}(),
-			},
+			id:    "files_lang_idx",
+			table: gitbase.FilesTableName,
+			exprs: []string{"language(file_path, blob_content)"},
 		},
 	}
 
@@ -736,31 +694,14 @@ func createIndex(
 	ctx *sql.Context,
 ) {
 	t.Helper()
-	require := require.New(t)
-	driver := e.Catalog.IndexDriver(pilosa.DriverID)
-	require.NotNil(driver)
 
-	var hashes []sql.ExpressionHash
-	for _, e := range data.expressions {
-		hashes = append(hashes, sql.NewExpressionHash(e))
-	}
-
-	idx, err := driver.Create(
-		"foo", data.table.Name(),
-		data.id, hashes,
-		make(map[string]string),
+	query := fmt.Sprintf(
+		`CREATE INDEX %s ON %s (%s) WITH (async = false)`,
+		data.id, data.table, strings.Join(data.exprs, ", "),
 	)
-	require.NoError(err)
 
-	done, err := e.Catalog.AddIndex(idx)
-	require.NoError(err)
-
-	iter, err := data.table.(sql.Indexable).IndexKeyValueIter(ctx, data.columns)
-	require.NoError(err)
-
-	require.NoError(driver.Save(sql.NewEmptyContext(), idx, iter))
-
-	done <- struct{}{}
+	_, _, err := e.Query(ctx, query)
+	require.NoError(t, err)
 }
 
 func deleteIndex(
