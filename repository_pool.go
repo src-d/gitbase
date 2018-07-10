@@ -82,6 +82,7 @@ func NewSivaRepositoryFromPath(id, path string) (*Repository, error) {
 type repository struct {
 	kind repoKind
 	path string
+	repo *git.Repository
 }
 
 type repoKind byte
@@ -89,6 +90,7 @@ type repoKind byte
 const (
 	gitRepo repoKind = iota
 	sivaRepo
+	initializedrepo
 )
 
 // RepositoryPool holds a pool git repository paths and
@@ -105,14 +107,18 @@ func NewRepositoryPool() *RepositoryPool {
 	}
 }
 
-// Add inserts a new repository in the pool
+// Add inserts a new repository in the pool.
 func (p *RepositoryPool) Add(id, path string, kind repoKind) error {
+	return p.add(id, repository{kind, path, nil})
+}
+
+func (p *RepositoryPool) add(id string, repo repository) error {
 	if r, ok := p.repositories[id]; ok {
 		return errRepoAlreadyRegistered.New(r.path)
 	}
 
 	p.idOrder = append(p.idOrder, id)
-	p.repositories[id] = repository{kind, path}
+	p.repositories[id] = repo
 
 	return nil
 }
@@ -213,6 +219,11 @@ func (p *RepositoryPool) addSivaFile(root, path string, f os.FileInfo) {
 	}
 }
 
+// AddInitialized inserts an already initialized repository to the pool.
+func (p *RepositoryPool) AddInitialized(id string, repo *git.Repository) error {
+	return p.add(id, repository{initializedrepo, "", repo})
+}
+
 // GetPos retrieves a repository at a given position. If the position is
 // out of bounds it returns io.EOF.
 func (p *RepositoryPool) GetPos(pos int) (*Repository, error) {
@@ -245,6 +256,8 @@ func (p *RepositoryPool) GetRepo(id string) (*Repository, error) {
 		repo, err = NewRepositoryFromPath(id, r.path)
 	case sivaRepo:
 		repo, err = NewSivaRepositoryFromPath(id, r.path)
+	case initializedrepo:
+		repo = NewRepository(id, r.repo)
 	default:
 		err = errInvalidRepoKind.New(r.kind)
 	}
