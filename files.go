@@ -249,6 +249,8 @@ func (i *filesIter) Next() (sql.Row, error) {
 				i.files = nil
 				continue
 			}
+
+			return nil, err
 		}
 
 		if !i.shouldVisitFile(f) {

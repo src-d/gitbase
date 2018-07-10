@@ -369,6 +369,10 @@ func (i *rowRepoIter) Next() (sql.Row, error) {
 
 				i.currRepoIter, err = i.iter.NewIterator(repo)
 				if err != nil {
+					if i.session.SkipGitErrors {
+						continue
+					}
+
 					return nil, err
 				}
 			}
