@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -725,6 +724,43 @@ func TestResolveStar(t *testing.T) {
 					expression.NewGetFieldWithTable(1, sql.Int32, "mytable", "b", false),
 				},
 				nil,
+				table,
+			),
+		},
+		{ // note that this behaviour deviates from MySQL
+			"star after some expressions",
+			plan.NewProject(
+				[]sql.Expression{
+					expression.NewUnresolvedColumn("foo"),
+					expression.NewStar(),
+				},
+				table,
+			),
+			plan.NewProject(
+				[]sql.Expression{
+					expression.NewUnresolvedColumn("foo"),
+					expression.NewGetFieldWithTable(0, sql.Int32, "mytable", "a", false),
+					expression.NewGetFieldWithTable(1, sql.Int32, "mytable", "b", false),
+				},
+				table,
+			),
+		},
+		{ // note that this behaviour deviates from MySQL
+			"unqualified star used multiple times",
+			plan.NewProject(
+				[]sql.Expression{
+					expression.NewStar(),
+					expression.NewStar(),
+				},
+				table,
+			),
+			plan.NewProject(
+				[]sql.Expression{
+					expression.NewGetFieldWithTable(0, sql.Int32, "mytable", "a", false),
+					expression.NewGetFieldWithTable(1, sql.Int32, "mytable", "b", false),
+					expression.NewGetFieldWithTable(0, sql.Int32, "mytable", "a", false),
+					expression.NewGetFieldWithTable(1, sql.Int32, "mytable", "b", false),
+				},
 				table,
 			),
 		},
@@ -1498,9 +1534,10 @@ func TestAssignIndexes(t *testing.T) {
 			expression.NewGetFieldWithTable(0, sql.Int64, "t2", "bar", false),
 		},
 	}
-	done, err := catalog.AddIndex(idx1)
+	done, ready, err := catalog.AddIndex(idx1)
 	require.NoError(err)
 	close(done)
+	<-ready
 
 	idx2 := &dummyIndex{
 		"t1",
@@ -1508,12 +1545,12 @@ func TestAssignIndexes(t *testing.T) {
 			expression.NewGetFieldWithTable(0, sql.Int64, "t1", "foo", false),
 		},
 	}
-	done, err = catalog.AddIndex(idx2)
+	done, ready, err = catalog.AddIndex(idx2)
 
 	require.NoError(err)
 	close(done)
+	<-ready
 
-	time.Sleep(50 * time.Millisecond)
 	a := NewDefault(catalog)
 
 	t1 := &indexableTable{
@@ -1958,12 +1995,12 @@ func TestGetIndexes(t *testing.T) {
 
 	catalog := sql.NewCatalog()
 	for _, idx := range indexes {
-		done, err := catalog.AddIndex(idx)
+		done, ready, err := catalog.AddIndex(idx)
 		require.NoError(t, err)
 		close(done)
+		<-ready
 	}
 
-	time.Sleep(50 * time.Millisecond)
 	a := NewDefault(catalog)
 
 	for _, tt := range testCases {
@@ -2015,12 +2052,12 @@ func TestGetMultiColumnIndexes(t *testing.T) {
 	}
 
 	for _, idx := range indexes {
-		done, err := catalog.AddIndex(idx)
+		done, ready, err := catalog.AddIndex(idx)
 		require.NoError(err)
 		close(done)
+		<-ready
 	}
 
-	time.Sleep(50 * time.Millisecond)
 	a := NewDefault(catalog)
 
 	used := make(map[sql.Expression]struct{})
