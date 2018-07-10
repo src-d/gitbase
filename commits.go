@@ -334,7 +334,7 @@ func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
 			}
 
 			r := i.pool.repositories[i.repo.ID]
-			i.idx, err = newRepositoryIndex(r.path, r.kind)
+			i.idx, err = newRepositoryIndex(r)
 			if err != nil {
 				return nil, nil, err
 			}

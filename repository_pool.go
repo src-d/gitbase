@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-billy-siva.v4"
+	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4"
@@ -79,19 +80,106 @@ func NewSivaRepositoryFromPath(id, path string) (*Repository, error) {
 	return NewRepository(id, repo), nil
 }
 
-type repository struct {
-	kind repoKind
-	path string
-	repo *git.Repository
+type repository interface {
+	ID() string
+	Repo() (*Repository, error)
+	FS() (billy.Filesystem, error)
+	Path() string
 }
 
-type repoKind byte
+type gitRepository struct {
+	id   string
+	path string
+}
 
-const (
-	gitRepo repoKind = iota
-	sivaRepo
-	initializedrepo
-)
+func gitRepo(id, path string) repository {
+	return &gitRepository{id, path}
+}
+
+func (r *gitRepository) ID() string {
+	return r.id
+}
+
+func (r *gitRepository) Repo() (*Repository, error) {
+	return NewRepositoryFromPath(r.id, r.path)
+}
+
+func (r *gitRepository) FS() (billy.Filesystem, error) {
+	return osfs.New(r.path), nil
+}
+
+func (r *gitRepository) Path() string {
+	return r.path
+}
+
+type sivaRepository struct {
+	id   string
+	path string
+}
+
+func sivaRepo(id, path string) repository {
+	return &sivaRepository{id, path}
+}
+
+func (r *sivaRepository) ID() string {
+	return r.id
+}
+
+func (r *sivaRepository) Repo() (*Repository, error) {
+	return NewSivaRepositoryFromPath(r.id, r.path)
+}
+
+func (r *sivaRepository) FS() (billy.Filesystem, error) {
+	localfs := osfs.New(filepath.Dir(r.path))
+
+	tmpDir, err := ioutil.TempDir(os.TempDir(), "gitbase-siva")
+	if err != nil {
+		return nil, err
+	}
+
+	tmpfs := osfs.New(tmpDir)
+
+	return sivafs.NewFilesystem(localfs, filepath.Base(r.path), tmpfs)
+}
+
+func (r *sivaRepository) Path() string {
+	return r.path
+}
+
+type billyRepository struct {
+	id string
+	fs billy.Filesystem
+}
+
+func billyRepo(id string, fs billy.Filesystem) repository {
+	return &billyRepository{id, fs}
+}
+
+func (r *billyRepository) ID() string {
+	return r.id
+}
+
+func (r *billyRepository) Repo() (*Repository, error) {
+	storage, err := filesystem.NewStorage(r.fs)
+	if err != nil {
+		return nil, err
+	}
+
+	repo, err := git.Open(storage, r.fs)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewRepository(r.id, repo), nil
+}
+
+func (r *billyRepository) FS() (billy.Filesystem, error) {
+	return r.fs, nil
+}
+
+func (r *billyRepository) Path() string {
+	return r.id
+}
 
 // RepositoryPool holds a pool git repository paths and
 // functionality to open and iterate them.
@@ -108,13 +196,10 @@ func NewRepositoryPool() *RepositoryPool {
 }
 
 // Add inserts a new repository in the pool.
-func (p *RepositoryPool) Add(id, path string, kind repoKind) error {
-	return p.add(id, repository{kind, path, nil})
-}
-
-func (p *RepositoryPool) add(id string, repo repository) error {
+func (p *RepositoryPool) Add(repo repository) error {
+	id := repo.ID()
 	if r, ok := p.repositories[id]; ok {
-		return errRepoAlreadyRegistered.New(r.path)
+		return errRepoAlreadyRegistered.New(r.Path())
 	}
 
 	p.idOrder = append(p.idOrder, id)
@@ -137,7 +222,7 @@ func (p *RepositoryPool) AddGitWithID(id, path string) (string, error) {
 		return "", errRepoCannotOpen.Wrap(err, path)
 	}
 
-	err = p.Add(id, path, gitRepo)
+	err = p.Add(gitRepo(id, path))
 	if err != nil {
 		return "", err
 	}
@@ -212,16 +297,16 @@ func (p *RepositoryPool) addSivaFile(root, path string, f os.FileInfo) {
 
 	if strings.HasSuffix(f.Name(), ".siva") {
 		path := filepath.Join(path, f.Name())
-		p.Add(path, path, sivaRepo)
+		p.Add(sivaRepo(path, path))
 		logrus.WithField("file", relativeFileName).Debug("repository added")
 	} else {
 		logrus.WithField("file", relativeFileName).Warn("found a non-siva file, skipping")
 	}
 }
 
-// AddInitialized inserts an already initialized repository to the pool.
-func (p *RepositoryPool) AddInitialized(id string, repo *git.Repository) error {
-	return p.add(id, repository{initializedrepo, "", repo})
+// AddBilly inserts a billy filesystem containing a git repo to the pool.
+func (p *RepositoryPool) AddBilly(id string, fs billy.Filesystem) error {
+	return p.Add(billyRepo(id, fs))
 }
 
 // GetPos retrieves a repository at a given position. If the position is
@@ -249,24 +334,7 @@ func (p *RepositoryPool) GetRepo(id string) (*Repository, error) {
 		return nil, ErrPoolRepoNotFound.New(id)
 	}
 
-	var repo *Repository
-	var err error
-	switch r.kind {
-	case gitRepo:
-		repo, err = NewRepositoryFromPath(id, r.path)
-	case sivaRepo:
-		repo, err = NewSivaRepositoryFromPath(id, r.path)
-	case initializedrepo:
-		repo = NewRepository(id, r.repo)
-	default:
-		err = errInvalidRepoKind.New(r.kind)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return repo, nil
+	return r.Repo()
 }
 
 // RepoIter creates a new Repository iterator

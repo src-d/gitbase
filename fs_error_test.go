@@ -58,17 +58,17 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 
 	pool := NewRepositoryPool()
 
-	repo, err := brokenRepo(brokenPackfile, baseFS)
+	fs, err := brokenFS(brokenPackfile, baseFS)
 	require.NoError(err)
-	pool.AddInitialized("packfile", repo)
+	pool.AddBilly("packfile", fs)
 
-	repo, err = brokenRepo(brokenIndex, baseFS)
+	fs, err = brokenFS(brokenIndex, baseFS)
 	require.NoError(err)
-	pool.AddInitialized("index", repo)
+	pool.AddBilly("index", fs)
 
-	repo, err = brokenRepo(0, baseFS)
+	fs, err = brokenFS(0, baseFS)
 	require.NoError(err)
-	pool.AddInitialized("ok", repo)
+	pool.AddBilly("ok", fs)
 
 	session := NewSession(pool, WithSkipGitErrors(true))
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -79,6 +79,25 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 	}
 
 	return ctx, cleanup
+}
+
+func brokenFS(
+	brokenType brokenType,
+	fs billy.Filesystem,
+) (billy.Filesystem, error) {
+	dotFS, err := fs.Chroot(".git")
+	if err != nil {
+		return nil, err
+	}
+
+	var brokenFS billy.Filesystem
+	if brokenType == 0 {
+		brokenFS = dotFS
+	} else {
+		brokenFS = NewBrokenFS(brokenType, dotFS)
+	}
+
+	return brokenFS, nil
 }
 
 func brokenRepo(
