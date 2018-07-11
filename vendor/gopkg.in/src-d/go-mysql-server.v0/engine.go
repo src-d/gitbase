@@ -2,6 +2,7 @@ package sqle // import "gopkg.in/src-d/go-mysql-server.v0"
 
 import (
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression/function"
@@ -15,18 +16,19 @@ type Engine struct {
 }
 
 // New creates a new Engine
-func New(c *sql.Catalog, a *analyzer.Analyzer) *Engine {
+func New(c *sql.Catalog, a *analyzer.Analyzer, versionPostfix string) *Engine {
 	c.RegisterFunctions(function.Defaults)
+	c.RegisterFunction("version", sql.FunctionN(function.NewVersion(versionPostfix)))
+
 	return &Engine{c, a}
 }
 
 // NewDefault creates a new default Engine.
 func NewDefault() *Engine {
 	c := sql.NewCatalog()
-	c.RegisterFunctions(function.Defaults)
-
 	a := analyzer.NewDefault(c)
-	return &Engine{c, a}
+
+	return New(c, a, "go-mysql-server")
 }
 
 // Query executes a query without attaching to any context.
@@ -36,6 +38,8 @@ func (e *Engine) Query(
 ) (sql.Schema, sql.RowIter, error) {
 	span, ctx := ctx.Span("query", opentracing.Tag{Key: "query", Value: query})
 	defer span.Finish()
+
+	logrus.WithField("query", query).Debug("executing query")
 
 	parsed, err := parse.Parse(ctx, query)
 	if err != nil {
