@@ -146,41 +146,6 @@ func (r *sivaRepository) Path() string {
 	return r.path
 }
 
-type billyRepository struct {
-	id string
-	fs billy.Filesystem
-}
-
-func billyRepo(id string, fs billy.Filesystem) repository {
-	return &billyRepository{id, fs}
-}
-
-func (r *billyRepository) ID() string {
-	return r.id
-}
-
-func (r *billyRepository) Repo() (*Repository, error) {
-	storage, err := filesystem.NewStorage(r.fs)
-	if err != nil {
-		return nil, err
-	}
-
-	repo, err := git.Open(storage, r.fs)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewRepository(r.id, repo), nil
-}
-
-func (r *billyRepository) FS() (billy.Filesystem, error) {
-	return r.fs, nil
-}
-
-func (r *billyRepository) Path() string {
-	return r.id
-}
-
 // RepositoryPool holds a pool git repository paths and
 // functionality to open and iterate them.
 type RepositoryPool struct {
@@ -302,11 +267,6 @@ func (p *RepositoryPool) addSivaFile(root, path string, f os.FileInfo) {
 	} else {
 		logrus.WithField("file", relativeFileName).Warn("found a non-siva file, skipping")
 	}
-}
-
-// AddBilly inserts a billy filesystem containing a git repo to the pool.
-func (p *RepositoryPool) AddBilly(id string, fs billy.Filesystem) error {
-	return p.Add(billyRepo(id, fs))
 }
 
 // GetPos retrieves a repository at a given position. If the position is

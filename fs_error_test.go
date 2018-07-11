@@ -60,15 +60,15 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 
 	fs, err := brokenFS(brokenPackfile, baseFS)
 	require.NoError(err)
-	pool.AddBilly("packfile", fs)
+	pool.Add(billyRepo("packfile", fs))
 
 	fs, err = brokenFS(brokenIndex, baseFS)
 	require.NoError(err)
-	pool.AddBilly("index", fs)
+	pool.Add(billyRepo("index", fs))
 
 	fs, err = brokenFS(0, baseFS)
 	require.NoError(err)
-	pool.AddBilly("ok", fs)
+	pool.Add(billyRepo("ok", fs))
 
 	session := NewSession(pool, WithSkipGitErrors(true))
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -139,6 +139,41 @@ func testTable(t *testing.T, tableName string, number int) {
 			tableName, len(rows), number)
 		t.FailNow()
 	}
+}
+
+type billyRepository struct {
+	id string
+	fs billy.Filesystem
+}
+
+func billyRepo(id string, fs billy.Filesystem) repository {
+	return &billyRepository{id, fs}
+}
+
+func (r *billyRepository) ID() string {
+	return r.id
+}
+
+func (r *billyRepository) Repo() (*Repository, error) {
+	storage, err := filesystem.NewStorage(r.fs)
+	if err != nil {
+		return nil, err
+	}
+
+	repo, err := git.Open(storage, r.fs)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewRepository(r.id, repo), nil
+}
+
+func (r *billyRepository) FS() (billy.Filesystem, error) {
+	return r.fs, nil
+}
+
+func (r *billyRepository) Path() string {
+	return r.id
 }
 
 type brokenType uint64
