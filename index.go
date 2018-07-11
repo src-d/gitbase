@@ -2,10 +2,13 @@ package gitbase
 
 import (
 	"bytes"
+	"compress/zlib"
 	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"sync"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -24,12 +27,54 @@ type Indexable interface {
 	gitBase
 }
 
+type zlibEncoder struct {
+	w   *zlib.Writer
+	mut sync.Mutex
+}
+
+func (e *zlibEncoder) encode(data []byte) ([]byte, error) {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+
+	var buf bytes.Buffer
+	e.w.Reset(&buf)
+
+	if _, err := e.w.Write(data); err != nil {
+		return nil, err
+	}
+
+	if err := e.w.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var encoder = func() *zlibEncoder {
+	return &zlibEncoder{w: zlib.NewWriter(bytes.NewBuffer(nil))}
+}()
+
 func encodeIndexKey(k indexKey) ([]byte, error) {
-	return k.encode()
+	bs, err := k.encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return encoder.encode(bs)
 }
 
 func decodeIndexKey(data []byte, k indexKey) error {
-	return k.decode(data)
+	gz, err := zlib.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	bs, err := ioutil.ReadAll(gz)
+	if err != nil {
+		return err
+	}
+
+	return k.decode(bs)
 }
 
 func rowIndexValues(row sql.Row, columns []string, schema sql.Schema) ([]interface{}, error) {

@@ -2,7 +2,6 @@ package gitbase
 
 import (
 	"bytes"
-	"encoding/gob"
 	"io"
 	"testing"
 
@@ -121,37 +120,29 @@ func testTableIndex(
 	require.ElementsMatch(expected, rows)
 }
 
-func TestEncodeKeySize(t *testing.T) {
+func TestEncodeRoundtrip(t *testing.T) {
 	require := require.New(t)
 
-	k1 := packOffsetIndexKey{
+	k := &packOffsetIndexKey{
 		Repository: "/foo/bar/baz/repo.git",
 		Packfile:   plumbing.ZeroHash.String(),
 		Offset:     12345,
 		Hash:       "",
 	}
 
-	k2 := packOffsetIndexKey{
-		Repository: "/foo/bar/baz/repo.git",
-		Packfile:   plumbing.ZeroHash.String(),
-		Offset:     -1,
-		Hash:       plumbing.ZeroHash.String(),
-	}
-
-	var buf1, buf2 bytes.Buffer
-	require.NoError(gob.NewEncoder(&buf1).Encode(k1))
-
-	bytes1, err := k1.encode()
+	bs, err := encodeIndexKey(k)
 	require.NoError(err)
 
-	require.True(len(bytes1) < len(buf1.Bytes()))
-
-	require.NoError(gob.NewEncoder(&buf2).Encode(k2))
-
-	bytes2, err := k2.encode()
+	bsraw, err := k.encode()
 	require.NoError(err)
 
-	require.True(len(bytes2) < len(buf2.Bytes()))
+	// check encodeIndexKey also compresses the encoded value
+	require.True(len(bs) < len(bsraw))
+
+	var k2 packOffsetIndexKey
+	require.NoError(decodeIndexKey(bs, &k2))
+
+	require.Equal(k, &k2)
 }
 
 func TestWriteReadInt64(t *testing.T) {
