@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"sync"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -26,23 +27,40 @@ type Indexable interface {
 	gitBase
 }
 
+type zlibEncoder struct {
+	w   *zlib.Writer
+	mut sync.Mutex
+}
+
+func (e *zlibEncoder) encode(data []byte) ([]byte, error) {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+
+	var buf bytes.Buffer
+	e.w.Reset(&buf)
+
+	if _, err := e.w.Write(data); err != nil {
+		return nil, err
+	}
+
+	if err := e.w.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+var encoder = func() *zlibEncoder {
+	return &zlibEncoder{w: zlib.NewWriter(bytes.NewBuffer(nil))}
+}()
+
 func encodeIndexKey(k indexKey) ([]byte, error) {
 	bs, err := k.encode()
 	if err != nil {
 		return nil, err
 	}
 
-	var buf bytes.Buffer
-	gz := zlib.NewWriter(&buf)
-	if _, err := gz.Write(bs); err != nil {
-		return nil, err
-	}
-
-	if err := gz.Close(); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return encoder.encode(bs)
 }
 
 func decodeIndexKey(data []byte, k indexKey) error {
