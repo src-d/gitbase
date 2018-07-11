@@ -137,7 +137,7 @@ func (c *Server) buildDatabase() error {
 			ab = ab.ReadOnly()
 		}
 		a := ab.Build()
-		c.engine = sqle.New(catalog, a)
+		c.engine = sqle.New(catalog, a, version)
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
