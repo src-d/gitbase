@@ -2,10 +2,12 @@ package gitbase
 
 import (
 	"bytes"
+	"compress/zlib"
 	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -25,11 +27,36 @@ type Indexable interface {
 }
 
 func encodeIndexKey(k indexKey) ([]byte, error) {
-	return k.encode()
+	bs, err := k.encode()
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	gz := zlib.NewWriter(&buf)
+	if _, err := gz.Write(bs); err != nil {
+		return nil, err
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 func decodeIndexKey(data []byte, k indexKey) error {
-	return k.decode(data)
+	gz, err := zlib.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	bs, err := ioutil.ReadAll(gz)
+	if err != nil {
+		return err
+	}
+
+	return k.decode(bs)
 }
 
 func rowIndexValues(row sql.Row, columns []string, schema sql.Schema) ([]interface{}, error) {
