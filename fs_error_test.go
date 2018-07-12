@@ -91,37 +91,13 @@ func brokenFS(
 	}
 
 	var brokenFS billy.Filesystem
-	if brokenType == 0 {
+	if brokenType == brokenNone {
 		brokenFS = dotFS
 	} else {
 		brokenFS = NewBrokenFS(brokenType, dotFS)
 	}
 
 	return brokenFS, nil
-}
-
-func brokenRepo(
-	brokenType brokenType,
-	fs billy.Filesystem,
-) (*git.Repository, error) {
-	dotFS, err := fs.Chroot(".git")
-	if err != nil {
-		return nil, err
-	}
-
-	var brokenFS billy.Filesystem
-	if brokenType == 0 {
-		brokenFS = dotFS
-	} else {
-		brokenFS = NewBrokenFS(brokenType, dotFS)
-	}
-
-	storage, err := filesystem.NewStorage(brokenFS)
-	if err != nil {
-		return nil, err
-	}
-
-	return git.Open(storage, fs)
 }
 
 func testTable(t *testing.T, tableName string, number int) {
@@ -179,6 +155,8 @@ func (r *billyRepository) Path() string {
 type brokenType uint64
 
 const (
+	// no errors
+	brokenNone brokenType = 0
 	// packfile has read errors
 	brokenPackfile brokenType = 1 << iota
 	// there's no index for one packfile
