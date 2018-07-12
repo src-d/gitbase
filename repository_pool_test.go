@@ -47,7 +47,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Nil(repo)
 	require.EqualError(err, ErrPoolRepoNotFound.New("foo").Error())
 
-	pool.Add("0", "/directory/should/not/exist", gitRepo)
+	pool.Add(gitRepo("0", "/directory/should/not/exist"))
 	repo, err = pool.GetPos(0)
 	require.Nil(repo)
 	require.EqualError(err, git.ErrRepositoryNotExists.Error())
@@ -57,7 +57,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	err = pool.Add("1", path, gitRepo)
+	err = pool.Add(gitRepo("1", path))
 	require.NoError(err)
 
 	repo, err = pool.GetPos(1)
@@ -70,7 +70,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Equal("1", repo.ID)
 	require.NotNil(repo.Repo)
 
-	err = pool.Add("1", path, gitRepo)
+	err = pool.Add(gitRepo("1", path))
 	require.Error(err)
 	require.True(errRepoAlreadyRegistered.Is(err))
 
@@ -126,8 +126,8 @@ func TestRepositoryPoolIterator(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
 	pool := NewRepositoryPool()
-	pool.Add("0", path, gitRepo)
-	pool.Add("1", path, gitRepo)
+	pool.Add(gitRepo("0", path))
+	pool.Add(gitRepo("1", path))
 
 	iter, err := pool.RepoIter()
 	require.NoError(err)
@@ -217,7 +217,7 @@ func TestRepositoryRowIterator(t *testing.T) {
 	max := 64
 
 	for i := 0; i < max; i++ {
-		pool.Add(strconv.Itoa(i), path, gitRepo)
+		pool.Add(gitRepo(strconv.Itoa(i), path))
 	}
 
 	testRepoIter(max, require, ctx)
@@ -392,7 +392,7 @@ func testCaseRepositoryErrorIter(
 func TestRepositoryErrorIter(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 	pool := NewRepositoryPool()
-	pool.Add("one", path, gitRepo)
+	pool.Add(gitRepo("one", path))
 
 	iter := &testErrorIter{}
 	testCaseRepositoryErrorIter(t, pool, iter, errIter, false)
@@ -400,7 +400,7 @@ func TestRepositoryErrorIter(t *testing.T) {
 
 func TestRepositoryErrorBadRepository(t *testing.T) {
 	pool := NewRepositoryPool()
-	pool.Add("one", "badpath", gitRepo)
+	pool.Add(gitRepo("one", "badpath"))
 
 	iter := &testErrorIter{}
 
@@ -429,7 +429,7 @@ func TestRepositoryErrorBadRepository(t *testing.T) {
 func TestRepositoryErrorBadRow(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 	pool := NewRepositoryPool()
-	pool.Add("one", path, gitRepo)
+	pool.Add(gitRepo("one", path))
 
 	iter := &testErrorIter{}
 
@@ -464,7 +464,7 @@ func TestRepositoryErrorBadRow(t *testing.T) {
 func TestRepositoryIteratorOrder(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 	pool := NewRepositoryPool()
-	pool.Add("one", path, gitRepo)
+	pool.Add(gitRepo("one", path))
 
 	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	ctx := sql.NewContext(timeout,

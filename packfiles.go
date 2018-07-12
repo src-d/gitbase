@@ -2,9 +2,7 @@ package gitbase
 
 import (
 	"io"
-	stdioutil "io/ioutil"
 	"os"
-	"path/filepath"
 
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -13,9 +11,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit"
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 
-	"gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
-	"gopkg.in/src-d/go-billy.v4/osfs"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/idxfile"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/objfile"
@@ -26,8 +22,8 @@ type packRepository struct {
 	packs map[plumbing.Hash]packfile.Index
 }
 
-func repositoryPackfiles(path string, kind repoKind) (*dotgit.DotGit, []plumbing.Hash, error) {
-	fs, err := repoFilesystem(path, kind)
+func repositoryPackfiles(repo repository) (*dotgit.DotGit, []plumbing.Hash, error) {
+	fs, err := repo.FS()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -56,8 +52,8 @@ type repositoryIndex struct {
 	indexes []*packfileIndex
 }
 
-func newRepositoryIndex(path string, kind repoKind) (*repositoryIndex, error) {
-	dot, packfiles, err := repositoryPackfiles(path, kind)
+func newRepositoryIndex(repo repository) (*repositoryIndex, error) {
+	dot, packfiles, err := repositoryPackfiles(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -126,23 +122,6 @@ func (i *repositoryIndex) isUnpacked(hash plumbing.Hash) (bool, error) {
 	return true, nil
 }
 
-func repoFilesystem(path string, kind repoKind) (billy.Filesystem, error) {
-	if kind == sivaRepo {
-		localfs := osfs.New(filepath.Dir(path))
-
-		tmpDir, err := stdioutil.TempDir(os.TempDir(), "gitbase-siva")
-		if err != nil {
-			return nil, err
-		}
-
-		tmpfs := osfs.New(tmpDir)
-
-		return sivafs.NewFilesystem(localfs, filepath.Base(path), tmpfs)
-	}
-
-	return osfs.New(path), nil
-}
-
 func findDotGit(fs billy.Filesystem) (billy.Filesystem, error) {
 	fi, err := fs.Stat(".git")
 	if err != nil && !os.IsNotExist(err) {
@@ -157,7 +136,7 @@ func findDotGit(fs billy.Filesystem) (billy.Filesystem, error) {
 }
 
 func getUnpackedObject(repo repository, hash plumbing.Hash) (o object.Object, err error) {
-	fs, err := repoFilesystem(repo.path, repo.kind)
+	fs, err := repo.FS()
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +201,7 @@ func newRepoObjectDecoder(
 	repo repository,
 	hash plumbing.Hash,
 ) (*repoObjectDecoder, error) {
-	fs, err := repoFilesystem(repo.path, repo.kind)
+	fs, err := repo.FS()
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +230,7 @@ func newRepoObjectDecoder(
 	}
 
 	return &repoObjectDecoder{
-		repo:     repo.path,
+		repo:     repo.Path(),
 		packfile: hash,
 		decoder:  decoder,
 		storage:  storage,

@@ -412,7 +412,7 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 			}
 
 			repo := i.pool.repositories[i.repo.ID]
-			i.idx, err = newRepositoryIndex(repo.path, repo.kind)
+			i.idx, err = newRepositoryIndex(repo)
 			if err != nil {
 				return nil, nil, err
 			}

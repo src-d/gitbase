@@ -58,17 +58,17 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 
 	pool := NewRepositoryPool()
 
-	repo, err := brokenRepo(brokenPackfile, baseFS)
+	fs, err := brokenFS(brokenPackfile, baseFS)
 	require.NoError(err)
-	pool.AddInitialized("packfile", repo)
+	pool.Add(billyRepo("packfile", fs))
 
-	repo, err = brokenRepo(brokenIndex, baseFS)
+	fs, err = brokenFS(brokenIndex, baseFS)
 	require.NoError(err)
-	pool.AddInitialized("index", repo)
+	pool.Add(billyRepo("index", fs))
 
-	repo, err = brokenRepo(0, baseFS)
+	fs, err = brokenFS(0, baseFS)
 	require.NoError(err)
-	pool.AddInitialized("ok", repo)
+	pool.Add(billyRepo("ok", fs))
 
 	session := NewSession(pool, WithSkipGitErrors(true))
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -81,28 +81,23 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 	return ctx, cleanup
 }
 
-func brokenRepo(
+func brokenFS(
 	brokenType brokenType,
 	fs billy.Filesystem,
-) (*git.Repository, error) {
+) (billy.Filesystem, error) {
 	dotFS, err := fs.Chroot(".git")
 	if err != nil {
 		return nil, err
 	}
 
 	var brokenFS billy.Filesystem
-	if brokenType == 0 {
+	if brokenType == brokenNone {
 		brokenFS = dotFS
 	} else {
 		brokenFS = NewBrokenFS(brokenType, dotFS)
 	}
 
-	storage, err := filesystem.NewStorage(brokenFS)
-	if err != nil {
-		return nil, err
-	}
-
-	return git.Open(storage, fs)
+	return brokenFS, nil
 }
 
 func testTable(t *testing.T, tableName string, number int) {
@@ -122,9 +117,46 @@ func testTable(t *testing.T, tableName string, number int) {
 	}
 }
 
+type billyRepository struct {
+	id string
+	fs billy.Filesystem
+}
+
+func billyRepo(id string, fs billy.Filesystem) repository {
+	return &billyRepository{id, fs}
+}
+
+func (r *billyRepository) ID() string {
+	return r.id
+}
+
+func (r *billyRepository) Repo() (*Repository, error) {
+	storage, err := filesystem.NewStorage(r.fs)
+	if err != nil {
+		return nil, err
+	}
+
+	repo, err := git.Open(storage, r.fs)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewRepository(r.id, repo), nil
+}
+
+func (r *billyRepository) FS() (billy.Filesystem, error) {
+	return r.fs, nil
+}
+
+func (r *billyRepository) Path() string {
+	return r.id
+}
+
 type brokenType uint64
 
 const (
+	// no errors
+	brokenNone brokenType = 0
 	// packfile has read errors
 	brokenPackfile brokenType = 1 << iota
 	// there's no index for one packfile

@@ -692,7 +692,7 @@ func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Cont
 	pool := NewRepositoryPool()
 	if badRepo {
 		// TODO: add repo with errors
-		pool.Add("bad_repo", "bad_path", gitRepo)
+		pool.Add(gitRepo("bad_repo", "bad_path"))
 	}
 
 	for _, f := range fixtures.ByTag("worktree") {
