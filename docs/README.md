@@ -9,4 +9,5 @@
 * [Schema](using-gitbase/schema.md)
 * [Supported syntax](using-gitbase/supported-syntax.md)
 * [Functions](using-gitbase/functions.md)
+* [Indexes](using-gitbase/indexes.md)
 * [Examples](using-gitbase/examples.md)
