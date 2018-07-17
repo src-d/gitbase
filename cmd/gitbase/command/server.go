@@ -47,6 +47,8 @@ type Server struct {
 	ReadOnly      bool     `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
 	// SkipGitErrors disables failing when Git errors are found.
 	SkipGitErrors bool
+	// Version of the application.
+	Version string
 
 	engine *sqle.Engine
 	pool   *gitbase.RepositoryPool
@@ -137,7 +139,7 @@ func (c *Server) buildDatabase() error {
 			ab = ab.ReadOnly()
 		}
 		a := ab.Build()
-		c.engine = sqle.New(catalog, a, version)
+		c.engine = sqle.New(catalog, a, c.Version)
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
