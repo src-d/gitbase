@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	name = "gitbase"
+	name    = "gitbase"
+	version = "undefined"
+	build   = "undefined"
 )
 
 func main() {
@@ -19,6 +21,7 @@ func main() {
 	_, err := parser.AddCommand("server", command.ServerDescription, command.ServerHelp,
 		&command.Server{
 			SkipGitErrors: os.Getenv("GITBASE_SKIP_GIT_ERRORS") != "",
+			Version:       version,
 		})
 	if err != nil {
 		logrus.Fatal(err)
@@ -26,7 +29,9 @@ func main() {
 
 	_, err = parser.AddCommand("version", command.VersionDescription, command.VersionHelp,
 		&command.Version{
-			Name: name,
+			Name:    name,
+			Version: version,
+			Build:   build,
 		})
 	if err != nil {
 		logrus.Fatal(err)
