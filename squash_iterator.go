@@ -80,6 +80,12 @@ func (i *squashReposIter) Repository() *Repository { return i.repo }
 func (i *squashReposIter) Row() sql.Row            { return i.row }
 func (i *squashReposIter) Advance() error {
 	for {
+		select {
+		case <-i.ctx.Done():
+			return ErrSessionCanceled.New()
+		default:
+		}
+
 		var err error
 		i.repo, err = i.iter.Next()
 		if err != nil {
@@ -167,6 +173,12 @@ func (i *squashRemoteIter) Repository() *Repository { return i.repo }
 func (i *squashRemoteIter) Row() sql.Row            { return i.row }
 func (i *squashRemoteIter) Advance() error {
 	for {
+		select {
+		case <-i.ctx.Done():
+			return ErrSessionCanceled.New()
+		default:
+		}
+
 		if i.repo == nil {
 			var err error
 			i.repo, err = i.repos.Next()
@@ -443,6 +455,12 @@ func (i *squashRefIter) Row() sql.Row {
 
 func (i *squashRefIter) Advance() error {
 	for {
+		select {
+		case <-i.ctx.Done():
+			return ErrSessionCanceled.New()
+		default:
+		}
+
 		if i.repo == nil {
 			var err error
 			i.repo, err = i.repos.Next()
@@ -1254,6 +1272,12 @@ func (i *squashCommitsIter) Row() sql.Row {
 
 func (i *squashCommitsIter) Advance() error {
 	for {
+		select {
+		case <-i.ctx.Done():
+			return ErrSessionCanceled.New()
+		default:
+		}
+
 		if i.repo == nil {
 			var err error
 			i.repo, err = i.repos.Next()
@@ -2219,6 +2243,12 @@ func (i *squashTreeEntriesIter) New(ctx *sql.Context, pool *RepositoryPool) (Cha
 func (i *squashTreeEntriesIter) Row() sql.Row { return i.row }
 func (i *squashTreeEntriesIter) Advance() error {
 	for {
+		select {
+		case <-i.ctx.Done():
+			return ErrSessionCanceled.New()
+		default:
+		}
+
 		if i.repo == nil {
 			var err error
 			i.repo, err = i.repos.Next()

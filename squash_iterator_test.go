@@ -18,6 +18,36 @@ func TestAllReposIter(t *testing.T) {
 	require.Len(chainableIterRows(t, ctx, NewAllReposIter(nil)), 2)
 }
 
+func TestSquashContextCancelled(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	var cancel context.CancelFunc
+	ctx.Context, cancel = context.WithCancel(ctx.Context)
+	cancel()
+
+	iters := []ChainableIter{
+		NewAllReposIter(nil),
+		NewAllRemotesIter(nil),
+		NewAllRefsIter(nil, false),
+		NewAllCommitsIter(nil, false),
+		NewAllTreeEntriesIter(nil),
+	}
+
+	session, err := getSession(ctx)
+	require.NoError(err)
+
+	for _, it := range iters {
+		iter, err := it.New(ctx, session.Pool)
+		require.NoError(err)
+
+		err = iter.Advance()
+		require.Error(err)
+		require.True(ErrSessionCanceled.Is(err))
+	}
+}
+
 func TestAllRemotesIter(t *testing.T) {
 	require := require.New(t)
 	ctx, cleanup := setupIter(t)
