@@ -183,6 +183,52 @@ func TestIntegration(t *testing.T) {
 				{int32(3), "worktree", "daniel@lordran.local"},
 			},
 		},
+		{
+			`SELECT
+				c.commit_hash AS hash,
+				c.commit_message AS message,
+				commit_author_name AS author,
+				te.tree_entry_name AS file
+			FROM
+				commits c
+			NATURAL JOIN commit_trees
+			NATURAL JOIN tree_entries as te
+			WHERE te.repository_id='worktree'
+			LIMIT 8`,
+			[]sql.Row{
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", ".gitignore"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", "CHANGELOG"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", "LICENSE"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", "README"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", "binary.jpg"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", "go"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", "json"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "Máximo Cuadros Ortiz", "php"},
+			},
+		},
+		{
+			`SELECT
+				c.commit_hash AS hash,
+				c.commit_message AS message,
+				te.tree_entry_name AS file,
+				te.tree_hash AS thash
+			FROM
+				commits c
+			NATURAL JOIN commit_trees
+			NATURAL JOIN tree_entries as te
+			WHERE te.repository_id='worktree'
+			LIMIT 8`,
+			[]sql.Row{
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", ".gitignore", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "CHANGELOG", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "LICENSE", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "README", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "binary.jpg", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "go", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "json", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "php", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+			},
+		},
 	}
 
 	runTests := func(t *testing.T) {
