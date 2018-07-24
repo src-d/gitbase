@@ -36,7 +36,7 @@ type Server struct {
 	Verbose       bool     `short:"v" description:"Activates the verbose mode"`
 	Git           []string `short:"g" long:"git" description:"Path where the git repositories are located, multiple directories can be defined. Accepts globs."`
 	Siva          []string `long:"siva" description:"Path where the siva repositories are located, multiple directories can be defined. Accepts globs."`
-	Host          string   `short:"h" long:"host" default:"localhost" description:"Host where the server is going to listen"`
+	Host          string   `long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port          int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
 	Password      string   `short:"P" long:"password" default:"" description:"Password used for connection"`
