@@ -70,3 +70,17 @@ SELECT commit_hash, commit_author_email, commit_author_name FROM commits LIMIT 2
 +------------------------------------------+---------------------+-----------------------+
 2 rows in set (0.01 sec)
 ```
+
+If you're using a MySQL client version 8.0 or higher, see the following section to solve some problems you may encounter.
+
+## Troubleshooting
+
+```
+ERROR 2012 (HY000): Client asked for auth caching_sha2_password, but server wants auth mysql_native_password
+```
+
+As of MySQL 8.0 [the default authentication method is `caching_sha2_password`](https://dev.mysql.com/doc/refman/8.0/en/caching-sha2-pluggable-authentication.html) instead of `mysql_native_password`. You can solve this using the following command instead:
+
+```
+mysql -q -u root -h 127.0.0.1 --default-auth=mysql_native_password
+```
