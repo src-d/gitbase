@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
+var (
 	name    = "gitbase"
 	version = "undefined"
 	build   = "undefined"
