@@ -70,7 +70,7 @@ Help Options:
                        be defined. Accepts globs.
           --siva=      Path where the siva repositories are located, multiple directories can
                        be defined. Accepts globs.
-      -h, --host=      Host where the server is going to listen (default: localhost)
+          --host=      Host where the server is going to listen (default: localhost)
       -p, --port=      Port where the server is going to listen (default: 3306)
       -u, --user=      User name used for connection (default: root)
       -P, --password=  Password used for connection
