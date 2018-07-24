@@ -292,12 +292,20 @@ var queries = []struct {
 	{
 		"SELECT version()",
 		[]sql.Row{
-			{string("8.0.11-go-mysql-server")},
+			{string("8.0.11")},
 		},
 	},
 	{
 		"SELECT * FROM mytable WHERE 1 > 5",
 		[]sql.Row{},
+	},
+	{
+		"SELECT SUM(i) + 1, i FROM mytable GROUP BY i ORDER BY i",
+		[]sql.Row{
+			{float64(2), int64(1)},
+			{float64(3), int64(2)},
+			{float64(4), int64(3)},
+		},
 	},
 }
 
@@ -349,17 +357,24 @@ func TestAmbiguousColumnResolution(t *testing.T) {
 		{Name: "a", Type: sql.Int64, Source: "foo"},
 		{Name: "b", Type: sql.Text, Source: "foo"},
 	})
-	require.Nil(table.Insert(sql.NewRow(int64(1), "foo")))
-	require.Nil(table.Insert(sql.NewRow(int64(2), "bar")))
-	require.Nil(table.Insert(sql.NewRow(int64(3), "baz")))
+
+	insertRows(
+		t, table,
+		sql.NewRow(int64(1), "foo"),
+		sql.NewRow(int64(2), "bar"),
+		sql.NewRow(int64(3), "baz"),
+	)
 
 	table2 := mem.NewTable("bar", sql.Schema{
 		{Name: "b", Type: sql.Text, Source: "bar"},
 		{Name: "c", Type: sql.Int64, Source: "bar"},
 	})
-	require.Nil(table2.Insert(sql.NewRow("qux", int64(3))))
-	require.Nil(table2.Insert(sql.NewRow("mux", int64(2))))
-	require.Nil(table2.Insert(sql.NewRow("pux", int64(1))))
+	insertRows(
+		t, table2,
+		sql.NewRow("qux", int64(3)),
+		sql.NewRow("mux", int64(2)),
+		sql.NewRow("pux", int64(1)),
+	)
 
 	db := mem.NewDatabase("mydb")
 	db.AddTable(table.Name(), table)
@@ -430,18 +445,26 @@ func TestNaturalJoin(t *testing.T) {
 		{Name: "b", Type: sql.Text, Source: "t1"},
 		{Name: "c", Type: sql.Text, Source: "t1"},
 	})
-	require.Nil(t1.Insert(sql.NewRow("a_1", "b_1", "c_1")))
-	require.Nil(t1.Insert(sql.NewRow("a_2", "b_2", "c_2")))
-	require.Nil(t1.Insert(sql.NewRow("a_3", "b_3", "c_3")))
+
+	insertRows(
+		t, t1,
+		sql.NewRow("a_1", "b_1", "c_1"),
+		sql.NewRow("a_2", "b_2", "c_2"),
+		sql.NewRow("a_3", "b_3", "c_3"),
+	)
 
 	t2 := mem.NewTable("t2", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t2"},
 		{Name: "b", Type: sql.Text, Source: "t2"},
 		{Name: "d", Type: sql.Text, Source: "t2"},
 	})
-	require.NoError(t2.Insert(sql.NewRow("a_1", "b_1", "d_1")))
-	require.NoError(t2.Insert(sql.NewRow("a_2", "b_2", "d_2")))
-	require.NoError(t2.Insert(sql.NewRow("a_3", "b_3", "d_3")))
+
+	insertRows(
+		t, t2,
+		sql.NewRow("a_1", "b_1", "d_1"),
+		sql.NewRow("a_2", "b_2", "d_2"),
+		sql.NewRow("a_3", "b_3", "d_3"),
+	)
 
 	db := mem.NewDatabase("mydb")
 	db.AddTable(t1.Name(), t1)
@@ -474,18 +497,26 @@ func TestNaturalJoinEqual(t *testing.T) {
 		{Name: "b", Type: sql.Text, Source: "t1"},
 		{Name: "c", Type: sql.Text, Source: "t1"},
 	})
-	require.Nil(t1.Insert(sql.NewRow("a_1", "b_1", "c_1")))
-	require.Nil(t1.Insert(sql.NewRow("a_2", "b_2", "c_2")))
-	require.Nil(t1.Insert(sql.NewRow("a_3", "b_3", "c_3")))
+
+	insertRows(
+		t, t1,
+		sql.NewRow("a_1", "b_1", "c_1"),
+		sql.NewRow("a_2", "b_2", "c_2"),
+		sql.NewRow("a_3", "b_3", "c_3"),
+	)
 
 	t2 := mem.NewTable("t2", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t2"},
 		{Name: "b", Type: sql.Text, Source: "t2"},
 		{Name: "c", Type: sql.Text, Source: "t2"},
 	})
-	require.Nil(t2.Insert(sql.NewRow("a_1", "b_1", "c_1")))
-	require.Nil(t2.Insert(sql.NewRow("a_2", "b_2", "c_2")))
-	require.Nil(t2.Insert(sql.NewRow("a_3", "b_3", "c_3")))
+
+	insertRows(
+		t, t2,
+		sql.NewRow("a_1", "b_1", "c_1"),
+		sql.NewRow("a_2", "b_2", "c_2"),
+		sql.NewRow("a_3", "b_3", "c_3"),
+	)
 
 	db := mem.NewDatabase("mydb")
 	db.AddTable(t1.Name(), t1)
@@ -516,16 +547,23 @@ func TestNaturalJoinDisjoint(t *testing.T) {
 	t1 := mem.NewTable("t1", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t1"},
 	})
-	require.Nil(t1.Insert(sql.NewRow("a1")))
-	require.Nil(t1.Insert(sql.NewRow("a2")))
-	require.Nil(t1.Insert(sql.NewRow("a3")))
+
+	insertRows(
+		t, t1,
+		sql.NewRow("a1"),
+		sql.NewRow("a2"),
+		sql.NewRow("a3"),
+	)
 
 	t2 := mem.NewTable("t2", sql.Schema{
 		{Name: "b", Type: sql.Text, Source: "t2"},
 	})
-	require.NoError(t2.Insert(sql.NewRow("b1")))
-	require.NoError(t2.Insert(sql.NewRow("b2")))
-	require.NoError(t2.Insert(sql.NewRow("b3")))
+	insertRows(
+		t, t2,
+		sql.NewRow("b1"),
+		sql.NewRow("b2"),
+		sql.NewRow("b3"),
+	)
 
 	db := mem.NewDatabase("mydb")
 	db.AddTable(t1.Name(), t1)
@@ -565,9 +603,12 @@ func TestInnerNestedInNaturalJoins(t *testing.T) {
 		{Name: "t", Type: sql.Text, Source: "table1"},
 	})
 
-	require.Nil(table1.Insert(sql.NewRow(int32(1), float64(2.1), "table1")))
-	require.Nil(table1.Insert(sql.NewRow(int32(1), float64(2.1), "table1")))
-	require.Nil(table1.Insert(sql.NewRow(int32(10), float64(2.1), "table1")))
+	insertRows(
+		t, table1,
+		sql.NewRow(int32(1), float64(2.1), "table1"),
+		sql.NewRow(int32(1), float64(2.1), "table1"),
+		sql.NewRow(int32(10), float64(2.1), "table1"),
+	)
 
 	table2 := mem.NewTable("table2", sql.Schema{
 		{Name: "i2", Type: sql.Int32, Source: "table2"},
@@ -575,9 +616,12 @@ func TestInnerNestedInNaturalJoins(t *testing.T) {
 		{Name: "t2", Type: sql.Text, Source: "table2"},
 	})
 
-	require.Nil(table2.Insert(sql.NewRow(int32(1), float64(2.2), "table2")))
-	require.Nil(table2.Insert(sql.NewRow(int32(1), float64(2.2), "table2")))
-	require.Nil(table2.Insert(sql.NewRow(int32(20), float64(2.2), "table2")))
+	insertRows(
+		t, table2,
+		sql.NewRow(int32(1), float64(2.2), "table2"),
+		sql.NewRow(int32(1), float64(2.2), "table2"),
+		sql.NewRow(int32(20), float64(2.2), "table2"),
+	)
 
 	table3 := mem.NewTable("table3", sql.Schema{
 		{Name: "i", Type: sql.Int32, Source: "table3"},
@@ -585,9 +629,12 @@ func TestInnerNestedInNaturalJoins(t *testing.T) {
 		{Name: "t3", Type: sql.Text, Source: "table3"},
 	})
 
-	require.Nil(table3.Insert(sql.NewRow(int32(1), float64(2.3), "table3")))
-	require.Nil(table3.Insert(sql.NewRow(int32(2), float64(2.3), "table3")))
-	require.Nil(table3.Insert(sql.NewRow(int32(30), float64(2.3), "table3")))
+	insertRows(
+		t, table3,
+		sql.NewRow(int32(1), float64(2.3), "table3"),
+		sql.NewRow(int32(2), float64(2.3), "table3"),
+		sql.NewRow(int32(30), float64(2.3), "table3"),
+	)
 
 	db := mem.NewDatabase("mydb")
 	db.AddTable("table1", table1)
@@ -638,31 +685,40 @@ func testQuery(t *testing.T, e *sqle.Engine, q string, r []sql.Row) {
 }
 
 func newEngine(t *testing.T) *sqle.Engine {
-	require := require.New(t)
-
 	table := mem.NewTable("mytable", sql.Schema{
 		{Name: "i", Type: sql.Int64, Source: "mytable"},
 		{Name: "s", Type: sql.Text, Source: "mytable"},
 	})
-	require.NoError(table.Insert(sql.NewRow(int64(1), "first row")))
-	require.NoError(table.Insert(sql.NewRow(int64(2), "second row")))
-	require.NoError(table.Insert(sql.NewRow(int64(3), "third row")))
+
+	insertRows(
+		t, table,
+		sql.NewRow(int64(1), "first row"),
+		sql.NewRow(int64(2), "second row"),
+		sql.NewRow(int64(3), "third row"),
+	)
 
 	table2 := mem.NewTable("othertable", sql.Schema{
 		{Name: "s2", Type: sql.Text, Source: "othertable"},
 		{Name: "i2", Type: sql.Int64, Source: "othertable"},
 	})
-	require.NoError(table2.Insert(sql.NewRow("first", int64(3))))
-	require.NoError(table2.Insert(sql.NewRow("second", int64(2))))
-	require.NoError(table2.Insert(sql.NewRow("third", int64(1))))
+	insertRows(
+		t, table2,
+		sql.NewRow("first", int64(3)),
+		sql.NewRow("second", int64(2)),
+		sql.NewRow("third", int64(1)),
+	)
 
 	table3 := mem.NewTable("tabletest", sql.Schema{
 		{Name: "text", Type: sql.Text, Source: "tabletest"},
 		{Name: "number", Type: sql.Int32, Source: "tabletest"},
 	})
-	require.NoError(table3.Insert(sql.NewRow("a", int32(1))))
-	require.NoError(table3.Insert(sql.NewRow("b", int32(2))))
-	require.NoError(table3.Insert(sql.NewRow("c", int32(3))))
+
+	insertRows(
+		t, table3,
+		sql.NewRow("a", int32(1)),
+		sql.NewRow("b", int32(2)),
+		sql.NewRow("c", int32(3)),
+	)
 
 	db := mem.NewDatabase("mydb")
 	db.AddTable(table.Name(), table)
@@ -793,22 +849,41 @@ func TestIndexes(t *testing.T) {
 			"SELECT * FROM mytable WHERE i = 2 AND s = 'third row'",
 			([]sql.Row)(nil),
 		},
-		// TODO(erizocosmico): BETWEEN cannot be tested because SetOperations
-		// is still not implemented in pilosa.
-		// TODO(erizocosmico): AND and OR cannot be tested because SetOperations
-		// is still not implemented in pilosa.
+		{
+			"SELECT * FROM mytable WHERE i BETWEEN 1 AND 2",
+			[]sql.Row{
+				{int64(1), "first row"},
+				{int64(2), "second row"},
+			},
+		},
+		{
+			"SELECT * FROM mytable WHERE i = 1 OR i = 2",
+			[]sql.Row{
+				{int64(1), "first row"},
+				{int64(2), "second row"},
+			},
+		},
+		{
+			"SELECT * FROM mytable WHERE i = 1 AND i = 2",
+			([]sql.Row)(nil),
+		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.query, func(t *testing.T) {
 			require := require.New(t)
-			_, it, err := e.Query(sql.NewEmptyContext(), tt.query)
+
+			tracer := new(test.MemTracer)
+			ctx := sql.NewContext(context.TODO(), sql.WithTracer(tracer))
+
+			_, it, err := e.Query(ctx, tt.query)
 			require.NoError(err)
 
 			rows, err := sql.RowIterToRows(it)
 			require.NoError(err)
 
 			require.Equal(tt.expected, rows)
+			require.Equal("plan.IndexableTable", tracer.Spans[len(tracer.Spans)-1])
 		})
 	}
 }
@@ -846,12 +921,16 @@ func TestOrderByGroupBy(t *testing.T) {
 		{Name: "id", Type: sql.Int64, Source: "members"},
 		{Name: "team", Type: sql.Text, Source: "members"},
 	})
-	require.NoError(table.Insert(sql.NewRow(int64(3), "red")))
-	require.NoError(table.Insert(sql.NewRow(int64(4), "red")))
-	require.NoError(table.Insert(sql.NewRow(int64(5), "orange")))
-	require.NoError(table.Insert(sql.NewRow(int64(6), "orange")))
-	require.NoError(table.Insert(sql.NewRow(int64(7), "orange")))
-	require.NoError(table.Insert(sql.NewRow(int64(8), "purple")))
+
+	insertRows(
+		t, table,
+		sql.NewRow(int64(3), "red"),
+		sql.NewRow(int64(4), "red"),
+		sql.NewRow(int64(5), "orange"),
+		sql.NewRow(int64(6), "orange"),
+		sql.NewRow(int64(7), "orange"),
+		sql.NewRow(int64(8), "purple"),
+	)
 
 	db := mem.NewDatabase("db")
 	db.AddTable(table.Name(), table)
@@ -936,7 +1015,7 @@ func TestReadOnly(t *testing.T) {
 
 	a := analyzer.NewBuilder(catalog).ReadOnly().Build()
 	a.CurrentDatabase = "mydb"
-	e := sqle.New(catalog, a, "")
+	e := sqle.New(catalog, a, nil)
 
 	_, _, err := e.Query(sql.NewEmptyContext(), `SELECT i FROM mytable`)
 	require.NoError(err)
@@ -952,4 +1031,12 @@ func TestReadOnly(t *testing.T) {
 	_, _, err = e.Query(sql.NewEmptyContext(), `INSERT INTO foo (i, s) VALUES(42, 'yolo')`)
 	require.Error(err)
 	require.True(analyzer.ErrQueryNotAllowed.Is(err))
+}
+
+func insertRows(t *testing.T, table sql.Inserter, rows ...sql.Row) {
+	t.Helper()
+
+	for _, r := range rows {
+		require.NoError(t, table.Insert(sql.NewEmptyContext(), r))
+	}
 }

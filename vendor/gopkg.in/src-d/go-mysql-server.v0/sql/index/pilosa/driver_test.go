@@ -330,23 +330,443 @@ func TestAscendDescendIndex(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			iter, err := tt.lookup.Values()
+			result, err := lookupValues(tt.lookup)
 			require.NoError(err)
-
-			var result []string
-			for {
-				k, err := iter.Next()
-				if err == io.EOF {
-					break
-				}
-				require.NoError(err)
-
-				result = append(result, string(k))
-			}
-
 			require.Equal(tt.expected, result)
 		})
 	}
+}
+
+func TestNegateIndex(t *testing.T) {
+	if !dockerIsRunning {
+		t.Skipf("Skip test: %s", dockerCmdOutput)
+	}
+	require := require.New(t)
+
+	db, table := "db_name", "table_name"
+	path, err := mkdir(os.TempDir(), "indexes")
+	require.NoError(err)
+	defer func() {
+		require.NoError(os.RemoveAll(path))
+	}()
+
+	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	idx, err := d.Create(db, table, "index_id", makeExpressions("a"), nil)
+	require.NoError(err)
+
+	multiIdx, err := d.Create(
+		db, table, "multi_index_id",
+		makeExpressions("a", "b"),
+		nil,
+	)
+	require.NoError(err)
+
+	it := &fixtureKeyValueIter{
+		fixtures: []kvfixture{
+			{"1", []interface{}{int64(2)}},
+			{"2", []interface{}{int64(7)}},
+			{"3", []interface{}{int64(1)}},
+			{"4", []interface{}{int64(1)}},
+			{"5", []interface{}{int64(7)}},
+		},
+	}
+
+	err = d.Save(sql.NewEmptyContext(), idx, it)
+	require.NoError(err)
+
+	multiIt := &fixtureKeyValueIter{
+		fixtures: []kvfixture{
+			{"1", []interface{}{int64(2), int64(6)}},
+			{"2", []interface{}{int64(7), int64(5)}},
+			{"3", []interface{}{int64(1), int64(2)}},
+			{"4", []interface{}{int64(1), int64(3)}},
+			{"5", []interface{}{int64(7), int64(6)}},
+			{"6", []interface{}{int64(10), int64(6)}},
+			{"7", []interface{}{int64(5), int64(1)}},
+			{"8", []interface{}{int64(6), int64(2)}},
+			{"9", []interface{}{int64(4), int64(0)}},
+			{"10", []interface{}{int64(3), int64(5)}},
+		},
+	}
+
+	err = d.Save(sql.NewEmptyContext(), multiIdx, multiIt)
+	require.NoError(err)
+
+	lookup, err := idx.(sql.NegateIndex).Not(int64(1))
+	require.NoError(err)
+
+	values, err := lookupValues(lookup)
+	require.NoError(err)
+
+	expected := []string{"1", "2", "5"}
+	require.Equal(expected, values)
+
+	lookup, err = multiIdx.(sql.NegateIndex).Not(int64(1), int64(6))
+	require.NoError(err)
+
+	values, err = lookupValues(lookup)
+	require.NoError(err)
+
+	expected = []string{"2", "7", "8", "9", "10"}
+	require.Equal(expected, values)
+}
+
+func TestIntersection(t *testing.T) {
+	if !dockerIsRunning {
+		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
+	}
+	require := require.New(t)
+
+	db, table := "db_name", "table_name"
+	idxLang, expLang := "idx_lang", makeExpressions("lang")
+	idxPath, expPath := "idx_path", makeExpressions("path")
+
+	path, err := ioutil.TempDir(os.TempDir(), "indexes")
+	require.NoError(err)
+	defer os.RemoveAll(path)
+
+	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	sqlIdxLang, err := d.Create(db, table, idxLang, expLang, nil)
+	require.NoError(err)
+
+	sqlIdxPath, err := d.Create(db, table, idxPath, expPath, nil)
+	require.NoError(err)
+
+	itLang := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: expLang,
+		location:    offsetLocation,
+	}
+
+	itPath := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: expPath,
+		location:    offsetLocation,
+	}
+
+	ctx := sql.NewContext(context.Background())
+
+	err = d.Save(ctx, sqlIdxLang, itLang)
+	require.NoError(err)
+
+	err = d.Save(ctx, sqlIdxPath, itPath)
+	require.NoError(err)
+
+	lookupLang, err := sqlIdxLang.Get(itLang.records[0].values...)
+	require.NoError(err)
+	lookupPath, err := sqlIdxPath.Get(itPath.records[itPath.total-1].values...)
+	require.NoError(err)
+
+	m, ok := lookupLang.(sql.Mergeable)
+	require.True(ok)
+	require.True(m.IsMergeable(lookupPath))
+
+	interLookup, ok := lookupLang.(sql.SetOperations)
+	require.True(ok)
+	interIt, err := interLookup.Intersection(lookupPath).Values()
+	require.NoError(err)
+	_, err = interIt.Next()
+	require.True(err == io.EOF)
+	require.NoError(interIt.Close())
+
+	lookupLang, err = sqlIdxLang.Get(itLang.records[0].values...)
+	require.NoError(err)
+	lookupPath, err = sqlIdxPath.Get(itPath.records[0].values...)
+	require.NoError(err)
+
+	interLookup, ok = lookupPath.(sql.SetOperations)
+	require.True(ok)
+	interIt, err = interLookup.Intersection(lookupLang).Values()
+	require.NoError(err)
+	loc, err := interIt.Next()
+	require.NoError(err)
+	require.Equal(loc, itPath.records[0].location)
+	_, err = interIt.Next()
+	require.True(err == io.EOF)
+
+	require.NoError(interIt.Close())
+}
+
+func TestUnion(t *testing.T) {
+	if !dockerIsRunning {
+		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
+	}
+	require := require.New(t)
+
+	db, table := "db_name", "table_name"
+	idxLang, expLang := "idx_lang", makeExpressions("lang")
+	idxPath, expPath := "idx_path", makeExpressions("path")
+
+	path, err := ioutil.TempDir(os.TempDir(), "indexes")
+	require.NoError(err)
+	defer os.RemoveAll(path)
+
+	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	sqlIdxLang, err := d.Create(db, table, idxLang, expLang, nil)
+	require.NoError(err)
+
+	sqlIdxPath, err := d.Create(db, table, idxPath, expPath, nil)
+	require.NoError(err)
+
+	itLang := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: expLang,
+		location:    offsetLocation,
+	}
+
+	itPath := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: expPath,
+		location:    offsetLocation,
+	}
+
+	ctx := sql.NewContext(context.Background())
+
+	err = d.Save(ctx, sqlIdxLang, itLang)
+	require.NoError(err)
+
+	err = d.Save(ctx, sqlIdxPath, itPath)
+	require.NoError(err)
+
+	lookupLang, err := sqlIdxLang.Get(itLang.records[0].values...)
+	require.NoError(err)
+	litLang, err := lookupLang.Values()
+	require.NoError(err)
+
+	loc, err := litLang.Next()
+	require.NoError(err)
+	require.Equal(itLang.records[0].location, loc)
+	_, err = litLang.Next()
+	require.True(err == io.EOF)
+	err = litLang.Close()
+	require.NoError(err)
+
+	lookupPath, err := sqlIdxPath.Get(itPath.records[itPath.total-1].values...)
+	require.NoError(err)
+	litPath, err := lookupPath.Values()
+	require.NoError(err)
+
+	loc, err = litPath.Next()
+	require.NoError(err)
+	require.Equal(itPath.records[itPath.total-1].location, loc)
+	_, err = litPath.Next()
+	require.True(err == io.EOF)
+	err = litLang.Close()
+	require.NoError(err)
+
+	m, ok := lookupLang.(sql.Mergeable)
+	require.True(ok)
+	require.True(m.IsMergeable(lookupPath))
+
+	unionLookup, ok := lookupLang.(sql.SetOperations)
+	unionIt, err := unionLookup.Union(lookupPath).Values()
+	require.NoError(err)
+	// 0
+	loc, err = unionIt.Next()
+	require.Equal(itLang.records[0].location, loc)
+
+	// total-1
+	loc, err = unionIt.Next()
+	require.Equal(itPath.records[itPath.total-1].location, loc)
+
+	_, err = unionIt.Next()
+	require.True(err == io.EOF)
+
+	require.NoError(unionIt.Close())
+}
+
+func TestDifference(t *testing.T) {
+	if !dockerIsRunning {
+		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
+	}
+	require := require.New(t)
+
+	db, table := "db_name", "table_name"
+	idxLang, expLang := "idx_lang", makeExpressions("lang")
+	idxPath, expPath := "idx_path", makeExpressions("path")
+
+	path, err := ioutil.TempDir(os.TempDir(), "indexes")
+	require.NoError(err)
+	defer os.RemoveAll(path)
+
+	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	sqlIdxLang, err := d.Create(db, table, idxLang, expLang, nil)
+	require.NoError(err)
+
+	sqlIdxPath, err := d.Create(db, table, idxPath, expPath, nil)
+	require.NoError(err)
+
+	itLang := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: expLang,
+		location:    offsetLocation,
+	}
+
+	itPath := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: expPath,
+		location:    offsetLocation,
+	}
+
+	ctx := sql.NewContext(context.Background())
+
+	err = d.Save(ctx, sqlIdxLang, itLang)
+	require.NoError(err)
+
+	err = d.Save(ctx, sqlIdxPath, itPath)
+	require.NoError(err)
+
+	lookupLang, err := sqlIdxLang.Get(itLang.records[0].values...)
+	require.NoError(err)
+
+	lookupPath, err := sqlIdxPath.Get(itPath.records[itPath.total-1].values...)
+	require.NoError(err)
+
+	m, ok := lookupLang.(sql.Mergeable)
+	require.True(ok)
+	require.True(m.IsMergeable(lookupPath))
+
+	unionOp, ok := lookupLang.(sql.SetOperations)
+	require.True(ok)
+	unionLookup, ok := unionOp.Union(lookupPath).(sql.SetOperations)
+	require.True(ok)
+
+	diffLookup := unionLookup.Difference(lookupLang)
+	diffIt, err := diffLookup.Values()
+	require.NoError(err)
+
+	// total-1
+	loc, err := diffIt.Next()
+	require.NoError(err)
+	require.Equal(itPath.records[itPath.total-1].location, loc)
+
+	_, err = diffIt.Next()
+	require.True(err == io.EOF)
+
+	require.NoError(diffIt.Close())
+}
+
+func TestUnionDiffAsc(t *testing.T) {
+	if !dockerIsRunning {
+		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
+	}
+	require := require.New(t)
+
+	db, table := "db_name", "table_name"
+	idx, exp := "idx_lang", makeExpressions("lang")
+
+	path, err := ioutil.TempDir(os.TempDir(), "indexes")
+	require.NoError(err)
+	defer os.RemoveAll(path)
+
+	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	sqlIdx, err := d.Create(db, table, idx, exp, nil)
+	require.NoError(err)
+	pilosaIdx, ok := sqlIdx.(*pilosaIndex)
+	require.True(ok)
+	it := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: exp,
+		location:    offsetLocation,
+	}
+
+	ctx := sql.NewContext(context.Background())
+
+	err = d.Save(ctx, pilosaIdx, it)
+	require.NoError(err)
+
+	sqlLookup, err := pilosaIdx.AscendLessThan(it.records[it.total-1].values...)
+	require.NoError(err)
+	ascLookup, ok := sqlLookup.(*ascendLookup)
+	require.True(ok)
+
+	ls := make([]*indexLookup, it.total)
+	for i, r := range it.records {
+		l, err := pilosaIdx.Get(r.values...)
+		require.NoError(err)
+		ls[i], _ = l.(*indexLookup)
+	}
+
+	unionLookup := ls[0].Union(ls[2], ls[4], ls[6], ls[8])
+
+	diffLookup := ascLookup.Difference(unionLookup)
+	diffIt, err := diffLookup.Values()
+	require.NoError(err)
+
+	for i := 1; i < it.total-1; i += 2 {
+		loc, err := diffIt.Next()
+		require.NoError(err)
+
+		require.Equal(it.records[i].location, loc)
+	}
+
+	_, err = diffIt.Next()
+	require.True(err == io.EOF)
+	require.NoError(diffIt.Close())
+}
+
+func TestInterRanges(t *testing.T) {
+	if !dockerIsRunning {
+		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
+	}
+	require := require.New(t)
+
+	db, table := "db_name", "table_name"
+	idx, exp := "idx_lang", makeExpressions("lang")
+
+	path, err := ioutil.TempDir(os.TempDir(), "indexes")
+	require.NoError(err)
+	defer os.RemoveAll(path)
+
+	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	sqlIdx, err := d.Create(db, table, idx, exp, nil)
+	require.NoError(err)
+	pilosaIdx, ok := sqlIdx.(*pilosaIndex)
+	require.True(ok)
+	it := &testIndexKeyValueIter{
+		offset:      0,
+		total:       10,
+		expressions: exp,
+		location:    offsetLocation,
+	}
+
+	ctx := sql.NewContext(context.Background())
+
+	err = d.Save(ctx, pilosaIdx, it)
+	require.NoError(err)
+
+	ranges := [2]int{3, 9}
+	sqlLookup, err := pilosaIdx.AscendLessThan(it.records[ranges[1]].values...)
+	require.NoError(err)
+	lessLookup, ok := sqlLookup.(*ascendLookup)
+	require.True(ok)
+
+	sqlLookup, err = pilosaIdx.AscendGreaterOrEqual(it.records[ranges[0]].values...)
+	require.NoError(err)
+	greaterLookup, ok := sqlLookup.(*ascendLookup)
+	require.True(ok)
+
+	interLookup := lessLookup.Intersection(greaterLookup)
+	require.NotNil(interLookup)
+	interIt, err := interLookup.Values()
+	require.NoError(err)
+
+	for i := ranges[0]; i < ranges[1]; i++ {
+		loc, err := interIt.Next()
+		require.NoError(err)
+		require.Equal(it.records[i].location, loc)
+	}
+
+	_, err = interIt.Next()
+	require.True(err == io.EOF)
+	require.NoError(interIt.Close())
 }
 
 func setupAscendDescend(t *testing.T) (*pilosaIndex, func()) {
@@ -386,6 +806,29 @@ func setupAscendDescend(t *testing.T) (*pilosaIndex, func()) {
 	return sqlIdx.(*pilosaIndex), func() {
 		require.NoError(os.RemoveAll(path))
 	}
+}
+
+func lookupValues(lookup sql.IndexLookup) ([]string, error) {
+	iter, err := lookup.Values()
+	if err != nil {
+		return nil, err
+	}
+
+	var result []string
+	for {
+		k, err := iter.Next()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, string(k))
+	}
+
+	return result, nil
 }
 
 type kvfixture struct {
@@ -508,25 +951,6 @@ func retry(ctx context.Context, fn func() error) error {
 
 		case <-time.After(backoffDuration):
 
-		}
-	}
-
-	return err
-}
-
-// pilosaHiccup restarts pilosa every interval
-// it requires the Pilosa running in docker container:
-// docker run --name pilosa -d -p 127.0.0.1:10101:10101 pilosa/pilosa:v0.9.0
-func pilosaHiccup(ctx context.Context, interval time.Duration) error {
-	cmd := exec.Command("docker", "restart", "pilosa")
-	err := cmd.Start()
-	for err == nil {
-		select {
-		case <-ctx.Done():
-			err = ctx.Err()
-
-		case <-time.After(interval):
-			err = cmd.Start()
 		}
 	}
 

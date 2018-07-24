@@ -40,6 +40,15 @@ To install it, run:
 go get gopkg.in/src-d/go-mysql-server.v0
 ```
 
+You might run into trouble using `go get` on the library because of breaking changes introduced in `go-pilosa`, which is used for indexes. To fix these issues you can do the following:
+
+```
+cd $GOPATH/src/github.com/pilosa/go-pilosa
+git checkout v0.9.0
+```
+
+Right now, we only support versions v0.9.x from pilosa. In the future, a more robust solution to this problem will be provided.
+
 ## Documentation
 
 * [go-mysql-server godoc](https://godoc.org/github.com/src-d/go-mysql-server)
@@ -106,10 +115,19 @@ func createTestDatabase() *mem.Database {
     })
 
     db.AddTable(tableName, table)
-    table.Insert(sql.NewRow("John Doe", "john@doe.com", []string{"555-555-555"}, time.Now()))
-    table.Insert(sql.NewRow("John Doe", "johnalt@doe.com", []string{}, time.Now()))
-    table.Insert(sql.NewRow("Jane Doe", "jane@doe.com", []string{}, time.Now()))
-    table.Insert(sql.NewRow("Evil Bob", "evilbob@gmail.com", []string{"555-666-555", "666-666-666"}, time.Now()))
+    ctx := sql.NewEmptyContext()
+
+    rows := []sql.Row{
+        sql.NewRow("John Doe", "john@doe.com", []string{"555-555-555"}, time.Now()),
+        sql.NewRow("John Doe", "johnalt@doe.com", []string{}, time.Now()),
+        sql.NewRow("Jane Doe", "jane@doe.com", []string{}, time.Now()),
+        sql.NewRow("Evil Bob", "evilbob@gmail.com", []string{"555-666-555", "666-666-666"}, time.Now()),
+	}
+
+    for _, row := range rows {
+        table.Insert(ctx, row)
+    }
+    
     return db
 }
 
@@ -184,6 +202,26 @@ Taking a look at the main [index interface](https://github.com/src-d/go-mysql-se
 
 - This abstraction lets you create an index for multiple columns (one or more) or for **only one** expression (e.g. function applied on multiple columns).
 - If you want to index an expression that is not a column you will only be able to index **one and only one** expression at a time.
+
+## Custom index driver implementation
+
+Index drivers provide different backends for storing and querying indexes. To implement a custom index driver you need to implement a few things:
+
+- `sql.IndexDriver` interface, which will be the driver itself. Not that your driver must return an unique ID in the `ID` method. This ID is unique for your driver and should not clash with any other registered driver. It's the driver's responsibility to be fault tolerant and be able to automatically detect and recover from corruption in indexes.
+- `sql.Index` interface, returned by your driver when an index is loaded or created.
+  - Your `sql.Index` may optionally implement the `sql.AscendIndex` and/or `sql.DescendIndex` interfaces, if you want to support more comparison operators like `>`, `<`, `>=`, `<=` or `BETWEEN`.
+- `sql.IndexLookup` interface, returned by your index in any of the implemented operations to get a subset of the indexed values.
+  - Your `sql.IndexLookup` may optionally implement the `sql.Mergeable` and `sql.SetOperations` interfaces if you want to support set operations to merge your index lookups.
+- `sql.IndexValueIter` interface, which will be returned by your `sql.IndexLookup` and should return the values of the index.
+- Don't forget to register the index driver in your `sql.Catalog` using `catalog.RegisterIndexDriver(mydriver)` to be able to use it.
+
+To create indexes using your custom index driver you need to use `USING driverid` on the index creation query. For example:
+
+```sql
+CREATE INDEX foo ON table(col1, col2) USING driverid
+```
+
+You can see an example of a driver implementation inside the `sql/index/pilosa` package, where the pilosa driver is implemented.
 
 ## Powered by go-mysql-server
 
