@@ -66,6 +66,55 @@ func TestCreateIndex(t *testing.T) {
 	require.True(found)
 }
 
+func TestCreateIndexNotIndexableExprs(t *testing.T) {
+	require := require.New(t)
+
+	table := &indexableTable{mem.NewTable("foo", sql.Schema{
+		{Name: "a", Source: "foo", Type: sql.Blob},
+		{Name: "b", Source: "foo", Type: sql.JSON},
+		{Name: "c", Source: "foo", Type: sql.Text},
+	})}
+
+	driver := new(mockDriver)
+	catalog := sql.NewCatalog()
+	catalog.RegisterIndexDriver(driver)
+	db := mem.NewDatabase("foo")
+	db.AddTable("foo", table)
+	catalog.Databases = append(catalog.Databases, db)
+
+	ci := NewCreateIndex(
+		"idx",
+		table,
+		[]sql.Expression{
+			expression.NewGetFieldWithTable(0, sql.Blob, "foo", "a", true),
+		},
+		"mock",
+		make(map[string]string),
+	)
+	ci.Catalog = catalog
+	ci.CurrentDatabase = "foo"
+
+	_, err := ci.RowIter(sql.NewEmptyContext())
+	require.Error(err)
+	require.True(ErrExprTypeNotIndexable.Is(err))
+
+	ci = NewCreateIndex(
+		"idx",
+		table,
+		[]sql.Expression{
+			expression.NewGetFieldWithTable(1, sql.JSON, "foo", "a", true),
+		},
+		"mock",
+		make(map[string]string),
+	)
+	ci.Catalog = catalog
+	ci.CurrentDatabase = "foo"
+
+	_, err = ci.RowIter(sql.NewEmptyContext())
+	require.Error(err)
+	require.True(ErrExprTypeNotIndexable.Is(err))
+}
+
 func TestCreateIndexSync(t *testing.T) {
 	require := require.New(t)
 
@@ -133,7 +182,7 @@ func TestCreateIndexWithIter(t *testing.T) {
 		{math.MaxInt64, math.MinInt64},
 	}
 	for _, r := range rows {
-		err := foo.Insert(sql.NewRow(r[0], r[1]))
+		err := foo.Insert(sql.NewEmptyContext(), sql.NewRow(r[0], r[1]))
 		require.NoError(err)
 	}
 

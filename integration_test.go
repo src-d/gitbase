@@ -736,7 +736,7 @@ func newSquashEngine() *sqle.Engine {
 	analyzer := analyzer.NewBuilder(catalog).
 		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
 		Build()
-	e := sqle.New(catalog, analyzer, "test")
+	e := sqle.New(catalog, analyzer, &sqle.Config{VersionPostfix: "test"})
 	e.AddDatabase(gitbase.NewDatabase("foo"))
 	e.Catalog.RegisterFunctions(sqlfunction.Defaults)
 	e.Catalog.RegisterFunctions(function.Functions)
