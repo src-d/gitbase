@@ -351,6 +351,25 @@ func TestSquashCorrectness(t *testing.T) {
 			ON r.commit_hash = c.commit_hash
 			AND r.ref_name = c.ref_name
 			AND c.repository_id = r.repository_id`,
+
+		`SELECT COUNT(r.*) as repos FROM repositories r`,
+
+		`SELECT repository_id, num_files FROM (
+			SELECT COUNT(f.*) num_files, f.repository_id
+			FROM ref_commits r
+			INNER JOIN commit_files cf 
+				ON r.commit_hash = cf.commit_hash 
+				AND r.repository_id = cf.repository_id
+			INNER JOIN files f
+				ON cf.repository_id = f.repository_id
+				AND cf.blob_hash = f.blob_hash
+				AND cf.tree_hash = f.tree_hash
+				AND cf.file_path = f.file_path
+			WHERE r.ref_name = 'HEAD'
+			GROUP BY f.repository_id
+		) t
+		ORDER BY num_files DESC
+		LIMIT 10`,
 	}
 
 	for _, q := range queries {
