@@ -108,34 +108,16 @@ func countProjectSquashes(n sql.Node) int {
 }
 
 func squashProjects(parent, child *plan.Project) (sql.Node, bool) {
-	var projections []sql.Expression
-	for _, expr := range parent.Expressions() {
-		parentField, ok := expr.(*expression.GetField)
-		if !ok {
+	projections := make([]sql.Expression, len(parent.Expressions()))
+	schema := child.Child.Schema()
+
+	for i, e := range parent.Expressions() {
+		fe, err := fixFieldIndexes(e, schema)
+		if err != nil {
 			return nil, false
 		}
 
-		index := parentField.Index()
-		for _, e := range child.Expressions() {
-			childField, ok := e.(*expression.GetField)
-			if !ok {
-				return nil, false
-			}
-
-			if referenceSameColumn(parentField, childField) {
-				index = childField.Index()
-			}
-		}
-
-		projection := expression.NewGetFieldWithTable(
-			index,
-			parentField.Type(),
-			parentField.Table(),
-			parentField.Name(),
-			parentField.IsNullable(),
-		)
-
-		projections = append(projections, projection)
+		projections[i] = fe
 	}
 
 	return plan.NewProject(projections, child.Child), true
