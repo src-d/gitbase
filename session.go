@@ -143,7 +143,7 @@ func (s *Session) BblfshClient() (*BblfshClient, error) {
 	defer s.bblfshMu.Unlock()
 
 	if s.bblfshClient == nil {
-		client, err := bblfsh.NewClient(s.bblfshEndpoint)
+		client, err := connectToBblfsh(s.bblfshEndpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +172,7 @@ func (s *Session) BblfshClient() (*BblfshClient, error) {
 
 			logrus.Debug("bblfsh connection is closed, opening a new one")
 
-			client, err := bblfsh.NewClient(s.bblfshEndpoint)
+			client, err := connectToBblfsh(s.bblfshEndpoint)
 			if err != nil {
 				return nil, err
 			}
@@ -196,6 +196,19 @@ func (s *Session) Close() error {
 	return nil
 }
 
+func connectToBblfsh(endpoint string) (*bblfsh.Client, error) {
+	client, err := bblfsh.NewClient(endpoint)
+	if err != nil {
+		if err == context.DeadlineExceeded {
+			return nil, ErrBblfshConnection.New()
+		}
+
+		return nil, err
+	}
+
+	return client, nil
+}
+
 // NewSessionBuilder creates a SessionBuilder with the given Repository Pool.
 func NewSessionBuilder(pool *RepositoryPool, opts ...SessionOption) server.SessionBuilder {
 	return func(_ *mysql.Conn) sql.Session {
@@ -215,4 +228,4 @@ var ErrInvalidGitbaseSession = errors.NewKind("expecting gitbase session, but re
 var ErrInvalidContext = errors.NewKind("invalid context received: %v")
 
 // ErrBblfshConnection is returned when it's impossible to connect to bblfsh.
-var ErrBblfshConnection = errors.NewKind("unable to establish a new bblfsh connection")
+var ErrBblfshConnection = errors.NewKind("unable to establish a connection with the bblfsh server")
