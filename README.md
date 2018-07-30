@@ -20,11 +20,11 @@ You can see some [query examples](/docs/using-gitbase/examples.md) in [gitbase d
 
 ## Motivation and scope
 
-gitbase was born to ease the analysis of git repositories and its source code.
+gitbase was born to ease the analysis of git repositories and their source code.
 
 Also, making it MySQL compatible, we provide the maximum compatibility between languages and existing tools.
 
-As a single binary allows use it as a standalone service. The service is able to process local repositories or integrate with existing tools and frameworks (e.g. spark) to make source code analysis on the large scale.
+It comes as a single self-contained binary and it can be used as a standalone service. The service is able to process local repositories or integrate with existing tools and frameworks (e.g. spark) to make source code analysis on a large scale.
 
 ## Further reading
 
