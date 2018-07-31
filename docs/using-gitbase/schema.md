@@ -173,11 +173,11 @@ This table represents the relation between commits and [files](#files). Using th
 | repository_id | TEXT  |
 | commit_hash   | TEXT  |
 | ref_name      | TEXT  |
-| index         | INT64 |
+| history_index | INT64 |
 +---------------+-------+
 ```
 
-This table allow us to get the commit history from a specific reference name. `index` column represent the position of the commit from a specific reference.
+This table allow us to get the commit history from a specific reference name. `history_index` column represents the position of the commit from a specific reference.
 
 This table it's like the [log](https://git-scm.com/docs/git-log) from a specific reference.
 
