@@ -16,3 +16,12 @@ func TestSessionBblfshClient(t *testing.T) {
 	require.NotNil(cli)
 	require.Equal(connectivity.Ready, cli.GetState())
 }
+
+func TestSessionBblfshClientNoConnection(t *testing.T) {
+	require := require.New(t)
+
+	session := NewSession(nil, WithBblfshEndpoint("localhost:9999"))
+	_, err := session.BblfshClient()
+	require.Error(err)
+	require.True(ErrBblfshConnection.Is(err))
+}
