@@ -27,7 +27,7 @@ NATURAL JOIN
 	ref_commits
 WHERE
 	ref_commits.ref_name = 'HEAD'
-	AND ref_commits.index = 0;
+	AND ref_commits.history_index = 0;
 ```
 
 ## Commits that appear in more than one reference
@@ -86,7 +86,7 @@ NATURAL JOIN
 	ref_commits
 WHERE
 	ref_commits.ref_name = 'HEAD'
-	AND ref_commits.index BETWEEN 0 AND 5
+	AND ref_commits.history_index BETWEEN 0 AND 5
 	AND is_binary(blob_content) = false
     AND files.file_path NOT REGEXP '^vendor.*'
 	AND (
