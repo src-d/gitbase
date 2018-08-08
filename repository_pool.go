@@ -249,6 +249,18 @@ func (p *RepositoryPool) addSivaDir(root, path string, recursive bool) error {
 	return nil
 }
 
+// AddSivaFile adds to the pool the given file if it's a siva repository,
+// that is, has the .siva extension
+func (p *RepositoryPool) AddSivaFile(id, path string) {
+	file := filepath.Base(path)
+	if !strings.HasSuffix(file, ".siva") {
+		logrus.WithField("file", file).Warn("found a non-siva file")
+	}
+
+	p.Add(sivaRepo(id, path))
+	logrus.WithField("file", file).Debug("repository added")
+}
+
 // addSivaFile adds to the pool the given file if it's a siva repository,
 // that is, has the .siva extension.
 func (p *RepositoryPool) addSivaFile(root, path string, f os.FileInfo) {
