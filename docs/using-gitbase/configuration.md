@@ -57,27 +57,27 @@ Usage:
 
 Starts a gitbase server instance
 
-By default when gitbase encounters and error in a repository it
+By default when gitbase encounters an error in a repository it
 stops the query. With GITBASE_SKIP_GIT_ERRORS variable it won't
 complain and just skip those rows or repositories.
 
 Help Options:
-  -h, --help           Show this help message
+  -h, --help             Show this help message
 
 [server command options]
-      -v               Activates the verbose mode
-      -g, --git=       Path where the git repositories are located, multiple directories can
-                       be defined. Accepts globs.
-          --siva=      Path where the siva repositories are located, multiple directories can
-                       be defined. Accepts globs.
-          --host=      Host where the server is going to listen (default: localhost)
-      -p, --port=      Port where the server is going to listen (default: 3306)
-      -u, --user=      User name used for connection (default: root)
-      -P, --password=  Password used for connection
-          --pilosa=    URL to your pilosa server (default: http://localhost:10101)
-                       [$PILOSA_ENDPOINT]
-      -i, --index=     Directory where the gitbase indexes information will be persisted.
-                       (default: /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
-          --no-squash  Disables the table squashing.
-          --trace      Enables jaeger tracing [$GITBASE_TRACE]
+      -v                 Activates the verbose mode
+      -d, --directories= Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs.
+          --depth=       load repositories looking at less than <depth> nested subdirectories. (default: 1000)
+          --no-git       disable the load of git standard repositories.
+          --no-siva      disable the load of siva files.
+          --host=        Host where the server is going to listen (default: localhost)
+      -p, --port=        Port where the server is going to listen (default: 3306)
+      -u, --user=        User name used for connection (default: root)
+      -P, --password=    Password used for connection
+          --pilosa=      URL to your pilosa server (default: http://localhost:10101) [$PILOSA_ENDPOINT]
+      -i, --index=       Directory where the gitbase indexes information will be persisted. (default: /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
+          --no-squash    Disables the table squashing.
+          --trace        Enables jaeger tracing [$GITBASE_TRACE]
+      -r, --readonly     Only allow read queries. This disables creating and deleting indexes as well. [$GITBASE_READONLY]
+
 ```

@@ -16,7 +16,7 @@ For more info about command line arguments, [go here](/docs/using-gitbase/config
 You can start a server by providing a path which contains multiple git repositories `/path/to/repositories` with this command:
 
 ```
-$ gitbase server -v -g /path/to/repositories
+$ gitbase server -v -d /path/to/repositories
 ```
 
 ## Installing from source
