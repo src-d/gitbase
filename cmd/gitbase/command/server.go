@@ -15,7 +15,6 @@ import (
 	gopilosa "github.com/pilosa/go-pilosa"
 	"github.com/sirupsen/logrus"
 	"github.com/uber/jaeger-client-go/config"
-	git "gopkg.in/src-d/go-git.v4"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -258,30 +257,8 @@ func (c *Server) addMatch(match string) error {
 		}
 
 		if info.IsDir() {
-			ok, err := isGitRepo(path)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"path":  path,
-					"error": err,
-				}).Error("path couldn't be inspected")
-
-				return filepath.SkipDir
-			}
-
-			if ok {
-				if !c.DisableGit {
-					if err := c.pool.AddGitWithID(info.Name(), path); err != nil {
-						logrus.WithFields(logrus.Fields{
-							"id":    info.Name(),
-							"path":  path,
-							"error": err,
-						}).Error("repository could not be added")
-					}
-
-					logrus.WithField("path", path).Debug("repository added")
-				}
-
-				return filepath.SkipDir
+			if err := c.addIfGitRepo(path); err != nil {
+				return err
 			}
 
 			depth := strings.Count(path, string(os.PathSeparator)) - initDepth
@@ -293,7 +270,7 @@ func (c *Server) addMatch(match string) error {
 		}
 
 		if !c.DisableSiva &&
-			info.Mode().IsRegular() && strings.HasSuffix(info.Name(), ".siva") {
+			info.Mode().IsRegular() && gitbase.IsSivaFile(info.Name()) {
 			if err := c.pool.AddSivaFile(path); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"path":  path,
@@ -310,14 +287,34 @@ func (c *Server) addMatch(match string) error {
 	})
 }
 
-func isGitRepo(path string) (bool, error) {
-	if _, err := git.PlainOpen(path); err != nil {
-		if git.ErrRepositoryNotExists == err {
-			return false, nil
-		}
+func (c *Server) addIfGitRepo(path string) error {
+	ok, err := gitbase.IsGitRepo(path)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"path":  path,
+			"error": err,
+		}).Error("path couldn't be inspected")
 
-		return false, err
+		return filepath.SkipDir
 	}
 
-	return true, nil
+	if ok {
+		if !c.DisableGit {
+			base := filepath.Base(path)
+			if err := c.pool.AddGitWithID(base, path); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"id":    base,
+					"path":  path,
+					"error": err,
+				}).Error("repository could not be added")
+			}
+
+			logrus.WithField("path", path).Debug("repository added")
+		}
+
+		// either the repository is added or not, the path must be skipped
+		return filepath.SkipDir
+	}
+
+	return nil
 }

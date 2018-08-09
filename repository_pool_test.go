@@ -87,10 +87,6 @@ func TestRepositoryPoolGit(t *testing.T) {
 
 	pool := NewRepositoryPool()
 
-	err := pool.AddGit("/do/not/exist")
-	require.Error(err)
-	require.True(errRepoCannotOpen.Is(err))
-
 	require.NoError(pool.AddGit(path))
 
 	repo, err := pool.GetPos(0)
@@ -252,9 +248,8 @@ func TestRepositoryPoolSiva(t *testing.T) {
 				return err
 			}
 
-			err = pool.AddSivaFile(path)
-			if err != nil {
-				require.True(errInvalidRepoKind.Is(err))
+			if IsSivaFile(path) {
+				require.NoError(pool.AddSivaFile(path))
 			}
 
 			return nil

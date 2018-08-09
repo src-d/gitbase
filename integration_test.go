@@ -419,9 +419,8 @@ func TestMissingHeadRefs(t *testing.T) {
 				return err
 			}
 
-			err = pool.AddSivaFile(path)
-			if err != nil {
-				require.EqualError(err, "the repository is not: siva")
+			if gitbase.IsSivaFile(path) {
+				require.NoError(pool.AddSivaFile(path))
 			}
 
 			return nil

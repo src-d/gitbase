@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -181,24 +180,13 @@ func (p *RepositoryPool) AddGit(path string) error {
 // AddGitWithID checks if a git repository can be opened and adds it to the
 // pool. ID should be specified.
 func (p *RepositoryPool) AddGitWithID(id, path string) error {
-	_, err := git.PlainOpen(path)
-	if err != nil {
-		return errRepoCannotOpen.Wrap(err, path)
-	}
-
 	return p.Add(gitRepo(id, path))
 }
 
 // AddSivaFile adds to the pool the given file if it's a siva repository,
 // that is, has the .siva extension
 func (p *RepositoryPool) AddSivaFile(path string) error {
-	file := filepath.Base(path)
-	if !strings.HasSuffix(file, ".siva") {
-		return errInvalidRepoKind.New("siva")
-	}
-
-	p.Add(sivaRepo(path, path))
-	return nil
+	return p.Add(sivaRepo(path, path))
 }
 
 // GetPos retrieves a repository at a given position. If the position is

@@ -726,7 +726,12 @@ func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Cont
 	}
 
 	for _, f := range fixtures.ByTag("worktree") {
-		pool.AddGit(f.Worktree().Root())
+		path := f.Worktree().Root()
+		ok, err := IsGitRepo(path)
+		require.NoError(t, err)
+		if ok {
+			pool.AddGit(f.Worktree().Root())
+		}
 	}
 
 	session := NewSession(pool, WithSkipGitErrors(skipErrors))

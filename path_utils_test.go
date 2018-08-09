@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestPatternMatches(t *testing.T) {
@@ -39,4 +40,24 @@ func TestPatternMatches(t *testing.T) {
 			require.Exactly(t, test.expected, files)
 		})
 	}
+}
+
+func TestIsGitRepo(t *testing.T) {
+	var require = require.New(t)
+
+	ok, err := IsGitRepo("/do/not/exist")
+	require.NoError(err)
+	require.False(ok)
+
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
+	ok, err = IsGitRepo(path)
+	require.NoError(err)
+	require.True(ok)
+}
+
+func TestIsSivaFile(t *testing.T) {
+	var require = require.New(t)
+
+	require.True(IsSivaFile("is.siva"))
+	require.False(IsSivaFile("not-siva"))
 }

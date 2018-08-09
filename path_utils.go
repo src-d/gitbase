@@ -3,6 +3,9 @@ package gitbase
 import (
 	"path/filepath"
 	"regexp"
+	"strings"
+
+	git "gopkg.in/src-d/go-git.v4"
 )
 
 // RegMatchChars matches a string with a glob expression inside.
@@ -31,4 +34,22 @@ func removeDsStore(matches []string) []string {
 		}
 	}
 	return result
+}
+
+// IsGitRepo checks that the given path is a git repository.
+func IsGitRepo(path string) (bool, error) {
+	if _, err := git.PlainOpen(path); err != nil {
+		if git.ErrRepositoryNotExists == err {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
+//IsSivaFile checks that the given file is a siva file.
+func IsSivaFile(file string) bool {
+	return strings.HasSuffix(file, ".siva")
 }
