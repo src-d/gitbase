@@ -36,4 +36,4 @@ CMD gitbase server -v \
     --port=3306 \
     --user="$GITBASE_USER" \
     --password="$GITBASE_PASSWORD" \
-    --git="$GITBASE_REPOS"
+    --directories="$GITBASE_REPOS"
