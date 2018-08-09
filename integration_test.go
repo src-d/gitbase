@@ -33,8 +33,7 @@ func TestIntegration(t *testing.T) {
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
 
 	pool := gitbase.NewRepositoryPool()
-	_, err := pool.AddGitWithID("worktree", path)
-	require.NoError(t, err)
+	require.NoError(t, pool.AddGitWithID("worktree", path))
 
 	testCases := []struct {
 		query  string
@@ -357,8 +356,8 @@ func TestSquashCorrectness(t *testing.T) {
 		`SELECT repository_id, num_files FROM (
 			SELECT COUNT(f.*) num_files, f.repository_id
 			FROM ref_commits r
-			INNER JOIN commit_files cf 
-				ON r.commit_hash = cf.commit_hash 
+			INNER JOIN commit_files cf
+				ON r.commit_hash = cf.commit_hash
 				AND r.repository_id = cf.repository_id
 			INNER JOIN files f
 				ON cf.repository_id = f.repository_id
@@ -414,7 +413,20 @@ func TestMissingHeadRefs(t *testing.T) {
 	)
 
 	pool := gitbase.NewRepositoryPool()
-	require.NoError(pool.AddSivaDir(path))
+	require.NoError(
+		filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			err = pool.AddSivaFile(path)
+			if err != nil {
+				require.EqualError(err, "the repository is not: siva")
+			}
+
+			return nil
+		}),
+	)
 
 	engine := newBaseEngine()
 

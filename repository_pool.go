@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/osfs"
@@ -20,7 +19,7 @@ import (
 )
 
 var (
-	errInvalidRepoKind       = errors.NewKind("invalid repo kind: %d")
+	errInvalidRepoKind       = errors.NewKind("the repository is not: %s")
 	errRepoAlreadyRegistered = errors.NewKind("the repository is already registered: %s")
 	errRepoCannotOpen        = errors.NewKind("the repository could not be opened: %s")
 )
@@ -175,110 +174,31 @@ func (p *RepositoryPool) Add(repo repository) error {
 
 // AddGit checks if a git repository can be opened and adds it to the pool. It
 // also sets its path as ID.
-func (p *RepositoryPool) AddGit(path string) (string, error) {
+func (p *RepositoryPool) AddGit(path string) error {
 	return p.AddGitWithID(path, path)
 }
 
 // AddGitWithID checks if a git repository can be opened and adds it to the
 // pool. ID should be specified.
-func (p *RepositoryPool) AddGitWithID(id, path string) (string, error) {
+func (p *RepositoryPool) AddGitWithID(id, path string) error {
 	_, err := git.PlainOpen(path)
 	if err != nil {
-		return "", errRepoCannotOpen.Wrap(err, path)
+		return errRepoCannotOpen.Wrap(err, path)
 	}
 
-	err = p.Add(gitRepo(id, path))
-	if err != nil {
-		return "", err
-	}
-
-	return path, nil
-}
-
-// AddDir adds all direct subdirectories from path as git repos. Prefix is the
-// number of directories to strip from the ID.
-func (p *RepositoryPool) AddDir(prefix int, path string) error {
-	dirs, err := ioutil.ReadDir(path)
-	if err != nil {
-		return err
-	}
-
-	for _, f := range dirs {
-		if f.IsDir() {
-			pa := filepath.Join(path, f.Name())
-			id := IDFromPath(prefix, pa)
-			if _, err := p.AddGitWithID(id, pa); err != nil {
-				logrus.WithFields(logrus.Fields{
-					"id":    id,
-					"path":  pa,
-					"error": err,
-				}).Error("repository could not be added")
-			} else {
-				logrus.WithField("path", pa).Debug("repository added")
-			}
-		}
-	}
-
-	return nil
-}
-
-// AddSivaDir adds to the repository pool all siva files found inside the given
-// directory and in its children directories, but not the children of those
-// directories.
-func (p *RepositoryPool) AddSivaDir(path string) error {
-	return p.addSivaDir(path, path, true)
-}
-
-func (p *RepositoryPool) addSivaDir(root, path string, recursive bool) error {
-	dirs, err := ioutil.ReadDir(path)
-	if err != nil {
-		return err
-	}
-
-	for _, f := range dirs {
-		if f.IsDir() && recursive {
-			dirPath := filepath.Join(path, f.Name())
-			if err := p.addSivaDir(root, dirPath, false); err != nil {
-				return err
-			}
-		} else {
-			p.addSivaFile(root, path, f)
-		}
-	}
-
-	return nil
+	return p.Add(gitRepo(id, path))
 }
 
 // AddSivaFile adds to the pool the given file if it's a siva repository,
 // that is, has the .siva extension
-func (p *RepositoryPool) AddSivaFile(id, path string) {
+func (p *RepositoryPool) AddSivaFile(path string) error {
 	file := filepath.Base(path)
 	if !strings.HasSuffix(file, ".siva") {
-		logrus.WithField("file", file).Warn("found a non-siva file")
+		return errInvalidRepoKind.New("siva")
 	}
 
-	p.Add(sivaRepo(id, path))
-	logrus.WithField("file", file).Debug("repository added")
-}
-
-// addSivaFile adds to the pool the given file if it's a siva repository,
-// that is, has the .siva extension.
-func (p *RepositoryPool) addSivaFile(root, path string, f os.FileInfo) {
-	var relativeFileName string
-	if root == path {
-		relativeFileName = f.Name()
-	} else {
-		relPath := strings.TrimPrefix(strings.Replace(path, root, "", -1), "/\\")
-		relativeFileName = filepath.Join(relPath, f.Name())
-	}
-
-	if strings.HasSuffix(f.Name(), ".siva") {
-		path := filepath.Join(path, f.Name())
-		p.Add(sivaRepo(path, path))
-		logrus.WithField("file", relativeFileName).Debug("repository added")
-	} else {
-		logrus.WithField("file", relativeFileName).Warn("found a non-siva file, skipping")
-	}
+	p.Add(sivaRepo(path, path))
+	return nil
 }
 
 // GetPos retrieves a repository at a given position. If the position is

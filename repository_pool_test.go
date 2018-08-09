@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -88,13 +87,11 @@ func TestRepositoryPoolGit(t *testing.T) {
 
 	pool := NewRepositoryPool()
 
-	_, err := pool.AddGit("/do/not/exist")
+	err := pool.AddGit("/do/not/exist")
 	require.Error(err)
 	require.True(errRepoCannotOpen.Is(err))
 
-	id, err := pool.AddGit(path)
-	require.Equal(path, id)
-	require.NoError(err)
+	require.NoError(pool.AddGit(path))
 
 	repo, err := pool.GetPos(0)
 	require.Equal(path, repo.ID)
@@ -237,59 +234,6 @@ func TestRepositoryRowIterator(t *testing.T) {
 	wg.Wait()
 }
 
-func TestRepositoryPoolAddDir(t *testing.T) {
-	require := require.New(t)
-
-	tmpDir, err := ioutil.TempDir("", "gitbase-test")
-	require.NoError(err)
-
-	tmpDirLen := len(SplitPath(tmpDir))
-	max := 64
-
-	for i := 0; i < max; i++ {
-		orig := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
-		p := filepath.Join(tmpDir, strconv.Itoa(i))
-
-		err := os.Rename(orig, p)
-		require.NoError(err)
-	}
-
-	pool := NewRepositoryPool()
-	err = pool.AddDir(tmpDirLen, tmpDir)
-	require.NoError(err)
-
-	require.Equal(max, len(pool.repositories))
-
-	arrayID := make([]string, max)
-	arrayExpected := make([]string, max)
-
-	for i := 0; i < max; i++ {
-		repo, err := pool.GetPos(i)
-		require.NoError(err)
-		arrayID[i] = repo.ID
-		arrayExpected[i] = strconv.Itoa(i)
-
-		iter, err := repo.Repo.CommitObjects()
-		require.NoError(err)
-
-		counter := 0
-		for {
-			commit, err := iter.Next()
-			if err == io.EOF {
-				break
-			}
-
-			require.NoError(err)
-			require.NotNil(commit)
-			counter++
-		}
-
-		require.Equal(9, counter)
-	}
-
-	require.ElementsMatch(arrayExpected, arrayID)
-}
-
 func TestRepositoryPoolSiva(t *testing.T) {
 	require := require.New(t)
 
@@ -302,7 +246,21 @@ func TestRepositoryPoolSiva(t *testing.T) {
 		"_testdata",
 	)
 
-	require.NoError(pool.AddSivaDir(path))
+	require.NoError(
+		filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			err = pool.AddSivaFile(path)
+			if err != nil {
+				require.True(errInvalidRepoKind.Is(err))
+			}
+
+			return nil
+		}),
+	)
+
 	require.Equal(expectedRepos, len(pool.repositories))
 
 	expected := []int{606, 452, 75}

@@ -228,7 +228,7 @@ func (c *Server) addDirectories() error {
 }
 
 func (c *Server) addDirectory(directory string) error {
-	_, matches, err := gitbase.PatternMatches(directory)
+	matches, err := gitbase.PatternMatches(directory)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func (c *Server) addMatch(match string) error {
 
 			if ok {
 				if !c.DisableGit {
-					if _, err := c.pool.AddGitWithID(info.Name(), path); err != nil {
+					if err := c.pool.AddGitWithID(info.Name(), path); err != nil {
 						logrus.WithFields(logrus.Fields{
 							"id":    info.Name(),
 							"path":  path,
@@ -294,7 +294,15 @@ func (c *Server) addMatch(match string) error {
 
 		if !c.DisableSiva &&
 			info.Mode().IsRegular() && strings.HasSuffix(info.Name(), ".siva") {
-			c.pool.AddSivaFile(path, path)
+			if err := c.pool.AddSivaFile(path); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"path":  path,
+					"error": err,
+				}).Error("repository could not be addded")
+
+				return nil
+			}
+
 			logrus.WithField("path", path).Debug("repository added")
 		}
 
