@@ -171,22 +171,24 @@ func (p *RepositoryPool) Add(repo repository) error {
 	return nil
 }
 
-// AddGit checks if a git repository can be opened and adds it to the pool. It
-// also sets its path as ID.
+// AddGit adds a git repository to the pool. It also sets its path as ID.
 func (p *RepositoryPool) AddGit(path string) error {
 	return p.AddGitWithID(path, path)
 }
 
-// AddGitWithID checks if a git repository can be opened and adds it to the
-// pool. ID should be specified.
+// AddGitWithID adds a git repository to the pool. ID should be specified.
 func (p *RepositoryPool) AddGitWithID(id, path string) error {
 	return p.Add(gitRepo(id, path))
 }
 
-// AddSivaFile adds to the pool the given file if it's a siva repository,
-// that is, has the .siva extension
+// AddSivaFile adds a siva file to the pool. It also sets its path as ID.
 func (p *RepositoryPool) AddSivaFile(path string) error {
 	return p.Add(sivaRepo(path, path))
+}
+
+// AddSivaFileWithID adds a siva file to the pool. ID should be specified.
+func (p *RepositoryPool) AddSivaFileWithID(id, path string) error {
+	return p.Add(sivaRepo(id, path))
 }
 
 // GetPos retrieves a repository at a given position. If the position is
