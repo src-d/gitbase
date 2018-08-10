@@ -271,7 +271,7 @@ func (c *Server) addMatch(match string) error {
 
 		if !c.DisableSiva &&
 			info.Mode().IsRegular() && gitbase.IsSivaFile(info.Name()) {
-			if err := c.pool.AddSivaFile(path); err != nil {
+			if err := c.pool.AddSivaFileWithID(info.Name(), path); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"path":  path,
 					"error": err,
