@@ -3,7 +3,9 @@ package tools
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"gopkg.in/bblfsh/sdk.v1/uast"
@@ -46,10 +48,105 @@ import (
 import "C"
 
 var (
-	findMutex sync.Mutex
-	spool     cstringPool
-	kpool     = make(map[*uast.Node][]string)
+	lastHandle handle // atomic
+
+	ctxmu sync.RWMutex
+	ctxes = make(map[*C.Uast]*Context)
+
+	global struct {
+		sync.Mutex
+		ctx *Context
+	}
 )
+
+func init() {
+	global.ctx = NewContext()
+}
+
+type handle uint64
+
+func nextHandle() handle {
+	return handle(atomic.AddUint64((*uint64)(&lastHandle), 1))
+}
+
+func freeString(s *C.char) {
+	C.free(unsafe.Pointer(s))
+}
+
+// NewContext creates a new query context. Caller should close the context to release resources.
+func NewContext() *Context {
+	c := &Context{
+		ctx:   C.CreateUast(),
+		nodes: make(map[handle]*uast.Node),
+		keys:  make(map[*uast.Node][]string),
+	}
+	ctxmu.Lock()
+	ctxes[c.ctx] = c
+	ctxmu.Unlock()
+	return c
+}
+
+func getCtx(ctx *C.Uast) *Context {
+	ctxmu.RLock()
+	c := ctxes[ctx]
+	ctxmu.RUnlock()
+	return c
+}
+
+type Context struct {
+	ctx   *C.Uast
+	spool cstringPool
+	nodes map[handle]*uast.Node
+	keys  map[*uast.Node][]string
+}
+
+func (c *Context) cstring(s string) *C.char {
+	return c.spool.getCstring(s)
+}
+
+func (c *Context) reset() {
+	c.spool.release()
+	c.nodes = make(map[handle]*uast.Node)
+	c.keys = make(map[*uast.Node][]string)
+}
+func (c *Context) Close() error {
+	if c.ctx == nil {
+		return nil
+	}
+	c.reset()
+	ctxmu.Lock()
+	delete(ctxes, c.ctx)
+	ctxmu.Unlock()
+	C.UastFree(c.ctx)
+	c.ctx = nil
+	return nil
+}
+
+type ErrInvalidArgument struct {
+	Message string
+}
+
+func (e *ErrInvalidArgument) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return "invalid argument"
+}
+
+type errInternal struct {
+	Method  string
+	Message string
+}
+
+func (e *errInternal) Error() string {
+	if e.Method == "" {
+		if e.Message == "" {
+			return "internal error"
+		}
+		return e.Message
+	}
+	return fmt.Sprintf("%s() failed: %s", e.Method, e.Message)
+}
 
 var itMutex sync.Mutex
 
@@ -69,176 +166,202 @@ const (
 
 // Iterator allows for traversal over a UAST tree.
 type Iterator struct {
+	c        *Context
 	root     *uast.Node
-	iterPtr  C.uintptr_t
+	iterPtr  *C.UastIterator
 	finished bool
 }
 
-func init() {
-	C.CreateUast()
+func (c *Context) nodeToHandleC(node *uast.Node) C.NodeHandle {
+	return C.NodeHandle(c.nodeToHandle(node))
 }
-
-func nodeToPtr(node *uast.Node) C.uintptr_t {
-	return C.uintptr_t(uintptr(unsafe.Pointer(node)))
-}
-
-func ptrToNode(ptr C.uintptr_t) *uast.Node {
-	return (*uast.Node)(unsafe.Pointer(uintptr(ptr)))
-}
-
-// initFilter converts the query string and node pointer to C types. It acquires findMutex
-// and initializes the string pool. The caller should defer returned function to release
-// the resources.
-func initFilter(node *uast.Node, xpath string) (*C.char, C.uintptr_t, func()) {
-	findMutex.Lock()
-	cquery := spool.getCstring(xpath)
-	ptr := nodeToPtr(node)
-
-	return cquery, ptr, func() {
-		spool.release()
-		kpool = make(map[*uast.Node][]string)
-		findMutex.Unlock()
+func (c *Context) nodeToHandle(node *uast.Node) handle {
+	if c == nil || node == nil {
+		return 0
 	}
+	h := nextHandle()
+	c.nodes[h] = node
+	return h
+}
+
+func (c *Context) handleToNodeC(h C.NodeHandle) *uast.Node {
+	return c.handleToNode(handle(h))
+}
+func (c *Context) handleToNode(h handle) *uast.Node {
+	if c == nil || h == 0 {
+		return nil
+	}
+	n, ok := c.nodes[h]
+	if !ok {
+		panic(fmt.Errorf("unknown handle: %x", h))
+	}
+	return n
 }
 
 func cError(name string) error {
-	e := C.Error()
-	err := fmt.Errorf("%s() failed: %s", name, C.GoString(e))
+	e := C.LastError()
+	msg := strings.TrimSpace(C.GoString(e))
 	C.free(unsafe.Pointer(e))
-	return err
+	// TODO: find a way to access this error code or constant
+	if strings.HasPrefix(msg, "Invalid expression") {
+		return &ErrInvalidArgument{Message: msg}
+	}
+	return &errInternal{Method: name, Message: msg}
+}
+
+var filterMu sync.Mutex
+
+func (c *Context) runFilter(fnc func()) {
+	// TODO: find a way to create XPath context objects
+	filterMu.Lock()
+	defer filterMu.Unlock()
+	fnc()
+	c.reset()
 }
 
 // Filter takes a `*uast.Node` and a xpath query and filters the tree,
 // returning the list of nodes that satisfy the given query.
 // Filter is thread-safe but not concurrent by an internal global lock.
+//
+// Deprecated: use Context.Filter
 func Filter(node *uast.Node, xpath string) ([]*uast.Node, error) {
+	global.Lock()
+	defer global.Unlock()
+	return global.ctx.Filter(node, xpath)
+}
+
+// Filter takes a `*uast.Node` and a xpath query and filters the tree,
+// returning the list of nodes that satisfy the given query.
+// Filter is thread-safe but not concurrent by an internal global lock.
+func (c *Context) Filter(node *uast.Node, xpath string) (out []*uast.Node, err error) {
 	if len(xpath) == 0 || node == nil {
-		return nil, nil
+		return
 	}
+	c.runFilter(func() {
+		cquery := C.CString(xpath)
+		nodes := C.UastFilter(c.ctx, c.nodeToHandleC(node), cquery)
+		freeString(cquery)
 
-	cquery, ptr, closer := initFilter(node, xpath)
-	defer closer()
+		if nodes == nil {
+			err = cError("UastFilter")
+			return
+		}
+		defer C.NodesFree(nodes)
 
-	if !C.Filter(ptr, cquery) {
-		return nil, cError("UastFilter")
-	}
-
-	nu := int(C.Size())
-	results := make([]*uast.Node, nu)
-	for i := 0; i < nu; i++ {
-		results[i] = ptrToNode(C.At(C.int(i)))
-	}
-	return results, nil
+		n := int(C.NodesSize(nodes))
+		out = make([]*uast.Node, n)
+		for i := 0; i < n; i++ {
+			h := C.NodeAt(nodes, C.int(i))
+			out[i] = c.handleToNodeC(h)
+		}
+	})
+	return
 }
 
 // FilterBool takes a `*uast.Node` and a xpath query with a boolean
 // return type (e.g. when using XPath functions returning a boolean type).
 // FilterBool is thread-safe but not concurrent by an internal global lock.
+//
+// Deprecated: use Context.FilterBool
 func FilterBool(node *uast.Node, xpath string) (bool, error) {
-	if len(xpath) == 0 || node == nil {
-		return false, nil
-	}
-
-	cquery, ptr, closer := initFilter(node, xpath)
-	defer closer()
-
-	res := C.FilterBool(ptr, cquery)
-	if res < 0 {
-		return false, cError("UastFilterBool")
-	}
-
-	var gores bool
-	if res == 0 {
-		gores = false
-	} else if res == 1 {
-		gores = true
-	} else {
-		panic("Implementation error on FilterBool")
-	}
-
-	return gores, nil
+	global.Lock()
+	defer global.Unlock()
+	return global.ctx.FilterBool(node, xpath)
 }
 
-// FilterBool takes a `*uast.Node` and a xpath query with a float
+// FilterBool takes a `*uast.Node` and a xpath query with a boolean
+// return type (e.g. when using XPath functions returning a boolean type).
+// FilterBool is thread-safe but not concurrent by an internal global lock.
+func (c *Context) FilterBool(node *uast.Node, xpath string) (out bool, err error) {
+	if len(xpath) == 0 || node == nil {
+		return
+	}
+	c.runFilter(func() {
+		var (
+			ok     C.bool
+			cquery = C.CString(xpath)
+		)
+		res := C.UastFilterBool(c.ctx, c.nodeToHandleC(node), cquery, &ok)
+		freeString(cquery)
+		if !bool(ok) {
+			err = cError("UastFilterBool")
+			return
+		}
+		out = bool(res)
+	})
+	return
+}
+
+// FilterNumber takes a `*uast.Node` and a xpath query with a float
 // return type (e.g. when using XPath functions returning a float type).
 // FilterNumber is thread-safe but not concurrent by an internal global lock.
+//
+// Deprecated: use Context.FilterNumber
 func FilterNumber(node *uast.Node, xpath string) (float64, error) {
+	global.Lock()
+	defer global.Unlock()
+	return global.ctx.FilterNumber(node, xpath)
+}
+
+// FilterNumber takes a `*uast.Node` and a xpath query with a float
+// return type (e.g. when using XPath functions returning a float type).
+// FilterNumber is thread-safe but not concurrent by an internal global lock.
+func (c *Context) FilterNumber(node *uast.Node, xpath string) (out float64, err error) {
 	if len(xpath) == 0 || node == nil {
-		return 0, nil
+		return
 	}
-
-	cquery, ptr, closer := initFilter(node, xpath)
-	defer closer()
-
-	var ok C.int
-	res := C.FilterNumber(ptr, cquery, &ok)
-	if ok == 0 {
-		return 0.0, cError("UastFilterNumber")
-	}
-
-	return float64(res), nil
+	c.runFilter(func() {
+		var (
+			ok     C.bool
+			cquery = C.CString(xpath)
+		)
+		res := C.UastFilterNumber(c.ctx, c.nodeToHandleC(node), cquery, &ok)
+		freeString(cquery)
+		if !bool(ok) {
+			err = cError("UastFilterNumber")
+			return
+		}
+		out = float64(res)
+	})
+	return
 }
 
 // FilterString takes a `*uast.Node` and a xpath query with a string
 // return type (e.g. when using XPath functions returning a string type).
 // FilterString is thread-safe but not concurrent by an internal global lock.
+//
+// Deprecated: use Context.FilterString
 func FilterString(node *uast.Node, xpath string) (string, error) {
+	global.Lock()
+	defer global.Unlock()
+	return global.ctx.FilterString(node, xpath)
+}
+
+// FilterString takes a `*uast.Node` and a xpath query with a string
+// return type (e.g. when using XPath functions returning a string type).
+// FilterString is thread-safe but not concurrent by an internal global lock.
+func (c *Context) FilterString(node *uast.Node, xpath string) (out string, err error) {
 	if len(xpath) == 0 || node == nil {
-		return "", nil
+		return
 	}
-
-	cquery, ptr, closer := initFilter(node, xpath)
-	defer closer()
-
-	var res *C.char
-	res = C.FilterString(ptr, cquery)
-	if res == nil {
-		return "", cError("UastFilterString")
-	}
-
-	return C.GoString(res), nil
+	c.runFilter(func() {
+		var (
+			res    *C.char
+			cquery = C.CString(xpath)
+		)
+		res = C.UastFilterString(c.ctx, c.nodeToHandleC(node), cquery)
+		freeString(cquery)
+		if res == nil {
+			err = cError("UastFilterString")
+			return
+		}
+		out = C.GoString(res)
+	})
+	return
 }
 
-//export goGetInternalType
-func goGetInternalType(ptr C.uintptr_t) *C.char {
-	return spool.getCstring(ptrToNode(ptr).InternalType)
-}
-
-//export goGetToken
-func goGetToken(ptr C.uintptr_t) *C.char {
-	return spool.getCstring(ptrToNode(ptr).Token)
-}
-
-//export goGetChildrenSize
-func goGetChildrenSize(ptr C.uintptr_t) C.int {
-	return C.int(len(ptrToNode(ptr).Children))
-}
-
-//export goGetChild
-func goGetChild(ptr C.uintptr_t, index C.int) C.uintptr_t {
-	child := ptrToNode(ptr).Children[int(index)]
-	return nodeToPtr(child)
-}
-
-//export goGetRolesSize
-func goGetRolesSize(ptr C.uintptr_t) C.int {
-	return C.int(len(ptrToNode(ptr).Roles))
-}
-
-//export goGetRole
-func goGetRole(ptr C.uintptr_t, index C.int) C.uint16_t {
-	role := ptrToNode(ptr).Roles[int(index)]
-	return C.uint16_t(role)
-}
-
-//export goGetPropertiesSize
-func goGetPropertiesSize(ptr C.uintptr_t) C.int {
-	return C.int(len(ptrToNode(ptr).Properties))
-}
-
-func getPropertyKeys(ptr C.uintptr_t) []string {
-	node := ptrToNode(ptr)
-	if keys, ok := kpool[node]; ok {
+func (c *Context) getPropertyKeys(node *uast.Node) []string {
+	if keys, ok := c.keys[node]; ok {
 		return keys
 	}
 	p := node.Properties
@@ -247,31 +370,123 @@ func getPropertyKeys(ptr C.uintptr_t) []string {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	kpool[node] = keys
+	c.keys[node] = keys
 	return keys
 }
 
+//export goGetInternalType
+func goGetInternalType(ctx *C.Uast, ptr C.NodeHandle) *C.char {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return nil
+	}
+	return c.cstring(n.InternalType)
+}
+
+//export goGetToken
+func goGetToken(ctx *C.Uast, ptr C.NodeHandle) *C.char {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return nil
+	}
+	return c.cstring(n.Token)
+}
+
+//export goGetChildrenSize
+func goGetChildrenSize(ctx *C.Uast, ptr C.NodeHandle) C.int {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	return C.int(len(n.Children))
+}
+
+//export goGetChild
+func goGetChild(ctx *C.Uast, ptr C.NodeHandle, index C.int) C.NodeHandle {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	child := n.Children[int(index)]
+	return c.nodeToHandleC(child)
+}
+
+//export goGetRolesSize
+func goGetRolesSize(ctx *C.Uast, ptr C.NodeHandle) C.int {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	return C.int(len(n.Roles))
+}
+
+//export goGetRole
+func goGetRole(ctx *C.Uast, ptr C.NodeHandle, index C.int) C.uint16_t {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	role := n.Roles[int(index)]
+	return C.uint16_t(role)
+}
+
+//export goGetPropertiesSize
+func goGetPropertiesSize(ctx *C.Uast, ptr C.NodeHandle) C.int {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	return C.int(len(n.Properties))
+}
+
 //export goGetPropertyKey
-func goGetPropertyKey(ptr C.uintptr_t, index C.int) *C.char {
-	keys := getPropertyKeys(ptr)
-	return spool.getCstring(keys[int(index)])
+func goGetPropertyKey(ctx *C.Uast, ptr C.NodeHandle, index C.int) *C.char {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return nil
+	}
+	keys := c.getPropertyKeys(n)
+	return c.cstring(keys[int(index)])
 }
 
 //export goGetPropertyValue
-func goGetPropertyValue(ptr C.uintptr_t, index C.int) *C.char {
-	keys := getPropertyKeys(ptr)
-	p := ptrToNode(ptr).Properties
-	return spool.getCstring(p[keys[int(index)]])
+func goGetPropertyValue(ctx *C.Uast, ptr C.NodeHandle, index C.int) *C.char {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return nil
+	}
+	keys := c.getPropertyKeys(n)
+	p := n.Properties
+	return c.cstring(p[keys[int(index)]])
 }
 
 //export goHasStartOffset
-func goHasStartOffset(ptr C.uintptr_t) C.bool {
-	return ptrToNode(ptr).StartPosition != nil
+func goHasStartOffset(ctx *C.Uast, ptr C.NodeHandle) C.bool {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return false
+	}
+	return n.StartPosition != nil
 }
 
 //export goGetStartOffset
-func goGetStartOffset(ptr C.uintptr_t) C.uint32_t {
-	p := ptrToNode(ptr).StartPosition
+func goGetStartOffset(ctx *C.Uast, ptr C.NodeHandle) C.uint32_t {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	p := n.StartPosition
 	if p != nil {
 		return C.uint32_t(p.Offset)
 	}
@@ -279,13 +494,23 @@ func goGetStartOffset(ptr C.uintptr_t) C.uint32_t {
 }
 
 //export goHasStartLine
-func goHasStartLine(ptr C.uintptr_t) C.bool {
-	return ptrToNode(ptr).StartPosition != nil
+func goHasStartLine(ctx *C.Uast, ptr C.NodeHandle) C.bool {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return false
+	}
+	return n.StartPosition != nil
 }
 
 //export goGetStartLine
-func goGetStartLine(ptr C.uintptr_t) C.uint32_t {
-	p := ptrToNode(ptr).StartPosition
+func goGetStartLine(ctx *C.Uast, ptr C.NodeHandle) C.uint32_t {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	p := n.StartPosition
 	if p != nil {
 		return C.uint32_t(p.Line)
 	}
@@ -293,13 +518,23 @@ func goGetStartLine(ptr C.uintptr_t) C.uint32_t {
 }
 
 //export goHasStartCol
-func goHasStartCol(ptr C.uintptr_t) C.bool {
-	return ptrToNode(ptr).StartPosition != nil
+func goHasStartCol(ctx *C.Uast, ptr C.NodeHandle) C.bool {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return false
+	}
+	return n.StartPosition != nil
 }
 
 //export goGetStartCol
-func goGetStartCol(ptr C.uintptr_t) C.uint32_t {
-	p := ptrToNode(ptr).StartPosition
+func goGetStartCol(ctx *C.Uast, ptr C.NodeHandle) C.uint32_t {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	p := n.StartPosition
 	if p != nil {
 		return C.uint32_t(p.Col)
 	}
@@ -307,13 +542,23 @@ func goGetStartCol(ptr C.uintptr_t) C.uint32_t {
 }
 
 //export goHasEndOffset
-func goHasEndOffset(ptr C.uintptr_t) C.bool {
-	return ptrToNode(ptr).EndPosition != nil
+func goHasEndOffset(ctx *C.Uast, ptr C.NodeHandle) C.bool {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return false
+	}
+	return n.EndPosition != nil
 }
 
 //export goGetEndOffset
-func goGetEndOffset(ptr C.uintptr_t) C.uint32_t {
-	p := ptrToNode(ptr).EndPosition
+func goGetEndOffset(ctx *C.Uast, ptr C.NodeHandle) C.uint32_t {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	p := n.EndPosition
 	if p != nil {
 		return C.uint32_t(p.Offset)
 	}
@@ -321,13 +566,23 @@ func goGetEndOffset(ptr C.uintptr_t) C.uint32_t {
 }
 
 //export goHasEndLine
-func goHasEndLine(ptr C.uintptr_t) C.bool {
-	return ptrToNode(ptr).EndPosition != nil
+func goHasEndLine(ctx *C.Uast, ptr C.NodeHandle) C.bool {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return false
+	}
+	return n.EndPosition != nil
 }
 
 //export goGetEndLine
-func goGetEndLine(ptr C.uintptr_t) C.uint32_t {
-	p := ptrToNode(ptr).EndPosition
+func goGetEndLine(ctx *C.Uast, ptr C.NodeHandle) C.uint32_t {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	p := n.EndPosition
 	if p != nil {
 		return C.uint32_t(p.Line)
 	}
@@ -335,13 +590,23 @@ func goGetEndLine(ptr C.uintptr_t) C.uint32_t {
 }
 
 //export goHasEndCol
-func goHasEndCol(ptr C.uintptr_t) C.bool {
-	return ptrToNode(ptr).EndPosition != nil
+func goHasEndCol(ctx *C.Uast, ptr C.NodeHandle) C.bool {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return false
+	}
+	return n.EndPosition != nil
 }
 
 //export goGetEndCol
-func goGetEndCol(ptr C.uintptr_t) C.uint32_t {
-	p := ptrToNode(ptr).EndPosition
+func goGetEndCol(ctx *C.Uast, ptr C.NodeHandle) C.uint32_t {
+	c := getCtx(ctx)
+	n := c.handleToNodeC(ptr)
+	if n == nil {
+		return 0
+	}
+	p := n.EndPosition
 	if p != nil {
 		return C.uint32_t(p.Col)
 	}
@@ -353,16 +618,26 @@ func goGetEndCol(ptr C.uintptr_t) C.uint32_t {
 // the iteration have finished or you don't need the iterator anymore you must
 // dispose it with the Dispose() method (or call it with `defer`).
 func NewIterator(node *uast.Node, order TreeOrder) (*Iterator, error) {
+	global.Lock()
+	defer global.Unlock()
+	return global.ctx.NewIterator(node, order)
+}
+
+// NewIterator constructs a new Iterator starting from the given `Node` and
+// iterating with the traversal strategy given by the `order` parameter. Once
+// the iteration have finished or you don't need the iterator anymore you must
+// dispose it with the Dispose() method (or call it with `defer`).
+func (c *Context) NewIterator(node *uast.Node, order TreeOrder) (*Iterator, error) {
 	itMutex.Lock()
 	defer itMutex.Unlock()
 
-	ptr := nodeToPtr(node)
-	it := C.IteratorNew(ptr, C.int(order))
-	if it == 0 {
+	it := C.UastIteratorNew(c.ctx, c.nodeToHandleC(node), C.TreeOrder(int(order)))
+	if it == nil {
 		return nil, cError("UastIteratorNew")
 	}
 
 	return &Iterator{
+		c:        c,
 		root:     node,
 		iterPtr:  it,
 		finished: false,
@@ -372,40 +647,39 @@ func NewIterator(node *uast.Node, order TreeOrder) (*Iterator, error) {
 // Next retrieves the next `Node` in the tree's traversal or `nil` if there are no more
 // nodes. Calling `Next()` on a finished iterator after the first `nil` will
 // return an error.This is thread-safe but not concurrent by an internal global lock.
-func (i *Iterator) Next() (*uast.Node, error) {
-	itMutex.Lock()
-	defer itMutex.Unlock()
-
-	if i.finished {
+func (it *Iterator) Next() (*uast.Node, error) {
+	if it.finished {
 		return nil, fmt.Errorf("Next() called on finished iterator")
 	}
 
-	pnode := C.IteratorNext(i.iterPtr)
-	if pnode == 0 {
+	itMutex.Lock()
+	defer itMutex.Unlock()
+
+	h := handle(C.UastIteratorNext(it.iterPtr))
+	if h == 0 {
 		// End of the iteration
-		i.finished = true
+		it.finished = true
 		return nil, nil
 	}
-	return ptrToNode(pnode), nil
+	return it.c.handleToNode(h), nil
 }
 
 // Iterate function is similar to Next() but returns the `Node`s in a channel. It's mean
 // to be used with the `for node := range myIter.Iterate() {}` loop.
-func (i *Iterator) Iterate() <-chan *uast.Node {
+func (it *Iterator) Iterate() <-chan *uast.Node {
 	c := make(chan *uast.Node)
-	if i.finished {
+	if it.finished {
 		close(c)
 		return c
 	}
 
 	go func() {
+		defer close(c)
 		for {
-			n, err := i.Next()
+			n, err := it.Next()
 			if n == nil || err != nil {
-				close(c)
-				break
+				return
 			}
-
 			c <- n
 		}
 	}()
@@ -416,14 +690,24 @@ func (i *Iterator) Iterate() <-chan *uast.Node {
 // Dispose must be called once you've finished using the iterator or preventively
 // with `defer` to free the iterator resources. Failing to do so would produce
 // a memory leak.
-func (i *Iterator) Dispose() {
+//
+// Deprecated: use Close
+func (it *Iterator) Dispose() {
+	_ = it.Close()
+}
+
+// Close must be called once you've finished using the iterator or preventively
+// with `defer` to free the iterator resources. Failing to do so would produce
+// a memory leak.
+func (it *Iterator) Close() error {
 	itMutex.Lock()
 	defer itMutex.Unlock()
 
-	if i.iterPtr != 0 {
-		C.IteratorFree(i.iterPtr)
-		i.iterPtr = 0
+	if it.iterPtr != nil {
+		C.UastIteratorFree(it.iterPtr)
+		it.iterPtr = nil
 	}
-	i.finished = true
-	i.root = nil
+	it.finished = true
+	it.root = nil
+	return nil
 }

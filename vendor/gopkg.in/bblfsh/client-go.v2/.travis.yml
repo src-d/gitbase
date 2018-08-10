@@ -1,6 +1,8 @@
 language: go
 go_import_path: gopkg.in/bblfsh/client-go.v2
 
+env:
+  - BBLFSHD_VERSION=v2.6.1 BBLFSH_PYTHON_VERSION=v2.2.1
 install:
   - |
     if [[ $TRAVIS_OS_NAME = linux ]]; then
@@ -9,8 +11,8 @@ install:
       sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install gcc-6 g++-6
       sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
       sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
-      docker run --privileged -d -p 9432:9432 --name bblfsh bblfsh/bblfshd
-      docker exec -it bblfsh bblfshctl driver install python bblfsh/python-driver
+      docker run --privileged -d -p 9432:9432 --name bblfshd bblfsh/bblfshd:$BBLFSHD_VERSION
+      docker exec bblfshd bblfshctl driver install bblfsh/python-driver:$BBLFSH_PYTHON_VERSION
     fi
   - make dependencies
 

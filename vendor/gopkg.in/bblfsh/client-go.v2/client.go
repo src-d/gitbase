@@ -1,42 +1,55 @@
 package bblfsh
 
 import (
+	"context"
 	"time"
 
 	"google.golang.org/grpc"
-	"gopkg.in/bblfsh/sdk.v1/protocol"
+	protocol1 "gopkg.in/bblfsh/sdk.v1/protocol"
+	protocol2 "gopkg.in/bblfsh/sdk.v2/protocol"
 )
 
 // Client holds the public client API to interact with the bblfsh daemon.
 type Client struct {
 	*grpc.ClientConn
-	service protocol.ProtocolServiceClient
+	service1 protocol1.ProtocolServiceClient
+	service2 protocol2.DriverClient
 }
 
-// NewClient returns a new bblfsh client given a bblfshd endpoint.
-func NewClient(endpoint string) (*Client, error) {
+// NewClientContext returns a new bblfsh client given a bblfshd endpoint.
+func NewClientContext(ctx context.Context, endpoint string) (*Client, error) {
 	opts := []grpc.DialOption{
-		grpc.WithTimeout(5 * time.Second),
 		grpc.WithBlock(),
 		grpc.WithInsecure(),
 	}
 
-	conn, err := grpc.Dial(endpoint, opts...)
+	conn, err := grpc.DialContext(ctx, endpoint, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
-		ClientConn: conn,
-		service:    protocol.NewProtocolServiceClient(conn),
-	}, nil
+	return NewClientWithConnection(conn)
+}
+
+// NewClient is the same as NewClientContext, but assumes a default timeout for the connection.
+func NewClient(endpoint string) (*Client, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return NewClientContext(ctx, endpoint)
 }
 
 // NewClientWithConnection returns a new bblfsh client given a grpc connection.
 func NewClientWithConnection(conn *grpc.ClientConn) (*Client, error) {
 	return &Client{
 		ClientConn: conn,
-		service:    protocol.NewProtocolServiceClient(conn),
+		service1:   protocol1.NewProtocolServiceClient(conn),
+		service2:   protocol2.NewDriverClient(conn),
 	}, nil
+}
+
+// NewParseRequestV2 is a parsing request to get the UAST.
+func (c *Client) NewParseRequestV2() *ParseRequestV2 {
+	return &ParseRequestV2{client: c}
 }
 
 // NewParseRequest is a parsing request to get the UAST.

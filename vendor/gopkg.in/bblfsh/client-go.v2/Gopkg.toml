@@ -1,0 +1,26 @@
+# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
+# for detailed Gopkg.toml documentation.
+
+[[constraint]]
+  name = "github.com/jessevdk/go-flags"
+  version = "1.4.x"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.2.x"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.14.x"
+
+[[constraint]]
+  name = "gopkg.in/bblfsh/sdk.v1"
+  version = "1.16.x"
+
+[[constraint]]
+  branch = "v2"
+  name = "gopkg.in/bblfsh/sdk.v2"
+
+[prune]
+  go-tests = true
+  unused-packages = true
