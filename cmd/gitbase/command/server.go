@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
@@ -34,8 +35,10 @@ const (
 // Server represents the `server` command of gitbase cli tool.
 type Server struct {
 	Verbose       bool     `short:"v" description:"Activates the verbose mode"`
-	Git           []string `short:"g" long:"git" description:"Path where the git repositories are located, multiple directories can be defined. Accepts globs."`
-	Siva          []string `long:"siva" description:"Path where the siva repositories are located, multiple directories can be defined. Accepts globs."`
+	Directories   []string `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
+	Depth         int      `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
+	DisableGit    bool     `long:"no-git" description:"disable the load of git standard repositories."`
+	DisableSiva   bool     `long:"no-siva" description:"disable the load of siva files."`
 	Host          string   `long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port          int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
@@ -196,34 +199,26 @@ func (c *Server) registerDrivers() error {
 }
 
 func (c *Server) addDirectories() error {
-	if len(c.Git) == 0 && len(c.Siva) == 0 {
-		logrus.Error("At least one git folder or siva folder should be provided.")
+	if len(c.Directories) == 0 {
+		logrus.Error("At least one folder should be provided.")
 	}
 
-	for _, pattern := range c.Git {
-		if err := c.addGitPattern(pattern); err != nil {
-			return err
-		}
+	if c.DisableGit && c.DisableSiva {
+		logrus.Warn("The load of git repositories and siva files are disabled," +
+			" no repository will be added.")
+
+		return nil
 	}
 
-	for _, pattern := range c.Siva {
-		if err := c.addSivaPattern(pattern); err != nil {
-			return err
-		}
+	if c.Depth < 1 {
+		logrus.Warn("--depth flag set to a number less than 1," +
+			" no repository will be added.")
+
+		return nil
 	}
 
-	return nil
-}
-
-func (c *Server) addGitPattern(pattern string) error {
-	prefix, matches, err := gitbase.PatternMatches(pattern)
-	if err != nil {
-		return err
-	}
-
-	for _, m := range matches {
-		logrus.WithField("dir", m).Debug("git repositories directory added")
-		if err := c.pool.AddDir(prefix, m); err != nil {
+	for _, directory := range c.Directories {
+		if err := c.addDirectory(directory); err != nil {
 			return err
 		}
 	}
@@ -231,17 +226,94 @@ func (c *Server) addGitPattern(pattern string) error {
 	return nil
 }
 
-func (c *Server) addSivaPattern(pattern string) error {
-	matches, err := filepath.Glob(pattern)
+func (c *Server) addDirectory(directory string) error {
+	matches, err := gitbase.PatternMatches(directory)
 	if err != nil {
 		return err
 	}
 
-	for _, m := range matches {
-		logrus.WithField("dir", m).Debug("siva repositories directory added")
-		if err := c.pool.AddSivaDir(m); err != nil {
+	for _, match := range matches {
+		if err := c.addMatch(match); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"path":  match,
+				"error": err,
+			}).Error("path couldn't be inspected")
+		}
+	}
+
+	return nil
+}
+
+func (c *Server) addMatch(match string) error {
+	root, err := filepath.Abs(match)
+	if err != nil {
+		return err
+	}
+
+	initDepth := strings.Count(root, string(os.PathSeparator))
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
 			return err
 		}
+
+		if info.IsDir() {
+			if err := c.addIfGitRepo(path); err != nil {
+				return err
+			}
+
+			depth := strings.Count(path, string(os.PathSeparator)) - initDepth
+			if depth >= c.Depth {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if !c.DisableSiva &&
+			info.Mode().IsRegular() && gitbase.IsSivaFile(info.Name()) {
+			if err := c.pool.AddSivaFile(path); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"path":  path,
+					"error": err,
+				}).Error("repository could not be addded")
+
+				return nil
+			}
+
+			logrus.WithField("path", path).Debug("repository added")
+		}
+
+		return nil
+	})
+}
+
+func (c *Server) addIfGitRepo(path string) error {
+	ok, err := gitbase.IsGitRepo(path)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"path":  path,
+			"error": err,
+		}).Error("path couldn't be inspected")
+
+		return filepath.SkipDir
+	}
+
+	if ok {
+		if !c.DisableGit {
+			base := filepath.Base(path)
+			if err := c.pool.AddGitWithID(base, path); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"id":    base,
+					"path":  path,
+					"error": err,
+				}).Error("repository could not be added")
+			}
+
+			logrus.WithField("path", path).Debug("repository added")
+		}
+
+		// either the repository is added or not, the path must be skipped
+		return filepath.SkipDir
 	}
 
 	return nil

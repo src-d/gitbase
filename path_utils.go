@@ -1,31 +1,29 @@
 package gitbase
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	git "gopkg.in/src-d/go-git.v4"
 )
 
 // RegMatchChars matches a string with a glob expression inside.
 var RegMatchChars = regexp.MustCompile(`(^|[^\\])([*[?])`)
 
-// PatternMatches returns the depth of the fixed part of a patters, the paths
-// matched and any error found.
-func PatternMatches(pattern string) (int, []string, error) {
+// PatternMatches returns the paths matched and any error found.
+func PatternMatches(pattern string) ([]string, error) {
 	abs, err := filepath.Abs(pattern)
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
 	matches, err := filepath.Glob(abs)
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	depth := PatternPrefixDepth(abs)
-
-	return depth, removeDsStore(matches), nil
+	return removeDsStore(matches), nil
 }
 
 func removeDsStore(matches []string) []string {
@@ -38,46 +36,20 @@ func removeDsStore(matches []string) []string {
 	return result
 }
 
-// PatternPrefixDepth returns the number of directories before the first
-// glob expression is found.
-func PatternPrefixDepth(pattern string) int {
-	if pattern == "" {
-		return 0
-	}
-
-	parts := SplitPath(pattern)
-
-	for i, part := range parts {
-		if RegMatchChars.MatchString(part) {
-			return i
+// IsGitRepo checks that the given path is a git repository.
+func IsGitRepo(path string) (bool, error) {
+	if _, err := git.PlainOpen(path); err != nil {
+		if git.ErrRepositoryNotExists == err {
+			return false, nil
 		}
+
+		return false, err
 	}
 
-	return len(parts)
+	return true, nil
 }
 
-// IDFromPath returns a repository ID from a path stripping a number of
-// directories from it.
-func IDFromPath(prefix int, path string) string {
-	parts := SplitPath(path)
-
-	if prefix >= len(parts) {
-		return path
-	}
-
-	return filepath.Join(parts[prefix:]...)
-}
-
-// SplitPath slices a path in its components.
-func SplitPath(path string) []string {
-	parts := strings.Split(path, string(os.PathSeparator))
-	saneParts := make([]string, 0, len(parts))
-
-	for _, p := range parts {
-		if p != "" {
-			saneParts = append(saneParts, p)
-		}
-	}
-
-	return saneParts
+//IsSivaFile checks that the given file is a siva file.
+func IsSivaFile(file string) bool {
+	return strings.HasSuffix(file, ".siva")
 }
