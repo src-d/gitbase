@@ -1,0 +1,58 @@
+syntax = "proto3";
+package gopkg.in.bblfsh.sdk.v2.protocol;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.protosizer_all) = true;
+option (gogoproto.sizer_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) =  true;
+option (gogoproto.goproto_getters_all) = false;
+option go_package = "protocol";
+
+// ParseRequest is a request to parse a file and get its UAST.
+message ParseRequest {
+	// Content stores the content of a source file. Required.
+	string content  = 1;
+	// Language can be set optionally to disable automatic language detection.
+	string language = 2;
+	// Filename can be set optionally to assist automatic language detection.
+	string filename = 3;
+	// Mode sets a transformation pipeline used for UAST.
+	Mode   mode = 4;
+}
+
+enum Mode {
+	// DefaultMode selects the transformation mode that is considered to produce UAST of the best quality.
+	DEFAULT_MODE = 0x0 [(gogoproto.enumvalue_customname) = "DefaultMode"];
+	// Native disables any UAST transformations and emits a native language AST as returned by the parser.
+	NATIVE       = 0x1 [(gogoproto.enumvalue_customname) = "Native"];
+	// Preprocessed runs only basic transformation over native AST (normalize positional info, type fields).
+	PREPROCESSED = 0x2 [(gogoproto.enumvalue_customname) = "Preprocessed"];
+	// Annotated UAST is based on native AST, but provides role annotations for nodes.
+	ANNOTATED    = 0x4 [(gogoproto.enumvalue_customname) = "Annotated"];
+	// Semantic UAST normalizes native AST nodes to a unified structure where possible.
+	SEMANTIC     = 0x8 [(gogoproto.enumvalue_customname) = "Semantic"];
+}
+
+// ParseResponse is the reply to ParseRequest.
+message ParseResponse {
+	// UAST is a binary encoding of the resulting UAST.
+	bytes  uast = 1;
+	// Language that was automatically detected.
+	string language = 2;
+	// Errors is a list of parsing errors.
+	// Only set if parser was able to return a response. Otherwise gRPC error codes are used.
+	repeated ParseError errors = 3;
+}
+
+message ParseError {
+	// Text is an error message.
+	string text = 1;
+}
+
+service Driver {
+	// Parse returns an UAST for a given source file.
+	rpc Parse (ParseRequest) returns (ParseResponse);
+}
+

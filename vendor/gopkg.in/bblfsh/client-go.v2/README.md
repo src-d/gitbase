@@ -94,7 +94,7 @@ strres, err := FilterString(res.UAST, "name(//*[1])")
 numres, err := FilterNumber(res.UAST, "count(//*)")
 ```
 
-Please read the [Babelfish clients](https://doc.bblf.sh/user/language-clients.html) guide section to learn more about babelfish clients and their query language.
+Please read the [Babelfish clients](https://doc.bblf.sh/using-babelfish/language-clients.html) guide section to learn more about babelfish clients and their query language.
 
 ## License
 
