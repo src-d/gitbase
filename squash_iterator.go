@@ -220,11 +220,16 @@ func (i *squashRemoteIter) Advance() error {
 			config = remote.Config()
 		}
 
+		fetch := i.urlPos
+		if fetch >= len(config.Fetch) {
+			fetch = len(config.Fetch) - 1
+		}
+
 		i.remote = &Remote{
 			RepoID: i.repo.ID,
 			Name:   config.Name,
 			URL:    config.URLs[i.urlPos],
-			Fetch:  config.Fetch[i.urlPos].String(),
+			Fetch:  config.Fetch[fetch].String(),
 		}
 
 		i.row = sql.NewRow(
@@ -344,11 +349,16 @@ func (i *squashRepoRemotesIter) Advance() error {
 			config = remote.Config()
 		}
 
+		fetch := i.urlPos
+		if fetch >= len(config.Fetch) {
+			fetch = len(config.Fetch) - 1
+		}
+
 		i.remote = &Remote{
 			RepoID: i.repos.Repository().ID,
 			Name:   config.Name,
 			URL:    config.URLs[i.urlPos],
-			Fetch:  config.Fetch[i.urlPos].String(),
+			Fetch:  config.Fetch[fetch].String(),
 		}
 
 		i.urlPos++
@@ -481,13 +491,10 @@ func (i *squashRefIter) Advance() error {
 			}
 
 			i.head, err = i.repo.Repo.Head()
-			if err != nil {
-				if err == plumbing.ErrReferenceNotFound || i.skipGitErrors {
-					i.repo = nil
-					continue
-				}
-
+			if err == plumbing.ErrReferenceNotFound {
 				logrus.WithField("repo", i.repo.ID).Debug("unable to get HEAD of repository")
+			} else if err != nil && !i.skipGitErrors {
+				return err
 			}
 		}
 
@@ -636,7 +643,6 @@ func (i *squashRepoRefsIter) Advance() error {
 
 				logrus.WithField("repo", i.repos.Repository().ID).
 					Debug("unable to get HEAD of repository")
-				continue
 			}
 		}
 

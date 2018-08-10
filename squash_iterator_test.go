@@ -2,6 +2,7 @@ package gitbase
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -900,6 +901,79 @@ func setupWithIndex(
 	ctx, _, cleanup := setup(t)
 	index := &lookup{tableIndexValues(t, table, ctx)}
 	return ctx, index, cleanup
+}
+
+func TestRefsIterSiva(t *testing.T) {
+	path := filepath.Join("_testdata", "05893125684f2d3943cd84a7ab2b75e53668fba1.siva")
+	pool := NewRepositoryPool()
+	require.NoError(t, pool.AddSivaFile(path))
+
+	session := NewSession(pool)
+	ctx := sql.NewContext(context.Background(), sql.WithSession(session))
+
+	cases := []struct {
+		name string
+		iter ChainableIter
+	}{
+		{"all refs", NewAllRefsIter(nil, false)},
+		{"repo refs", NewRepoRefsIter(NewAllReposIter(nil), nil, false)},
+	}
+
+	expected := []sql.Row{
+		{
+			path,
+			"refs/heads/HEAD/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			"dbfab055c70379219cbcf422f05316fdf4e1aed3",
+		},
+		{
+			path,
+			"refs/heads/master/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			"dbfab055c70379219cbcf422f05316fdf4e1aed3",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			it, err := NewChainableRowIter(ctx, tt.iter)
+			require.NoError(err)
+
+			rows, err := sql.RowIterToRows(it)
+			require.NoError(err)
+
+			// remove all non-ref columns
+			for i := range rows {
+				rows[i] = rows[i][len(rows[i])-3:]
+			}
+
+			require.ElementsMatch(expected, rows)
+		})
+	}
+
+	t.Run("remote refs", func(t *testing.T) {
+		require := require.New(t)
+		it, err := NewChainableRowIter(
+			ctx,
+			NewRemoteRefsIter(NewAllRemotesIter(nil), nil),
+		)
+		require.NoError(err)
+
+		rows, err := sql.RowIterToRows(it)
+		require.NoError(err)
+
+		// remove all non-ref columns
+		for i := range rows {
+			rows[i] = rows[i][len(rows[i])-3:]
+		}
+
+		expected := []sql.Row{
+			expected[0], expected[1],
+			expected[0], expected[1],
+			expected[0], expected[1],
+		}
+
+		require.ElementsMatch(expected, rows)
+	})
 }
 
 type lookup struct {
