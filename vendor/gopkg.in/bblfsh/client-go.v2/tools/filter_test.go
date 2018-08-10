@@ -1,4 +1,5 @@
 package tools
+
 import (
 	"testing"
 
@@ -52,8 +53,8 @@ func TestFilterString(t *testing.T) {
 	n.InternalType = "TestType"
 
 	r, err := FilterString(n, "name(//*[1])")
-    assert.Nil(t, err)
-    assert.Equal(t, r, "TestType")
+	assert.Nil(t, err)
+	assert.Equal(t, r, "TestType")
 }
 
 func TestFilter_All(t *testing.T) {
@@ -107,7 +108,7 @@ func TestFilter_Roles(t *testing.T) {
 
 func TestFilter_Properties(t *testing.T) {
 	n := &uast.Node{
-		Properties: map[string]string {"k2": "v1", "k1": "v2"},
+		Properties: map[string]string{"k2": "v1", "k1": "v2"},
 	}
 
 	r, err := Filter(n, "//*[@k1='v2']")
@@ -141,7 +142,7 @@ func TestFilter_NoStartPosition(t *testing.T) {
 
 func TestFilter_StartPosition(t *testing.T) {
 	n := &uast.Node{
-		StartPosition: &uast.Position{0, 1, 1},
+		StartPosition: &uast.Position{Offset: 0, Line: 1, Col: 1},
 	}
 
 	r, err := Filter(n, "//*[@startOffset='0']")
@@ -175,7 +176,7 @@ func TestFilter_NoEndPosition(t *testing.T) {
 
 func TestFilter_EndPosition(t *testing.T) {
 	n := &uast.Node{
-		EndPosition: &uast.Position{0, 1, 1},
+		EndPosition: &uast.Position{Offset: 0, Line: 1, Col: 1},
 	}
 
 	r, err := Filter(n, "//*[@endOffset='0']")
@@ -189,4 +190,12 @@ func TestFilter_EndPosition(t *testing.T) {
 	r, err = Filter(n, "//*[@endCol='1']")
 	assert.Nil(t, err)
 	assert.Len(t, r, 1)
+}
+
+func TestFilter_InvalidExpression(t *testing.T) {
+	n := &uast.Node{}
+
+	r, err := Filter(n, ":")
+	assert.Equal(t, &ErrInvalidArgument{Message: "Invalid expression"}, err)
+	assert.Len(t, r, 0)
 }

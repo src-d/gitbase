@@ -1,67 +1,84 @@
 package bblfsh
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestClient_NewParseRequest(t *testing.T) {
+func newClient(t testing.TB) *Client {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
-
-	cli, err := NewClient("localhost:9432")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cli, err := NewClientContext(ctx, "localhost:9432")
+	if err == context.DeadlineExceeded {
+		t.Skip("bblfshd is not running")
+	}
 	require.Nil(t, err)
+	return cli
+}
 
+var clientTests = []struct {
+	name string
+	test func(t *testing.T, cli *Client)
+}{
+	{name: "ParseRequest", test: testParseRequest},
+	{name: "NativeParseRequest", test: testNativeParseRequest},
+	{name: "ParseRequestV2", test: testParseRequestV2},
+	{name: "VersionRequest", test: testVersionRequest},
+	{name: "SupportedLanguagesRequest", test: testSupportedLanguagesRequest},
+}
+
+func TestClient(t *testing.T) {
+	cli := newClient(t)
+	for _, c := range clientTests {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			c.test(t, cli)
+		})
+	}
+}
+
+func testParseRequest(t *testing.T, cli *Client) {
 	res, err := cli.NewParseRequest().Language("python").Content("import foo").Do()
 	require.NoError(t, err)
 
-	require.Equal(t, len(res.Errors), 0)
+	require.Equal(t, 0, len(res.Errors))
 	require.NotNil(t, res.UAST)
 }
 
-func TestClient_NewNativeParseRequest(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
-	cli, err := NewClient("localhost:9432")
-	require.Nil(t, err)
-
+func testNativeParseRequest(t *testing.T, cli *Client) {
 	res, err := cli.NewNativeParseRequest().Language("python").Content("import foo").Do()
 	require.NoError(t, err)
 
-	require.Equal(t, len(res.Errors), 0)
+	require.Equal(t, 0, len(res.Errors))
 	require.NotNil(t, res.AST)
 }
 
-func TestClient_NewVersionRequest(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
+func testParseRequestV2(t *testing.T, cli *Client) {
+	res, lang, err := cli.NewParseRequestV2().Language("python").Content("import foo").UAST()
+	require.NoError(t, err)
 
-	cli, err := NewClient("localhost:9432")
-	require.Nil(t, err)
+	require.Equal(t, "python", lang)
+	require.NotNil(t, res)
+}
 
+func testVersionRequest(t *testing.T, cli *Client) {
 	res, err := cli.NewVersionRequest().Do()
 	require.NoError(t, err)
 
-	require.Equal(t, len(res.Errors), 0)
+	require.Equal(t, 0, len(res.Errors))
 	require.NotNil(t, res.Version)
 }
 
-func TestClient_NewSupportedLanguagesRequest(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-
-	cli, err := NewClient("localhost:9432")
-	require.Nil(t, err)
-
+func testSupportedLanguagesRequest(t *testing.T, cli *Client) {
 	res, err := cli.NewSupportedLanguagesRequest().Do()
 	require.NoError(t, err)
 
-	require.Equal(t, len(res.Errors), 0)
-	require.NotNil(t, res.Languages)
+	require.Equal(t, 0, len(res.Errors))
+	require.NotEmpty(t, res.Languages)
 }

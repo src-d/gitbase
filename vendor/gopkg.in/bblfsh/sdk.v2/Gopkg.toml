@@ -1,0 +1,70 @@
+# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
+# for detailed Gopkg.toml documentation.
+
+[[constraint]]
+  name = "github.com/BurntSushi/toml"
+  version = "0.3.x"
+
+[[constraint]]
+  name = "github.com/fatih/color"
+  version = "1.7.x"
+
+[[constraint]]
+  name = "github.com/ghodss/yaml"
+  version = "1.0.x"
+
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+  version = "1.1.x"
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  version = "1.1.x"
+
+[[constraint]]
+  name = "github.com/google/go-github"
+  version = "15.0.x"
+
+[[constraint]]
+  name = "github.com/jessevdk/go-flags"
+  version = "1.4.x"
+
+[[constraint]]
+  name = "github.com/ory/dockertest"
+  revision = "1ff4d597ac09e84e6f3edfc340b22d5544da1eb2"
+
+[[constraint]]
+  name = "github.com/pmezard/go-difflib"
+  version = "1.0.x"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.x"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.2.x"
+
+[[constraint]]
+  name = "github.com/x-cray/logrus-prefixed-formatter"
+  version = "0.5.x"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/net"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.13.x"
+
+[[constraint]]
+  name = "gopkg.in/src-d/go-errors.v1"
+  version = "1.0.x"
+
+[[constraint]]
+  name = "gopkg.in/yaml.v2"
+  version = "2.2.x"
+
+[prune]
+  go-tests = true
+  unused-packages = true

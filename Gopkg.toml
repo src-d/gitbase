@@ -26,6 +26,7 @@
 [[override]]
   name = "golang.org/x/sys"
   source = "github.com/golang/sys"
+  revision = "f0d5e33068cb57c22a181f5df0ffda885309eb5a"
 
 [[override]]
   name = "golang.org/x/crypto"
@@ -40,6 +41,10 @@
   source = "github.com/golang/net"
 
 [[override]]
+  name = "google.golang.org/grpc"
+  version = "1.14.0"
+
+[[override]]
   name = "github.com/satori/go.uuid"
   revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
 
@@ -49,7 +54,7 @@
 
 [[constraint]]
   name = "gopkg.in/bblfsh/client-go.v2"
-  version = "2.6.0"
+  version = "2.8.0"
 
 [[constraint]]
   name = "gopkg.in/bblfsh/sdk.v1"
