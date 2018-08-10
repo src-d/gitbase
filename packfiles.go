@@ -230,7 +230,7 @@ func newRepoObjectDecoder(
 	}
 
 	return &repoObjectDecoder{
-		repo:     repo.Path(),
+		repo:     repo.ID(),
 		packfile: hash,
 		decoder:  decoder,
 		storage:  storage,
