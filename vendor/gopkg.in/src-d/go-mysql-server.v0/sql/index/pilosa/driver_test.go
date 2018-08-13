@@ -3,7 +3,6 @@ package pilosa
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha1"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
@@ -16,6 +15,7 @@ import (
 	pilosa "github.com/pilosa/go-pilosa"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index"
 	"gopkg.in/src-d/go-mysql-server.v0/test"
 )
@@ -25,6 +25,8 @@ import (
 var (
 	dockerIsRunning bool
 	dockerCmdOutput string
+
+	tmpDir string
 )
 
 func init() {
@@ -32,6 +34,22 @@ func init() {
 	b, err := cmd.CombinedOutput()
 
 	dockerCmdOutput, dockerIsRunning = string(b), (err == nil)
+}
+
+func setup(t *testing.T) {
+	var err error
+
+	tmpDir, err = ioutil.TempDir("", "pilosa")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func cleanup(t *testing.T) {
+	err := os.RemoveAll(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestID(t *testing.T) {
@@ -44,15 +62,14 @@ func TestID(t *testing.T) {
 func TestLoadAll(t *testing.T) {
 	require := require.New(t)
 
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
+	setup(t)
+	defer cleanup(t)
 
-	d := NewIndexDriver(path)
-	idx1, err := d.Create("db", "table", "id1", makeExpressions("hash1"), nil)
+	d := NewIndexDriver(tmpDir)
+	idx1, err := d.Create("db", "table", "id1", makeExpressions("table", "field1"), nil)
 	require.NoError(err)
 
-	idx2, err := d.Create("db", "table", "id2", makeExpressions("hash1"), nil)
+	idx2, err := d.Create("db", "table", "id2", makeExpressions("table", "field1"), nil)
 	require.NoError(err)
 
 	indexes, err := d.LoadAll("db", "table")
@@ -91,21 +108,20 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Skipf("Skip TestSaveAndLoad: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table, id := "db_name", "table_name", "index_id"
-	expressions := makeExpressions("lang", "hash")
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
+	expressions := makeExpressions(table, "lang", "hash")
 
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdx, err := d.Create(db, table, id, expressions, nil)
 	require.NoError(err)
 
 	it := &testIndexKeyValueIter{
 		offset:      0,
 		total:       64,
-		expressions: expressions,
+		expressions: sqlIdx.Expressions(),
 		location:    randLocation,
 	}
 
@@ -184,22 +200,20 @@ func TestSaveAndGetAll(t *testing.T) {
 	if !dockerIsRunning {
 		t.Skipf("Skip TestSaveAndGetAll: %s", dockerCmdOutput)
 	}
+	setup(t)
+	defer cleanup(t)
 	require := require.New(t)
 
 	db, table, id := "db_name", "table_name", "index_id"
-	expressions := makeExpressions("lang", "hash")
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
-
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	expressions := makeExpressions(table, "lang", "hash")
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdx, err := d.Create(db, table, id, expressions, nil)
 	require.NoError(err)
 
 	it := &testIndexKeyValueIter{
 		offset:      0,
 		total:       64,
-		expressions: expressions,
+		expressions: sqlIdx.Expressions(),
 		location:    randLocation,
 	}
 
@@ -218,17 +232,20 @@ func TestSaveAndGetAll(t *testing.T) {
 
 func TestLoadCorruptedIndex(t *testing.T) {
 	require := require.New(t)
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
+	setup(t)
+	defer cleanup(t)
+
+	d := NewIndexDriver(tmpDir).(*Driver)
+	_, err := d.Create("db", "table", "id", nil, nil)
 	require.NoError(err)
-	defer os.RemoveAll(path)
 
-	require.NoError(index.CreateProcessingFile(path))
+	require.NoError(index.CreateProcessingFile(d.processingFilePath("db", "table", "id")))
 
-	_, err = new(Driver).loadIndex(path)
+	_, err = d.loadIndex("db", "table", "id")
 	require.Error(err)
 	require.True(errCorruptedIndex.Is(err))
 
-	_, err = os.Stat(path)
+	_, err = os.Stat(d.processingFilePath("db", "table", "id"))
 	require.Error(err)
 	require.True(os.IsNotExist(err))
 }
@@ -238,21 +255,17 @@ func TestDelete(t *testing.T) {
 		t.Skipf("Skip TestDelete: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table, id := "db_name", "table_name", "index_id"
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
 
-	h1 := sha1.Sum([]byte("lang"))
-	exh1 := sql.ExpressionHash(h1[:])
+	expressions := []sql.Expression{
+		expression.NewGetFieldWithTable(0, sql.Int64, table, "lang", true),
+		expression.NewGetFieldWithTable(1, sql.Int64, table, "field", true),
+	}
 
-	h2 := sha1.Sum([]byte("hash"))
-	exh2 := sql.ExpressionHash(h2[:])
-
-	expressions := []sql.ExpressionHash{exh1, exh2}
-
-	d := NewIndexDriver(path)
+	d := NewIndexDriver(tmpDir)
 	sqlIdx, err := d.Create(db, table, id, expressions, nil)
 	require.NoError(err)
 
@@ -262,12 +275,8 @@ func TestDelete(t *testing.T) {
 
 func TestLoadAllDirectoryDoesNotExist(t *testing.T) {
 	require := require.New(t)
-	tmpDir, err := ioutil.TempDir(os.TempDir(), "pilosa-")
-	require.NoError(err)
-
-	defer func() {
-		require.NoError(os.RemoveAll(tmpDir))
-	}()
+	setup(t)
+	defer cleanup(t)
 
 	driver := &Driver{root: tmpDir}
 	drivers, err := driver.LoadAll("foo", "bar")
@@ -342,21 +351,17 @@ func TestNegateIndex(t *testing.T) {
 		t.Skipf("Skip test: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table := "db_name", "table_name"
-	path, err := mkdir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer func() {
-		require.NoError(os.RemoveAll(path))
-	}()
-
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
-	idx, err := d.Create(db, table, "index_id", makeExpressions("a"), nil)
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
+	idx, err := d.Create(db, table, "index_id", makeExpressions(table, "a"), nil)
 	require.NoError(err)
 
 	multiIdx, err := d.Create(
 		db, table, "multi_index_id",
-		makeExpressions("a", "b"),
+		makeExpressions(table, "a", "b"),
 		nil,
 	)
 	require.NoError(err)
@@ -401,6 +406,16 @@ func TestNegateIndex(t *testing.T) {
 	expected := []string{"1", "2", "5"}
 	require.Equal(expected, values)
 
+	// test non existing values
+	lookup, err = idx.(sql.NegateIndex).Not(int64(12739487))
+	require.NoError(err)
+
+	values, err = lookupValues(lookup)
+	require.NoError(err)
+
+	expected = []string{"1", "2", "3", "4", "5"}
+	require.Equal(expected, values)
+
 	lookup, err = multiIdx.(sql.NegateIndex).Not(int64(1), int64(6))
 	require.NoError(err)
 
@@ -416,16 +431,14 @@ func TestIntersection(t *testing.T) {
 		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table := "db_name", "table_name"
-	idxLang, expLang := "idx_lang", makeExpressions("lang")
-	idxPath, expPath := "idx_path", makeExpressions("path")
+	idxLang, expLang := "idx_lang", makeExpressions(table, "lang")
+	idxPath, expPath := "idx_path", makeExpressions(table, "path")
 
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
-
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdxLang, err := d.Create(db, table, idxLang, expLang, nil)
 	require.NoError(err)
 
@@ -435,14 +448,14 @@ func TestIntersection(t *testing.T) {
 	itLang := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: expLang,
+		expressions: sqlIdxLang.Expressions(),
 		location:    offsetLocation,
 	}
 
 	itPath := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: expPath,
+		expressions: sqlIdxPath.Expressions(),
 		location:    offsetLocation,
 	}
 
@@ -494,16 +507,14 @@ func TestUnion(t *testing.T) {
 		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table := "db_name", "table_name"
-	idxLang, expLang := "idx_lang", makeExpressions("lang")
-	idxPath, expPath := "idx_path", makeExpressions("path")
+	idxLang, expLang := "idx_lang", makeExpressions(table, "lang")
+	idxPath, expPath := "idx_path", makeExpressions(table, "path")
 
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
-
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdxLang, err := d.Create(db, table, idxLang, expLang, nil)
 	require.NoError(err)
 
@@ -513,14 +524,14 @@ func TestUnion(t *testing.T) {
 	itLang := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: expLang,
+		expressions: sqlIdxLang.Expressions(),
 		location:    offsetLocation,
 	}
 
 	itPath := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: expPath,
+		expressions: sqlIdxPath.Expressions(),
 		location:    offsetLocation,
 	}
 
@@ -584,16 +595,14 @@ func TestDifference(t *testing.T) {
 		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table := "db_name", "table_name"
-	idxLang, expLang := "idx_lang", makeExpressions("lang")
-	idxPath, expPath := "idx_path", makeExpressions("path")
+	idxLang, expLang := "idx_lang", makeExpressions(table, "lang")
+	idxPath, expPath := "idx_path", makeExpressions(table, "path")
 
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
-
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdxLang, err := d.Create(db, table, idxLang, expLang, nil)
 	require.NoError(err)
 
@@ -603,14 +612,14 @@ func TestDifference(t *testing.T) {
 	itLang := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: expLang,
+		expressions: sqlIdxLang.Expressions(),
 		location:    offsetLocation,
 	}
 
 	itPath := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: expPath,
+		expressions: sqlIdxPath.Expressions(),
 		location:    offsetLocation,
 	}
 
@@ -657,15 +666,13 @@ func TestUnionDiffAsc(t *testing.T) {
 		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table := "db_name", "table_name"
-	idx, exp := "idx_lang", makeExpressions("lang")
+	idx, exp := "idx_lang", makeExpressions(table, "lang")
 
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
-
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdx, err := d.Create(db, table, idx, exp, nil)
 	require.NoError(err)
 	pilosaIdx, ok := sqlIdx.(*pilosaIndex)
@@ -673,7 +680,7 @@ func TestUnionDiffAsc(t *testing.T) {
 	it := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: exp,
+		expressions: pilosaIdx.Expressions(),
 		location:    offsetLocation,
 	}
 
@@ -717,15 +724,13 @@ func TestInterRanges(t *testing.T) {
 		t.Skipf("Skip TestUnion: %s", dockerCmdOutput)
 	}
 	require := require.New(t)
+	setup(t)
+	defer cleanup(t)
 
 	db, table := "db_name", "table_name"
-	idx, exp := "idx_lang", makeExpressions("lang")
+	idx, exp := "idx_lang", makeExpressions(table, "lang")
 
-	path, err := ioutil.TempDir(os.TempDir(), "indexes")
-	require.NoError(err)
-	defer os.RemoveAll(path)
-
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdx, err := d.Create(db, table, idx, exp, nil)
 	require.NoError(err)
 	pilosaIdx, ok := sqlIdx.(*pilosaIndex)
@@ -733,7 +738,7 @@ func TestInterRanges(t *testing.T) {
 	it := &testIndexKeyValueIter{
 		offset:      0,
 		total:       10,
-		expressions: exp,
+		expressions: pilosaIdx.Expressions(),
 		location:    offsetLocation,
 	}
 
@@ -777,11 +782,10 @@ func setupAscendDescend(t *testing.T) (*pilosaIndex, func()) {
 	require := require.New(t)
 
 	db, table, id := "db_name", "table_name", "index_id"
-	expressions := makeExpressions("a", "b")
-	path, err := mkdir(os.TempDir(), "indexes")
-	require.NoError(err)
+	expressions := makeExpressions(table, "a", "b")
+	setup(t)
 
-	d := NewDriver(path, newClientWithTimeout(200*time.Millisecond))
+	d := NewDriver(tmpDir, newClientWithTimeout(200*time.Millisecond))
 	sqlIdx, err := d.Create(db, table, id, expressions, nil)
 	require.NoError(err)
 
@@ -804,7 +808,7 @@ func setupAscendDescend(t *testing.T) (*pilosaIndex, func()) {
 	require.NoError(err)
 
 	return sqlIdx.(*pilosaIndex), func() {
-		require.NoError(os.RemoveAll(path))
+		cleanup(t)
 	}
 }
 
@@ -857,7 +861,7 @@ func (i *fixtureKeyValueIter) Close() error { return nil }
 type testIndexKeyValueIter struct {
 	offset      int
 	total       int
-	expressions []sql.ExpressionHash
+	expressions []string
 	location    func(int) []byte
 
 	records []struct {
@@ -875,7 +879,7 @@ func (it *testIndexKeyValueIter) Next() ([]interface{}, []byte, error) {
 
 	values := make([]interface{}, len(it.expressions))
 	for i, e := range it.expressions {
-		values[i] = hex.EncodeToString(e) + "-" + hex.EncodeToString(b)
+		values[i] = e + "-" + hex.EncodeToString(b)
 	}
 
 	it.records = append(it.records, struct {
@@ -896,13 +900,12 @@ func (it *testIndexKeyValueIter) Close() error {
 	return nil
 }
 
-func makeExpressions(names ...string) []sql.ExpressionHash {
-	var expressions []sql.ExpressionHash
+func makeExpressions(table string, names ...string) []sql.Expression {
+	var expressions []sql.Expression
 
-	for _, n := range names {
-		h := sha1.Sum([]byte(n))
-		exh := sql.ExpressionHash(h[:])
-		expressions = append(expressions, sql.ExpressionHash(exh))
+	for i, n := range names {
+		expressions = append(expressions,
+			expression.NewGetFieldWithTable(i, sql.Int64, table, n, true))
 	}
 
 	return expressions

@@ -1,6 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "44e416bff2e89a515172814e3f688afe5d875deb"
+  revision = "5da99c3ba25f3c637ea5dd041cf5ba73e24ac1f2"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -46,7 +46,7 @@
 
 [[override]]
   name = "github.com/satori/go.uuid"
-  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
+  version = "1.2.0"
 
 [[constraint]]
   name = "gopkg.in/src-d/enry.v1"
@@ -63,3 +63,7 @@
 [[constraint]]
   name = "github.com/uber/jaeger-client-go"
   version = "^2.7.0"
+
+[[constraint]]
+  name = "github.com/pilosa/pilosa"
+  version = "1.0.2"

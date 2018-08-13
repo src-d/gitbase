@@ -20,6 +20,7 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosalib"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 )
 
@@ -193,6 +194,7 @@ func (c *Server) registerDrivers() error {
 	logrus.Debug("established connection with pilosa")
 
 	c.engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(c.IndexDir, client))
+	c.engine.Catalog.RegisterIndexDriver(pilosalib.NewDriver(c.IndexDir))
 	logrus.Debug("registered pilosa index driver")
 
 	return nil

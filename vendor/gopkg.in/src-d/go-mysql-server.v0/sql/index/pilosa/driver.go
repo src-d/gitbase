@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,15 @@ const (
 	IndexNamePrefix = "idx"
 	// FrameNamePrefix the pilosa's frames prefix
 	FrameNamePrefix = "frm"
+
+	// ConfigFileName is the name of an index config file.
+	ConfigFileName = "config.yml"
+
+	// ProcessingFileName is the name of the lock/processing index file.
+	ProcessingFileName = ".processing"
+
+	// MappingFileName is the name of the mapping file.
+	MappingFileName = "mapping.db"
 )
 
 var (
@@ -64,86 +74,100 @@ func (*Driver) ID() string {
 }
 
 // Create a new index.
-func (d *Driver) Create(db, table, id string, expr []sql.ExpressionHash, config map[string]string) (sql.Index, error) {
-	path, err := mkdir(d.root, db, table, id)
+func (d *Driver) Create(db, table, id string, expressions []sql.Expression, config map[string]string) (sql.Index, error) {
+	_, err := mkdir(d.root, db, table, id)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg := index.NewConfig(db, table, id, expr, d.ID(), config)
-	err = index.WriteConfigFile(path, cfg)
+	exprs := make([]string, len(expressions))
+	for i, e := range expressions {
+		exprs[i] = e.String()
+	}
+
+	cfg := index.NewConfig(db, table, id, exprs, d.ID(), config)
+	err = index.WriteConfigFile(d.configFilePath(db, table, id), cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	return newPilosaIndex(path, d.client, cfg), nil
+	return newPilosaIndex(d.mappingFilePath(db, table, id), d.client, cfg), nil
 }
 
 // LoadAll loads all indexes for given db and table
 func (d *Driver) LoadAll(db, table string) ([]sql.Index, error) {
-	root := filepath.Join(d.root, db, table)
-
 	var (
 		indexes []sql.Index
 		errors  []string
-		err     error
+		root    = filepath.Join(d.root, db, table)
 	)
-	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			if path != root || !os.IsNotExist(err) {
-				errors = append(errors, err.Error())
-			}
-			return filepath.SkipDir
-		}
 
-		if info.IsDir() && path != root && info.Name() != "." && info.Name() != ".." {
-			idx, err := d.loadIndex(path)
+	dirs, err := ioutil.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return indexes, nil
+		}
+		return nil, err
+	}
+	for _, info := range dirs {
+		if info.IsDir() && !strings.HasPrefix(info.Name(), ".") {
+			idx, err := d.loadIndex(db, table, info.Name())
 			if err != nil {
 				if !errCorruptedIndex.Is(err) {
 					errors = append(errors, err.Error())
 				}
-
-				return filepath.SkipDir
+				continue
 			}
 
 			indexes = append(indexes, idx)
 		}
-
-		return nil
-	})
+	}
 
 	if len(errors) > 0 {
-		err = fmt.Errorf(strings.Join(errors, "\n"))
+		return nil, fmt.Errorf(strings.Join(errors, "\n"))
 	}
-	return indexes, err
+
+	return indexes, nil
 }
 
-func (d *Driver) loadIndex(path string) (sql.Index, error) {
-	ok, err := index.ExistsProcessingFile(path)
+func (d *Driver) loadIndex(db, table, id string) (sql.Index, error) {
+	dir := filepath.Join(d.root, db, table, id)
+	config := d.configFilePath(db, table, id)
+	if _, err := os.Stat(config); err != nil {
+		return nil, errCorruptedIndex.New(dir)
+	}
+
+	mapping := d.mappingFilePath(db, table, id)
+	processing := d.processingFilePath(db, table, id)
+	ok, err := index.ExistsProcessingFile(processing)
 	if err != nil {
 		return nil, err
 	}
-
 	if ok {
 		log := logrus.WithFields(logrus.Fields{
-			"err":  err,
-			"path": path,
+			"err":   err,
+			"db":    db,
+			"table": table,
+			"id":    id,
+			"dir":   dir,
 		})
 		log.Warn("could not read index file, index is corrupt and will be deleted")
-
-		if err := os.RemoveAll(path); err != nil {
-			log.Warn("unable to remove folder of corrupted index")
+		if err := os.RemoveAll(dir); err != nil {
+			log.Warn("unable to remove corrupted index: " + dir)
 		}
 
-		return nil, errCorruptedIndex.New(path)
+		return nil, errCorruptedIndex.New(dir)
 	}
 
-	cfg, err := index.ReadConfigFile(path)
+	cfg, err := index.ReadConfigFile(config)
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Driver(DriverID) == nil {
+		return nil, errCorruptedIndex.New(dir)
+	}
 
-	idx := newPilosaIndex(path, d.client, cfg)
+	idx := newPilosaIndex(mapping, d.client, cfg)
 	return idx, nil
 }
 
@@ -161,12 +185,8 @@ func (d *Driver) Save(
 		return errInvalidIndexType.New(i)
 	}
 
-	path, err := mkdir(d.root, i.Database(), i.Table(), i.ID())
-	if err != nil {
-		return err
-	}
-
-	if err = index.CreateProcessingFile(path); err != nil {
+	processingFile := d.processingFilePath(idx.Database(), idx.Table(), idx.ID())
+	if err = index.CreateProcessingFile(processingFile); err != nil {
 		return err
 	}
 
@@ -182,8 +202,8 @@ func (d *Driver) Save(
 		return err
 	}
 
-	d.frames = make([]*pilosa.Frame, len(idx.ExpressionHashes()))
-	for i, e := range idx.ExpressionHashes() {
+	d.frames = make([]*pilosa.Frame, len(idx.Expressions()))
+	for i, e := range idx.Expressions() {
 		frm, err := pilosaIndex.Frame(frameName(idx.ID(), e))
 		if err != nil {
 			return err
@@ -280,13 +300,12 @@ func (d *Driver) Save(
 		"id":       i.ID(),
 	}).Debugf("finished pilosa indexing")
 
-	return index.RemoveProcessingFile(path)
+	return index.RemoveProcessingFile(processingFile)
 }
 
 // Delete the index with the given path.
 func (d *Driver) Delete(idx sql.Index) error {
-	path := filepath.Join(d.root, idx.Database(), idx.Table(), idx.ID())
-	if err := os.RemoveAll(path); err != nil {
+	if err := os.RemoveAll(filepath.Join(d.root, idx.Database(), idx.Table(), idx.ID())); err != nil {
 		return err
 	}
 
@@ -296,7 +315,7 @@ func (d *Driver) Delete(idx sql.Index) error {
 	}
 
 	frames := index.Frames()
-	for _, ex := range idx.ExpressionHashes() {
+	for _, ex := range idx.Expressions() {
 		frm, ok := frames[frameName(idx.ID(), ex)]
 		if !ok {
 			continue
@@ -409,10 +428,10 @@ func indexName(db, table string) string {
 	return fmt.Sprintf("%s-%x", IndexNamePrefix, h.Sum(nil))
 }
 
-func frameName(id string, ex sql.ExpressionHash) string {
+func frameName(id string, ex string) string {
 	h := sha1.New()
 	io.WriteString(h, id)
-	h.Write(ex)
+	io.WriteString(h, ex)
 	return fmt.Sprintf("%s-%x", FrameNamePrefix, h.Sum(nil))
 }
 
@@ -420,4 +439,16 @@ func frameName(id string, ex sql.ExpressionHash) string {
 func mkdir(elem ...string) (string, error) {
 	path := filepath.Join(elem...)
 	return path, os.MkdirAll(path, 0750)
+}
+
+func (d *Driver) configFilePath(db, table, id string) string {
+	return filepath.Join(d.root, db, table, id, ConfigFileName)
+}
+
+func (d *Driver) processingFilePath(db, table, id string) string {
+	return filepath.Join(d.root, db, table, id, ProcessingFileName)
+}
+
+func (d *Driver) mappingFilePath(db, table, id string) string {
+	return filepath.Join(d.root, db, table, id, MappingFileName)
 }

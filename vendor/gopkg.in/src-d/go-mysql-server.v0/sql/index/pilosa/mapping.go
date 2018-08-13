@@ -6,15 +6,10 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
-	"path/filepath"
 	"sort"
 	"sync"
 
 	"github.com/boltdb/bolt"
-)
-
-const (
-	mappingFileName = DriverID + "-mapping.db"
 )
 
 // mapping
@@ -22,7 +17,7 @@ const (
 // - index name: columndID uint64 -> location []byte
 // - frame name: value []byte (gob encoding) -> rowID uint64
 type mapping struct {
-	dir string
+	path string
 
 	mut sync.RWMutex
 	db  *bolt.DB
@@ -36,8 +31,8 @@ type mapping struct {
 	clients   int
 }
 
-func newMapping(dir string) *mapping {
-	return &mapping{dir: dir}
+func newMapping(path string) *mapping {
+	return &mapping{path: path}
 }
 
 func (m *mapping) open() {
@@ -80,7 +75,7 @@ func (m *mapping) query(fn func() error) error {
 	m.mut.Lock()
 	if m.db == nil {
 		var err error
-		m.db, err = bolt.Open(filepath.Join(m.dir, mappingFileName), 0640, nil)
+		m.db, err = bolt.Open(m.path, 0640, nil)
 		if err != nil {
 			m.mut.Unlock()
 			return err

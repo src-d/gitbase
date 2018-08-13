@@ -4,17 +4,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	yaml "gopkg.in/yaml.v2"
-)
-
-const (
-	// ConfigFileName is the name of an index config file.
-	ConfigFileName = "config.yml"
-	// ProcessingFileName is the name of the processing index file.
-	ProcessingFileName = ".processing"
 )
 
 // Config represents index configuration
@@ -28,15 +19,9 @@ type Config struct {
 
 // NewConfig creates a new Config instance for given driver's configuration
 func NewConfig(db, table, id string,
-	expressionHashes []sql.ExpressionHash,
+	expressions []string,
 	driverID string,
 	driverConfig map[string]string) *Config {
-
-	expressions := make([]string, len(expressionHashes))
-
-	for i, h := range expressionHashes {
-		expressions[i] = sql.EncodeExpressionHash(h)
-	}
 
 	cfg := &Config{
 		DB:          db,
@@ -48,16 +33,6 @@ func NewConfig(db, table, id string,
 	cfg.Drivers[driverID] = driverConfig
 
 	return cfg
-}
-
-// ExpressionHashes returns a slice of ExpressionHash for this configuration.
-// Implementation decodes hex strings into byte slices.
-func (cfg *Config) ExpressionHashes() []sql.ExpressionHash {
-	h := make([]sql.ExpressionHash, len(cfg.Expressions))
-	for i, hexstr := range cfg.Expressions {
-		h[i], _ = sql.DecodeExpressionHash(hexstr)
-	}
-	return h
 }
 
 // Driver returns an configuration for the particular driverID.
@@ -77,9 +52,8 @@ func WriteConfig(w io.Writer, cfg *Config) error {
 	return err
 }
 
-// WriteConfigFile writes the configuration to dir/config.yml file.
-func WriteConfigFile(dir string, cfg *Config) error {
-	path := filepath.Join(dir, ConfigFileName)
+// WriteConfigFile writes the configuration to file.
+func WriteConfigFile(path string, cfg *Config) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -101,9 +75,8 @@ func ReadConfig(r io.Reader) (*Config, error) {
 	return &cfg, err
 }
 
-// ReadConfigFile reads an configuration from dir/config.yml file.
-func ReadConfigFile(dir string) (*Config, error) {
-	path := filepath.Join(dir, ConfigFileName)
+// ReadConfigFile reads an configuration from file.
+func ReadConfigFile(path string) (*Config, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -113,10 +86,9 @@ func ReadConfigFile(dir string) (*Config, error) {
 	return ReadConfig(f)
 }
 
-// CreateProcessingFile creates a file inside the directory saying whether
-// the index is being created.
-func CreateProcessingFile(dir string) error {
-	f, err := os.Create(filepath.Join(dir, ProcessingFileName))
+// CreateProcessingFile creates a file  saying whether the index is being created.
+func CreateProcessingFile(path string) error {
+	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
@@ -126,16 +98,20 @@ func CreateProcessingFile(dir string) error {
 	return nil
 }
 
-// RemoveProcessingFile removes the file that says whether the index is still
-// being created.
-func RemoveProcessingFile(dir string) error {
-	return os.Remove(filepath.Join(dir, ProcessingFileName))
+// WriteProcessingFile write data to the processing file either truncating it
+// before or creating it if it doesn't exist.
+func WriteProcessingFile(path string, data []byte) error {
+	return ioutil.WriteFile(path, data, 0666)
 }
 
-// ExistsProcessingFile returns whether the processing file exists inside an
-// index directory.
-func ExistsProcessingFile(dir string) (bool, error) {
-	_, err := os.Stat(filepath.Join(dir, ProcessingFileName))
+// RemoveProcessingFile removes the file that says whether the index is still being created.
+func RemoveProcessingFile(path string) error {
+	return os.Remove(path)
+}
+
+// ExistsProcessingFile returns whether the processing file exists.
+func ExistsProcessingFile(path string) (bool, error) {
+	_, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil

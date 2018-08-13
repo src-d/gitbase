@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package internal;
+
+message Row {
+	repeated uint64 Columns = 1;
+	repeated string Keys = 3;
+	repeated Attr Attrs = 2;
+}
+
+message Pair {
+	uint64 ID = 1;
+	string Key = 3;
+	uint64 Count = 2;
+}
+
+message ValCount {
+	int64 Val = 1;
+	int64 Count = 2;
+}
+
+message Bit {
+	uint64 RowID = 1;
+	uint64 ColumnID = 2;
+	int64 Timestamp = 3;
+}
+
+message ColumnAttrSet {
+	uint64 ID = 1;
+	string Key = 3;
+	repeated Attr Attrs = 2;
+}
+
+message Attr {
+	string Key = 1;
+	uint64 Type = 2;
+	string StringValue = 3;
+	int64 IntValue = 4;
+	bool BoolValue = 5;
+	double FloatValue = 6;
+}
+
+message AttrMap {
+	repeated Attr Attrs = 1;
+}
+
+message QueryRequest {
+	string Query = 1;
+	repeated uint64 Shards = 2;
+	bool ColumnAttrs = 3;
+	bool Remote = 5;
+	bool ExcludeRowAttrs = 6;
+	bool ExcludeColumns = 7;
+}
+
+message QueryResponse {
+	string Err = 1;
+	repeated QueryResult Results = 2;
+	repeated ColumnAttrSet ColumnAttrSets = 3;
+}
+
+message QueryResult {
+	uint32 Type = 6;
+	Row Row = 1;
+	uint64 N = 2;
+	repeated Pair Pairs = 3;
+	ValCount ValCount = 5;
+	bool Changed = 4;
+}
+
+message ImportRequest {
+	string Index = 1;
+	string Field = 2;
+	uint64 Shard = 3;
+	repeated uint64 RowIDs = 4;
+	repeated uint64 ColumnIDs = 5;
+	repeated string RowKeys = 7;
+	repeated string ColumnKeys = 8;
+	repeated int64 Timestamps = 6;
+}
+
+message ImportValueRequest {
+	string Index = 1;
+	string Field = 2;
+	uint64 Shard = 3;
+	repeated uint64 ColumnIDs = 5;
+	repeated string ColumnKeys = 7;
+	repeated int64 Values = 6;
+}
