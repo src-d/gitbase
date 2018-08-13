@@ -193,8 +193,8 @@ func (c *Server) registerDrivers() error {
 
 	logrus.Debug("established connection with pilosa")
 
-	c.engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(c.IndexDir, client))
-	c.engine.Catalog.RegisterIndexDriver(pilosalib.NewDriver(c.IndexDir))
+	c.engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(filepath.Join(c.IndexDir, pilosa.DriverID), client))
+	c.engine.Catalog.RegisterIndexDriver(pilosalib.NewDriver(filepath.Join(c.IndexDir, pilosalib.DriverID))
 	logrus.Debug("registered pilosa index driver")
 
 	return nil
