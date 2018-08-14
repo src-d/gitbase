@@ -228,7 +228,7 @@ RUNTIME_GO_VERSION ?=
 
 # get the git commit
 GIT_COMMIT=$(shell git rev-parse HEAD | cut -c1-7)
-GIT_DIRTY=$(shell test -n "` + "`" + `git status --porcelain` + "`" + `" && echo "-dirty" || true)
+GIT_DIRTY=$(shell test -n "` + "`" + `git status --porcelain -uno` + "`" + `" && echo "-dirty" || true)
 
 # optional variables
 DRIVER_DEV_PREFIX := dev
@@ -273,7 +273,7 @@ func makeBootstrapMk() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "make/bootstrap.mk", size: 1260, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "make/bootstrap.mk", size: 1265, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }

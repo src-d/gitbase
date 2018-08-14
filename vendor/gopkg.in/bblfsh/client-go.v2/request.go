@@ -66,6 +66,21 @@ func (r *ParseRequestV2) Filename(filename string) *ParseRequestV2 {
 	return r
 }
 
+// Mode controls the level of transformation applied to UAST.
+type Mode = protocol2.Mode
+
+const (
+	Native    = protocol2.Mode_Native
+	Annotated = protocol2.Mode_Annotated
+	Semantic  = protocol2.Mode_Semantic
+)
+
+// Mode controls the level of transformation applied to UAST.
+func (r *ParseRequestV2) Mode(mode Mode) *ParseRequestV2 {
+	r.internal.Mode = mode
+	return r
+}
+
 // Do performs the actual parsing by serializing the request, sending it to
 // bblfshd and waiting for the response.
 func (r *ParseRequestV2) Do() (*protocol2.ParseResponse, error) {

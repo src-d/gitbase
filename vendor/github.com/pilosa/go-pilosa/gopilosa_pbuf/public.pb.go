@@ -544,18 +544,42 @@ func (m *ImportValueRequest) GetValues() []int64 {
 }
 
 func init() {
-	proto.RegisterType((*Bitmap)(nil), "internal.Bitmap")
-	proto.RegisterType((*Pair)(nil), "internal.Pair")
-	proto.RegisterType((*ValCount)(nil), "internal.ValCount")
-	proto.RegisterType((*Bit)(nil), "internal.Bit")
-	proto.RegisterType((*ColumnAttrSet)(nil), "internal.ColumnAttrSet")
-	proto.RegisterType((*Attr)(nil), "internal.Attr")
-	proto.RegisterType((*AttrMap)(nil), "internal.AttrMap")
-	proto.RegisterType((*QueryRequest)(nil), "internal.QueryRequest")
-	proto.RegisterType((*QueryResponse)(nil), "internal.QueryResponse")
-	proto.RegisterType((*QueryResult)(nil), "internal.QueryResult")
-	proto.RegisterType((*ImportRequest)(nil), "internal.ImportRequest")
-	proto.RegisterType((*ImportValueRequest)(nil), "internal.ImportValueRequest")
+	if t := proto.MessageType("internal.Bitmap"); t == nil {
+		proto.RegisterType((*Bitmap)(nil), "internal.Bitmap")
+	}
+	if t := proto.MessageType("internal.Pair"); t == nil {
+		proto.RegisterType((*Pair)(nil), "internal.Pair")
+	}
+	if t := proto.MessageType("internal.ValCount"); t == nil {
+		proto.RegisterType((*ValCount)(nil), "internal.ValCount")
+	}
+	if t := proto.MessageType("internal.Bit"); t == nil {
+		proto.RegisterType((*Bit)(nil), "internal.Bit")
+	}
+	if t := proto.MessageType("internal.ColumnAttrSet"); t == nil {
+		proto.RegisterType((*ColumnAttrSet)(nil), "internal.ColumnAttrSet")
+	}
+	if t := proto.MessageType("internal.Attr"); t == nil {
+		proto.RegisterType((*Attr)(nil), "internal.Attr")
+	}
+	if t := proto.MessageType("internal.AttrMap"); t == nil {
+		proto.RegisterType((*AttrMap)(nil), "internal.AttrMap")
+	}
+	if t := proto.MessageType("internal.QueryRequest"); t == nil {
+		proto.RegisterType((*QueryRequest)(nil), "internal.QueryRequest")
+	}
+	if t := proto.MessageType("internal.QueryResponse"); t == nil {
+		proto.RegisterType((*QueryResponse)(nil), "internal.QueryResponse")
+	}
+	if t := proto.MessageType("internal.QueryResult"); t == nil {
+		proto.RegisterType((*QueryResult)(nil), "internal.QueryResult")
+	}
+	if t := proto.MessageType("internal.ImportRequest"); t == nil {
+		proto.RegisterType((*ImportRequest)(nil), "internal.ImportRequest")
+	}
+	if t := proto.MessageType("internal.ImportValueRequest"); t == nil {
+		proto.RegisterType((*ImportValueRequest)(nil), "internal.ImportValueRequest")
+	}
 }
 
 func init() { proto.RegisterFile("gopilosa_pbuf/public.proto", fileDescriptor0) }
