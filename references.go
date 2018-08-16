@@ -236,12 +236,8 @@ func (i *referenceIter) NewIterator(repo *Repository) (RowRepoIter, error) {
 	}
 
 	head, err := repo.Repo.Head()
-	if err != nil {
-		if err != plumbing.ErrReferenceNotFound {
-			return nil, err
-		}
-
-		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
+	if err != nil && err != plumbing.ErrReferenceNotFound {
+		return nil, err
 	}
 
 	return &referenceIter{
@@ -303,12 +299,8 @@ func (i *filteredReferencesIter) NewIterator(repo *Repository) (RowRepoIter, err
 	}
 
 	head, err := repo.Repo.Head()
-	if err != nil {
-		if err != plumbing.ErrReferenceNotFound {
-			return nil, err
-		}
-
-		logrus.WithField("repo", repo.ID).Debug("unable to get HEAD of repository")
+	if err != nil && err != plumbing.ErrReferenceNotFound {
+		return nil, err
 	}
 
 	return &filteredReferencesIter{
