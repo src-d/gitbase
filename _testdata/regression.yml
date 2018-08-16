@@ -1,0 +1,107 @@
+-
+  ID: '0.16.0-0'
+  Name: 'All commits'
+  Statements:
+    - SELECT * FROM commits
+-
+  ID: '0.16.0-1'
+  Name: 'Last commit messages in HEAD for every repository'
+  Statements:
+    - SELECT c.commit_message FROM refs rJOIN commits c ON r.commit_hash = c.commit_hashWHEREr.ref_name = 'HEAD'
+-
+  ID: '0.16.0-2'
+  Name: 'All commit messages in HEAD history for every repository'
+  Statements:
+    - SELECT c.commit_message FROM commits cNATURAL JOIN ref_commits rWHERE r.ref_name = 'HEAD'
+-
+  ID: '0.16.0-3'
+  Name: 'Top 10 repositories by commit count in HEAD'
+  Statements:
+    - SELECT repository_id,commit_count FROM (SELECT r.repository_id,count(*) AS commit_count FROM ref_commits r WHERE r.ref_name = 'HEAD' GROUP BY r.repository_id) AS q ORDER BY commit_count DESC LIMIT 10
+-
+  ID: '0.16.0-4'
+  Name: 'Top 10 repositories by contributor count (all branches)'
+  Statements:
+    - SELECT repository_id,contributor_count FROM (SELECT repository_id, COUNT(DISTINCT commit_author_email) AS contributor_count FROM commits GROUP BY repository_id) AS q ORDER BY contributor_count DESC LIMIT 10
+-
+  ID: '0.16.0-5'
+  Name: 'Create pilosa index on language UDF'
+  Statements:
+    - CREATE INDEX language_idx ON files USING pilosa (language(file_path, blob_content)) WITH (async = false)
+-
+  ID: '0.16.0-6'
+  Name: 'Create pilosalib index on language UDF'
+  Statements:
+    - CREATE INDEX language_idx ON files USING pilosalib (language(file_path, blob_content)) WITH (async = false)
+-
+  ID: '0.16.0-7'
+  Name: 'Query by language using the pilosa index'
+  Statements:
+    - CREATE INDEX language_idx ON files USING pilosa (language(file_path, blob_content)) WITH (async = false)
+    - SELECT file_path FROM files WHERE language(file_path, blob_content) = 'Go'
+    - DROP INDEX language_idx ON files
+-
+  ID: '0.16.0-8'
+  Name: 'Query by language using the pilosalib index'
+  Statements:
+    - CREATE INDEX language_idx ON files USING pilosalib (language(file_path, blob_content)) WITH (async = false)
+    - SELECT file_path FROM files WHERE language(file_path, blob_content) = 'Go'
+    - DROP INDEX language_idx ON files
+-
+  ID: '0.16.0-9'
+  Name: 'Query all files from HEAD'
+  Statements:
+    - SELECT cf.file_path, f.blob_content FROM ref_commits r NATURAL JOIN commit_files cf NATURAL JOIN files f WHERE r.ref_name = 'HEAD' AND r.index = 0
+-
+  ID: '0.16.0-10'
+  Name: 'Get all LICENSE blobs using pilosa index'
+  Statements:
+    - CREATE INDEX file_path_idx ON files USING pilosa (file_path) WITH (async = false)
+    - SELECT blob_content FROM files WHERE file_path = 'LICENSE'
+-
+  ID: '0.16.0-11'
+  Name: 'Get all LICENSE blobs using pilosalib index'
+  Statements:
+    - CREATE INDEX file_path_idx ON files USING pilosalib (file_path) WITH (async = false)
+    - SELECT blob_content FROM files WHERE file_path = 'LICENSE'
+-
+  ID: '0.16.0-12'
+  Name: '10 top repos by file count in HEAD'
+  Statements:
+    - SELECT repository_id, num_files FROM (SELECT COUNT(f.*) num_files, f.repository_id FROM ref_commits r INNER JOIN commit_files cf ON r.commit_hash = cf.commit_hash AND r.repository_id = cf.repository_id INNER JOIN files fON cf.repository_id = f.repository_id AND cf.blob_hash = f.blob_hash AND cf.tree_hash = f.tree_hash AND cf.file_path = f.file_path WHERE r.ref_name = 'HEAD' GROUP BY f.repository_id) t ORDER BY num_files DESC LIMIT 10
+-
+  ID: '0.16.0-13'
+  Name: 'Top committers per repository'
+  Statements:
+    - SELECT * FROM (SELECT commit_author_email as author,repository_id as id,count(*) as num_commits FROM commits GROUP BY commit_author_email, repository_id) t ORDER BY num_commits DESC"
+-
+  ID: '0.16.0-14'
+  Name: 'Top committers in all repositories'
+  Statements:
+    - SELECT * FROM (SELECT commit_author_email as author,count(*) as num_commits FROM commits GROUP BY commit_author_email) t ORDER BY num_commits DESC
+-
+  ID: '0.16.0-15'
+  Name: 'Union operation with pilosa index'
+  Statements:
+  - CREATE INDEX file_path_idx ON files USING pilosa (file_path) WITH (async = false)
+  - SELECT blob_content FROM files WHERE file_path = 'LICENSE' OR file_path = 'README.md'
+  - DROP INDEX file_path_idx ON files
+-
+  ID: '0.16.0-16'
+  Name: 'Union operation with pilosalib index'
+  Statements:
+  - CREATE INDEX file_path_idx ON files USING pilosalib (file_path) WITH (async = false)
+  - SELECT blob_content FROM files WHERE file_path = 'LICENSE' OR file_path = 'README.md'
+  - DROP INDEX file_path_idx ON files
+-
+  ID: '0.16.0-17'
+  Name: 'Count all commits with NOT operation'
+  Statements:
+  - SELECT COUNT(*) FROM commits WHERE NOT(commit_author_email = 'non existing email address');
+-
+  ID: '0.16.0-18'
+  Name: 'Count all commits with NOT operation and pilosalib index'
+  Statements:
+  - CREATE INDEX email_idx ON commits USING pilosalib (commit_author_email) WITH (async = false)
+  - SELECT COUNT(*) FROM commits WHERE NOT(commit_author_email = 'non existing email address')
+  - DROP INDEX email_idx ON commits
