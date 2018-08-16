@@ -491,9 +491,8 @@ func (i *squashRefIter) Advance() error {
 			}
 
 			i.head, err = i.repo.Repo.Head()
-			if err == plumbing.ErrReferenceNotFound {
-				logrus.WithField("repo", i.repo.ID).Debug("unable to get HEAD of repository")
-			} else if err != nil && !i.skipGitErrors {
+			if err != nil && !i.skipGitErrors &&
+				err != plumbing.ErrReferenceNotFound {
 				return err
 			}
 		}
@@ -636,13 +635,10 @@ func (i *squashRepoRefsIter) Advance() error {
 			}
 
 			i.head, err = i.repos.Repository().Repo.Head()
-			if err != nil {
-				if err != plumbing.ErrReferenceNotFound && !i.skipGitErrors {
-					return err
-				}
-
-				logrus.WithField("repo", i.repos.Repository().ID).
-					Debug("unable to get HEAD of repository")
+			if err != nil &&
+				err != plumbing.ErrReferenceNotFound &&
+				!i.skipGitErrors {
+				return err
 			}
 		}
 
@@ -781,13 +777,10 @@ func (i *squashRemoteRefsIter) Advance() error {
 			}
 
 			i.head, err = i.Repository().Repo.Head()
-			if err != nil {
-				if err != plumbing.ErrReferenceNotFound && !i.skipGitErrors {
-					return err
-				}
-
-				logrus.WithField("repo", i.remotes.Remote().RepoID).
-					Debug("unable to get HEAD of repository")
+			if err != nil &&
+				err != plumbing.ErrReferenceNotFound &&
+				!i.skipGitErrors {
+				return err
 			}
 		}
 
