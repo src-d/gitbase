@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/src-d/gitbase/cmd/gitbase/command"
@@ -17,6 +18,16 @@ var (
 
 func main() {
 	parser := flags.NewNamedParser(name, flags.Default)
+	parser.UnknownOptionHandler = func(option string, arg flags.SplitArgument, args []string) ([]string, error) {
+		if "g" != option {
+			return nil, fmt.Errorf("unknown flag `%s'", option)
+		}
+		if len(args) == 0 {
+			return nil, fmt.Errorf("unknown flag `%s'", option)
+		}
+
+		return append(append(args, "-d"), args[0]), nil
+	}
 
 	_, err := parser.AddCommand("server", command.ServerDescription, command.ServerHelp,
 		&command.Server{
