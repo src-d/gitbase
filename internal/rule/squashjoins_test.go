@@ -1568,6 +1568,32 @@ func TestBuildSquashedTable(t *testing.T) {
 			),
 		},
 		{
+			"refs with indexes",
+			[]sql.Table{refs, refCommits},
+			[]sql.Expression{
+				refsRefCommitsRedundantFilter,
+			},
+			nil,
+			map[string]sql.IndexLookup{
+				gitbase.ReferencesTableName: idx1,
+				gitbase.RefCommitsTableName: idx2,
+			},
+			nil,
+			newSquashedTable(
+				gitbase.NewRefRefCommitsIter(
+					gitbase.NewIndexRefsIter(nil, idx1),
+					nil,
+				),
+				nil,
+				[]sql.Expression{
+					refsRefCommitsRedundantFilter,
+				},
+				[]string{gitbase.ReferencesTableName},
+				gitbase.ReferencesTableName,
+				gitbase.RefCommitsTableName,
+			),
+		},
+		{
 			"ref commits with indexes",
 			[]sql.Table{refCommits, commits},
 			[]sql.Expression{

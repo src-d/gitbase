@@ -311,7 +311,12 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
-				iter = gitbase.NewAllRefsIter(f, false)
+
+				if index == nil {
+					iter = gitbase.NewAllRefsIter(f, false)
+				} else {
+					iter = gitbase.NewIndexRefsIter(f, index)
+				}
 			default:
 				return nil, errInvalidIteratorChain.New("refs", iter)
 			}
