@@ -934,99 +934,37 @@ func (*RecalculateCaches) ProtoMessage()               {}
 func (*RecalculateCaches) Descriptor() ([]byte, []int) { return fileDescriptorPrivate, []int{30} }
 
 func init() {
-	if t := proto.MessageType("internal.IndexMeta"); t == nil {
-		proto.RegisterType((*IndexMeta)(nil), "internal.IndexMeta")
-	}
-	if t := proto.MessageType("internal.FieldOptions"); t == nil {
-		proto.RegisterType((*FieldOptions)(nil), "internal.FieldOptions")
-	}
-	if t := proto.MessageType("internal.ImportResponse"); t == nil {
-		proto.RegisterType((*ImportResponse)(nil), "internal.ImportResponse")
-	}
-	if t := proto.MessageType("internal.BlockDataRequest"); t == nil {
-		proto.RegisterType((*BlockDataRequest)(nil), "internal.BlockDataRequest")
-	}
-	if t := proto.MessageType("internal.BlockDataResponse"); t == nil {
-		proto.RegisterType((*BlockDataResponse)(nil), "internal.BlockDataResponse")
-	}
-	if t := proto.MessageType("internal.Cache"); t == nil {
-		proto.RegisterType((*Cache)(nil), "internal.Cache")
-	}
-	if t := proto.MessageType("internal.MaxShards"); t == nil {
-		proto.RegisterType((*MaxShards)(nil), "internal.MaxShards")
-	}
-	if t := proto.MessageType("internal.CreateShardMessage"); t == nil {
-		proto.RegisterType((*CreateShardMessage)(nil), "internal.CreateShardMessage")
-	}
-	if t := proto.MessageType("internal.DeleteIndexMessage"); t == nil {
-		proto.RegisterType((*DeleteIndexMessage)(nil), "internal.DeleteIndexMessage")
-	}
-	if t := proto.MessageType("internal.CreateIndexMessage"); t == nil {
-		proto.RegisterType((*CreateIndexMessage)(nil), "internal.CreateIndexMessage")
-	}
-	if t := proto.MessageType("internal.CreateFieldMessage"); t == nil {
-		proto.RegisterType((*CreateFieldMessage)(nil), "internal.CreateFieldMessage")
-	}
-	if t := proto.MessageType("internal.DeleteFieldMessage"); t == nil {
-		proto.RegisterType((*DeleteFieldMessage)(nil), "internal.DeleteFieldMessage")
-	}
-	if t := proto.MessageType("internal.Field"); t == nil {
-		proto.RegisterType((*Field)(nil), "internal.Field")
-	}
-	if t := proto.MessageType("internal.Schema"); t == nil {
-		proto.RegisterType((*Schema)(nil), "internal.Schema")
-	}
-	if t := proto.MessageType("internal.Index"); t == nil {
-		proto.RegisterType((*Index)(nil), "internal.Index")
-	}
-	if t := proto.MessageType("internal.URI"); t == nil {
-		proto.RegisterType((*URI)(nil), "internal.URI")
-	}
-	if t := proto.MessageType("internal.Node"); t == nil {
-		proto.RegisterType((*Node)(nil), "internal.Node")
-	}
-	if t := proto.MessageType("internal.NodeStateMessage"); t == nil {
-		proto.RegisterType((*NodeStateMessage)(nil), "internal.NodeStateMessage")
-	}
-	if t := proto.MessageType("internal.NodeEventMessage"); t == nil {
-		proto.RegisterType((*NodeEventMessage)(nil), "internal.NodeEventMessage")
-	}
-	if t := proto.MessageType("internal.NodeStatus"); t == nil {
-		proto.RegisterType((*NodeStatus)(nil), "internal.NodeStatus")
-	}
-	if t := proto.MessageType("internal.ClusterStatus"); t == nil {
-		proto.RegisterType((*ClusterStatus)(nil), "internal.ClusterStatus")
-	}
-	if t := proto.MessageType("internal.BSIGroup"); t == nil {
-		proto.RegisterType((*BSIGroup)(nil), "internal.BSIGroup")
-	}
-	if t := proto.MessageType("internal.CreateViewMessage"); t == nil {
-		proto.RegisterType((*CreateViewMessage)(nil), "internal.CreateViewMessage")
-	}
-	if t := proto.MessageType("internal.DeleteViewMessage"); t == nil {
-		proto.RegisterType((*DeleteViewMessage)(nil), "internal.DeleteViewMessage")
-	}
-	if t := proto.MessageType("internal.ResizeInstruction"); t == nil {
-		proto.RegisterType((*ResizeInstruction)(nil), "internal.ResizeInstruction")
-	}
-	if t := proto.MessageType("internal.ResizeSource"); t == nil {
-		proto.RegisterType((*ResizeSource)(nil), "internal.ResizeSource")
-	}
-	if t := proto.MessageType("internal.ResizeInstructionComplete"); t == nil {
-		proto.RegisterType((*ResizeInstructionComplete)(nil), "internal.ResizeInstructionComplete")
-	}
-	if t := proto.MessageType("internal.SetCoordinatorMessage"); t == nil {
-		proto.RegisterType((*SetCoordinatorMessage)(nil), "internal.SetCoordinatorMessage")
-	}
-	if t := proto.MessageType("internal.UpdateCoordinatorMessage"); t == nil {
-		proto.RegisterType((*UpdateCoordinatorMessage)(nil), "internal.UpdateCoordinatorMessage")
-	}
-	if t := proto.MessageType("internal.Topology"); t == nil {
-		proto.RegisterType((*Topology)(nil), "internal.Topology")
-	}
-	if t := proto.MessageType("internal.RecalculateCaches"); t == nil {
-		proto.RegisterType((*RecalculateCaches)(nil), "internal.RecalculateCaches")
-	}
+	proto.RegisterType((*IndexMeta)(nil), "internal.IndexMeta")
+	proto.RegisterType((*FieldOptions)(nil), "internal.FieldOptions")
+	proto.RegisterType((*ImportResponse)(nil), "internal.ImportResponse")
+	proto.RegisterType((*BlockDataRequest)(nil), "internal.BlockDataRequest")
+	proto.RegisterType((*BlockDataResponse)(nil), "internal.BlockDataResponse")
+	proto.RegisterType((*Cache)(nil), "internal.Cache")
+	proto.RegisterType((*MaxShards)(nil), "internal.MaxShards")
+	proto.RegisterType((*CreateShardMessage)(nil), "internal.CreateShardMessage")
+	proto.RegisterType((*DeleteIndexMessage)(nil), "internal.DeleteIndexMessage")
+	proto.RegisterType((*CreateIndexMessage)(nil), "internal.CreateIndexMessage")
+	proto.RegisterType((*CreateFieldMessage)(nil), "internal.CreateFieldMessage")
+	proto.RegisterType((*DeleteFieldMessage)(nil), "internal.DeleteFieldMessage")
+	proto.RegisterType((*Field)(nil), "internal.Field")
+	proto.RegisterType((*Schema)(nil), "internal.Schema")
+	proto.RegisterType((*Index)(nil), "internal.Index")
+	proto.RegisterType((*URI)(nil), "internal.URI")
+	proto.RegisterType((*Node)(nil), "internal.Node")
+	proto.RegisterType((*NodeStateMessage)(nil), "internal.NodeStateMessage")
+	proto.RegisterType((*NodeEventMessage)(nil), "internal.NodeEventMessage")
+	proto.RegisterType((*NodeStatus)(nil), "internal.NodeStatus")
+	proto.RegisterType((*ClusterStatus)(nil), "internal.ClusterStatus")
+	proto.RegisterType((*BSIGroup)(nil), "internal.BSIGroup")
+	proto.RegisterType((*CreateViewMessage)(nil), "internal.CreateViewMessage")
+	proto.RegisterType((*DeleteViewMessage)(nil), "internal.DeleteViewMessage")
+	proto.RegisterType((*ResizeInstruction)(nil), "internal.ResizeInstruction")
+	proto.RegisterType((*ResizeSource)(nil), "internal.ResizeSource")
+	proto.RegisterType((*ResizeInstructionComplete)(nil), "internal.ResizeInstructionComplete")
+	proto.RegisterType((*SetCoordinatorMessage)(nil), "internal.SetCoordinatorMessage")
+	proto.RegisterType((*UpdateCoordinatorMessage)(nil), "internal.UpdateCoordinatorMessage")
+	proto.RegisterType((*Topology)(nil), "internal.Topology")
+	proto.RegisterType((*RecalculateCaches)(nil), "internal.RecalculateCaches")
 }
 func (m *IndexMeta) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
