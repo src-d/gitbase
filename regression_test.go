@@ -32,7 +32,7 @@ func TestParseRegressionQueries(t *testing.T) {
 	for _, q := range queries {
 		for _, stmt := range q.Statements {
 			if _, err := parse.Parse(ctx, stmt); err != nil {
-				require.Failf(err.Error(), "%v", q)
+				require.Failf(err.Error(), "ID: %s, Name: %s, Statement: %s", q.ID, q.Name, stmt)
 			}
 		}
 	}
