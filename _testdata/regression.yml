@@ -7,12 +7,12 @@
   ID: 'query1'
   Name: 'Last commit messages in HEAD for every repository'
   Statements:
-    - SELECT c.commit_message FROM refs rJOIN commits c ON r.commit_hash = c.commit_hashWHEREr.ref_name = 'HEAD'
+    - SELECT c.commit_message FROM refs r JOIN commits c ON r.commit_hash = c.commit_hash WHERE r.ref_name = 'HEAD'
 -
   ID: 'query2'
   Name: 'All commit messages in HEAD history for every repository'
   Statements:
-    - SELECT c.commit_message FROM commits cNATURAL JOIN ref_commits rWHERE r.ref_name = 'HEAD'
+    - SELECT c.commit_message FROM commits c NATURAL JOIN ref_commits r WHERE r.ref_name = 'HEAD'
 -
   ID: 'query3'
   Name: 'Top 10 repositories by commit count in HEAD'
