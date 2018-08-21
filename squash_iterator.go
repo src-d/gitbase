@@ -552,6 +552,109 @@ func (i *squashRefIter) Schema() sql.Schema {
 	return RefsSchema
 }
 
+type squashRefIndexIter struct {
+	ctx           *sql.Context
+	index         sql.IndexLookup
+	iter          sql.RowIter
+	filters       sql.Expression
+	pool          *RepositoryPool
+	ref           *Ref
+	repo          *Repository
+	row           sql.Row
+	skipGitErrors bool
+}
+
+// NewIndexRefsIter returns an iterator that will return all references
+// that match the given filters in the given index.
+func NewIndexRefsIter(filters sql.Expression, index sql.IndexLookup) RefsIter {
+	return &squashRefIndexIter{filters: filters, index: index}
+}
+
+func (i *squashRefIndexIter) Repository() *Repository { return i.repo }
+func (i *squashRefIndexIter) Ref() *Ref               { return i.ref }
+func (i *squashRefIndexIter) Close() error {
+	return i.iter.Close()
+}
+func (i *squashRefIndexIter) New(ctx *sql.Context, pool *RepositoryPool) (ChainableIter, error) {
+	session, err := getSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := i.index.Values()
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashRefIndexIter{
+		ctx:           ctx,
+		filters:       i.filters,
+		skipGitErrors: session.SkipGitErrors,
+		pool:          pool,
+		iter:          &rowIndexIter{new(refRowKeyMapper), values},
+	}, nil
+}
+
+func (i *squashRefIndexIter) Row() sql.Row {
+	return i.row
+}
+
+func (i *squashRefIndexIter) Advance() error {
+	for {
+		select {
+		case <-i.ctx.Done():
+			return ErrSessionCanceled.New()
+		default:
+		}
+
+		var err error
+		i.row, err = i.iter.Next()
+		if err != nil {
+			return err
+		}
+
+		repoID := i.row[0].(string)
+		if i.repo == nil || repoID != i.repo.ID {
+			i.repo, err = i.pool.GetRepo(repoID)
+			if err != nil {
+				if i.skipGitErrors {
+					continue
+				}
+
+				return err
+			}
+		}
+
+		refName := plumbing.ReferenceName(i.row[1].(string))
+		ref, err := i.repo.Repo.Reference(refName, true)
+		if err != nil {
+			if i.skipGitErrors {
+				continue
+			}
+
+			return err
+		}
+
+		i.ref = &Ref{repoID, ref}
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+func (i *squashRefIndexIter) Schema() sql.Schema {
+	return RefsSchema
+}
+
 type squashRepoRefsIter struct {
 	ctx           *sql.Context
 	repos         ReposIter

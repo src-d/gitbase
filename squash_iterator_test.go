@@ -744,6 +744,33 @@ func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Cont
 	return ctx, cleanup
 }
 
+func TestIndexRefsIter(t *testing.T) {
+	require := require.New(t)
+
+	ctx, index, cleanup := setupWithIndex(t, new(referencesTable))
+	defer cleanup()
+
+	it, err := NewChainableRowIter(
+		ctx,
+		NewAllRefsIter(nil, false),
+	)
+	require.NoError(err)
+
+	expected, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	it, err = NewChainableRowIter(
+		ctx,
+		NewIndexRefsIter(nil, index),
+	)
+	require.NoError(err)
+
+	rows, err := sql.RowIterToRows(it)
+	require.NoError(err)
+
+	require.ElementsMatch(expected, rows)
+}
+
 func TestIndexRefCommitsIter(t *testing.T) {
 	require := require.New(t)
 

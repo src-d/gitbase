@@ -311,7 +311,12 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
-				iter = gitbase.NewAllRefsIter(f, false)
+
+				if index == nil {
+					iter = gitbase.NewAllRefsIter(f, false)
+				} else {
+					iter = gitbase.NewIndexRefsIter(f, index)
+				}
 			default:
 				return nil, errInvalidIteratorChain.New("refs", iter)
 			}
@@ -768,7 +773,18 @@ func buildSquashedTable(
 
 	mapping := buildSchemaMapping(originalSchema, iter.Schema())
 
-	var node sql.Node = newSquashedTable(iter, mapping, allFilters, tableNames...)
+	var indexedTables []string
+	if index != nil {
+		indexedTables = []string{firstTable}
+	}
+
+	var node sql.Node = newSquashedTable(
+		iter,
+		mapping,
+		allFilters,
+		indexedTables,
+		tableNames...,
+	)
 
 	if len(filters) > 0 {
 		f, err := fixFieldIndexes(expression.JoinAnd(filters...), iter.Schema())
@@ -988,6 +1004,7 @@ type squashedTable struct {
 	tables         []string
 	schemaMappings []int
 	filters        []sql.Expression
+	indexedTables  []string
 	schema         sql.Schema
 }
 
@@ -995,9 +1012,10 @@ func newSquashedTable(
 	iter gitbase.ChainableIter,
 	mapping []int,
 	filters []sql.Expression,
+	indexedTables []string,
 	tables ...string,
 ) *squashedTable {
-	return &squashedTable{iter, tables, mapping, filters, nil}
+	return &squashedTable{iter, tables, mapping, filters, indexedTables, nil}
 }
 
 var _ sql.Node = (*squashedTable)(nil)
@@ -1058,9 +1076,18 @@ func (t *squashedTable) String() string {
 	}
 	_ = fp.WriteChildren(filters...)
 
+	children := []string{cp.String(), fp.String()}
+
+	if len(t.indexedTables) > 0 {
+		ip := sql.NewTreePrinter()
+		_ = ip.WriteNode("IndexedTables")
+		_ = ip.WriteChildren(t.indexedTables...)
+		children = append(children, ip.String())
+	}
+
 	p := sql.NewTreePrinter()
 	_ = p.WriteNode("SquashedTable(%s)", strings.Join(t.tables, ", "))
-	_ = p.WriteChildren(cp.String(), fp.String())
+	_ = p.WriteChildren(children...)
 	return p.String()
 }
 func (t *squashedTable) TransformExpressionsUp(sql.TransformExprFunc) (sql.Node, error) {
