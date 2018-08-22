@@ -2531,3 +2531,7 @@ type dummyLookup struct {
 func (dummyLookup) Values() (sql.IndexValueIter, error) {
 	panic("dummyLookup Values is a placeholder")
 }
+
+func (l dummyLookup) Indexes() []string {
+	return []string{fmt.Sprintf("index_%d", l.n)}
+}
