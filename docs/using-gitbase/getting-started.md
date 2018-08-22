@@ -7,7 +7,28 @@
 - [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.5.0 (only if you're planning to use the `UAST` functionality provided in gitbase)
 - [pilosa](https://github.com/pilosa/pilosa) 0.9.0 (only if you're planning on using indexes)
 
-## Download and use the binary
+## Installing gitbase
+
+The easiest way to run the gitbase server is using Docker, however you have the options of using the binary or installing from source.
+
+### Running with Docker
+
+You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
+```
+$ docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/gitbase:latest
+```
+
+If you want to speedup gitbase using indexes you must run a pilosa container:
+```
+$ docker run -it --rm --name pilosa -p 10101:10101 pilosa/pilosa:v0.9.0
+```
+
+Then link the gitbase container to the pilosa one:
+```
+$ docker run --rm --name gitbase -p 3306:3306 --link pilosa:pilosa -e PILOSA_ENDPOINT="http://pilosa:10101" -v /my/git/repos:/opt/repos srcd/gitbase:latest
+```
+
+### Download and use the binary
 
 Check the [Releases](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
@@ -19,7 +40,7 @@ You can start a server by providing a path which contains multiple git repositor
 $ gitbase server -v -d /path/to/repositories
 ```
 
-## Installing from source
+### Installing from source
 
 On Linux and macOS:
 
@@ -37,26 +58,9 @@ $ cd $GOPATH/src/github.com/src-d/gitbase
 $ make dependencies
 ```
 
-## Running with docker
-
-You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
-```
-$ docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/gitbase:latest
-```
-
-If you want to speedup gitbase using indexes you must run a pilosa container:
-```
-$ docker run -it --rm --name pilosa -p 10101:10101 pilosa/pilosa:v0.9.0
-```
-
-Then link the gitbase container to the pilosa one:
-```
-$ docker run --rm --name gitbase -p 3306:3306 --link pilosa:pilosa -e PILOSA_ENDPOINT="http://pilosa:10101" -v /my/git/repos:/opt/repos srcd/gitbase:latest
-```
-
 ## Connecting to the server
 
-When the server is started a MySQL client is needed to connect to the server. For example:
+When the gitbase server is started a MySQL client is needed to connect to the server. For example:
 
 ```bash
 $ mysql -q -u root -h 127.0.0.1
