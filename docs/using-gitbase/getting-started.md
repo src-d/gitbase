@@ -37,7 +37,7 @@ $ cd $GOPATH/src/github.com/src-d/gitbase
 $ make dependencies
 ```
 
-## Running with docker
+## Running with Docker
 
 You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
 ```
