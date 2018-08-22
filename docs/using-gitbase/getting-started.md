@@ -39,7 +39,7 @@ $ make dependencies
 
 ## Running with Docker
 
-You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
+You can use the official image from [Docker Hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
 ```
 $ docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/gitbase:latest
 ```
