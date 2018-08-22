@@ -19,7 +19,7 @@ import (
 )
 
 type packRepository struct {
-	packs map[plumbing.Hash]packfile.Index
+	packs map[plumbing.Hash]idxfile.Index
 }
 
 func repositoryPackfiles(repo repository) (*dotgit.DotGit, []plumbing.Hash, error) {
@@ -44,7 +44,7 @@ func repositoryPackfiles(repo repository) (*dotgit.DotGit, []plumbing.Hash, erro
 
 type packfileIndex struct {
 	packfile plumbing.Hash
-	idx      *packfile.Index
+	idx      idxfile.Index
 }
 
 type repositoryIndex struct {
@@ -74,28 +74,35 @@ func newRepositoryIndex(repo repository) (*repositoryIndex, error) {
 func openPackfileIndex(
 	dotGit *dotgit.DotGit,
 	hash plumbing.Hash,
-) (*packfile.Index, error) {
+) (*idxfile.MemoryIndex, error) {
 	f, err := dotGit.ObjectPackIdx(hash)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	idx := idxfile.NewIdxfile()
+	idx := idxfile.NewMemoryIndex()
 	if err := idxfile.NewDecoder(f).Decode(idx); err != nil {
 		return nil, err
 	}
 
-	return packfile.NewIndexFromIdxFile(idx), nil
+	return idx, nil
 }
 
 var errHashNotInIndex = errors.NewKind("object hash %s is not in repository")
 
 func (i *repositoryIndex) find(hash plumbing.Hash) (int64, plumbing.Hash, error) {
 	for _, idx := range i.indexes {
-		if entry, ok := idx.idx.LookupHash(hash); ok {
-			return int64(entry.Offset), idx.packfile, nil
+		ofs, err := idx.idx.FindOffset(hash)
+		if err == plumbing.ErrObjectNotFound {
+			continue
 		}
+
+		if err != nil {
+			return 0, plumbing.ZeroHash, err
+		}
+
+		return ofs, idx.packfile, nil
 	}
 
 	ok, err := i.isUnpacked(hash)
@@ -192,8 +199,8 @@ func getUnpackedObject(repo repository, hash plumbing.Hash) (o object.Object, er
 
 type repoObjectDecoder struct {
 	repo     string
-	packfile plumbing.Hash
-	decoder  *packfile.Decoder
+	hash     plumbing.Hash
+	packfile *packfile.Packfile
 	storage  storer.EncodedObjectStorer
 }
 
@@ -223,7 +230,12 @@ func newRepoObjectDecoder(
 		return nil, err
 	}
 
-	decoder, err := packfile.NewDecoder(packfile.NewScanner(packf), storage)
+	idx, err := openPackfileIndex(dot, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	packfile := packfile.NewPackfile(idx, fs, packf)
 	if err != nil {
 		_ = packf.Close()
 		return nil, err
@@ -231,18 +243,18 @@ func newRepoObjectDecoder(
 
 	return &repoObjectDecoder{
 		repo:     repo.ID(),
-		packfile: hash,
-		decoder:  decoder,
+		hash:     hash,
+		packfile: packfile,
 		storage:  storage,
 	}, nil
 }
 
-func (d *repoObjectDecoder) equals(repo string, packfile plumbing.Hash) bool {
-	return d.repo == repo && d.packfile == packfile
+func (d *repoObjectDecoder) equals(repo string, hash plumbing.Hash) bool {
+	return d.repo == repo && d.hash == hash
 }
 
 func (d *repoObjectDecoder) get(offset int64) (object.Object, error) {
-	encodedObj, err := d.decoder.DecodeObjectAt(offset)
+	encodedObj, err := d.packfile.GetByOffset(offset)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +263,7 @@ func (d *repoObjectDecoder) get(offset int64) (object.Object, error) {
 }
 
 func (d *repoObjectDecoder) Close() error {
-	return d.decoder.Close()
+	return d.packfile.Close()
 }
 
 type objectDecoder struct {

@@ -846,7 +846,33 @@ func (s *RepositorySuite) TestCloneDetachedHEAD(c *C) {
 	objects, err := r.Objects()
 	c.Assert(err, IsNil)
 	objects.ForEach(func(object.Object) error { count++; return nil })
-	c.Assert(count, Equals, 31)
+	c.Assert(count, Equals, 28)
+}
+
+func (s *RepositorySuite) TestCloneDetachedHEADAndSingle(c *C) {
+	r, _ := Init(memory.NewStorage(), nil)
+	err := r.clone(context.Background(), &CloneOptions{
+		URL:           s.GetBasicLocalRepositoryURL(),
+		ReferenceName: plumbing.ReferenceName("refs/tags/v1.0.0"),
+		SingleBranch:  true,
+	})
+	c.Assert(err, IsNil)
+
+	cfg, err := r.Config()
+	c.Assert(err, IsNil)
+	c.Assert(cfg.Branches, HasLen, 0)
+
+	head, err := r.Reference(plumbing.HEAD, false)
+	c.Assert(err, IsNil)
+	c.Assert(head, NotNil)
+	c.Assert(head.Type(), Equals, plumbing.HashReference)
+	c.Assert(head.Hash().String(), Equals, "6ecf0ef2c2dffb796033e5a02219af86ec6584e5")
+
+	count := 0
+	objects, err := r.Objects()
+	c.Assert(err, IsNil)
+	objects.ForEach(func(object.Object) error { count++; return nil })
+	c.Assert(count, Equals, 28)
 }
 
 func (s *RepositorySuite) TestCloneDetachedHEADAndShallow(c *C) {
@@ -1687,4 +1713,60 @@ func (s *RepositorySuite) TestBrokenMultipleShallowFetch(c *C) {
 		return nil
 	})
 	c.Assert(err, IsNil)
+}
+
+func BenchmarkObjects(b *testing.B) {
+	if err := fixtures.Init(); err != nil {
+		b.Fatal(err)
+	}
+
+	defer func() {
+		if err := fixtures.Clean(); err != nil {
+			b.Fatal(err)
+		}
+	}()
+
+	for _, f := range fixtures.ByTag("packfile") {
+		if f.DotGitHash == plumbing.ZeroHash {
+			continue
+		}
+
+		b.Run(f.URL, func(b *testing.B) {
+			fs := f.DotGit()
+			storer, err := filesystem.NewStorage(fs)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			worktree, err := fs.Chroot(filepath.Dir(fs.Root()))
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			repo, err := Open(storer, worktree)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			for i := 0; i < b.N; i++ {
+				iter, err := repo.Objects()
+				if err != nil {
+					b.Fatal(err)
+				}
+
+				for {
+					_, err := iter.Next()
+					if err == io.EOF {
+						break
+					}
+
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+
+				iter.Close()
+			}
+		})
+	}
 }

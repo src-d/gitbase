@@ -1010,3 +1010,7 @@ type lookup struct {
 func (l lookup) Values() (sql.IndexValueIter, error) {
 	return l.values, nil
 }
+
+func (l lookup) Indexes() []string {
+	return []string{"test_idx"}
+}

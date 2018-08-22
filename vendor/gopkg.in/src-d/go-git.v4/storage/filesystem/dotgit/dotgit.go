@@ -279,19 +279,66 @@ func (d *DotGit) objectPath(h plumbing.Hash) string {
 	return d.fs.Join(objectsPath, hash[0:2], hash[2:40])
 }
 
+//incomingObjectPath is intended to add support for a git pre-recieve hook to be written
+//it adds support for go-git to find objects in an "incoming" directory, so that the library
+//can be used to write a pre-recieve hook that deals with the incoming objects.
+//More on git hooks found here : https://git-scm.com/docs/githooks
+//More on 'quarantine'/incoming directory here : https://git-scm.com/docs/git-receive-pack
+func (d *DotGit) incomingObjectPath(h plumbing.Hash) string {
+	hString := h.String()
+	directoryContents, err := d.fs.ReadDir(objectsPath)
+	if err != nil {
+		return d.fs.Join(objectsPath, hString[0:2], hString[2:40])
+	}
+	var incomingDirName string
+	for _, file := range directoryContents {
+		if strings.Split(file.Name(), "-")[0] == "incoming" && file.IsDir() {
+			incomingDirName = file.Name()
+		}
+	}
+	if incomingDirName == "" {
+		return d.fs.Join(objectsPath, hString[0:2], hString[2:40])
+	}
+	return d.fs.Join(objectsPath, incomingDirName, hString[0:2], hString[2:40])
+}
+
 // Object returns a fs.File pointing the object file, if exists
 func (d *DotGit) Object(h plumbing.Hash) (billy.File, error) {
-	return d.fs.Open(d.objectPath(h))
+	obj1, err1 := d.fs.Open(d.objectPath(h))
+	if os.IsNotExist(err1) {
+		obj2, err2 := d.fs.Open(d.incomingObjectPath(h))
+		if err2 != nil {
+			return obj1, err1
+		}
+		return obj2, err2
+	}
+	return obj1, err1
 }
 
 // ObjectStat returns a os.FileInfo pointing the object file, if exists
 func (d *DotGit) ObjectStat(h plumbing.Hash) (os.FileInfo, error) {
-	return d.fs.Stat(d.objectPath(h))
+	obj1, err1 := d.fs.Stat(d.objectPath(h))
+	if os.IsNotExist(err1) {
+		obj2, err2 := d.fs.Stat(d.incomingObjectPath(h))
+		if err2 != nil {
+			return obj1, err1
+		}
+		return obj2, err2
+	}
+	return obj1, err1
 }
 
 // ObjectDelete removes the object file, if exists
 func (d *DotGit) ObjectDelete(h plumbing.Hash) error {
-	return d.fs.Remove(d.objectPath(h))
+	err1 := d.fs.Remove(d.objectPath(h))
+	if os.IsNotExist(err1) {
+		err2 := d.fs.Remove(d.incomingObjectPath(h))
+		if err2 != nil {
+			return err1
+		}
+		return err2
+	}
+	return err1
 }
 
 func (d *DotGit) readReferenceFrom(rd io.Reader, name string) (ref *plumbing.Reference, err error) {
@@ -469,7 +516,7 @@ func (d *DotGit) openAndLockPackedRefs(doCreate bool) (
 	// File mode is retrieved from a constant defined in the target specific
 	// files (dotgit_rewrite_packed_refs_*). Some modes are not available
 	// in all filesystems.
-	openFlags := openAndLockPackedRefsMode
+	openFlags := d.openAndLockPackedRefsMode()
 	if doCreate {
 		openFlags |= os.O_CREATE
 	}
@@ -782,6 +829,11 @@ func (d *DotGit) Alternates() ([]*DotGit, error) {
 	}
 
 	return alternates, nil
+}
+
+// Fs returns the underlying filesystem of the DotGit folder.
+func (d *DotGit) Fs() billy.Filesystem {
+	return d.fs
 }
 
 func isHex(s string) bool {
