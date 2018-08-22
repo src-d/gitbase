@@ -18,12 +18,13 @@ type Query struct {
 	Statements []string `yaml:"Statements"`
 }
 
-func TestParseRegressionQueries(t *testing.T) {
+func TestRegressionQueries(t *testing.T) {
 	require := require.New(t)
 
 	queries, err := loadQueriesYaml("./_testdata/regression.yml")
 	require.NoError(err)
 
+	eng := newBaseEngine().Analyzer
 	ctx := sql.NewContext(
 		context.TODO(),
 		sql.WithSession(gitbase.NewSession(gitbase.NewRepositoryPool())),
@@ -31,7 +32,13 @@ func TestParseRegressionQueries(t *testing.T) {
 
 	for _, q := range queries {
 		for _, stmt := range q.Statements {
-			if _, err := parse.Parse(ctx, stmt); err != nil {
+			n, err := parse.Parse(ctx, stmt)
+			if err != nil {
+				require.Failf(err.Error(), "ID: %s, Name: %s, Statement: %s", q.ID, q.Name, stmt)
+			}
+
+			_, err = eng.Analyze(ctx, n)
+			if err != nil {
 				require.Failf(err.Error(), "ID: %s, Name: %s, Statement: %s", q.ID, q.Name, stmt)
 			}
 		}
