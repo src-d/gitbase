@@ -199,17 +199,23 @@ func (c *Commit) Decode(o plumbing.EncodedObject) (err error) {
 			}
 
 			split := bytes.SplitN(line, []byte{' '}, 2)
+
+			var data []byte
+			if len(split) == 2 {
+				data = split[1]
+			}
+
 			switch string(split[0]) {
 			case "tree":
-				c.TreeHash = plumbing.NewHash(string(split[1]))
+				c.TreeHash = plumbing.NewHash(string(data))
 			case "parent":
-				c.ParentHashes = append(c.ParentHashes, plumbing.NewHash(string(split[1])))
+				c.ParentHashes = append(c.ParentHashes, plumbing.NewHash(string(data)))
 			case "author":
-				c.Author.Decode(split[1])
+				c.Author.Decode(data)
 			case "committer":
-				c.Committer.Decode(split[1])
+				c.Committer.Decode(data)
 			case headerpgp:
-				c.PGPSignature += string(split[1]) + "\n"
+				c.PGPSignature += string(data) + "\n"
 				pgpsig = true
 			}
 		} else {
@@ -263,18 +269,18 @@ func (b *Commit) encode(o plumbing.EncodedObject, includeSig bool) (err error) {
 	}
 
 	if b.PGPSignature != "" && includeSig {
-		if _, err = fmt.Fprint(w, "\n"+headerpgp); err != nil {
+		if _, err = fmt.Fprint(w, "\n"+headerpgp+" "); err != nil {
 			return err
 		}
 
-		// Split all the signature lines and write with a left padding and
-		// newline at the end.
+		// Split all the signature lines and re-write with a left padding and
+		// newline. Use join for this so it's clear that a newline should not be
+		// added after this section, as it will be added when the message is
+		// printed.
 		signature := strings.TrimSuffix(b.PGPSignature, "\n")
 		lines := strings.Split(signature, "\n")
-		for _, line := range lines {
-			if _, err = fmt.Fprintf(w, " %s\n", line); err != nil {
-				return err
-			}
+		if _, err = fmt.Fprint(w, strings.Join(lines, "\n ")); err != nil {
+			return err
 		}
 	}
 

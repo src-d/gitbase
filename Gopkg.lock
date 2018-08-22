@@ -510,7 +510,7 @@
     "utils/merkletrie/internal/frame",
     "utils/merkletrie/noder"
   ]
-  revision = "a28c2ce44695f13ddf28748958f236afd8e0b544"
+  revision = "cdfa0bb8d987272b5729e565dbcc64f07963d77d"
   source = "github.com/src-d/go-git"
 
 [[projects]]
@@ -583,6 +583,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e43ce893c149ddbea93cccec4fd89f6e7162f0a95556af61dd40944e56ef82ec"
+  inputs-digest = "b2bb583728f1c7a95a7ca2cd8adc17becfba223d2cfcf7884c0ed7247c59450f"
   solver-name = "gps-cdcl"
   solver-version = 1
