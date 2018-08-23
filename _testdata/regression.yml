@@ -29,11 +29,13 @@
   Name: 'Create pilosa index on language UDF'
   Statements:
     - CREATE INDEX language_idx ON files USING pilosa (language(file_path, blob_content)) WITH (async = false)
+    - DROP INDEX language_idx ON files
 -
   ID: 'query6'
   Name: 'Create pilosalib index on language UDF'
   Statements:
     - CREATE INDEX language_idx ON files USING pilosalib (language(file_path, blob_content)) WITH (async = false)
+    - DROP INDEX language_idx ON files
 -
   ID: 'query7'
   Name: 'Query by language using the pilosa index'
@@ -59,12 +61,14 @@
   Statements:
     - CREATE INDEX file_path_idx ON files USING pilosa (file_path) WITH (async = false)
     - SELECT blob_content FROM files WHERE file_path = 'LICENSE'
+    - DROP INDEX file_path_idx ON files
 -
   ID: 'query11'
   Name: 'Get all LICENSE blobs using pilosalib index'
   Statements:
     - CREATE INDEX file_path_idx ON files USING pilosalib (file_path) WITH (async = false)
     - SELECT blob_content FROM files WHERE file_path = 'LICENSE'
+    - DROP INDEX file_path_idx ON files
 -
   ID: 'query12'
   Name: '10 top repos by file count in HEAD'
