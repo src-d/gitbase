@@ -6,6 +6,7 @@ import (
 
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
+	bblfsh "gopkg.in/bblfsh/client-go.v2"
 	"gopkg.in/bblfsh/client-go.v2/tools"
 	"gopkg.in/bblfsh/sdk.v1/protocol"
 	"gopkg.in/bblfsh/sdk.v1/uast"
@@ -155,7 +156,7 @@ func bblfshFixtures(t *testing.T, ctx *sql.Context) (uast []interface{}, filtere
 	client, err := ctx.Session.(*gitbase.Session).BblfshClient()
 	require.NoError(t, err)
 
-	resp, err := client.Parse(context.Background(), "python", []byte(testCode))
+	resp, err := client.Parse(context.Background(), bblfsh.Semantic, "python", []byte(testCode))
 	require.NoError(t, err)
 	require.Equal(t, protocol.Ok, resp.Status, "errors: %v", resp.Errors)
 	testUAST, err := resp.UAST.Marshal()
