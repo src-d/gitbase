@@ -43,11 +43,11 @@ type ReposIter interface {
 type squashReposIter struct {
 	ctx           *sql.Context
 	filters       sql.Expression
-	done          bool
 	iter          *RepositoryIter
 	repo          *Repository
 	row           sql.Row
 	skipGitErrors bool
+	done          bool
 }
 
 // NewAllReposIter returns an iterator that will return all repositories
@@ -410,12 +410,12 @@ type squashRefIter struct {
 	ctx           *sql.Context
 	repo          *Repository
 	repos         *RepositoryIter
-	virtual       bool
 	filters       sql.Expression
 	refs          storer.ReferenceIter
 	head          *plumbing.Reference
 	ref           *Ref
 	row           sql.Row
+	virtual       bool
 	skipGitErrors bool
 }
 
@@ -3131,11 +3131,11 @@ type squashCommitFilesIter struct {
 	commits       CommitsIter
 	files         *object.FileIter
 	file          *object.File
-	treeHash      plumbing.Hash
 	commit        *object.Commit
 	row           sql.Row
 	filters       sql.Expression
 	ctx           *sql.Context
+	treeHash      plumbing.Hash
 	skipGitErrors bool
 }
 
@@ -3260,10 +3260,10 @@ type squashIndexCommitFilesIter struct {
 	repo          *Repository
 	iter          *commitFilesIndexIter
 	file          *object.File
-	treeHash      plumbing.Hash
 	row           sql.Row
 	filters       sql.Expression
 	ctx           *sql.Context
+	treeHash      plumbing.Hash
 	skipGitErrors bool
 }
 
