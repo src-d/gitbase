@@ -33,7 +33,6 @@ func main() {
 	if err != nil {
 		fatalf("couldn't parse flags: %v", err)
 	}
-	filename := args[0]
 
 	if len(args) == 0 {
 		fatalf("missing file to parse")
@@ -42,6 +41,7 @@ func main() {
 	} else if opts.V2 && opts.Query != "" {
 		fatalf("queries are not supported for v2 yet")
 	}
+	filename := args[0]
 
 	client, err := bblfsh.NewClient(opts.Host)
 	if err != nil {

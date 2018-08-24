@@ -2,6 +2,7 @@ package nodesproto
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,7 @@ var treeCases = []struct {
 	size int
 	in   nodes.Node
 	out  nodes.Node
+	json string
 }{
 	{
 		name: "nested array",
@@ -50,6 +52,51 @@ var treeCases = []struct {
 				"k":     nil,
 			},
 		},
+		json: `{
+	"root": 1,
+	"last": 6,
+	"nodes": {
+		"1": {
+			"id": 1,
+			"kind": 2,
+			"keys": [
+				2,
+				3
+			],
+			"values": [
+				4,
+				5
+			]
+		},
+		"2": {
+			"id": 2,
+			"kind": 8,
+			"val": "@type"
+		},
+		"3": {
+			"id": 3,
+			"kind": 8,
+			"val": "k"
+		},
+		"4": {
+			"id": 4,
+			"kind": 8,
+			"val": "node"
+		},
+		"5": {
+			"id": 5,
+			"kind": 2,
+			"keys": [
+				2,
+				3
+			],
+			"values": [
+				4,
+				0
+			]
+		}
+	}
+}`,
 	},
 	{
 		name: "dups",
@@ -72,6 +119,28 @@ var treeCases = []struct {
 			nodes.Array{},
 			nodes.Object{},
 		},
+		json: `{
+	"root": 1,
+	"last": 4,
+	"nodes": {
+		"1": {
+			"id": 1,
+			"kind": 4,
+			"values": [
+				2,
+				3
+			]
+		},
+		"2": {
+			"id": 2,
+			"kind": 4
+		},
+		"3": {
+			"id": 3,
+			"kind": 2
+		}
+	}
+}`,
 	},
 }
 
@@ -88,9 +157,17 @@ func TestTree(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, int(c.size), int(buf.Len()))
 
-			out, err := ReadTree(buf)
+			out, err := ReadTree(bytes.NewReader(buf.Bytes()))
 			require.NoError(t, err)
 			require.True(t, nodes.Equal(exp, out))
+
+			if c.json != "" {
+				raw, err := ReadRaw(bytes.NewReader(buf.Bytes()))
+				require.NoError(t, err)
+				got, err := json.MarshalIndent(raw, "", "\t")
+				require.NoError(t, err)
+				require.Equal(t, c.json, string(got))
+			}
 		})
 	}
 }

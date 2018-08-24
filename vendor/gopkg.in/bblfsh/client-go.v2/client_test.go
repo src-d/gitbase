@@ -27,6 +27,7 @@ var clientTests = []struct {
 	test func(t *testing.T, cli *Client)
 }{
 	{name: "ParseRequest", test: testParseRequest},
+	{name: "ParseRequestMode", test: testParseRequestMode},
 	{name: "NativeParseRequest", test: testNativeParseRequest},
 	{name: "ParseRequestV2", test: testParseRequestV2},
 	{name: "VersionRequest", test: testVersionRequest},
@@ -49,6 +50,21 @@ func testParseRequest(t *testing.T, cli *Client) {
 
 	require.Equal(t, 0, len(res.Errors))
 	require.NotNil(t, res.UAST)
+}
+
+func testParseRequestMode(t *testing.T, cli *Client) {
+	res, err := cli.NewParseRequest().Language("python").Content("import foo").Mode(Semantic).Do()
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(res.Errors))
+	require.NotNil(t, res.UAST)
+
+	res, err = cli.NewParseRequest().Language("python").Content("import foo").Mode(Annotated).Do()
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(res.Errors))
+	require.NotNil(t, res.UAST)
+	t.Log(res.UAST)
 }
 
 func testNativeParseRequest(t *testing.T, cli *Client) {

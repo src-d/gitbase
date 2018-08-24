@@ -184,7 +184,17 @@ func (c *UpdateCommand) doWriteFile(file string, content []byte, m os.FileMode) 
 	if err != nil {
 		return err
 	}
-	_ = exec.Command("git", "add", file).Run()
+	rel, err := filepath.Rel(c.Root, file)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(rel, ".git"+string(filepath.Separator)) {
+		git := exec.Command("git", "add", rel)
+		git.Dir = c.Root
+		if out, err := git.CombinedOutput(); err != nil {
+			cmd.Warning.Println("cannot add a file to git:", err, "\n"+string(out))
+		}
+	}
 	return nil
 }
 

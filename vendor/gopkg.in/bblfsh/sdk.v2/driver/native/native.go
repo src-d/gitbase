@@ -1,16 +1,15 @@
 package native
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
-
-	"context"
+	"time"
 
 	"gopkg.in/bblfsh/sdk.v2/driver"
 	"gopkg.in/bblfsh/sdk.v2/driver/native/jsonlines"
@@ -22,6 +21,10 @@ var (
 	// Binary default location of the native driver binary. Should not
 	// override this variable unless you know what are you doing.
 	Binary = "/opt/driver/bin/native"
+)
+
+const (
+	closeTimeout = time.Second * 5
 )
 
 var (
@@ -53,8 +56,8 @@ type Driver struct {
 	mu     sync.Mutex
 	enc    jsonlines.Encoder
 	dec    jsonlines.Decoder
-	stdin  io.Closer
-	stdout io.Closer
+	stdin  *os.File
+	stdout *os.File
 	cmd    *exec.Cmd
 }
 
@@ -63,27 +66,35 @@ func (d *Driver) Start() error {
 	d.cmd = exec.Command(d.bin)
 	d.cmd.Stderr = os.Stderr
 
-	stdin, err := d.cmd.StdinPipe()
+	var (
+		err           error
+		stdin, stdout *os.File
+	)
+
+	stdin, d.stdin, err = os.Pipe()
 	if err != nil {
 		return err
 	}
 
-	stdout, err := d.cmd.StdoutPipe()
+	d.stdout, stdout, err = os.Pipe()
 	if err != nil {
 		stdin.Close()
+		d.stdin.Close()
 		return err
 	}
+	d.cmd.Stdin = stdin
+	d.cmd.Stdout = stdout
 
-	d.stdin = stdin
-	d.stdout = stdout
-	d.enc = jsonlines.NewEncoder(stdin)
-	d.dec = jsonlines.NewDecoder(stdout)
+	d.enc = jsonlines.NewEncoder(d.stdin)
+	d.dec = jsonlines.NewDecoder(d.stdout)
 
 	err = d.cmd.Start()
 	if err == nil {
 		d.running = true
 		return nil
 	}
+	d.stdin.Close()
+	d.stdout.Close()
 	stdin.Close()
 	stdout.Close()
 	return err
@@ -137,12 +148,21 @@ func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
 		return nil, err
 	}
 
+	deadline, _ := ctx.Deadline()
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	if !deadline.IsZero() {
+		d.stdin.SetWriteDeadline(deadline)
+	}
 
 	err = d.enc.Encode(&parseRequest{
 		Content: str, Encoding: d.ec,
 	})
+	if !deadline.IsZero() {
+		d.stdin.SetWriteDeadline(time.Time{})
+	}
 	if err != nil {
 		// Cannot write data - this means the stream is broken or driver crashed.
 		// We will try to recover by reading the response, but since it might be
@@ -157,8 +177,16 @@ func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
 		return nil, fmt.Errorf("error: %v; %s", err, string(raw))
 	}
 
+	if !deadline.IsZero() {
+		d.stdout.SetReadDeadline(deadline)
+	}
+
 	var r parseResponse
-	if err := d.dec.Decode(&r); err != nil {
+	err = d.dec.Decode(&r)
+	if !deadline.IsZero() {
+		d.stdout.SetReadDeadline(time.Time{})
+	}
+	if err != nil {
 		return nil, err
 	}
 	switch r.Status {
@@ -179,10 +207,23 @@ func (d *Driver) Close() error {
 	if err := d.stdin.Close(); err != nil {
 		last = err
 	}
-	err := d.cmd.Wait()
+	errc := make(chan error, 1)
+	go func() {
+		errc <- d.cmd.Wait()
+	}()
+	timeout := time.NewTimer(closeTimeout)
+	select {
+	case err := <-errc:
+		timeout.Stop()
+		if err != nil {
+			last = err
+		}
+	case <-timeout.C:
+		d.cmd.Process.Kill()
+	}
 	err2 := d.stdout.Close()
-	if err != nil {
-		return err
+	if last != nil {
+		return last
 	}
 	if er, ok := err2.(*os.PathError); ok && er.Err == os.ErrClosed {
 		err2 = nil

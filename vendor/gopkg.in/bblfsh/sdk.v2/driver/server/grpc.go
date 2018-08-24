@@ -120,7 +120,7 @@ func (s service) parse(mode driver.Mode, req *protocol1.ParseRequest) (nodes.Nod
 }
 
 func (s service) Parse(req *protocol1.ParseRequest) *protocol1.ParseResponse {
-	ast, resp := s.parse(driver.ModeSemantic, req)
+	ast, resp := s.parse(driver.ModeAnnotated, req)
 	if resp.Status != protocol1.Ok {
 		return &protocol1.ParseResponse{Response: resp}
 	}

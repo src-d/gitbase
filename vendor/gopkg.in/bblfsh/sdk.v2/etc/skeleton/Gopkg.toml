@@ -2,7 +2,7 @@
 # for detailed Gopkg.toml documentation.
 
 [[constraint]]
-  branch = "v2"
+  version = "v2.0.x"
   name = "gopkg.in/bblfsh/sdk.v2"
 
 [prune]

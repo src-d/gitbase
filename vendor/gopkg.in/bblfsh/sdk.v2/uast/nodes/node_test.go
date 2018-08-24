@@ -243,6 +243,24 @@ func TestNodeEqual(t *testing.T) {
 	}
 }
 
+func TestNodeEqualExt(t *testing.T) {
+	for _, c := range casesEqual {
+		t.Run(c.name, func(t *testing.T) {
+			n1, n2 := c.n1, c.n2
+			if n2 == nil {
+				n2 = n1
+			}
+			if n1 == nil || n2 == nil {
+				t.SkipNow()
+			}
+			require.Equal(t, c.exp, equalExt(n1, n2))
+			n3, err := toNodeExt(n2)
+			require.NoError(t, err)
+			require.Equal(t, c.exp, Equal(n1, n3))
+		})
+	}
+}
+
 var casesKinds = []struct {
 	n Node
 	k Kind

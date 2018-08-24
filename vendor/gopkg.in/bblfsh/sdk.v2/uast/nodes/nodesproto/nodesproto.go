@@ -288,12 +288,59 @@ func (g *treeWriter) addNode(n nodes.Node) uint64 {
 	return id
 }
 
+// ReadTree reads a binary graph from r and tries to decode it as a tree.
+// If the graph is cyclic, an error is returned.
 func ReadTree(r io.Reader) (nodes.Node, error) {
 	g := newGraphReader()
 	if err := g.readGraph(r); err != nil {
 		return nil, err
 	}
 	return g.asTree()
+}
+
+type RawNode struct {
+	ID     uint64      `json:"id"`
+	Kind   nodes.Kind  `json:"kind"`
+	Value  nodes.Value `json:"val,omitempty"`
+	Keys   []uint64    `json:"keys,omitempty"`
+	Values []uint64    `json:"values,omitempty"`
+}
+
+type RawGraph struct {
+	Root  uint64             `json:"root,omitempty"`
+	Meta  uint64             `json:"meta,omitempty"`
+	Last  uint64             `json:"last,omitempty"`
+	Nodes map[uint64]RawNode `json:"nodes"`
+}
+
+// ReadRaw reads a graph from a binary stream, returning a flat list of all nodes.
+func ReadRaw(r io.Reader) (*RawGraph, error) {
+	g := newGraphReader()
+	if err := g.readGraph(r); err != nil {
+		return nil, err
+	}
+	rg := &RawGraph{
+		Root: g.root, Meta: g.meta, Last: g.last,
+		Nodes: make(map[uint64]RawNode, len(g.nodes)),
+	}
+	for id, n := range g.nodes {
+		nd := RawNode{ID: id, Kind: n.Kind()}
+		switch nd.Kind {
+		case nodes.KindObject:
+			nd.Keys = n.Keys
+			nd.Values = n.Values
+		case nodes.KindArray:
+			nd.Values = n.Values
+		default:
+			v, err := asValue(n)
+			if err != nil {
+				return rg, err
+			}
+			nd.Value = v
+		}
+		rg.Nodes[nd.ID] = nd
+	}
+	return rg, nil
 }
 
 func newGraphReader() *graphReader {
@@ -433,6 +480,33 @@ func (g *graphReader) asTree() (nodes.Node, error) {
 	seen := make(map[uint64]bool, len(g.nodes))
 	return g.asNode(g.root, seen)
 }
+
+func (m *Node) Kind() nodes.Kind {
+	if m.Value != nil {
+		v, _ := asValue(m)
+		return nodes.KindOf(v)
+	}
+	if len(m.Keys) != 0 || m.IsObject {
+		return nodes.KindObject
+	}
+	return nodes.KindArray
+}
+
+func asValue(n *Node) (nodes.Value, error) {
+	switch n := n.Value.(type) {
+	case *Node_String_:
+		return nodes.String(n.String_), nil
+	case *Node_Int:
+		return nodes.Int(n.Int), nil
+	case *Node_Uint:
+		return nodes.Uint(n.Uint), nil
+	case *Node_Bool:
+		return nodes.Bool(n.Bool), nil
+	case *Node_Float:
+		return nodes.Float(n.Float), nil
+	}
+	return nil, fmt.Errorf("unsupported node type: %T", n.Value)
+}
 func (g *graphReader) asNode(id uint64, seen map[uint64]bool) (nodes.Node, error) {
 	if id == 0 {
 		return nil, nil
@@ -484,22 +558,10 @@ func (g *graphReader) asNode(id uint64, seen map[uint64]bool) (nodes.Node, error
 	}
 	seen[id] = leaf
 	if n.Value != nil {
-		switch n := n.Value.(type) {
-		case *Node_String_:
-			return nodes.String(n.String_), nil
-		case *Node_Int:
-			return nodes.Int(n.Int), nil
-		case *Node_Uint:
-			return nodes.Uint(n.Uint), nil
-		case *Node_Bool:
-			return nodes.Bool(n.Bool), nil
-		case *Node_Float:
-			return nodes.Float(n.Float), nil
-		}
-		return nil, fmt.Errorf("unsupported node type: %T", n.Value)
+		return asValue(n)
 	}
 	var out nodes.Node
-	if len(n.Keys) != 0 || n.IsObject {
+	if n.Kind() == nodes.KindObject {
 		if len(n.Keys) != len(n.Values) {
 			return nil, fmt.Errorf("number of keys doesn't match a number of values: %d vs %d", len(n.Keys), len(n.Values))
 		}

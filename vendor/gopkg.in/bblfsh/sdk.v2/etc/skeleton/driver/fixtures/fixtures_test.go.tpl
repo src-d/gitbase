@@ -7,6 +7,7 @@ import (
 	"github.com/bblfsh/{{.Manifest.Language}}-driver/driver/normalizer"
 	"gopkg.in/bblfsh/sdk.v2/driver"
 	"gopkg.in/bblfsh/sdk.v2/driver/fixtures"
+	"gopkg.in/bblfsh/sdk.v2/driver/native"
 )
 
 const projectRoot = "../../"
