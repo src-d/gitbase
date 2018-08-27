@@ -65,11 +65,8 @@ Help Options:
   -h, --help             Show this help message
 
 [server command options]
-      -v                 Activates the verbose mode
       -d, --directories= Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs.
           --depth=       load repositories looking at less than <depth> nested subdirectories. (default: 1000)
-          --no-git       disable the load of git standard repositories.
-          --no-siva      disable the load of siva files.
           --host=        Host where the server is going to listen (default: localhost)
       -p, --port=        Port where the server is going to listen (default: 3306)
       -u, --user=        User name used for connection (default: root)
@@ -79,5 +76,8 @@ Help Options:
           --no-squash    Disables the table squashing.
           --trace        Enables jaeger tracing [$GITBASE_TRACE]
       -r, --readonly     Only allow read queries. This disables creating and deleting indexes as well. [$GITBASE_READONLY]
+          --no-git       disable the load of git standard repositories.
+          --no-siva      disable the load of siva files.
+      -v                 Activates the verbose mode
 
 ```
