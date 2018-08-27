@@ -4,7 +4,7 @@
 
 `gitbase` has two optional dependencies that should be running on your system if you're planning on using certain functionality.
 
-- [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.5.0 (only if you're planning to use the `UAST` functionality provided in gitbase)
+- [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.6.1 (only if you're planning to use the `UAST` functionality provided in gitbase)
 - [pilosa](https://github.com/pilosa/pilosa) 0.9.0 (only if you're planning on using indexes)
 
 ## Installing gitbase
