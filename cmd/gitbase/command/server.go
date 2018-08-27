@@ -35,11 +35,13 @@ const (
 
 // Server represents the `server` command of gitbase cli tool.
 type Server struct {
-	Verbose       bool     `short:"v" description:"Activates the verbose mode"`
+	engine *sqle.Engine
+	pool   *gitbase.RepositoryPool
+	name   string
+
+	Version       string   // Version of the application.
 	Directories   []string `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
 	Depth         int      `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
-	DisableGit    bool     `long:"no-git" description:"disable the load of git standard repositories."`
-	DisableSiva   bool     `long:"no-siva" description:"disable the load of siva files."`
 	Host          string   `long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port          int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
@@ -49,14 +51,11 @@ type Server struct {
 	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
 	TraceEnabled  bool     `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
 	ReadOnly      bool     `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
-	// SkipGitErrors disables failing when Git errors are found.
-	SkipGitErrors bool
-	// Version of the application.
-	Version string
 
-	engine *sqle.Engine
-	pool   *gitbase.RepositoryPool
-	name   string
+	SkipGitErrors bool // SkipGitErrors disables failing when Git errors are found.
+	DisableGit    bool `long:"no-git" description:"disable the load of git standard repositories."`
+	DisableSiva   bool `long:"no-siva" description:"disable the load of siva files."`
+	Verbose       bool `short:"v" description:"Activates the verbose mode"`
 }
 
 type jaegerLogrus struct {

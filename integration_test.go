@@ -773,7 +773,7 @@ func createIndex(
 	t.Helper()
 
 	query := fmt.Sprintf(
-		`CREATE INDEX %s ON %s (%s) WITH (async = false)`,
+		`CREATE INDEX %s ON %s USING pilosa (%s) WITH (async = false)`,
 		data.id, data.table, strings.Join(data.exprs, ", "),
 	)
 
