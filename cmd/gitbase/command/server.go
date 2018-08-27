@@ -66,6 +66,20 @@ func (l *jaegerLogrus) Error(s string) {
 	l.Entry.Error(s)
 }
 
+func NewDatabaseEngine(readonly bool, version string) *sqle.Engine {
+	catalog := sql.NewCatalog()
+	ab := analyzer.NewBuilder(catalog)
+	if readonly {
+		ab = ab.ReadOnly()
+	}
+	a := ab.Build()
+	engine := sqle.New(catalog, a, &sqle.Config{
+		VersionPostfix: version,
+	})
+
+	return engine
+}
+
 // Execute starts a new gitbase server based on provided configuration, it
 // honors the go-flags.Commander interface.
 func (c *Server) Execute(args []string) error {
@@ -74,7 +88,7 @@ func (c *Server) Execute(args []string) error {
 	}
 
 	if err := c.buildDatabase(); err != nil {
-		logrus.WithField("error", err).Fatal("unable to start database server")
+		logrus.WithField("error", err).Fatal("unable to initialize database engine")
 		return err
 	}
 
@@ -136,15 +150,7 @@ func (c *Server) Execute(args []string) error {
 
 func (c *Server) buildDatabase() error {
 	if c.engine == nil {
-		catalog := sql.NewCatalog()
-		ab := analyzer.NewBuilder(catalog)
-		if c.ReadOnly {
-			ab = ab.ReadOnly()
-		}
-		a := ab.Build()
-		c.engine = sqle.New(catalog, a, &sqle.Config{
-			VersionPostfix: c.Version,
-		})
+		c.engine = NewDatabaseEngine(c.ReadOnly, c.Version)
 	}
 
 	c.pool = gitbase.NewRepositoryPool()

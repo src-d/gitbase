@@ -3,12 +3,14 @@ package gitbase_test
 import (
 	"context"
 	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/parse"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosalib"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -18,20 +20,35 @@ type Query struct {
 	Statements []string `yaml:"Statements"`
 }
 
-func TestParseRegressionQueries(t *testing.T) {
+func TestRegressionQueries(t *testing.T) {
 	require := require.New(t)
+
+	engine, pool, cleanup := setup(t)
+	defer cleanup()
+
+	tmpDir, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
+	require.NoError(err)
+	defer os.RemoveAll(tmpDir)
+	engine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
+	engine.Catalog.RegisterIndexDriver(pilosalib.NewDriver(tmpDir))
+
+	ctx := sql.NewContext(
+		context.TODO(),
+		sql.WithSession(gitbase.NewSession(pool)),
+	)
 
 	queries, err := loadQueriesYaml("./_testdata/regression.yml")
 	require.NoError(err)
 
-	ctx := sql.NewContext(
-		context.TODO(),
-		sql.WithSession(gitbase.NewSession(gitbase.NewRepositoryPool())),
-	)
-
 	for _, q := range queries {
 		for _, stmt := range q.Statements {
-			if _, err := parse.Parse(ctx, stmt); err != nil {
+			_, iter, err := engine.Query(ctx, stmt)
+			if err != nil {
+				require.Failf(err.Error(), "ID: %s, Name: %s, Statement: %s", q.ID, q.Name, stmt)
+			}
+
+			_, err = sql.RowIterToRows(iter)
+			if err != nil {
 				require.Failf(err.Error(), "ID: %s, Name: %s, Statement: %s", q.ID, q.Name, stmt)
 			}
 		}

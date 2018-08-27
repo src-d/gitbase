@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/src-d/gitbase/cmd/gitbase/command"
 	"github.com/src-d/gitbase/internal/rule"
 
 	"github.com/src-d/gitbase"
@@ -793,7 +794,6 @@ func deleteIndex(
 
 func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 	t.Helper()
-	engine := newBaseEngine()
 	require.NoError(t, fixtures.Init())
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())
@@ -804,24 +804,26 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 		pool.AddGitWithID("worktree", f.Worktree().Root())
 	}
 
-	return engine, pool, cleanup
+	return newBaseEngine(), pool, cleanup
 }
 
 func newSquashEngine() *sqle.Engine {
-	catalog := sql.NewCatalog()
-	analyzer := analyzer.NewBuilder(catalog).
+	engine := newBaseEngine()
+	dbname := engine.Analyzer.CurrentDatabase
+
+	engine.Catalog.RegisterFunctions(sqlfunction.Defaults)
+	engine.Analyzer = analyzer.NewBuilder(engine.Catalog).
 		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
 		Build()
-	e := sqle.New(catalog, analyzer, &sqle.Config{VersionPostfix: "test"})
-	e.AddDatabase(gitbase.NewDatabase("foo"))
-	e.Catalog.RegisterFunctions(sqlfunction.Defaults)
-	e.Catalog.RegisterFunctions(function.Functions)
-	return e
+	engine.Analyzer.CurrentDatabase = dbname
+	return engine
 }
 
 func newBaseEngine() *sqle.Engine {
-	engine := sqle.NewDefault()
-	engine.AddDatabase(gitbase.NewDatabase("foo"))
+	foo := gitbase.NewDatabase("foo")
+	engine := command.NewDatabaseEngine(false, "test")
+
+	engine.AddDatabase(foo)
 	engine.Catalog.RegisterFunctions(function.Functions)
 	return engine
 }
