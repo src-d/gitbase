@@ -8,7 +8,6 @@ import (
 	"github.com/src-d/gitbase"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
 	"gopkg.in/bblfsh/client-go.v2/tools"
-	"gopkg.in/bblfsh/sdk.v1/protocol"
 	"gopkg.in/bblfsh/sdk.v1/uast"
 
 	errors "gopkg.in/src-d/go-errors.v1"
@@ -26,12 +25,11 @@ type UAST struct {
 	Blob  sql.Expression
 	Lang  sql.Expression
 	XPath sql.Expression
-	Mode  sql.Expression
 }
 
 // NewUAST creates a new UAST UDF.
 func NewUAST(args ...sql.Expression) (sql.Expression, error) {
-	var blob, lang, xpath, mode sql.Expression
+	var blob, lang, xpath sql.Expression
 	switch len(args) {
 	case 1:
 		blob = args[0]
@@ -42,15 +40,10 @@ func NewUAST(args ...sql.Expression) (sql.Expression, error) {
 		blob = args[0]
 		lang = args[1]
 		xpath = args[2]
-	case 4:
-		blob = args[0]
-		lang = args[1]
-		xpath = args[2]
-		mode = args[3]
 	default:
-		return nil, sql.ErrInvalidArgumentNumber.New("1, 2, 3 or 4", len(args))
+		return nil, sql.ErrInvalidArgumentNumber.New("1, 2, or 3", len(args))
 	}
-	return &UAST{blob, lang, xpath, mode}, nil
+	return &UAST{blob, lang, xpath}, nil
 }
 
 // IsNullable implements the Expression interface.
@@ -86,7 +79,7 @@ func (f UAST) Children() []sql.Expression {
 
 // TransformUp implements the Expression interface.
 func (f UAST) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	var lang, xpath, mode sql.Expression
+	var lang, xpath sql.Expression
 	blob, err := f.Blob.TransformUp(fn)
 	if err != nil {
 		return nil, err
@@ -106,21 +99,11 @@ func (f UAST) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
 		}
 	}
 
-	if f.Mode != nil {
-		mode, err = f.Mode.TransformUp(fn)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return fn(&UAST{Blob: blob, Lang: lang, XPath: xpath, Mode: mode})
+	return fn(&UAST{Blob: blob, Lang: lang, XPath: xpath})
 }
 
+// String implements the Expression interface.
 func (f UAST) String() string {
-	if f.Lang != nil && f.XPath != nil && f.Mode != nil {
-		return fmt.Sprintf("uast(%s, %s, %s, %s)", f.Blob, f.Lang, f.XPath, f.Mode)
-	}
-
 	if f.Lang != nil && f.XPath != nil {
 		return fmt.Sprintf("uast(%s, %s, %s)", f.Blob, f.Lang, f.XPath)
 	}
@@ -143,10 +126,112 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err error) {
 	span, ctx := ctx.Span("gitbase.UAST")
 	defer span.Finish()
 
-	session, ok := ctx.Session.(*gitbase.Session)
-	if !ok {
-		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
+	blob, err := f.Blob.Eval(ctx, row)
+	if err != nil {
+		return nil, err
 	}
+
+	if blob == nil {
+		return nil, nil
+	}
+
+	blob, err = sql.Blob.Convert(blob)
+	if err != nil {
+		return nil, err
+	}
+
+	bytes := blob.([]byte)
+
+	lang, err := exprToString(ctx, f.Lang, row)
+	if err != nil {
+		return nil, err
+	}
+
+	lang = strings.ToLower(lang)
+
+	xpath, err := exprToString(ctx, f.XPath, row)
+	if err != nil {
+		return nil, err
+	}
+
+	return getUAST(ctx, bytes, lang, xpath, bblfsh.Semantic)
+}
+
+// UASTMode returns an array of UAST nodes as blobs.
+type UASTMode struct {
+	Blob sql.Expression
+	Lang sql.Expression
+	Mode sql.Expression
+}
+
+// NewUASTMode creates a new UASTMode UDF.
+func NewUASTMode(blob, lang, xpath sql.Expression) sql.Expression {
+	return &UASTMode{blob, lang, xpath}
+}
+
+// IsNullable implements the Expression interface.
+func (f UASTMode) IsNullable() bool {
+	return f.Blob.IsNullable() && f.Lang.IsNullable() && f.Mode.IsNullable()
+}
+
+// Resolved implements the Expression interface.
+func (f UASTMode) Resolved() bool {
+	return f.Blob.Resolved() && f.Lang.Resolved() && f.Mode.Resolved()
+}
+
+// Type implements the Expression interface.
+func (f UASTMode) Type() sql.Type {
+	return sql.Array(sql.Blob)
+}
+
+// Children implements the Expression interface.
+func (f UASTMode) Children() []sql.Expression {
+	exprs := []sql.Expression{f.Blob}
+	if f.Lang != nil {
+		exprs = append(exprs, f.Lang)
+	}
+	if f.Mode != nil {
+		exprs = append(exprs, f.Mode)
+	}
+	return exprs
+}
+
+// TransformUp implements the Expression interface.
+func (f UASTMode) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
+	var lang, mode sql.Expression
+	blob, err := f.Blob.TransformUp(fn)
+	if err != nil {
+		return nil, err
+	}
+
+	lang, err = f.Lang.TransformUp(fn)
+	if err != nil {
+		return nil, err
+	}
+
+	mode, err = f.Mode.TransformUp(fn)
+	if err != nil {
+		return nil, err
+	}
+
+	return fn(&UASTMode{Blob: blob, Lang: lang, Mode: mode})
+}
+
+// String implements the Expression interface.
+func (f UASTMode) String() string {
+	return fmt.Sprintf("uast_mode(%s, %s, %s)", f.Blob, f.Lang, f.Mode)
+}
+
+// Eval implements the Expression interface.
+func (f UASTMode) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("uast_mode: unknown error: %s", r)
+		}
+	}()
+
+	span, ctx := ctx.Span("gitbase.UASTMode")
+	defer span.Finish()
 
 	blob, err := f.Blob.Eval(ctx, row)
 	if err != nil {
@@ -164,133 +249,38 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err error) {
 
 	bytes := blob.([]byte)
 
-	var lang string
-	if f.Lang != nil {
-		lng, err := f.Lang.Eval(ctx, row)
-		if err != nil {
-			return nil, err
-		}
-
-		if lng == nil {
-			return nil, nil
-		}
-
-		lng, err = sql.Text.Convert(lng)
-		if err != nil {
-			return nil, err
-		}
-
-		lang = strings.ToLower(lng.(string))
-	}
-
-	var xpath string
-	if f.XPath != nil {
-		x, err := f.XPath.Eval(ctx, row)
-		if err != nil {
-			return nil, err
-		}
-
-		if x == nil {
-			return nil, nil
-		}
-
-		x, err = sql.Text.Convert(x)
-		if err != nil {
-			return nil, err
-		}
-
-		xpath = x.(string)
-	}
-
-	modeSet := false
-	var mode bblfsh.Mode
-	if f.Mode != nil {
-		x, err := f.Mode.Eval(ctx, row)
-		if err != nil {
-			return nil, err
-		}
-
-		if x == nil {
-			return nil, nil
-		}
-
-		x, err = sql.Text.Convert(x)
-		if err != nil {
-			return nil, err
-		}
-
-		m := x.(string)
-
-		switch m {
-		case "semantic":
-			mode = bblfsh.Semantic
-		case "annotated":
-			mode = bblfsh.Annotated
-		case "native":
-			mode = bblfsh.Native
-		default:
-			return nil, fmt.Errorf("invalid uast mode %s", m)
-		}
-
-		modeSet = true
-	}
-
-	client, err := session.BblfshClient()
+	lang, err := exprToString(ctx, f.Lang, row)
 	if err != nil {
 		return nil, err
 	}
 
-	// If we have a language we must check if it's supported. If we don't, bblfsh
-	// is the one that will have to identify the language.
-	if lang != "" {
-		ok, err = client.IsLanguageSupported(ctx, lang)
-		if err != nil {
-			return nil, err
-		}
+	lang = strings.ToLower(lang)
 
-		if !ok {
-			return nil, nil
-		}
-	}
-
-	var resp *protocol.ParseResponse
-	if modeSet {
-		resp, err = client.ParseWithMode(ctx, mode, lang, bytes)
-	} else {
-		resp, err = client.Parse(ctx, lang, bytes)
-	}
-
+	m, err := exprToString(ctx, f.Mode, row)
 	if err != nil {
-		logrus.Warn(ErrParseBlob.New(err))
-		return nil, nil
+		return nil, err
 	}
 
-	if len(resp.Errors) > 0 {
-		logrus.Warn(ErrParseBlob.New(strings.Join(resp.Errors, "\n")))
+	m = strings.ToLower(m)
+
+	var mode bblfsh.Mode
+	switch m {
+	case "semantic":
+		mode = bblfsh.Semantic
+	case "annotated":
+		mode = bblfsh.Annotated
+	case "native":
+		mode = bblfsh.Native
+	default:
+		return nil, fmt.Errorf("invalid uast mode %s", m)
 	}
 
-	var nodes []*uast.Node
-	if xpath == "" {
-		nodes = []*uast.Node{resp.UAST}
-	} else {
-		nodes, err = tools.Filter(resp.UAST, xpath)
-		if err != nil {
-			return nil, err
-		}
+	u, err := getUAST(ctx, bytes, lang, "", mode)
+	if err != nil {
+		return nil, err
 	}
 
-	var result = make([]interface{}, 0, len(nodes))
-	for _, n := range nodes {
-		if n != nil {
-			node, err := n.Marshal()
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, node)
-		}
-	}
-
-	return result, nil
+	return u, nil
 }
 
 // UASTXPath performs an XPath query over the given UAST nodes.
@@ -395,4 +385,93 @@ func (f UASTXPath) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error)
 	}
 
 	return fn(NewUASTXPath(left, right))
+}
+
+func exprToString(
+	ctx *sql.Context,
+	e sql.Expression,
+	r sql.Row,
+) (string, error) {
+	if e == nil {
+		return "", nil
+	}
+
+	x, err := e.Eval(ctx, r)
+	if err != nil {
+		return "", err
+	}
+
+	if x == nil {
+		return "", nil
+	}
+
+	x, err = sql.Text.Convert(x)
+	if err != nil {
+		return "", err
+	}
+
+	return x.(string), nil
+}
+
+func getUAST(
+	ctx *sql.Context,
+	bytes []byte,
+	lang, xpath string,
+	mode bblfsh.Mode,
+) (interface{}, error) {
+	session, ok := ctx.Session.(*gitbase.Session)
+	if !ok {
+		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
+	}
+
+	client, err := session.BblfshClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// If we have a language we must check if it's supported. If we don't, bblfsh
+	// is the one that will have to identify the language.
+	if lang != "" {
+		ok, err = client.IsLanguageSupported(ctx, lang)
+		if err != nil {
+			return nil, err
+		}
+
+		if !ok {
+			return nil, nil
+		}
+	}
+
+	resp, err := client.ParseWithMode(ctx, mode, lang, bytes)
+	if err != nil {
+		logrus.Warn(ErrParseBlob.New(err))
+		return nil, nil
+	}
+
+	if len(resp.Errors) > 0 {
+		logrus.Warn(ErrParseBlob.New(strings.Join(resp.Errors, "\n")))
+	}
+
+	var nodes []*uast.Node
+	if xpath == "" {
+		nodes = []*uast.Node{resp.UAST}
+	} else {
+		nodes, err = tools.Filter(resp.UAST, xpath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var result = make([]interface{}, 0, len(nodes))
+	for _, n := range nodes {
+		if n != nil {
+			node, err := n.Marshal()
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, node)
+		}
+	}
+
+	return result, nil
 }

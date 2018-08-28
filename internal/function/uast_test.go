@@ -25,9 +25,47 @@ def sum(a, b):
 print(sum(3, 5))
 `
 
-const testXPath = "//*[@roleIdentifier]"
+const testXPathAnnotated = "//*[@roleIdentifier]"
 const testXPathSemantic = "//Identifier"
-const testXPathNative = "//."
+const testXPathNative = "//*[@ast_type='FunctionDef']"
+
+func TestUASTMode(t *testing.T) {
+	ctx, cleanup := setup(t)
+	defer cleanup()
+
+	mode := &UASTMode{
+		Blob: expression.NewGetField(0, sql.Blob, "", false),
+		Lang: expression.NewGetField(1, sql.Text, "", false),
+		Mode: expression.NewGetField(2, sql.Text, "", false),
+	}
+
+	u, _ := bblfshFixtures(t, ctx)
+
+	testCases := []struct {
+		name     string
+		fn       *UASTMode
+		row      sql.Row
+		expected interface{}
+	}{
+		{"annotated", mode, sql.NewRow([]byte(testCode), "Python", "annotated"), u["annotated"]},
+		{"semantic", mode, sql.NewRow([]byte(testCode), "Python", "semantic"), u["semantic"]},
+		{"native", mode, sql.NewRow([]byte(testCode), "Python", "native"), u["native"]},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			result, err := tt.fn.Eval(ctx, tt.row)
+			require.NoError(err)
+
+			if _, ok := tt.expected.([]interface{}); ok {
+				assertUASTBlobs(t, tt.expected, result)
+			} else {
+				require.Equal(tt.expected, result)
+			}
+		})
+	}
+}
 
 func TestUAST(t *testing.T) {
 	ctx, cleanup := setup(t)
@@ -48,15 +86,9 @@ func TestUAST(t *testing.T) {
 		XPath: expression.NewGetField(2, sql.Text, "", false),
 	}
 
-	fn4 := &UAST{
-		Blob:  expression.NewGetField(0, sql.Blob, "", false),
-		Lang:  expression.NewGetField(1, sql.Text, "", false),
-		XPath: expression.NewGetField(2, sql.Text, "", false),
-		Mode:  expression.NewGetField(3, sql.Text, "", false),
-	}
-
-	uast, filteredNodes := bblfshFixtures(t, ctx)
-	_, mb := bblfshFixturesWithMode(t, ctx)
+	u, f := bblfshFixtures(t, ctx)
+	uast := u["semantic"]
+	filteredNodes := f["semantic"]
 
 	testCases := []struct {
 		name     string
@@ -70,12 +102,7 @@ func TestUAST(t *testing.T) {
 		{"only blob, can't infer language", fn1, sql.NewRow([]byte(testCode)), nil},
 		{"blob with unsupported lang", fn2, sql.NewRow([]byte(testCode), "YAML"), nil},
 		{"blob with lang", fn2, sql.NewRow([]byte(testCode), "Python"), uast},
-		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPath), filteredNodes},
-
-		{"mode is nil", fn4, sql.NewRow([]byte{}, "Ruby", nil, nil), nil},
-		{"uast is annotated", fn4, sql.NewRow([]byte(testCode), "Python", testXPath, "annotated"), mb["annotated"]},
-		{"uast is semantic", fn4, sql.NewRow([]byte(testCode), "Python", testXPathSemantic, "semantic"), mb["semantic"]},
-		{"uast is native", fn4, sql.NewRow([]byte(testCode), "Python", testXPathNative, "native"), mb["native"]},
+		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPathSemantic), filteredNodes},
 	}
 
 	for _, tt := range testCases {
@@ -102,7 +129,7 @@ func TestUASTXPath(t *testing.T) {
 		expression.NewGetField(1, sql.Text, "", false),
 	)
 
-	uast, filteredNodes := bblfshFixtures(t, ctx)
+	u, f := bblfshFixtures(t, ctx)
 
 	testCases := []struct {
 		name     string
@@ -111,9 +138,10 @@ func TestUASTXPath(t *testing.T) {
 		err      *errors.Kind
 	}{
 		{"left is nil", sql.NewRow(nil, "foo"), nil, nil},
-		{"right is nil", sql.NewRow(uast, nil), nil, nil},
-		{"both given", sql.NewRow(uast, testXPath), filteredNodes, nil},
-		// {"blob is invalid", fn4, sql.NewRow([]byte(testCode), "Python", testXPath, "invalid"), nil},
+		{"right is nil", sql.NewRow(u["semantic"], nil), nil, nil},
+		{"both given", sql.NewRow(u["semantic"], testXPathSemantic), f["semantic"], nil},
+		{"native", sql.NewRow(u["native"], testXPathNative), f["native"], nil},
+		{"annotated", sql.NewRow(u["annotated"], testXPathAnnotated), f["annotated"], nil},
 	}
 
 	for _, tt := range testCases {
@@ -166,32 +194,7 @@ func assertUASTBlobs(t *testing.T, a, b interface{}) {
 	require.Equal(expectedNodes, resultNodes)
 }
 
-func bblfshFixtures(t *testing.T, ctx *sql.Context) (uast []interface{}, filteredNodes []interface{}) {
-	t.Helper()
-
-	client, err := ctx.Session.(*gitbase.Session).BblfshClient()
-	require.NoError(t, err)
-
-	resp, err := client.Parse(context.Background(), "python", []byte(testCode))
-	require.NoError(t, err)
-	require.Equal(t, protocol.Ok, resp.Status, "errors: %v", resp.Errors)
-	testUAST, err := resp.UAST.Marshal()
-	require.NoError(t, err)
-
-	idents, err := tools.Filter(resp.UAST, testXPath)
-	require.NoError(t, err)
-
-	var identBlobs []interface{}
-	for _, id := range idents {
-		i, err := id.Marshal()
-		require.NoError(t, err)
-		identBlobs = append(identBlobs, i)
-	}
-
-	return []interface{}{testUAST}, identBlobs
-}
-
-func bblfshFixturesWithMode(
+func bblfshFixtures(
 	t *testing.T,
 	ctx *sql.Context,
 ) (map[string][]interface{}, map[string][]interface{}) {
@@ -205,7 +208,7 @@ func bblfshFixturesWithMode(
 		t bblfsh.Mode
 		x string
 	}{
-		{"annotated", bblfsh.Annotated, testXPath},
+		{"annotated", bblfsh.Annotated, testXPathAnnotated},
 		{"semantic", bblfsh.Semantic, testXPathSemantic},
 		{"native", bblfsh.Native, testXPathNative},
 	}
