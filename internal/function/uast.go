@@ -275,12 +275,7 @@ func (f UASTMode) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err erro
 		return nil, fmt.Errorf("invalid uast mode %s", m)
 	}
 
-	u, err := getUAST(ctx, bytes, lang, "", mode)
-	if err != nil {
-		return nil, err
-	}
-
-	return u, nil
+	return getUAST(ctx, bytes, lang, "", mode)
 }
 
 // UASTXPath performs an XPath query over the given UAST nodes.
@@ -318,36 +313,19 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 		return nil, nil
 	}
 
-	left, err = sql.Array(sql.Blob).Convert(left)
+	nodes, err := nodesFromBlobArray(left)
 	if err != nil {
 		return nil, err
 	}
 
-	arr := left.([]interface{})
-	var nodes = make([]*uast.Node, len(arr))
-	for i, n := range arr {
-		node := uast.NewNode()
-		if err := node.Unmarshal(n.([]byte)); err != nil {
-			return nil, err
-		}
-		nodes[i] = node
-	}
-
-	right, err := f.Right.Eval(ctx, row)
+	xpath, err := exprToString(ctx, f.Right, row)
 	if err != nil {
 		return nil, err
 	}
 
-	if right == nil {
+	if xpath == "" {
 		return nil, nil
 	}
-
-	right, err = sql.Text.Convert(right)
-	if err != nil {
-		return nil, err
-	}
-
-	xpath := right.(string)
 
 	var result []interface{}
 	for _, n := range nodes {
@@ -366,6 +344,25 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 	}
 
 	return result, nil
+}
+
+func nodesFromBlobArray(data interface{}) ([]*uast.Node, error) {
+	data, err := sql.Array(sql.Blob).Convert(data)
+	if err != nil {
+		return nil, err
+	}
+
+	arr := data.([]interface{})
+	var nodes = make([]*uast.Node, len(arr))
+	for i, n := range arr {
+		node := uast.NewNode()
+		if err := node.Unmarshal(n.([]byte)); err != nil {
+			return nil, err
+		}
+		nodes[i] = node
+	}
+
+	return nodes, nil
 }
 
 func (f UASTXPath) String() string {
@@ -474,4 +471,118 @@ func getUAST(
 	}
 
 	return result, nil
+}
+
+// UASTExtract extracts keys from an UAST.
+type UASTExtract struct {
+	expression.BinaryExpression
+}
+
+// NewUASTExtract creates a new UASTExtract UDF.
+func NewUASTExtract(uast, key sql.Expression) sql.Expression {
+	return &UASTExtract{expression.BinaryExpression{Left: uast, Right: key}}
+}
+
+// String implements the fmt.Stringer interface.
+func (u *UASTExtract) String() string {
+	return fmt.Sprintf("uast_extract(%s, %s)", u.Left, u.Right)
+}
+
+// Type implements the sql.Expression interface.
+func (u *UASTExtract) Type() sql.Type {
+	return sql.Array(sql.Array(sql.Text))
+}
+
+// Eval implements the sql.Expression interface.
+func (u *UASTExtract) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("uast: unknown error: %s", r)
+		}
+	}()
+
+	span, ctx := ctx.Span("gitbase.UASTExtract")
+	defer span.Finish()
+
+	left, err := u.Left.Eval(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+
+	if left == nil {
+		return nil, nil
+	}
+
+	nodes, err := nodesFromBlobArray(left)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := exprToString(ctx, u.Right, row)
+	if err != nil {
+		return nil, err
+	}
+
+	if key == "" {
+		return nil, nil
+	}
+
+	extracted := make([][]string, len(nodes))
+	for i, n := range nodes {
+		extracted[i] = extractInfo(n, key)
+	}
+
+	return extracted, nil
+}
+
+const (
+	keyType     = "@type"
+	keyToken    = "@token"
+	keyRoles    = "@role"
+	keyStartPos = "@startpos"
+	keyEndPos   = "@endpos"
+)
+
+func extractInfo(n *uast.Node, key string) []string {
+
+	info := []string{}
+	switch key {
+	case keyType:
+		info = append(info, n.InternalType)
+	case keyToken:
+		info = append(info, n.Token)
+	case keyRoles:
+		roles := make([]string, len(n.Roles))
+		for i, rol := range n.Roles {
+			roles[i] = rol.String()
+		}
+
+		info = append(info, roles...)
+	case keyStartPos:
+		info = append(info, n.StartPosition.String())
+	case keyEndPos:
+		info = append(info, n.EndPosition.String())
+	default:
+		v, ok := n.Properties[key]
+		if ok {
+			info = append(info, v)
+		}
+	}
+
+	return info
+}
+
+// TransformUp implements the sql.Expression interface.
+func (u *UASTExtract) TransformUp(f sql.TransformExprFunc) (sql.Expression, error) {
+	left, err := u.Left.TransformUp(f)
+	if err != nil {
+		return nil, err
+	}
+
+	rigth, err := u.Right.TransformUp(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return f(NewUASTExtract(left, rigth))
 }
