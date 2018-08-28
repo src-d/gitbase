@@ -274,19 +274,19 @@ func TestUastQueries(t *testing.T) {
 		INNER JOIN blobs b
 		ON b.blob_hash = te.blob_hash
 		WHERE te.tree_entry_name = 'example.go'`, 1},
-		{`SELECT uast_xpath(uast_mode(blob_content, language(tree_entry_name, blob_content), 'semantic'), '//Identifier') as uast,
+		{`SELECT uast_xpath(uast_mode('semantic', blob_content, language(tree_entry_name, blob_content)), '//Identifier') as uast,
 			tree_entry_name
 		FROM tree_entries te
 		INNER JOIN blobs b
 		ON b.blob_hash = te.blob_hash
 		WHERE te.tree_entry_name = 'example.go'`, 1},
-		{`SELECT uast_xpath(uast_mode(blob_content, language(tree_entry_name, blob_content), 'annotated'), '//*[@roleIdentifier]') as uast,
+		{`SELECT uast_xpath(uast_mode('annotated', blob_content, language(tree_entry_name, blob_content)), '//*[@roleIdentifier]') as uast,
 			tree_entry_name
 		FROM tree_entries te
 		INNER JOIN blobs b
 		ON b.blob_hash = te.blob_hash
 		WHERE te.tree_entry_name = 'example.go'`, 1},
-		{`SELECT uast_xpath(uast_mode(blob_content, language(tree_entry_name, blob_content), 'native'), '//*[@ast_type=\'FunctionDef\']') as uast,
+		{`SELECT uast_xpath(uast_mode('native', blob_content, language(tree_entry_name, blob_content)), '//*[@ast_type=\'FunctionDef\']') as uast,
 			tree_entry_name
 		FROM tree_entries te
 		INNER JOIN blobs b

@@ -159,14 +159,14 @@ func (f UAST) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err error) {
 
 // UASTMode returns an array of UAST nodes as blobs.
 type UASTMode struct {
+	Mode sql.Expression
 	Blob sql.Expression
 	Lang sql.Expression
-	Mode sql.Expression
 }
 
 // NewUASTMode creates a new UASTMode UDF.
-func NewUASTMode(blob, lang, xpath sql.Expression) sql.Expression {
-	return &UASTMode{blob, lang, xpath}
+func NewUASTMode(mode, blob, lang sql.Expression) sql.Expression {
+	return &UASTMode{mode, blob, lang}
 }
 
 // IsNullable implements the Expression interface.
@@ -219,7 +219,7 @@ func (f UASTMode) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) 
 
 // String implements the Expression interface.
 func (f UASTMode) String() string {
-	return fmt.Sprintf("uast_mode(%s, %s, %s)", f.Blob, f.Lang, f.Mode)
+	return fmt.Sprintf("uast_mode(%s, %s, %s)", f.Mode, f.Blob, f.Lang)
 }
 
 // Eval implements the Expression interface.

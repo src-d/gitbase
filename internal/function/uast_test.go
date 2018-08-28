@@ -34,9 +34,9 @@ func TestUASTMode(t *testing.T) {
 	defer cleanup()
 
 	mode := &UASTMode{
-		Blob: expression.NewGetField(0, sql.Blob, "", false),
-		Lang: expression.NewGetField(1, sql.Text, "", false),
-		Mode: expression.NewGetField(2, sql.Text, "", false),
+		Mode: expression.NewGetField(0, sql.Text, "", false),
+		Blob: expression.NewGetField(1, sql.Blob, "", false),
+		Lang: expression.NewGetField(2, sql.Text, "", false),
 	}
 
 	u, _ := bblfshFixtures(t, ctx)
@@ -47,9 +47,9 @@ func TestUASTMode(t *testing.T) {
 		row      sql.Row
 		expected interface{}
 	}{
-		{"annotated", mode, sql.NewRow([]byte(testCode), "Python", "annotated"), u["annotated"]},
-		{"semantic", mode, sql.NewRow([]byte(testCode), "Python", "semantic"), u["semantic"]},
-		{"native", mode, sql.NewRow([]byte(testCode), "Python", "native"), u["native"]},
+		{"annotated", mode, sql.NewRow("annotated", []byte(testCode), "Python"), u["annotated"]},
+		{"semantic", mode, sql.NewRow("semantic", []byte(testCode), "Python"), u["semantic"]},
+		{"native", mode, sql.NewRow("native", []byte(testCode), "Python"), u["native"]},
 	}
 
 	for _, tt := range testCases {
