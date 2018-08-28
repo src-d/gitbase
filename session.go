@@ -137,6 +137,20 @@ func (c *BblfshClient) Parse(
 		DoWithContext(ctx)
 }
 
+// ParseWithMode the given content with the given language.
+func (c *BblfshClient) ParseWithMode(
+	ctx context.Context,
+	mode bblfsh.Mode,
+	lang string,
+	content []byte,
+) (*protocol.ParseResponse, error) {
+	return c.NewParseRequest().
+		Mode(mode).
+		Language(lang).
+		Content(string(content)).
+		DoWithContext(ctx)
+}
+
 // BblfshClient returns a BblfshClient.
 func (s *Session) BblfshClient() (*BblfshClient, error) {
 	s.bblfshMu.Lock()

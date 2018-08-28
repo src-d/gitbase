@@ -146,7 +146,7 @@ func (idx *positionIndex) Offset(line, col int) (int, error) {
 		maxCol = 1
 	}
 
-	if col < minCol || (maxCol > 0 && col > maxCol) {
+	if col < minCol || (maxCol > 0 && col - 1 > maxCol) {
 		return 0, fmt.Errorf("column out of bounds: %d [%d, %d]", col, minCol, maxCol)
 	}
 

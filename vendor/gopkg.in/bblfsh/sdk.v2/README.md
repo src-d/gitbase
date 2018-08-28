@@ -132,7 +132,7 @@ these files are up to date before every commit and will disallow commits if some
 of the managed files are changed. You can by-pass this with `git commit
 --no-verify`.
 
-You can find the driver skeleton used here at [`etc/sekeleton`](etc/skeleton).
+You can find the driver skeleton used here at [`etc/skeleton`](etc/skeleton).
 
 ### Keeping managed files updated
 

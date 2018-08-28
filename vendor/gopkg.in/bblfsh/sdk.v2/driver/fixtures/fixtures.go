@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,10 @@ import (
 
 const Dir = "fixtures"
 
-const maxParseErrors = 3
+const (
+	maxParseErrors = 3
+	parseTimeout   = time.Minute / 30
+)
 
 type SemanticConfig struct {
 	// BlacklistTypes is a list og types that should not appear in semantic UAST.
@@ -150,7 +154,9 @@ func (s *Suite) testFixturesNative(t *testing.T) {
 			name += suffix
 			code := s.readFixturesFile(t, name)
 
-			resp, err := dr.Parse(context.Background(), string(code))
+			ctx, cancel := context.WithTimeout(context.Background(), parseTimeout)
+			resp, err := dr.Parse(ctx, string(code))
+			cancel()
 			if err != nil {
 				atomic.AddUint32(&parseErrors, 1)
 			}
@@ -215,7 +221,9 @@ func (s *Suite) testFixturesUAST(t *testing.T, mode driver.Mode, suf string, bla
 			name += suffix
 			code := s.readFixturesFile(t, name)
 
-			ast, err := dr.Parse(context.Background(), string(code))
+			ctx, cancel := context.WithTimeout(context.Background(), parseTimeout)
+			ast, err := dr.Parse(ctx, string(code))
+			cancel()
 			if err != nil {
 				atomic.AddUint32(&parseErrors, 1)
 			}
@@ -316,7 +324,6 @@ func (s *Suite) benchmarkTransform(b *testing.B, legacy bool) {
 		b.SkipNow()
 	}
 	code := s.readFixturesFile(b, s.BenchName+s.Ext)
-	ctx := context.Background()
 
 	tr := s.Transforms
 
@@ -326,7 +333,9 @@ func (s *Suite) benchmarkTransform(b *testing.B, legacy bool) {
 	require.NoError(b, err)
 	defer dr.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), parseTimeout)
 	rast, err := dr.Parse(ctx, string(code))
+	cancel()
 	if err != nil {
 		b.Fatal(err)
 	}

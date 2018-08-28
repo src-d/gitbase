@@ -18,8 +18,8 @@
   version = "1.16.x"
 
 [[constraint]]
-  branch = "v2"
   name = "gopkg.in/bblfsh/sdk.v2"
+  version = "2.0.x"
 
 [prune]
   go-tests = true

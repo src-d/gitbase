@@ -281,8 +281,11 @@ Nodes *UastFilter(const Uast *ctx, NodeHandle node, const char *query) {
 
     auto nodeset = queryResult.xpathObj->nodesetval;
     if (!nodeset) {
-        Error(nullptr, "Unable to get array of result nodes\n");
+      if (NodesSetSize(nodes, 0) != 0) {
+        Error(nullptr, "Unable to set nodes size\n");
         throw std::runtime_error("");
+      }
+      return nodes;
     }
 
     auto results = nodeset->nodeTab;

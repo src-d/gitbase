@@ -2,13 +2,16 @@ package bblfsh
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
+	"time"
 
 	protocol1 "gopkg.in/bblfsh/sdk.v1/protocol"
 	"gopkg.in/bblfsh/sdk.v2/driver"
 	protocol2 "gopkg.in/bblfsh/sdk.v2/protocol"
+	"gopkg.in/bblfsh/sdk.v2/protocol/v1"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 )
 
@@ -107,7 +110,7 @@ func (r *ParseRequestV2) UAST() (nodes.Node, string, error) {
 }
 
 // UASTContext send the request and returns decoded UAST and the language.
-// If a file contains syntax error, the
+// If a file contains syntax error, the ErrPartialParse is returned and will contain a partial AST.
 func (r *ParseRequestV2) UASTContext(ctx context.Context) (nodes.Node, string, error) {
 	if r.err != nil {
 		return nil, "", r.err
@@ -126,6 +129,7 @@ func (r *ParseRequestV2) UASTContext(ctx context.Context) (nodes.Node, string, e
 // ParseRequest is a parsing request to get the UAST.
 type ParseRequest struct {
 	internal protocol1.ParseRequest
+	mode     *Mode // if set, switches to v2 protocol and downgrades the response
 	client   *Client
 	err      error
 }
@@ -170,6 +174,12 @@ func (r *ParseRequest) Encoding(encoding protocol1.Encoding) *ParseRequest {
 	return r
 }
 
+// Mode controls the level of transformation applied to UAST.
+func (r *ParseRequest) Mode(mode Mode) *ParseRequest {
+	r.mode = &mode
+	return r
+}
+
 // Do performs the actual parsing by serializing the request, sending it to
 // bblfshd and waiting for the response.
 func (r *ParseRequest) Do() (*protocol1.ParseResponse, error) {
@@ -182,6 +192,9 @@ func (r *ParseRequest) DoWithContext(ctx context.Context) (*protocol1.ParseRespo
 	if r.err != nil {
 		return nil, r.err
 	}
+	if r.mode != nil {
+		return r.doV2(ctx)
+	}
 
 	resp, err := r.client.service1.Parse(ctx, &r.internal)
 	if err != nil {
@@ -190,6 +203,63 @@ func (r *ParseRequest) DoWithContext(ctx context.Context) (*protocol1.ParseRespo
 		return resp, FatalError(resp.Errors)
 	}
 	return resp, nil
+}
+
+// doV2 converts v1 request to v2, send the request including the "mode" parameter and
+// convert the response back to v1 format.
+func (r *ParseRequest) doV2(ctx context.Context) (*protocol1.ParseResponse, error) {
+	start := time.Now()
+	astV2, lang, err := r.UASTContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	astV1, err := uast1.ToNode(astV2)
+	if err != nil {
+		return nil, fmt.Errorf("cannot convert to v1 uast: %v", err)
+	}
+	out := &protocol1.ParseResponse{
+		Language: lang,
+		Filename: r.internal.Filename,
+		UAST:     astV1,
+	}
+	out.Status = protocol1.Ok
+	out.Elapsed = time.Since(start)
+	return out, nil
+}
+
+// UAST is the same as UASTContext, but uses context.Background as a context.
+func (r *ParseRequest) UAST() (nodes.Node, string, error) {
+	return r.UASTContext(context.Background())
+}
+
+// UASTContext send the request and returns decoded UAST and the language.
+// If a file contains syntax error, the ErrPartialParse is returned and will contain a partial AST.
+func (r *ParseRequest) UASTContext(ctx context.Context) (nodes.Node, string, error) {
+	if r.err != nil {
+		return nil, "", r.err
+	}
+	if r.internal.Timeout > 0 {
+		var cancel func()
+		ctx, cancel = context.WithTimeout(ctx, r.internal.Timeout)
+		defer cancel()
+	}
+	req := &protocol2.ParseRequest{
+		Filename: r.internal.Filename,
+		Language: r.internal.Language,
+		Content:  r.internal.Content,
+	}
+	if r.mode != nil {
+		req.Mode = *r.mode
+	}
+	resp, err := r.client.service2.Parse(ctx, req)
+	if err != nil {
+		return nil, "", err
+	}
+	ast, err := resp.Nodes()
+	if err != nil {
+		return nil, resp.Language, fmt.Errorf("cannot decode the uast: %v", err)
+	}
+	return ast, resp.Language, nil
 }
 
 // NativeParseRequest is a parsing request to get the AST.

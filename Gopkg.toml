@@ -50,7 +50,7 @@
 
 [[constraint]]
   name = "gopkg.in/bblfsh/client-go.v2"
-  version = "2.8.0"
+  version = "2.8.4"
 
 [[constraint]]
   name = "gopkg.in/bblfsh/sdk.v1"

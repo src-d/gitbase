@@ -261,26 +261,56 @@ func TestIntegration(t *testing.T) {
 }
 
 func TestUastQueries(t *testing.T) {
-	require := require.New(t)
-
 	engine, pool, cleanup := setup(t)
 	defer cleanup()
 
-	session := gitbase.NewSession(pool)
-	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
-	_, iter, err := engine.Query(ctx, `
-		SELECT uast_xpath(uast(blob_content, language(tree_entry_name, blob_content)), '//*[@roleIdentifier]') as uast,
+	testCases := []struct {
+		query string
+		rows  int
+	}{
+		{`SELECT uast_xpath(uast(blob_content, language(tree_entry_name, blob_content)), '//Identifier') as uast,
 			tree_entry_name
 		FROM tree_entries te
 		INNER JOIN blobs b
 		ON b.blob_hash = te.blob_hash
-		WHERE te.tree_entry_name = 'crappy.php'`,
-	)
-	require.NoError(err)
+		WHERE te.tree_entry_name = 'example.go'`, 1},
+		{`SELECT uast_xpath(uast_mode('semantic', blob_content, language(tree_entry_name, blob_content)), '//Identifier') as uast,
+			tree_entry_name
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'example.go'`, 1},
+		{`SELECT uast_xpath(uast_mode('annotated', blob_content, language(tree_entry_name, blob_content)), '//*[@roleIdentifier]') as uast,
+			tree_entry_name
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'example.go'`, 1},
+		{`SELECT uast_xpath(uast_mode('native', blob_content, language(tree_entry_name, blob_content)), '//*[@ast_type=\'FunctionDef\']') as uast,
+			tree_entry_name
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'example.go'`, 1},
+	}
 
-	rows, err := sql.RowIterToRows(iter)
-	require.NoError(err)
-	require.Len(rows, 1)
+	_ = testCases
+
+	for _, c := range testCases {
+		t.Run(c.query, func(t *testing.T) {
+			require := require.New(t)
+
+			session := gitbase.NewSession(pool)
+			ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+
+			_, iter, err := engine.Query(ctx, c.query)
+			require.NoError(err)
+
+			rows, err := sql.RowIterToRows(iter)
+			require.NoError(err)
+			require.Len(rows, c.rows)
+		})
+	}
 }
 
 func TestSquashCorrectness(t *testing.T) {
