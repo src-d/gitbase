@@ -334,13 +334,12 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 			return nil, err
 		}
 
-		for _, n := range ns {
-			data, err := n.Marshal()
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, data)
+		m, err := marshalNodes(ns)
+		if err != nil {
+			return nil, err
 		}
+
+		result = append(result, m...)
 	}
 
 	return result, nil
@@ -359,10 +358,27 @@ func nodesFromBlobArray(data interface{}) ([]*uast.Node, error) {
 		if err := node.Unmarshal(n.([]byte)); err != nil {
 			return nil, err
 		}
+
 		nodes[i] = node
 	}
 
 	return nodes, nil
+}
+
+func marshalNodes(nodes []*uast.Node) ([]interface{}, error) {
+	m := make([]interface{}, 0, len(nodes))
+	for _, n := range nodes {
+		if n != nil {
+			data, err := n.Marshal()
+			if err != nil {
+				return nil, err
+			}
+
+			m = append(m, data)
+		}
+	}
+
+	return m, nil
 }
 
 func (f UASTXPath) String() string {
@@ -459,18 +475,7 @@ func getUAST(
 		}
 	}
 
-	var result = make([]interface{}, 0, len(nodes))
-	for _, n := range nodes {
-		if n != nil {
-			node, err := n.Marshal()
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, node)
-		}
-	}
-
-	return result, nil
+	return marshalNodes(nodes)
 }
 
 // UASTExtract extracts keys from an UAST.
@@ -585,4 +590,74 @@ func (u *UASTExtract) TransformUp(f sql.TransformExprFunc) (sql.Expression, erro
 	}
 
 	return f(NewUASTExtract(left, rigth))
+}
+
+// UASTChildren returns children from UAST nodes.
+type UASTChildren struct {
+	expression.UnaryExpression
+}
+
+// NewUASTChildren creates a new UASTExtract UDF.
+func NewUASTChildren(uast sql.Expression) sql.Expression {
+	return &UASTChildren{expression.UnaryExpression{Child: uast}}
+}
+
+// String implements the fmt.Stringer interface.
+func (u *UASTChildren) String() string {
+	return fmt.Sprintf("uast_children(%s)", u.Child)
+}
+
+// Type implements the sql.Expression interface.
+func (u *UASTChildren) Type() sql.Type {
+	return sql.Array(sql.Blob)
+}
+
+// TransformUp implements the sql.Expression interface.
+func (u *UASTChildren) TransformUp(f sql.TransformExprFunc) (sql.Expression, error) {
+	child, err := u.Child.TransformUp(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return f(NewUASTChildren(child))
+}
+
+// Eval implements the sql.Expression interface.
+func (u *UASTChildren) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("uast: unknown error: %s", r)
+		}
+	}()
+
+	span, ctx := ctx.Span("gitbase.UASTChildren")
+	defer span.Finish()
+
+	child, err := u.Child.Eval(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+
+	if child == nil {
+		return nil, nil
+	}
+
+	nodes, err := nodesFromBlobArray(child)
+	if err != nil {
+		return nil, err
+	}
+
+	children := flattenChildren(nodes)
+	return marshalNodes(children)
+}
+
+func flattenChildren(nodes []*uast.Node) []*uast.Node {
+	children := []*uast.Node{}
+	for _, n := range nodes {
+		if len(n.Children) > 0 {
+			children = append(children, n.Children...)
+		}
+	}
+
+	return children
 }
