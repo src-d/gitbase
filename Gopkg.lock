@@ -123,6 +123,12 @@
   revision = "2bca23e0e452137f789efbc8610126fd8b94f73b"
 
 [[projects]]
+  branch = "go1"
+  name = "github.com/moovweb/rubex"
+  packages = ["."]
+  revision = "b3d9ff6ad7d9b14f94a91c8271cd9ad9e77132e5"
+
+[[projects]]
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
@@ -419,10 +425,11 @@
   packages = [
     ".",
     "data",
-    "internal/tokenizer"
+    "internal/tokenizer",
+    "regex"
   ]
-  revision = "6712d4219fb747194f38d0fc72121ca0a46ebcea"
-  version = "v1.6.4"
+  revision = "15bb13117fb1cc607bf87046d41ac7b53084c18b"
+  version = "v1.6.5"
 
 [[projects]]
   name = "gopkg.in/src-d/go-billy-siva.v4"
@@ -572,6 +579,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c9aaf1600004aa67450caf0692ec413a4a1c0d0689a39aee9fbf09d30320b020"
+  inputs-digest = "c962abfc66cf00402fece313b282608e8a88f22e004eba00e83bed120be91d95"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -46,7 +46,11 @@
 
 [[constraint]]
   name = "gopkg.in/src-d/enry.v1"
-  version = "1.6.4"
+  version = "1.6.5"
+
+[[override]]
+  name = "github.com/moovweb/rubex"
+  branch = "go1"
 
 [[constraint]]
   name = "gopkg.in/bblfsh/client-go.v2"

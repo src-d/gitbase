@@ -38,12 +38,6 @@ DARWIN_SHARED_LIB=$(DARWIN_DIR)/libenry.dylib
 HEADER_FILE=libenry.h
 NATIVE_LIB=./shared/enry.go
 
-# source files to be patched for using "rubex" instead of "regexp"
-RUBEX_PATCHED := internal/code-generator/generator/heuristics.go internal/tokenizer/tokenize.go common.go
-RUBEX_ORIG := $(RUBEX_PATCHED:=.orig)
-
-.PHONY: revert-oniguruma
-
 $(LINGUIST_PATH):
 	git clone https://github.com/github/linguist.git $@
 
@@ -68,15 +62,6 @@ benchmarks-samples: $(LINGUIST_PATH)
 benchmarks-slow: $(LINGUST_PATH)
 	mkdir -p benchmarks/output && go test -run=NONE -bench=. -slow -benchtime=100ms -timeout=100h >benchmarks/output/enry_samples.bench && \
 	benchmarks/linguist-samples.rb 5 >benchmarks/output/linguist_samples.bench
-
-$(RUBEX_ORIG): %.orig : %
-	sed -i.orig -e 's/"regexp"/regexp "github.com\/moovweb\/rubex"/g' $<
-	@touch $@
-
-oniguruma: $(RUBEX_ORIG)
-
-revert-oniguruma:
-	@for file in $(RUBEX_PATCHED); do if [ -e "$$file.orig" ]; then mv "$$file.orig" "$$file" && echo mv "$$file.orig" "$$file"; fi; done
 
 build-cli:
 	go build -o enry -ldflags "$(LOCAL_LDFLAGS)" cmd/enry/main.go

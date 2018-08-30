@@ -1,0 +1,38 @@
+Rubex
+
+by Zhigang Chen (zhigang.chen@moovweb.com or zhigangc@gmail.com)
+
+A simple regular expression library that supports Ruby's regex syntax. It implements all the public functions of Go's Regexp package, except LiteralPrefix. By the benchmark tests in Regexp, the library is 40% to 10X faster than Regexp on all but one test. Unlike Go's Regrexp, this library supports named capture groups and also allow "\\1" and "\\k<name>" in replacement strings.
+
+The library calls the Oniguruma regex library (5.9.2, the latest release as of now) for regex pattern searching. All replacement code is done in Go. This library can be easily adapted to support the regex syntax used by other programming languages or tools, like Java, Perl, grep, and emacs.
+
+To install everything, just run
+
+   make install
+
+To run tests, do
+
+   make test
+
+Also it uses a build tool called "gb", available at "http://code.google.com/p/go-gb/".
+
+So, to build the project, just go to the root directory and type
+
+   gb -bm
+
+To install the package
+
+   gb -im
+
+To run tests
+
+   gb -t
+
+To clean up 
+
+   gb -cm
+
+To run benchmarks
+
+   cd lib; gotest -test.bench="."
+ 

@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"gopkg.in/src-d/enry.v1/data"
+	"gopkg.in/src-d/enry.v1/regex"
 )
 
 // OtherLanguage is used as a zero value when a function can not return a specific language.
@@ -115,6 +115,8 @@ func GetLanguageBySpecificClassifier(content []byte, candidates []string, classi
 
 // GetLanguages applies a sequence of strategies based on the given filename and content
 // to find out the most probably languages to return.
+// At least one of arguments should be set. If content is missing, language detection will be based on the filename.
+// The function won't read the file, given an empty content.
 func GetLanguages(filename string, content []byte) []string {
 	if IsBinary(content) {
 		return nil
@@ -195,10 +197,10 @@ func footScope(content []byte, scope int) (index int) {
 }
 
 var (
-	reEmacsModeline = regexp.MustCompile(`.*-\*-\s*(.+?)\s*-\*-.*(?m:$)`)
-	reEmacsLang     = regexp.MustCompile(`.*(?i:mode)\s*:\s*([^\s;]+)\s*;*.*`)
-	reVimModeline   = regexp.MustCompile(`(?:(?m:\s|^)vi(?:m[<=>]?\d+|m)?|[\t\x20]*ex)\s*[:]\s*(.*)(?m:$)`)
-	reVimLang       = regexp.MustCompile(`(?i:filetype|ft|syntax)\s*=(\w+)(?:\s|:|$)`)
+	reEmacsModeline = regex.MustCompile(`.*-\*-\s*(.+?)\s*-\*-.*(?m:$)`)
+	reEmacsLang     = regex.MustCompile(`.*(?i:mode)\s*:\s*([^\s;]+)\s*;*.*`)
+	reVimModeline   = regex.MustCompile(`(?:(?m:\s|^)vi(?:m[<=>]?\d+|m)?|[\t\x20]*ex)\s*[:]\s*(.*)(?m:$)`)
+	reVimLang       = regex.MustCompile(`(?i:filetype|ft|syntax)\s*=(\w+)(?:\s|:|$)`)
 )
 
 // GetLanguagesByEmacsModeline returns a slice of possible languages for the given content.
@@ -281,8 +283,8 @@ func GetLanguagesByShebang(_ string, content []byte, _ []string) (languages []st
 }
 
 var (
-	shebangExecHack = regexp.MustCompile(`exec (\w+).+\$0.+\$@`)
-	pythonVersion   = regexp.MustCompile(`python\d\.\d+`)
+	shebangExecHack = regex.MustCompile(`exec (\w+).+\$0.+\$@`)
+	pythonVersion   = regex.MustCompile(`python\d\.\d+`)
 )
 
 func getInterpreter(data []byte) (interpreter string) {
