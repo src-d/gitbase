@@ -126,3 +126,75 @@ CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_cont
 ```sql
 DROP INDEX files_lang_idx ON files;
 ```
+
+# UAST UDFs Examples
+
+First of all, you should check out the [bblfsh documentation](https://docs.sourced.tech/babelfish) to get yourself familiar with UAST concepts.
+
+Also, you can take a look to all the UDFs and their signatures in the [functions section](/docs/using-gitbase/functions.md)
+
+## Retrieving UASTs with the UDF `uast`
+
+```sql
+SELECT file_path, uast(blob_content, language(file_path)) FROM files;
+```
+
+This function allows you to directly filter the retrieved UAST by performing a XPATH query on it:
+
+```sql
+SELECT file_path, uast(blob_content, language(file_path), "//FuncLit") FROM files;
+```
+
+This UDF will give you `semantic` UASTs by default. To get some other type see the UDF [`uast_mode`](#retrieving-different-kinds-of-uasts-using-uast_mode).
+
+## Retrieving different kinds of UASTs using `uast_mode`
+
+[bblfsh](https://docs.sourced.tech/babelfish) UAST modes: `semantic`, `annotated`, `native`
+
+```sql
+SELECT file_path, uast_mode("semantic", blob_content, language(file_path)) FROM files;
+
+SELECT file_path, uast_mode("annotated", blob_content, language(file_path)) FROM files;
+
+SELECT file_path, uast_mode("native", blob_content, language(file_path)) FROM files;
+```
+
+## Filtering UASTs by XPath queries
+
+```sql
+SELECT file_path, uast_xpath(uast(blob_content, language(file_path)), "//FieldList") FROM files;
+
+SELECT file_path, uast_xpath(uast_mode("annotated", blob_content, language(file_path)), "//*[@roleFunction]") FROM files;
+```
+
+## Extracting information from UAST nodes
+
+You can retrieve information from the UAST nodes either through the special selectors `@type`, `@token`, `@role`, `@startpos`, `@endpos`:
+
+```sql
+SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//FuncLit"), "@startpos") FROM files;
+```
+
+or through a specific property:
+
+```sql
+SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//FuncLit"), "internalRole") FROM files;
+```
+
+As result, you will get an array of arrays showing a list of the retrieved information for each of the given nodes:
+
+```sh
++-------------------+------------------------------------------------------------------------------------------------+
+| file_path         | uast_extract(uast(files.blob_content, language(files.file_path), "//FuncLit"), "internalRole") |
++-------------------+------------------------------------------------------------------------------------------------+
+| benchmark_test.go | [["Args"],["Args"],["Args"],["Args"],["Args"],["Args"],["Args"]]                               |
++-------------------+------------------------------------------------------------------------------------------------+
+```
+
+## Getting the children of a list of nodes
+
+The UDF `uast_children` will return a flattened array of the children nodes from all the nodes in the given array.
+
+```sql
+SELECT file_path, uast_children(uast(blob_content, language(file_path), "//FuncLit")) FROM files;
+```
