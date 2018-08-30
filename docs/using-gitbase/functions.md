@@ -12,6 +12,7 @@ To make some common tasks easier for the user, there are some functions to inter
 |uast(blob, [lang, [xpath]])json_blob| returns an array of UAST nodes as blobs in semantic mode                                                 |
 |uast_mode(mode, blob, lang)json_blob| returns an array of UAST nodes as blobs specifying its language and mode (semantic, annotated or native) |
 |uast_xpath(json_blob, xpath)| performs an XPath query over the given UAST nodes                                                                |
+|uast_extract(json_blob, key)| extracts information identified by the given key from the uast nodes                                              |
 
 ## Standard functions
 

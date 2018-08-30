@@ -164,6 +164,123 @@ func TestUASTXPath(t *testing.T) {
 	}
 }
 
+func TestUASTExtract(t *testing.T) {
+	ctx, cleanup := setup(t)
+	defer cleanup()
+
+	tests := []struct {
+		name     string
+		key      string
+		expected []interface{}
+	}{
+		{
+			name: "key_" + keyType,
+			key:  keyType,
+			expected: []interface{}{
+				[]string{"FunctionDef"},
+				[]string{"Name"},
+				[]string{"Name"},
+				[]string{"Name"},
+				[]string{"Name"},
+			},
+		},
+		{
+			name: "key_" + keyToken,
+			key:  keyToken,
+			expected: []interface{}{
+				[]string{"sum"},
+				[]string{"a"},
+				[]string{"b"},
+				[]string{"print"},
+				[]string{"sum"},
+			},
+		},
+		{
+			name: "key_" + keyRoles,
+			key:  keyRoles,
+			expected: []interface{}{
+				[]string{"Unannotated", "Function", "Declaration", "Name", "Identifier"},
+				[]string{"Unannotated", "Identifier", "Expression", "Binary", "Left"},
+				[]string{"Unannotated", "Identifier", "Expression", "Binary", "Right"},
+				[]string{"Unannotated", "Identifier", "Expression", "Call", "Callee"},
+				[]string{"Unannotated", "Identifier", "Expression", "Call", "Callee"},
+			},
+		},
+		{
+			name: "key_" + keyStartPos,
+			key:  keyStartPos,
+			expected: []interface{}{
+				[]string{"Offset:28 Line:4 Col:5 "},
+				[]string{"Offset:47 Line:5 Col:9 "},
+				[]string{"Offset:51 Line:5 Col:13 "},
+				[]string{"Offset:54 Line:7 Col:1 "},
+				[]string{"Offset:60 Line:7 Col:7 "},
+			},
+		},
+		{
+			name: "key_" + keyEndPos,
+			key:  keyEndPos,
+			expected: []interface{}{
+				[]string{"Offset:31 Line:4 Col:8 "},
+				[]string{"Offset:48 Line:5 Col:10 "},
+				[]string{"Offset:52 Line:5 Col:14 "},
+				[]string{"Offset:59 Line:7 Col:6 "},
+				[]string{"Offset:63 Line:7 Col:10 "},
+			},
+		},
+		{
+			name: "key_internalRole",
+			key:  "internalRole",
+			expected: []interface{}{
+				[]string{"body"},
+				[]string{"left"},
+				[]string{"right"},
+				[]string{"func"},
+				[]string{"func"},
+			},
+		},
+		{
+			name: "key_ctx",
+			key:  "ctx",
+			expected: []interface{}{
+				[]string{},
+				[]string{"Load"},
+				[]string{"Load"},
+				[]string{"Load"},
+				[]string{"Load"},
+			},
+		},
+		{
+			name: "key_foo",
+			key:  "foo",
+			expected: []interface{}{
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+			},
+		},
+	}
+
+	_, filteredNodes := bblfshFixtures(t, ctx)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			row := sql.NewRow(filteredNodes["annotated"], test.key)
+
+			fn := NewUASTExtract(
+				expression.NewGetField(0, sql.Array(sql.Blob), "", false),
+				expression.NewLiteral(test.key, sql.Text),
+			)
+
+			foo, err := fn.Eval(ctx, row)
+			require.NoError(t, err)
+			require.ElementsMatch(t, test.expected, foo)
+		})
+	}
+}
+
 func assertUASTBlobs(t *testing.T, a, b interface{}) {
 	t.Helper()
 	require := require.New(t)
