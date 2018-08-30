@@ -281,6 +281,45 @@ func TestUASTExtract(t *testing.T) {
 	}
 }
 
+func TestUASTChildren(t *testing.T) {
+	var require = require.New(t)
+
+	ctx, cleanup := setup(t)
+	defer cleanup()
+
+	uasts, _ := bblfshFixtures(t, ctx)
+	modes := []string{"semantic", "annotated", "native"}
+
+	for _, mode := range modes {
+		root, ok := uasts[mode]
+		require.True(ok)
+
+		nodes, err := nodesFromBlobArray(root)
+		require.NoError(err)
+		require.Len(nodes, 1)
+		expected := nodes[0].Children
+
+		row := sql.NewRow(root)
+
+		fn := NewUASTChildren(
+			expression.NewGetField(0, sql.Array(sql.Blob), "", false),
+		)
+
+		children, err := fn.Eval(ctx, row)
+		require.NoError(err)
+
+		nodes, err = nodesFromBlobArray(children)
+		require.NoError(err)
+		require.Len(nodes, len(expected))
+		for i, n := range nodes {
+			require.Equal(
+				n.InternalType,
+				expected[i].InternalType,
+			)
+		}
+	}
+}
+
 func assertUASTBlobs(t *testing.T, a, b interface{}) {
 	t.Helper()
 	require := require.New(t)
