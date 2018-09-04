@@ -1,8 +1,6 @@
 # Examples
 
-## Examples
-
-### Get all the repositories where a specific user contributes on HEAD reference
+## Get all the repositories where a specific user contributes on HEAD reference
 
 ```sql
 SELECT refs.repository_id
@@ -11,28 +9,28 @@ NATURAL JOIN commits
 WHERE commits.commit_author_name = 'Javi Fontan' AND refs.ref_name='HEAD';
 ```
 
-### Get all the HEAD references from all the repositories
+## Get all the HEAD references from all the repositories
 
 ```sql
 SELECT * FROM refs WHERE ref_name = 'HEAD';
 ```
 
-### First commit on HEAD history for all repositories
+## First commit on HEAD history for all repositories
 
 ```sql
 SELECT
-    file_path,
-    ref_commits.repository_id
+	file_path,
+	ref_commits.repository_id
 FROM
-    commit_files
+	commit_files
 NATURAL JOIN
-    ref_commits
+	ref_commits
 WHERE
-    ref_commits.ref_name = 'HEAD'
-    AND ref_commits.history_index = 0;
+	ref_commits.ref_name = 'HEAD'
+	AND ref_commits.history_index = 0;
 ```
 
-### Commits that appear in more than one reference
+## Commits that appear in more than one reference
 
 ```sql
 SELECT * FROM (
@@ -44,7 +42,7 @@ SELECT * FROM (
 ) t WHERE num > 1;
 ```
 
-### Get the number of blobs per HEAD commit
+##  Get the number of blobs per HEAD commit
 
 ```sql
 SELECT COUNT(c.commit_hash), c.commit_hash
@@ -56,7 +54,7 @@ INNER JOIN commit_blobs cb
 GROUP BY c.commit_hash;
 ```
 
-### Get commits per committer, per month in 2015
+## Get commits per committer, per month in 2015
 
 ```sql
 SELECT COUNT(*) as num_commits, month, repo_id, committer_email
@@ -73,25 +71,25 @@ FROM (
 GROUP BY committer_email, month, repo_id;
 ```
 
-### Files from first 6 commits from HEAD references that contains some key and are not in vendor directory
+## Files from first 6 commits from HEAD references that contains some key and are not in vendor directory
 
 ```sql
 select
-    files.file_path,
-    ref_commits.repository_id,
+	files.file_path,
+	ref_commits.repository_id,
     files.blob_content
 FROM
-    files
+	files
 NATURAL JOIN
-    commit_files
+	commit_files
 NATURAL JOIN
-    ref_commits
+	ref_commits
 WHERE
-    ref_commits.ref_name = 'HEAD'
-    AND ref_commits.history_index BETWEEN 0 AND 5
-    AND is_binary(blob_content) = false
+	ref_commits.ref_name = 'HEAD'
+	AND ref_commits.history_index BETWEEN 0 AND 5
+	AND is_binary(blob_content) = false
     AND files.file_path NOT REGEXP '^vendor.*'
-    AND (
+	AND (
         blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
         OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
         OR blob_content REGEXP '(?i)github.*[\'\\"][0-9a-zA-Z]{35,40}[\'\\"]'
@@ -105,7 +103,7 @@ WHERE
     );
 ```
 
-### Create an index for columns on a table
+## Create an index for columns on a table
 
 You can create an index either on a specific column or on several columns:
 
@@ -115,7 +113,7 @@ CREATE INDEX commits_hash_idx ON commits USING pilosa (commit_hash);
 CREATE INDEX files_commit_path_blob_idx ON commit_files USING pilosa (commit_hash, file_path, blob_hash);
 ```
 
-### Create an index for an expression on a table
+## Create an index for an expression on a table
 
 Note that just one expression at a time is allowed to be indexed.
 
@@ -123,19 +121,19 @@ Note that just one expression at a time is allowed to be indexed.
 CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_content));
 ```
 
-### Drop a table's index
+## Drop a table's index
 
 ```sql
 DROP INDEX files_lang_idx ON files;
 ```
 
-## UAST UDFs Examples
+# UAST UDFs Examples
 
 First of all, you should check out the [bblfsh documentation](https://docs.sourced.tech/babelfish) to get yourself familiar with UAST concepts.
 
-Also, you can take a look to all the UDFs and their signatures in the [functions section](functions.md)
+Also, you can take a look to all the UDFs and their signatures in the [functions section](/docs/using-gitbase/functions.md)
 
-### Retrieving UASTs with the UDF `uast`
+## Retrieving UASTs with the UDF `uast`
 
 ```sql
 SELECT file_path, uast(blob_content, language(file_path)) FROM files;
@@ -147,9 +145,9 @@ This function allows you to directly filter the retrieved UAST by performing a X
 SELECT file_path, uast(blob_content, language(file_path), "//FuncLit") FROM files;
 ```
 
-This UDF will give you `semantic` UASTs by default. To get some other type see the UDF [`uast_mode`](examples.md#retrieving-different-kinds-of-uasts-using-uast_mode).
+This UDF will give you `semantic` UASTs by default. To get some other type see the UDF [`uast_mode`](#retrieving-different-kinds-of-uasts-using-uast_mode).
 
-### Retrieving different kinds of UASTs using `uast_mode`
+## Retrieving different kinds of UASTs using `uast_mode`
 
 [bblfsh](https://docs.sourced.tech/babelfish) UAST modes: `semantic`, `annotated`, `native`
 
@@ -161,7 +159,7 @@ SELECT file_path, uast_mode("annotated", blob_content, language(file_path)) FROM
 SELECT file_path, uast_mode("native", blob_content, language(file_path)) FROM files;
 ```
 
-### Filtering UASTs by XPath queries
+## Filtering UASTs by XPath queries
 
 ```sql
 SELECT file_path, uast_xpath(uast(blob_content, language(file_path)), "//FieldList") FROM files;
@@ -169,7 +167,7 @@ SELECT file_path, uast_xpath(uast(blob_content, language(file_path)), "//FieldLi
 SELECT file_path, uast_xpath(uast_mode("annotated", blob_content, language(file_path)), "//*[@roleFunction]") FROM files;
 ```
 
-### Extracting information from UAST nodes
+## Extracting information from UAST nodes
 
 You can retrieve information from the UAST nodes either through the special selectors `@type`, `@token`, `@role`, `@startpos`, `@endpos`:
 
@@ -185,7 +183,7 @@ SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//FuncLi
 
 As result, you will get an array of arrays showing a list of the retrieved information for each of the given nodes:
 
-```bash
+```sh
 +-------------------+------------------------------------------------------------------------------------------------+
 | file_path         | uast_extract(uast(files.blob_content, language(files.file_path), "//FuncLit"), "internalRole") |
 +-------------------+------------------------------------------------------------------------------------------------+
@@ -193,11 +191,10 @@ As result, you will get an array of arrays showing a list of the retrieved infor
 +-------------------+------------------------------------------------------------------------------------------------+
 ```
 
-### Getting the children of a list of nodes
+## Getting the children of a list of nodes
 
 The UDF `uast_children` will return a flattened array of the children nodes from all the nodes in the given array.
 
 ```sql
 SELECT file_path, uast_children(uast(blob_content, language(file_path), "//FuncLit")) FROM files;
 ```
-
