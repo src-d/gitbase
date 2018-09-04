@@ -68,7 +68,12 @@ func (l *jaegerLogrus) Error(s string) {
 	l.Entry.Error(s)
 }
 
-func NewDatabaseEngine(readonly bool, version string, parallelism int) *sqle.Engine {
+func NewDatabaseEngine(
+	readonly bool,
+	version string,
+	parallelism int,
+	squash bool,
+) *sqle.Engine {
 	catalog := sql.NewCatalog()
 	ab := analyzer.NewBuilder(catalog)
 	if readonly {
@@ -77,6 +82,10 @@ func NewDatabaseEngine(readonly bool, version string, parallelism int) *sqle.Eng
 
 	if parallelism > 1 {
 		ab = ab.WithParallelism(parallelism)
+	}
+
+	if squash {
+		ab = ab.AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins)
 	}
 
 	a := ab.Build()
@@ -162,7 +171,12 @@ func (c *Server) Execute(args []string) error {
 
 func (c *Server) buildDatabase() error {
 	if c.engine == nil {
-		c.engine = NewDatabaseEngine(c.ReadOnly, c.Version, int(c.Parallelism))
+		c.engine = NewDatabaseEngine(
+			c.ReadOnly,
+			c.Version,
+			int(c.Parallelism),
+			!c.DisableSquash,
+		)
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
@@ -183,12 +197,6 @@ func (c *Server) buildDatabase() error {
 
 	if !c.DisableSquash {
 		logrus.Info("squash tables rule is enabled")
-		a := analyzer.NewBuilder(c.engine.Catalog).
-			AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
-			Build()
-
-		a.CurrentDatabase = c.engine.Analyzer.CurrentDatabase
-		c.engine.Analyzer = a
 	} else {
 		logrus.Warn("squash tables rule is disabled")
 	}
