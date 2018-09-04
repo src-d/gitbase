@@ -47,7 +47,6 @@ type squashReposIter struct {
 	repo          *Repository
 	row           sql.Row
 	skipGitErrors bool
-	done          bool
 }
 
 // NewAllReposIter returns an iterator that will return all repositories

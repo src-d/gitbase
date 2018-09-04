@@ -852,7 +852,7 @@ func newSquashEngine() *sqle.Engine {
 
 func newBaseEngine() *sqle.Engine {
 	foo := gitbase.NewDatabase("foo")
-	engine := command.NewDatabaseEngine(false, "test")
+	engine := command.NewDatabaseEngine(false, "test", 0)
 
 	engine.AddDatabase(foo)
 	engine.Catalog.RegisterFunctions(function.Functions)

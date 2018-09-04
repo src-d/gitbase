@@ -68,15 +68,15 @@ func (l *jaegerLogrus) Error(s string) {
 	l.Entry.Error(s)
 }
 
-func NewDatabaseEngine(readonly bool, version string) *sqle.Engine {
+func NewDatabaseEngine(readonly bool, version string, parallelism int) *sqle.Engine {
 	catalog := sql.NewCatalog()
 	ab := analyzer.NewBuilder(catalog)
 	if readonly {
 		ab = ab.ReadOnly()
 	}
-	
-	if c.Parallelism > 1 {
-		ab = ab.WithParallelism(int(c.Parallelism))
+
+	if parallelism > 1 {
+		ab = ab.WithParallelism(parallelism)
 	}
 
 	a := ab.Build()
@@ -162,7 +162,7 @@ func (c *Server) Execute(args []string) error {
 
 func (c *Server) buildDatabase() error {
 	if c.engine == nil {
-		c.engine = NewDatabaseEngine(c.ReadOnly, c.Version)
+		c.engine = NewDatabaseEngine(c.ReadOnly, c.Version, int(c.Parallelism))
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
