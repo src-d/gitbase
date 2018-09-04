@@ -1,9 +1,6 @@
 package rule
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/src-d/gitbase"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -140,13 +137,28 @@ func squashJoin(join *plan.InnerJoin) (sql.Node, error) {
 	return rearrange(join, table), nil
 }
 
-func joinTables(join *plan.InnerJoin) (sql.Table, error) {
+func joinTables(join *plan.InnerJoin) (*joinedTables, error) {
 	var tables []sql.Table
 	var filters []sql.Expression
-	var columns []sql.Expression
+	var columns []string
 	var indexes = make(map[string]sql.IndexLookup)
 	plan.Inspect(join, func(node sql.Node) bool {
 		switch node := node.(type) {
+		case *plan.ResolvedTable:
+			tables = append(tables, node.Table)
+			if p, ok := node.Table.(sql.ProjectedTable); ok {
+				columns = append(columns, p.Projection()...)
+			}
+
+			if f, ok := node.Table.(sql.FilteredTable); ok {
+				filters = append(filters, f.Filters()...)
+			}
+
+			if i, ok := node.Table.(sql.IndexableTable); ok {
+				indexes[node.Name()] = i.IndexLookup()
+			}
+		case *plan.InnerJoin:
+			filters = append(filters, exprToFilters(node.Cond)...)
 		case *joinedTables:
 			tables = append(tables, node.tables...)
 			columns = append(columns, node.columns...)
@@ -154,24 +166,8 @@ func joinTables(join *plan.InnerJoin) (sql.Table, error) {
 			for t, idx := range node.indexes {
 				indexes[t] = idx
 			}
-		case *plan.PushdownProjectionAndFiltersTable:
-			table, ok := node.PushdownProjectionAndFiltersTable.(gitbase.Table)
-			if ok {
-				filters = append(filters, node.Filters...)
-				columns = append(columns, node.Columns...)
-				tables = append(tables, table)
-			}
-		case *plan.IndexableTable:
-			table, ok := node.Indexable.(gitbase.Table)
-			if ok {
-				filters = append(filters, node.Filters...)
-				columns = append(columns, node.Columns...)
-				tables = append(tables, table)
-				indexes[table.Name()] = node.Index
-			}
-		case *plan.InnerJoin:
-			filters = append(filters, exprToFilters(node.Cond)...)
 		}
+
 		return true
 	})
 
@@ -183,7 +179,7 @@ func joinTables(join *plan.InnerJoin) (sql.Table, error) {
 	}, nil
 }
 
-func rearrange(join *plan.InnerJoin, squashedTable sql.Table) sql.Node {
+func rearrange(join *plan.InnerJoin, squashedTable *joinedTables) sql.Node {
 	var projections []sql.Expression
 	var filters []sql.Expression
 	plan.Inspect(join, func(node sql.Node) bool {
@@ -212,7 +208,8 @@ var errInvalidIteratorChain = errors.NewKind("invalid iterator to chain with %s:
 
 func buildSquashedTable(
 	tables []sql.Table,
-	filters, columns []sql.Expression,
+	filters []sql.Expression,
+	columns []string,
 	indexes map[string]sql.IndexLookup,
 ) (sql.Node, error) {
 	tableNames := orderedTableNames(tables)
@@ -639,13 +636,7 @@ func buildSquashedTable(
 				return nil, errInvalidIteratorChain.New("tree_entries", iter)
 			}
 		case gitbase.BlobsTableName:
-			var readContent bool
-			for _, e := range columns {
-				if containsField(e, gitbase.BlobsTableName, "blob_content") {
-					readContent = true
-					break
-				}
-			}
+			readContent := stringInSlice(columns, "blob_content")
 
 			switch it := iter.(type) {
 			case gitbase.ReposIter:
@@ -738,13 +729,7 @@ func buildSquashedTable(
 				return nil, errInvalidIteratorChain.New("commit_files", iter)
 			}
 		case gitbase.FilesTableName:
-			var readContent bool
-			for _, e := range columns {
-				if containsField(e, gitbase.FilesTableName, "blob_content") {
-					readContent = true
-					break
-				}
-			}
+			readContent := stringInSlice(columns, "blob_content")
 
 			switch it := iter.(type) {
 			case gitbase.FilesIter:
@@ -778,7 +763,7 @@ func buildSquashedTable(
 		indexedTables = []string{firstTable}
 	}
 
-	var node sql.Node = newSquashedTable(
+	var node sql.Node = gitbase.NewSquashedTable(
 		iter,
 		mapping,
 		allFilters,
@@ -840,7 +825,12 @@ func orderedTableNames(tables []sql.Table) []string {
 	var tableNames []string
 	for _, n := range tableHierarchy {
 		for _, t := range tables {
-			if n == t.Name() {
+			nameable, ok := t.(sql.Nameable)
+			if !ok {
+				continue
+			}
+
+			if n == nameable.Name() {
 				tableNames = append(tableNames, n)
 				break
 			}
@@ -859,15 +849,8 @@ func isJoinLeafSquashable(node sql.Node) bool {
 	var hasUnsquashableNodes, hasSquashableTables bool
 	plan.Inspect(node, func(node sql.Node) bool {
 		switch node := node.(type) {
-		case *plan.PushdownProjectionAndFiltersTable:
-			_, ok := node.PushdownProjectionAndFiltersTable.(gitbase.Squashable)
-			if !ok {
-				hasUnsquashableNodes = true
-				return false
-			}
-			hasSquashableTables = true
-		case *plan.IndexableTable:
-			_, ok := node.Indexable.(gitbase.Squashable)
+		case *plan.ResolvedTable:
+			_, ok := node.Table.(gitbase.Squashable)
 			if !ok {
 				hasUnsquashableNodes = true
 				return false
@@ -943,10 +926,7 @@ func findLeafTables(n sql.Node) []string {
 		case *joinedTables:
 			tables = orderedTableNames(n.tables)
 			return false
-		case *plan.PushdownProjectionAndFiltersTable:
-			tables = []string{n.Name()}
-			return false
-		case *plan.IndexableTable:
+		case *plan.ResolvedTable:
 			tables = []string{n.Name()}
 			return false
 		default:
@@ -999,131 +979,9 @@ func stringInSlice(strs []string, str string) bool {
 	return false
 }
 
-type squashedTable struct {
-	iter           gitbase.ChainableIter
-	tables         []string
-	schemaMappings []int
-	filters        []sql.Expression
-	indexedTables  []string
-	schema         sql.Schema
-}
-
-func newSquashedTable(
-	iter gitbase.ChainableIter,
-	mapping []int,
-	filters []sql.Expression,
-	indexedTables []string,
-	tables ...string,
-) *squashedTable {
-	return &squashedTable{iter, tables, mapping, filters, indexedTables, nil}
-}
-
-var _ sql.Node = (*squashedTable)(nil)
-
-func (t *squashedTable) Schema() sql.Schema {
-	if len(t.schemaMappings) == 0 {
-		return t.iter.Schema()
-	}
-
-	if t.schema == nil {
-		schema := t.iter.Schema()
-		t.schema = make(sql.Schema, len(schema))
-		for i, j := range t.schemaMappings {
-			t.schema[i] = schema[j]
-		}
-	}
-	return t.schema
-}
-func (t *squashedTable) Children() []sql.Node {
-	return nil
-}
-func (t *squashedTable) Resolved() bool {
-	return true
-}
-func (t *squashedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.SquashedTable")
-	iter, err := gitbase.NewChainableRowIter(ctx, t.iter)
-	if err != nil {
-		span.Finish()
-		return nil, err
-	}
-
-	return sql.NewSpanIter(
-		span,
-		&schemaMapperIter{iter, t.schemaMappings},
-	), nil
-}
-func (t *squashedTable) String() string {
-	s := t.Schema()
-	cp := sql.NewTreePrinter()
-	_ = cp.WriteNode("Columns")
-	var schema = make([]string, len(s))
-	for i, col := range s {
-		schema[i] = fmt.Sprintf(
-			"Column(%s, %s, nullable=%v)",
-			col.Name,
-			col.Type.Type().String(),
-			col.Nullable,
-		)
-	}
-	_ = cp.WriteChildren(schema...)
-
-	fp := sql.NewTreePrinter()
-	_ = fp.WriteNode("Filters")
-	var filters = make([]string, len(t.filters))
-	for i, f := range t.filters {
-		filters[i] = f.String()
-	}
-	_ = fp.WriteChildren(filters...)
-
-	children := []string{cp.String(), fp.String()}
-
-	if len(t.indexedTables) > 0 {
-		ip := sql.NewTreePrinter()
-		_ = ip.WriteNode("IndexedTables")
-		_ = ip.WriteChildren(t.indexedTables...)
-		children = append(children, ip.String())
-	}
-
-	p := sql.NewTreePrinter()
-	_ = p.WriteNode("SquashedTable(%s)", strings.Join(t.tables, ", "))
-	_ = p.WriteChildren(children...)
-	return p.String()
-}
-func (t *squashedTable) TransformExpressionsUp(sql.TransformExprFunc) (sql.Node, error) {
-	return t, nil
-}
-func (t *squashedTable) TransformUp(fn sql.TransformNodeFunc) (sql.Node, error) {
-	return fn(t)
-}
-
-type schemaMapperIter struct {
-	iter     sql.RowIter
-	mappings []int
-}
-
-func (i schemaMapperIter) Next() (sql.Row, error) {
-	childRow, err := i.iter.Next()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(i.mappings) == 0 {
-		return childRow, nil
-	}
-
-	var row = make(sql.Row, len(i.mappings))
-	for i, j := range i.mappings {
-		row[i] = childRow[j]
-	}
-
-	return row, nil
-}
-func (i schemaMapperIter) Close() error { return i.iter.Close() }
-
 type joinedTables struct {
 	tables  []sql.Table
-	columns []sql.Expression
+	columns []string
 	filters []sql.Expression
 	indexes map[string]sql.IndexLookup
 }
@@ -1136,23 +994,25 @@ func (t *joinedTables) Name() string {
 func (t *joinedTables) Schema() sql.Schema {
 	panic("joinedTables is a placeholder node, but Schema was called")
 }
-func (t *joinedTables) Children() []sql.Node {
-	return nil
+func (t *joinedTables) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	panic("joinedTables is a placeholder node, but Partitions was called")
 }
-func (t *joinedTables) Resolved() bool {
-	panic("joinedTables is a placeholder node, but Resolved was called")
-}
-func (t *joinedTables) RowIter(*sql.Context) (sql.RowIter, error) {
-	panic("joinedTables is a placeholder node, but RowIter was called")
+func (t *joinedTables) PartitionRows(*sql.Context, sql.Partition) (sql.RowIter, error) {
+	panic("joinedTables is a placeholder node, but PartitionRows was called")
 }
 func (t *joinedTables) String() string {
 	panic("joinedTables is a placeholder node, but String was called")
 }
-func (t *joinedTables) TransformExpressionsUp(sql.TransformExprFunc) (sql.Node, error) {
-	panic("joinedTables is a placeholder node, but TransformExpressionsUp was called")
+func (t *joinedTables) RowIter(*sql.Context) (sql.RowIter, error) {
+	panic("joinedTables is a placeholder node, but RowIter was called")
 }
-func (t *joinedTables) TransformUp(fn sql.TransformNodeFunc) (sql.Node, error) {
-	return fn(t)
+func (t *joinedTables) Children() []sql.Node { return nil }
+func (t *joinedTables) Resolved() bool       { return true }
+func (t *joinedTables) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
+	return f(t)
+}
+func (t *joinedTables) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
+	return t, nil
 }
 
 // filtersForJoin returns the filters (already joined as one expression) for

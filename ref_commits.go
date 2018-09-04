@@ -11,11 +11,12 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
-type refCommitsTable struct{}
+type refCommitsTable struct {
+	filters []sql.Expression
+	index   sql.IndexLookup
+}
 
 // RefCommitsSchema is the schema for the ref commits table.
 var RefCommitsSchema = sql.Schema{
@@ -25,9 +26,9 @@ var RefCommitsSchema = sql.Schema{
 	{Name: "history_index", Type: sql.Int64, Source: RefCommitsTableName},
 }
 
-var _ sql.PushdownProjectionAndFiltersTable = (*refCommitsTable)(nil)
+var _ Table = (*refCommitsTable)(nil)
 
-func newRefCommitsTable() Indexable {
+func newRefCommitsTable() *refCommitsTable {
 	return new(refCommitsTable)
 }
 
@@ -40,25 +41,83 @@ func (refCommitsTable) String() string {
 	return printTable(RefCommitsTableName, RefCommitsSchema)
 }
 
-func (refCommitsTable) Resolved() bool { return true }
-
 func (refCommitsTable) Name() string { return RefCommitsTableName }
 
 func (refCommitsTable) Schema() sql.Schema { return RefCommitsSchema }
 
-func (t *refCommitsTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(t)
+func (t *refCommitsTable) WithFilters(filters []sql.Expression) sql.Table {
+	nt := *t
+	nt.filters = filters
+	return &nt
 }
 
-func (t *refCommitsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	return t, nil
+func (t *refCommitsTable) WithProjection(colNames []string) sql.Table {
+	return t
 }
 
-func (refCommitsTable) Children() []sql.Node { return nil }
+func (t *refCommitsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
+	nt := *t
+	nt.index = idx
+	return &nt
+}
 
-func (refCommitsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+func (t *refCommitsTable) IndexLookup() sql.IndexLookup { return t.index }
+func (t *refCommitsTable) Filters() []sql.Expression    { return t.filters }
+
+func (t *refCommitsTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	return newRepositoryPartitionIter(ctx)
+}
+
+func (t *refCommitsTable) PartitionRows(
+	ctx *sql.Context,
+	p sql.Partition,
+) (sql.RowIter, error) {
+	repo, err := getPartitionRepo(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
 	span, ctx := ctx.Span("gitbase.RefCommitsTable")
-	iter, err := NewRowRepoIter(ctx, &refCommitsIter{ctx: ctx})
+	iter, err := rowIterWithSelectors(
+		ctx, RefCommitsSchema, RefCommitsTableName,
+		t.filters,
+		t.handledColumns(),
+		func(selectors selectors) (sql.RowIter, error) {
+			repos, err := selectors.textValues("repository_id")
+			if err != nil {
+				return nil, err
+			}
+
+			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+				return noRows, nil
+			}
+
+			names, err := selectors.textValues("ref_name")
+			if err != nil {
+				return nil, err
+			}
+
+			for i := range names {
+				names[i] = strings.ToLower(names[i])
+			}
+
+			var indexValues sql.IndexValueIter
+			if t.index != nil {
+				if indexValues, err = t.index.Values(p); err != nil {
+					return nil, err
+				}
+			}
+
+			return &refCommitsRowIter{
+				ctx:           ctx,
+				refNames:      names,
+				repo:          repo,
+				index:         indexValues,
+				skipGitErrors: shouldSkipErrors(ctx),
+			}, nil
+		},
+	)
+
 	if err != nil {
 		span.Finish()
 		return nil, err
@@ -73,69 +132,18 @@ func (refCommitsTable) HandledFilters(filters []sql.Expression) []sql.Expression
 
 func (refCommitsTable) handledColumns() []string { return []string{"ref_name", "repository_id"} }
 
-func (t *refCommitsTable) WithProjectAndFilters(
-	ctx *sql.Context,
-	_, filters []sql.Expression,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.RefCommitsTable")
-	iter, err := rowIterWithSelectors(
-		ctx, RefCommitsSchema, RefCommitsTableName,
-		filters, nil,
-		t.handledColumns(),
-		refCommitsIterBuilder,
-	)
-
-	if err != nil {
-		span.Finish()
-		return nil, err
-	}
-
-	return sql.NewSpanIter(span, iter), nil
-}
-
-// IndexKeyValueIter implements the sql.Indexable interface.
-func (*refCommitsTable) IndexKeyValueIter(
+// IndexKeyValues implements the sql.IndexableTable interface.
+func (*refCommitsTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
-) (sql.IndexKeyValueIter, error) {
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	iter, err := NewRowRepoIter(ctx, &refCommitsIter{ctx: ctx})
-	if err != nil {
-		return nil, err
-	}
-
-	return &rowKeyValueIter{
-		new(refCommitsRowKeyMapper),
-		iter,
+) (sql.PartitionIndexKeyValueIter, error) {
+	return newTablePartitionIndexKeyValueIter(
+		ctx,
+		newRefCommitsTable(),
+		RefCommitsTableName,
 		colNames,
-		RefCommitsSchema,
-	}, nil
-}
-
-// WithProjectFiltersAndIndex implements sql.Indexable interface.
-func (*refCommitsTable) WithProjectFiltersAndIndex(
-	ctx *sql.Context,
-	columns, filters []sql.Expression,
-	index sql.IndexValueIter,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.RefCommitsTable.WithProjectFiltersAndIndex")
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		span.Finish()
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	var iter sql.RowIter = &rowIndexIter{new(refCommitsRowKeyMapper), index}
-
-	if len(filters) > 0 {
-		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
-	}
-
-	return sql.NewSpanIter(span, iter), nil
+		new(refCommitsRowKeyMapper),
+	)
 }
 
 type refCommitsRowKeyMapper struct{}
@@ -202,68 +210,24 @@ func (refCommitsRowKeyMapper) toRow(data []byte) (sql.Row, error) {
 	return sql.Row{repo, hash, refName, index}, nil
 }
 
-func refCommitsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
-	repos, err := selectors.textValues("repository_id")
-	if err != nil {
-		return nil, err
-	}
-
-	names, err := selectors.textValues("ref_name")
-	if err != nil {
-		return nil, err
-	}
-
-	for i := range names {
-		names[i] = strings.ToLower(names[i])
-	}
-
-	return &refCommitsIter{
-		ctx:      ctx,
-		refNames: names,
-		repos:    repos,
-	}, nil
-}
-
-type refCommitsIter struct {
-	ctx     *sql.Context
-	repo    *Repository
-	refs    storer.ReferenceIter
-	head    *plumbing.Reference
-	commits *indexedCommitIter
-	ref     *plumbing.Reference
+type refCommitsRowIter struct {
+	ctx           *sql.Context
+	repo          *Repository
+	refs          storer.ReferenceIter
+	head          *plumbing.Reference
+	commits       *indexedCommitIter
+	ref           *plumbing.Reference
+	index         sql.IndexValueIter
+	skipGitErrors bool
+	mapper        refCommitsRowKeyMapper
 
 	// selectors for faster filtering
-	repos    []string
 	refNames []string
 }
 
-func (i *refCommitsIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	var iter storer.ReferenceIter
-	var head *plumbing.Reference
-	if len(i.repos) == 0 || stringContains(i.repos, repo.ID) {
-		var err error
-		iter, err = repo.Repo.References()
-		if err != nil {
-			return nil, err
-		}
+var refNameIdx = RefCommitsSchema.IndexOf("ref_name", RefCommitsTableName)
 
-		head, err = repo.Repo.Head()
-		if err != nil && err != plumbing.ErrReferenceNotFound {
-			return nil, err
-		}
-	}
-
-	return &refCommitsIter{
-		ctx:      i.ctx,
-		repo:     repo,
-		refs:     iter,
-		head:     head,
-		repos:    i.repos,
-		refNames: i.refNames,
-	}, nil
-}
-
-func (i *refCommitsIter) shouldVisitRef(ref *plumbing.Reference) bool {
+func (i *refCommitsRowIter) shouldVisitRef(ref *plumbing.Reference) bool {
 	if len(i.refNames) > 0 && !stringContains(i.refNames, strings.ToLower(ref.Name().String())) {
 		return false
 	}
@@ -271,15 +235,53 @@ func (i *refCommitsIter) shouldVisitRef(ref *plumbing.Reference) bool {
 	return true
 }
 
-func (i *refCommitsIter) Next() (sql.Row, error) {
-	s, ok := i.ctx.Session.(*Session)
-	if !ok {
-		return nil, ErrInvalidGitbaseSession.New(i.ctx.Session)
+func (i *refCommitsRowIter) Next() (sql.Row, error) {
+	if i.index != nil {
+		return i.nextFromIndex()
 	}
+	return i.next()
+}
 
+func (i *refCommitsRowIter) nextFromIndex() (sql.Row, error) {
 	for {
+		key, err := i.index.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		row, err := i.mapper.toRow(key)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(i.refNames) > 0 && !stringContains(i.refNames, row[refNameIdx].(string)) {
+			continue
+		}
+
+		return row, nil
+	}
+}
+
+func (i *refCommitsRowIter) next() (sql.Row, error) {
+	for {
+		var err error
 		if i.refs == nil {
-			return nil, io.EOF
+			i.refs, err = i.repo.Repo.References()
+			if err != nil {
+				if i.skipGitErrors {
+					return nil, io.EOF
+				}
+
+				return nil, err
+			}
+
+			i.head, err = i.repo.Repo.Head()
+			if err != nil && err != plumbing.ErrReferenceNotFound {
+				if i.skipGitErrors {
+					continue
+				}
+				return nil, err
+			}
 		}
 
 		if i.commits == nil {
@@ -292,7 +294,7 @@ func (i *refCommitsIter) Next() (sql.Row, error) {
 						return nil, io.EOF
 					}
 
-					if s.SkipGitErrors {
+					if i.skipGitErrors {
 						continue
 					}
 
@@ -314,14 +316,14 @@ func (i *refCommitsIter) Next() (sql.Row, error) {
 
 			commit, err := resolveCommit(i.repo, ref.Hash())
 			if err != nil {
-				if s.SkipGitErrors {
+				if i.skipGitErrors {
 					continue
 				}
 
 				return nil, err
 			}
 
-			i.commits = newIndexedCommitIter(s.SkipGitErrors, i.repo.Repo, commit)
+			i.commits = newIndexedCommitIter(i.skipGitErrors, i.repo.Repo, commit)
 		}
 
 		commit, idx, err := i.commits.Next()
@@ -330,6 +332,11 @@ func (i *refCommitsIter) Next() (sql.Row, error) {
 				i.commits = nil
 				continue
 			}
+
+			if i.skipGitErrors {
+				continue
+			}
+
 			return nil, err
 		}
 
@@ -342,9 +349,13 @@ func (i *refCommitsIter) Next() (sql.Row, error) {
 	}
 }
 
-func (i *refCommitsIter) Close() error {
+func (i *refCommitsRowIter) Close() error {
 	if i.refs != nil {
 		i.refs.Close()
+	}
+
+	if i.index != nil {
+		return i.index.Close()
 	}
 
 	return nil

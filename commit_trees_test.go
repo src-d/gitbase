@@ -14,10 +14,7 @@ func TestCommitTreesRowIter(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	iter, err := new(commitTreesTable).RowIter(ctx)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, new(commitTreesTable))
 	require.NoError(err)
 
 	for i, row := range rows {
@@ -103,10 +100,8 @@ func TestCommitTreesPushdown(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			iter, err := table.WithProjectAndFilters(ctx, nil, tt.filters)
-			require.NoError(err)
-
-			rows, err := sql.RowIterToRows(iter)
+			tbl := table.WithFilters(tt.filters)
+			rows, err := tableToRows(ctx, tbl)
 			require.NoError(err)
 
 			for i, row := range rows {
@@ -125,12 +120,10 @@ func TestCommitTreesIndexKeyValueIter(t *testing.T) {
 	defer cleanup()
 
 	table := new(commitTreesTable)
-	iter, err := table.IndexKeyValueIter(ctx, []string{"tree_hash", "commit_hash"})
+	iter, err := table.IndexKeyValues(ctx, []string{"tree_hash", "commit_hash"})
 	require.NoError(err)
 
-	i, err := table.RowIter(ctx)
-	require.NoError(err)
-	rows, err := sql.RowIterToRows(i)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	var expected []keyValue

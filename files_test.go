@@ -14,10 +14,7 @@ func TestFilesRowIter(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	iter, err := new(filesTable).RowIter(ctx)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, new(filesTable))
 	require.NoError(err)
 
 	for i, row := range rows {
@@ -73,7 +70,7 @@ func TestFilesRowIter(t *testing.T) {
 		{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "aa9b383c260e1d05fbbf6b30a02914555e20c725", "0100644"},
 	}
 
-	require.Equal(expected, rows)
+	require.ElementsMatch(expected, rows)
 }
 
 func TestFilesTablePushdown(t *testing.T) {
@@ -140,10 +137,9 @@ func TestFilesTablePushdown(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			iter, err := table.WithProjectAndFilters(ctx, nil, tt.filters)
-			require.NoError(err)
+			tbl := table.WithFilters(tt.filters)
 
-			rows, err := sql.RowIterToRows(iter)
+			rows, err := tableToRows(ctx, tbl)
 			require.NoError(err)
 
 			for i, row := range rows {
@@ -163,7 +159,7 @@ func TestFilesIndexKeyValueIter(t *testing.T) {
 	defer cleanup()
 
 	table := new(filesTable)
-	iter, err := table.IndexKeyValueIter(ctx, []string{"file_path", "blob_hash"})
+	iter, err := table.IndexKeyValues(ctx, []string{"file_path", "blob_hash"})
 	require.NoError(err)
 
 	var expected = []keyValue{

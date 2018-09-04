@@ -4,20 +4,19 @@ import (
 	"io"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
-type repositoriesTable struct{}
+type repositoriesTable struct {
+	filters []sql.Expression
+	index   sql.IndexLookup
+}
 
 // RepositoriesSchema is the schema for the repositories table.
 var RepositoriesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: RepositoriesTableName},
 }
 
-var _ sql.PushdownProjectionAndFiltersTable = (*repositoriesTable)(nil)
-
-func newRepositoriesTable() Indexable {
+func newRepositoriesTable() *repositoriesTable {
 	return new(repositoriesTable)
 }
 
@@ -26,10 +25,6 @@ var _ Squashable = (*repositoriesTable)(nil)
 
 func (repositoriesTable) isSquashable()   {}
 func (repositoriesTable) isGitbaseTable() {}
-
-func (repositoriesTable) Resolved() bool {
-	return true
-}
 
 func (repositoriesTable) Name() string {
 	return RepositoriesTableName
@@ -43,47 +38,55 @@ func (r repositoriesTable) String() string {
 	return printTable(RepositoriesTableName, RepositoriesSchema)
 }
 
-func (r *repositoriesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(r)
-}
-
-func (r *repositoriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	return r, nil
-}
-
-func (r repositoriesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.RepositoriesTable")
-	iter := &repositoriesIter{}
-
-	rowRepoIter, err := NewRowRepoIter(ctx, iter)
-	if err != nil {
-		span.Finish()
-		return nil, err
-	}
-
-	return sql.NewSpanIter(span, rowRepoIter), nil
-}
-
-func (repositoriesTable) Children() []sql.Node {
-	return nil
-}
-
 func (repositoriesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 	return handledFilters(RepositoriesTableName, RepositoriesSchema, filters)
 }
 
-func (repositoriesTable) handledColumns() []string { return []string{} }
+func (r *repositoriesTable) WithFilters(filters []sql.Expression) sql.Table {
+	nt := *r
+	nt.filters = filters
+	return &nt
+}
 
-func (r *repositoriesTable) WithProjectAndFilters(
+func (r *repositoriesTable) WithProjection(colNames []string) sql.Table {
+	return r
+}
+
+func (r *repositoriesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
+	nt := *r
+	nt.index = idx
+	return &nt
+}
+
+func (r *repositoriesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	return newRepositoryPartitionIter(ctx)
+}
+
+func (r *repositoriesTable) PartitionRows(
 	ctx *sql.Context,
-	_, filters []sql.Expression,
+	p sql.Partition,
 ) (sql.RowIter, error) {
+	repo, err := getPartitionRepo(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
 	span, ctx := ctx.Span("gitbase.RepositoriesTable")
 	iter, err := rowIterWithSelectors(
 		ctx, RepositoriesSchema, RepositoriesTableName,
-		filters, nil,
+		r.filters,
 		r.handledColumns(),
-		repositoriesIterBuilder,
+		func(_ selectors) (sql.RowIter, error) {
+			if r.index != nil {
+				values, err := r.index.Values(p)
+				if err != nil {
+					return nil, err
+				}
+				return &rowIndexIter{new(repoRowKeyMapper), values}, nil
+			}
+
+			return &repositoriesRowIter{repo: repo}, nil
+		},
 	)
 
 	if err != nil {
@@ -94,49 +97,23 @@ func (r *repositoriesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
-// IndexKeyValueIter implements the sql.Indexable interface.
-func (*repositoriesTable) IndexKeyValueIter(
+func (repositoriesTable) handledColumns() []string { return nil }
+
+func (r *repositoriesTable) IndexLookup() sql.IndexLookup { return r.index }
+func (r *repositoriesTable) Filters() []sql.Expression    { return r.filters }
+
+// IndexKeyValues implements the sql.IndexableTable interface.
+func (*repositoriesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
-) (sql.IndexKeyValueIter, error) {
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	iter, err := NewRowRepoIter(ctx, new(repositoriesIter))
-	if err != nil {
-		return nil, err
-	}
-
-	return &rowKeyValueIter{
-		new(repoRowKeyMapper),
-		iter,
+) (sql.PartitionIndexKeyValueIter, error) {
+	return newTablePartitionIndexKeyValueIter(
+		ctx,
+		newRepositoriesTable(),
+		RepositoriesTableName,
 		colNames,
-		RepositoriesSchema,
-	}, nil
-}
-
-// WithProjectFiltersAndIndex implements sql.Indexable interface.
-func (r *repositoriesTable) WithProjectFiltersAndIndex(
-	ctx *sql.Context,
-	columns, filters []sql.Expression,
-	index sql.IndexValueIter,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.RepositoriesTable.WithProjectFiltersAndIndex")
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		span.Finish()
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	var iter sql.RowIter = &rowIndexIter{new(repoRowKeyMapper), index}
-
-	if len(filters) > 0 {
-		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
-	}
-
-	return sql.NewSpanIter(span, iter), nil
+		new(repoRowKeyMapper),
+	)
 }
 
 type repoRowKeyMapper struct{}
@@ -158,32 +135,21 @@ func (repoRowKeyMapper) toRow(data []byte) (sql.Row, error) {
 	return sql.Row{string(data)}, nil
 }
 
-func repositoriesIterBuilder(_ *sql.Context, _ selectors, _ []sql.Expression) (RowRepoIter, error) {
-	// it's not worth to manually filter with the selectors
-	return new(repositoriesIter), nil
-}
-
-type repositoriesIter struct {
+type repositoriesRowIter struct {
+	repo    *Repository
 	visited bool
-	id      string
 }
 
-func (i *repositoriesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	return &repositoriesIter{
-		visited: false,
-		id:      repo.ID,
-	}, nil
-}
-
-func (i *repositoriesIter) Next() (sql.Row, error) {
+func (i *repositoriesRowIter) Next() (sql.Row, error) {
 	if i.visited {
 		return nil, io.EOF
 	}
 
 	i.visited = true
-	return sql.NewRow(i.id), nil
+	return sql.NewRow(i.repo.ID), nil
 }
 
-func (i *repositoriesIter) Close() error {
+func (i *repositoriesRowIter) Close() error {
+	i.visited = true
 	return nil
 }

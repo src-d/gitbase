@@ -51,6 +51,7 @@ type Server struct {
 	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
 	TraceEnabled  bool     `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
 	ReadOnly      bool     `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
+	Parallelism   uint     `long:"parallelism" default:"4" description:"Maximum number of parallel threads per table."`
 
 	SkipGitErrors bool // SkipGitErrors disables failing when Git errors are found.
 	DisableGit    bool `long:"no-git" description:"disable the load of git standard repositories."`
@@ -73,6 +74,11 @@ func NewDatabaseEngine(readonly bool, version string) *sqle.Engine {
 	if readonly {
 		ab = ab.ReadOnly()
 	}
+	
+	if c.Parallelism > 1 {
+		ab = ab.WithParallelism(int(c.Parallelism))
+	}
+
 	a := ab.Build()
 	engine := sqle.New(catalog, a, &sqle.Config{
 		VersionPostfix: version,

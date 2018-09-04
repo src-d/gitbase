@@ -187,13 +187,13 @@ func handledFilters(
 		// we can handle all expressions that don't contain cols from another
 		// table.
 		var hasOtherFields bool
-		_, _ = f.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+		expression.Inspect(f, func(e sql.Expression) bool {
 			if e, ok := e.(*expression.GetField); ok {
 				if e.Table() != tableName {
 					hasOtherFields = true
 				}
 			}
-			return e, nil
+			return true
 		})
 
 		if !hasOtherFields {
@@ -308,6 +308,8 @@ func unfoldOrs(or *expression.Or) []sql.Expression {
 	return exprs
 }
 
+type iteratorBuilder func(selectors) (sql.RowIter, error)
+
 // rowIterWithSelectors implements all the boilerplate of WithProjectAndFilters
 // given the schema, table name and a list of filters, the handled columns as
 // selectors and a callback that will return the iterator given the computed
@@ -316,8 +318,8 @@ func unfoldOrs(or *expression.Or) []sql.Expression {
 // All remaining filters will also be applied here.
 // Example:
 //   rowIterWithSelectors(
-//   	ctx, someSchema, someTable, filters, []string{"somecol"},
-//   	func(selectors selectors) (RowRepoIter, error) {
+//   	ctx, someSchema, someTable, filters,
+//   	func(selectors selectors) (sql.RowIter, error) {
 //   		// return an iter based on the selectors
 //   	},
 //   )
@@ -326,7 +328,6 @@ func rowIterWithSelectors(
 	schema sql.Schema,
 	tableName string,
 	filters []sql.Expression,
-	columns []sql.Expression,
 	handledCols []string,
 	iterBuild iteratorBuilder,
 ) (sql.RowIter, error) {
@@ -335,17 +336,7 @@ func rowIterWithSelectors(
 		return nil, err
 	}
 
-	rowRepoIter, err := iterBuild(ctx, selectors, columns)
-	if err != nil {
-		return nil, err
-	}
-
-	_, ok := ctx.Session.(*Session)
-	if !ok {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	iter, err := NewRowRepoIter(ctx, rowRepoIter)
+	iter, err := iterBuild(selectors)
 	if err != nil {
 		return nil, err
 	}

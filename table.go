@@ -8,7 +8,8 @@ import (
 
 // Table represents a gitbase table.
 type Table interface {
-	sql.PushdownProjectionAndFiltersTable
+	sql.FilteredTable
+	sql.Nameable
 	gitBase
 }
 
