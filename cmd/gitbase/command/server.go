@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -51,7 +52,7 @@ type Server struct {
 	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
 	TraceEnabled  bool     `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
 	ReadOnly      bool     `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
-	Parallelism   uint     `long:"parallelism" default:"4" description:"Maximum number of parallel threads per table."`
+	Parallelism   uint     `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
 
 	SkipGitErrors bool // SkipGitErrors disables failing when Git errors are found.
 	DisableGit    bool `long:"no-git" description:"disable the load of git standard repositories."`
@@ -78,6 +79,10 @@ func NewDatabaseEngine(
 	ab := analyzer.NewBuilder(catalog)
 	if readonly {
 		ab = ab.ReadOnly()
+	}
+
+	if parallelism == 0 {
+		parallelism = runtime.NumCPU()
 	}
 
 	if parallelism > 1 {
