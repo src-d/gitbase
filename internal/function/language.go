@@ -1,11 +1,26 @@
 package function
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash/crc32"
 
+	lru "github.com/hashicorp/golang-lru"
 	enry "gopkg.in/src-d/enry.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
+
+const defaultLanguageCacheSize = 10000
+
+var languageCache *lru.TwoQueueCache
+
+func init() {
+	var err error
+	languageCache, err = lru.New2Q(defaultLanguageCacheSize)
+	if err != nil {
+		panic(fmt.Errorf("cannot initialize language cache: %s", err))
+	}
+}
 
 // Language gets the language of a file given its path and
 // the optional content of the file.
@@ -110,11 +125,64 @@ func (f *Language) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		blob = right.([]byte)
 	}
 
-	if lang := enry.GetLanguage(path, blob); lang != "" {
-		return lang, nil
+	var hash [8]byte
+	if len(blob) > 0 {
+		hash = languageHash(path, blob)
+		value, ok := languageCache.Get(hash)
+		if ok {
+			return value, nil
+		}
 	}
 
-	return nil, nil
+	lang := enry.GetLanguage(path, blob)
+	if lang == "" {
+		return nil, nil
+	}
+
+	if len(blob) > 0 {
+		languageCache.Add(hash, lang)
+	}
+
+	return lang, nil
+}
+
+func languageHash(filename string, blob []byte) [8]byte {
+	fh := filenameHash(filename)
+	bh := blobHash(blob)
+
+	var result [8]byte
+	copy(result[:], fh)
+	copy(result[4:], bh)
+	return result
+}
+
+const blobPeekSize = 40
+
+func blobHash(blob []byte) []byte {
+	if len(blob) == 0 {
+		return nil
+	}
+
+	var result []byte
+	if len(blob) < blobPeekSize*2 {
+		result = blob
+	} else {
+		result = make([]byte, 0, blobPeekSize*2)
+		result = append(result, blob[:blobPeekSize]...)
+		result = append(result, blob[len(blob)-blobPeekSize:]...)
+	}
+
+	n := crc32.ChecksumIEEE(result)
+	hash := make([]byte, 4)
+	binary.LittleEndian.PutUint32(hash, n)
+	return hash
+}
+
+func filenameHash(filename string) []byte {
+	n := crc32.ChecksumIEEE([]byte(filename))
+	hash := make([]byte, 4)
+	binary.LittleEndian.PutUint32(hash, n)
+	return hash
 }
 
 // Children implements the Expression interface.
