@@ -2,7 +2,8 @@ package tokenizer
 
 import (
 	"bytes"
-	"regexp"
+
+	"gopkg.in/src-d/enry.v1/regex"
 )
 
 const byteLimit = 100000
@@ -72,20 +73,20 @@ var (
 	//
 	// These regexps were converted to work in the same way for both engines:
 	//
-	reLiteralStringQuotes = regexp.MustCompile(`("(.|\n)*?"|'(.|\n)*?')`)
-	reSingleLineComment   = regexp.MustCompile(`(?m)(//|--|#|%|")\s([^\n]*$)`)
-	reMultilineComment    = regexp.MustCompile(`(/\*(.|\n)*?\*/|<!--(.|\n)*?-->|\{-(.|\n)*?-\}|\(\*(.|\n)*?\*\)|"""(.|\n)*?"""|'''(.|\n)*?''')`)
-	reLiteralNumber       = regexp.MustCompile(`(0x[0-9A-Fa-f]([0-9A-Fa-f]|\.)*|\d(\d|\.)*)([uU][lL]{0,2}|([eE][-+]\d*)?[fFlL]*)`)
-	reShebang             = regexp.MustCompile(`(?m)^#!(?:/[0-9A-Za-z_]+)*/(?:([0-9A-Za-z_]+)|[0-9A-Za-z_]+(?:\s*[0-9A-Za-z_]+=[0-9A-Za-z_]+\s*)*\s*([0-9A-Za-z_]+))(?:\s*-[0-9A-Za-z_]+\s*)*$`)
-	rePunctuation         = regexp.MustCompile(`;|\{|\}|\(|\)|\[|\]`)
-	reSGML                = regexp.MustCompile(`(<\/?[^\s<>=\d"']+)(?:\s(.|\n)*?\/?>|>)`)
-	reSGMLComment         = regexp.MustCompile(`(<!--(.|\n)*?-->)`)
-	reSGMLAttributes      = regexp.MustCompile(`\s+([0-9A-Za-z_]+=)|\s+([^\s>]+)`)
-	reSGMLLoneAttribute   = regexp.MustCompile(`([0-9A-Za-z_]+)`)
-	reRegularToken        = regexp.MustCompile(`[0-9A-Za-z_\.@#\/\*]+`)
-	reOperators           = regexp.MustCompile(`<<?|\+|\-|\*|\/|%|&&?|\|\|?`)
+	reLiteralStringQuotes = regex.MustCompile(`("(.|\n)*?"|'(.|\n)*?')`)
+	reSingleLineComment   = regex.MustCompile(`(?m)(//|--|#|%|")\s([^\n]*$)`)
+	reMultilineComment    = regex.MustCompile(`(/\*(.|\n)*?\*/|<!--(.|\n)*?-->|\{-(.|\n)*?-\}|\(\*(.|\n)*?\*\)|"""(.|\n)*?"""|'''(.|\n)*?''')`)
+	reLiteralNumber       = regex.MustCompile(`(0x[0-9A-Fa-f]([0-9A-Fa-f]|\.)*|\d(\d|\.)*)([uU][lL]{0,2}|([eE][-+]\d*)?[fFlL]*)`)
+	reShebang             = regex.MustCompile(`(?m)^#!(?:/[0-9A-Za-z_]+)*/(?:([0-9A-Za-z_]+)|[0-9A-Za-z_]+(?:\s*[0-9A-Za-z_]+=[0-9A-Za-z_]+\s*)*\s*([0-9A-Za-z_]+))(?:\s*-[0-9A-Za-z_]+\s*)*$`)
+	rePunctuation         = regex.MustCompile(`;|\{|\}|\(|\)|\[|\]`)
+	reSGML                = regex.MustCompile(`(<\/?[^\s<>=\d"']+)(?:\s(.|\n)*?\/?>|>)`)
+	reSGMLComment         = regex.MustCompile(`(<!--(.|\n)*?-->)`)
+	reSGMLAttributes      = regex.MustCompile(`\s+([0-9A-Za-z_]+=)|\s+([^\s>]+)`)
+	reSGMLLoneAttribute   = regex.MustCompile(`([0-9A-Za-z_]+)`)
+	reRegularToken        = regex.MustCompile(`[0-9A-Za-z_\.@#\/\*]+`)
+	reOperators           = regex.MustCompile(`<<?|\+|\-|\*|\/|%|&&?|\|\|?`)
 
-	regexToSkip = []*regexp.Regexp{
+	regexToSkip = []regex.EnryRegexp{
 		// The order must be this
 		reLiteralStringQuotes,
 		reMultilineComment,
@@ -124,22 +125,22 @@ func getShebangToken(matchedShebang [][]byte) []byte {
 	return tokenShebang
 }
 
-func commonExtracAndReplace(content []byte, re *regexp.Regexp) ([]byte, [][]byte) {
+func commonExtractAndReplace(content []byte, re regex.EnryRegexp) ([]byte, [][]byte) {
 	tokens := re.FindAll(content, -1)
 	content = re.ReplaceAll(content, []byte(` `))
 	return content, tokens
 }
 
 func extractAndReplacePunctuation(content []byte) ([]byte, [][]byte) {
-	return commonExtracAndReplace(content, rePunctuation)
+	return commonExtractAndReplace(content, rePunctuation)
 }
 
 func extractAndReplaceRegular(content []byte) ([]byte, [][]byte) {
-	return commonExtracAndReplace(content, reRegularToken)
+	return commonExtractAndReplace(content, reRegularToken)
 }
 
 func extractAndReplaceOperator(content []byte) ([]byte, [][]byte) {
-	return commonExtracAndReplace(content, reOperators)
+	return commonExtractAndReplace(content, reOperators)
 }
 
 func extractAndReplaceSGML(content []byte) ([]byte, [][]byte) {

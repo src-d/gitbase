@@ -24,9 +24,7 @@ install:
   - mkdir -p $GOPATH/src/gopkg.in/src-d
   - ln -s $PWD $GOPATH/src/gopkg.in/src-d/enry.v1
   - cd $GOPATH/src/gopkg.in/src-d/enry.v1
-  - if [ "$ONIGURUMA" == "1" ]; then make oniguruma; fi
-  - go get -v -t ./...
-
+  - if [ "$ONIGURUMA" == "1" ]; then tags="$tags oniguruma"; fi; go get -v -t --tags "$tags" ./...
 script:
   - make test-coverage
 
@@ -100,7 +98,7 @@ jobs:
         - sudo apt-get update
         - sudo apt-get install -y --no-install-recommends clang g++ gcc gcc-multilib libc6-dev libc6-dev-i386 mingw-w64 patch xz-utils
         - cd ${HOME}
-        - curl -sSL ${OSXCROSS_URL} | tar -C ${HOME} -xzf - 
+        - curl -sSL ${OSXCROSS_URL} | tar -C ${HOME} -xzf -
         - cd $GOPATH/src/gopkg.in/src-d/enry.v1
 
       script:
@@ -123,7 +121,11 @@ jobs:
       jdk: oraclejdk8
 
       install:
-        - go version # override install
+        - GIMME_OUTPUT=$(gimme 1.9 | tee -a $HOME/.bashrc) && eval "$GIMME_OUTPUT"
+        - export GOPATH=$HOME/gopath
+        - mkdir -p $GOPATH/src/gopkg.in/src-d/enry.v1
+        - rsync -az ${TRAVIS_BUILD_DIR}/ $GOPATH/src/gopkg.in/src-d/enry.v1
+        - go get -v gopkg.in/src-d/enry.v1/...
 
       before_script:
         - if [[ -z "$TRAVIS_TAG" ]]; then echo "Skipping this build for non-tag builds."; exit 0; fi

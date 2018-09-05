@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"gopkg.in/src-d/enry.v1/regex"
 )
 
 // Heuristics reads from fileToParse and builds source file from tmplPath. It complies with type File signature.
@@ -38,7 +39,7 @@ const (
 )
 
 var (
-	disambLine       = regexp.MustCompile(`^(\s*)disambiguate`)
+	disambLine       = regex.MustCompile(`^(\s*)disambiguate`)
 	definedRegs      = make(map[string]string)
 	illegalCharacter = map[string]string{
 		"#": "Sharp",
@@ -378,7 +379,7 @@ func convertToValidRegexp(reg string) string {
 func includeToRegExp(include string) string {
 	content := include[strings.Index(include, `(`)+1 : strings.Index(include, `)`)]
 	content = strings.Trim(content, `"'`)
-	return regexp.QuoteMeta(content)
+	return regex.QuoteMeta(content)
 }
 
 func getLanguages(line string) []string {
