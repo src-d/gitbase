@@ -51,10 +51,6 @@ func (t *commitFilesTable) WithFilters(filters []sql.Expression) sql.Table {
 	return &nt
 }
 
-func (t *commitFilesTable) WithProjection(colNames []string) sql.Table {
-	return t
-}
-
 func (t *commitFilesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 	nt := *t
 	nt.index = idx

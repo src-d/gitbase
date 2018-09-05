@@ -48,10 +48,6 @@ func (r *repositoriesTable) WithFilters(filters []sql.Expression) sql.Table {
 	return &nt
 }
 
-func (r *repositoriesTable) WithProjection(colNames []string) sql.Table {
-	return r
-}
-
 func (r *repositoriesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 	nt := *r
 	nt.index = idx

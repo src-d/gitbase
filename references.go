@@ -53,10 +53,6 @@ func (r *referencesTable) WithFilters(filters []sql.Expression) sql.Table {
 	return &nt
 }
 
-func (r *referencesTable) WithProjection(colNames []string) sql.Table {
-	return r
-}
-
 func (r *referencesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 	nt := *r
 	nt.index = idx

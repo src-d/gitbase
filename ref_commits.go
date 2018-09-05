@@ -51,10 +51,6 @@ func (t *refCommitsTable) WithFilters(filters []sql.Expression) sql.Table {
 	return &nt
 }
 
-func (t *refCommitsTable) WithProjection(colNames []string) sql.Table {
-	return t
-}
-
 func (t *refCommitsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 	nt := *t
 	nt.index = idx

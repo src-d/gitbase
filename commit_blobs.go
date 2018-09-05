@@ -46,10 +46,6 @@ func (t *commitBlobsTable) WithFilters(filters []sql.Expression) sql.Table {
 	return &nt
 }
 
-func (t *commitBlobsTable) WithProjection(colNames []string) sql.Table {
-	return t
-}
-
 func (t *commitBlobsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 	nt := *t
 	nt.index = idx

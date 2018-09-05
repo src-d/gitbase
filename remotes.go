@@ -52,10 +52,6 @@ func (r *remotesTable) WithFilters(filters []sql.Expression) sql.Table {
 	return &nt
 }
 
-func (r *remotesTable) WithProjection(colNames []string) sql.Table {
-	return r
-}
-
 func (r *remotesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 	nt := *r
 	nt.index = idx
