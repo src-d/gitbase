@@ -48,6 +48,28 @@ On Linux and macOS:
 go get -u github.com/src-d/gitbase/...
 ```
 
+#### Oniguruma support
+
+On linux and macOS you can choose to build gitbase with oniguruma support, resulting in faster results for queries using the `language` UDF.
+
+macOS:
+
+```
+brew install oniguruma
+```
+
+Linux:
+
+```
+sudo apt-get install libonig2
+```
+
+Then build gitbase like this:
+
+```
+go build -tags oniguruma -o gitbase ./cmd/gitbase/main.go
+```
+
 On Windows:
 
 Because gitbase uses [bblfsh's client-go](https://github.com/bblfsh/client-go), which uses cgo, you need to install some dependencies by hand instead of just using `go get`. Use this instead:
