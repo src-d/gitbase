@@ -25,7 +25,8 @@ type Session struct {
 	bblfshEndpoint string
 	bblfshClient   *BblfshClient
 
-	SkipGitErrors bool
+	SkipGitErrors        bool
+	OldUASTSerialization bool
 }
 
 // getSession returns the gitbase session from a context or an error if there
@@ -62,6 +63,13 @@ func WithBblfshEndpoint(endpoint string) SessionOption {
 func WithSkipGitErrors(enabled bool) SessionOption {
 	return func(s *Session) {
 		s.SkipGitErrors = enabled
+	}
+}
+
+// WithOldUASTSerialization set the way UASTs must be serialized.
+func WithOldUASTSerialization(enabled bool) SessionOption {
+	return func(s *Session) {
+		s.OldUASTSerialization = enabled
 	}
 }
 

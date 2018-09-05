@@ -56,6 +56,7 @@ type Server struct {
 	DisableGit    bool `long:"no-git" description:"disable the load of git standard repositories."`
 	DisableSiva   bool `long:"no-siva" description:"disable the load of siva files."`
 	Verbose       bool `short:"v" description:"Activates the verbose mode"`
+	OldUast       bool `long:"old-uast-serialization" description:"serialize uast in the old format" env:"GITBASE_UAST_SERIALIZATION"`
 }
 
 type jaegerLogrus struct {
@@ -138,10 +139,15 @@ func (c *Server) Execute(args []string) error {
 		c.engine,
 		gitbase.NewSessionBuilder(c.pool,
 			gitbase.WithSkipGitErrors(c.SkipGitErrors),
+			gitbase.WithOldUASTSerialization(c.OldUast),
 		),
 	)
 	if err != nil {
 		return err
+	}
+
+	if c.OldUast {
+		function.UASTExpressionType = sql.Array(sql.Blob)
 	}
 
 	logrus.Infof("server started and listening on %s:%d", c.Host, c.Port)

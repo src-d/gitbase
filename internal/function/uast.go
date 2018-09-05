@@ -4,20 +4,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-	"github.com/src-d/gitbase"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
 	"gopkg.in/bblfsh/client-go.v2/tools"
 	"gopkg.in/bblfsh/sdk.v1/uast"
 
-	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
 var (
-	// ErrParseBlob is returned when the blob can't be parsed with bblfsh.
-	ErrParseBlob = errors.NewKind("unable to parse the given blob using bblfsh: %s")
+	// UASTExpressionType represents the returned SQL type by
+	// the functions uast, uast_mode, uast_xpath and uast_children.
+	UASTExpressionType sql.Type = sql.Blob
 )
 
 // UAST returns an array of UAST nodes as blobs.
@@ -62,7 +60,7 @@ func (f UAST) Resolved() bool {
 
 // Type implements the Expression interface.
 func (f UAST) Type() sql.Type {
-	return sql.Array(sql.Blob)
+	return UASTExpressionType
 }
 
 // Children implements the Expression interface.
@@ -181,7 +179,7 @@ func (f UASTMode) Resolved() bool {
 
 // Type implements the Expression interface.
 func (f UASTMode) Type() sql.Type {
-	return sql.Array(sql.Blob)
+	return UASTExpressionType
 }
 
 // Children implements the Expression interface.
@@ -290,7 +288,7 @@ func NewUASTXPath(uast, xpath sql.Expression) sql.Expression {
 
 // Type implements the Expression interface.
 func (UASTXPath) Type() sql.Type {
-	return sql.Array(sql.Blob)
+	return UASTExpressionType
 }
 
 // Eval implements the Expression interface.
@@ -309,13 +307,13 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 		return nil, err
 	}
 
-	if left == nil {
-		return nil, nil
-	}
-
-	nodes, err := nodesFromBlobArray(left)
+	nodes, err := getNodes(ctx, left)
 	if err != nil {
 		return nil, err
+	}
+
+	if nodes == nil {
+		return nil, nil
 	}
 
 	xpath, err := exprToString(ctx, f.Right, row)
@@ -327,58 +325,17 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 		return nil, nil
 	}
 
-	var result []interface{}
+	var filtered []*uast.Node
 	for _, n := range nodes {
 		ns, err := tools.Filter(n, xpath)
 		if err != nil {
 			return nil, err
 		}
 
-		m, err := marshalNodes(ns)
-		if err != nil {
-			return nil, err
-		}
-
-		result = append(result, m...)
+		filtered = append(filtered, ns...)
 	}
 
-	return result, nil
-}
-
-func nodesFromBlobArray(data interface{}) ([]*uast.Node, error) {
-	data, err := sql.Array(sql.Blob).Convert(data)
-	if err != nil {
-		return nil, err
-	}
-
-	arr := data.([]interface{})
-	var nodes = make([]*uast.Node, len(arr))
-	for i, n := range arr {
-		node := uast.NewNode()
-		if err := node.Unmarshal(n.([]byte)); err != nil {
-			return nil, err
-		}
-
-		nodes[i] = node
-	}
-
-	return nodes, nil
-}
-
-func marshalNodes(nodes []*uast.Node) ([]interface{}, error) {
-	m := make([]interface{}, 0, len(nodes))
-	for _, n := range nodes {
-		if n != nil {
-			data, err := n.Marshal()
-			if err != nil {
-				return nil, err
-			}
-
-			m = append(m, data)
-		}
-	}
-
-	return m, nil
+	return marshalNodes(ctx, filtered)
 }
 
 func (f UASTXPath) String() string {
@@ -398,84 +355,6 @@ func (f UASTXPath) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error)
 	}
 
 	return fn(NewUASTXPath(left, right))
-}
-
-func exprToString(
-	ctx *sql.Context,
-	e sql.Expression,
-	r sql.Row,
-) (string, error) {
-	if e == nil {
-		return "", nil
-	}
-
-	x, err := e.Eval(ctx, r)
-	if err != nil {
-		return "", err
-	}
-
-	if x == nil {
-		return "", nil
-	}
-
-	x, err = sql.Text.Convert(x)
-	if err != nil {
-		return "", err
-	}
-
-	return x.(string), nil
-}
-
-func getUAST(
-	ctx *sql.Context,
-	bytes []byte,
-	lang, xpath string,
-	mode bblfsh.Mode,
-) (interface{}, error) {
-	session, ok := ctx.Session.(*gitbase.Session)
-	if !ok {
-		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	client, err := session.BblfshClient()
-	if err != nil {
-		return nil, err
-	}
-
-	// If we have a language we must check if it's supported. If we don't, bblfsh
-	// is the one that will have to identify the language.
-	if lang != "" {
-		ok, err = client.IsLanguageSupported(ctx, lang)
-		if err != nil {
-			return nil, err
-		}
-
-		if !ok {
-			return nil, nil
-		}
-	}
-
-	resp, err := client.ParseWithMode(ctx, mode, lang, bytes)
-	if err != nil {
-		logrus.Warn(ErrParseBlob.New(err))
-		return nil, nil
-	}
-
-	if len(resp.Errors) > 0 {
-		logrus.Warn(ErrParseBlob.New(strings.Join(resp.Errors, "\n")))
-	}
-
-	var nodes []*uast.Node
-	if xpath == "" {
-		nodes = []*uast.Node{resp.UAST}
-	} else {
-		nodes, err = tools.Filter(resp.UAST, xpath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return marshalNodes(nodes)
 }
 
 // UASTExtract extracts keys from an UAST.
@@ -514,13 +393,13 @@ func (u *UASTExtract) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err 
 		return nil, err
 	}
 
-	if left == nil {
-		return nil, nil
-	}
-
-	nodes, err := nodesFromBlobArray(left)
+	nodes, err := getNodes(ctx, left)
 	if err != nil {
 		return nil, err
+	}
+
+	if nodes == nil {
+		return nil, nil
 	}
 
 	key, err := exprToString(ctx, u.Right, row)
@@ -609,7 +488,7 @@ func (u *UASTChildren) String() string {
 
 // Type implements the sql.Expression interface.
 func (u *UASTChildren) Type() sql.Type {
-	return sql.Array(sql.Blob)
+	return UASTExpressionType
 }
 
 // TransformUp implements the sql.Expression interface.
@@ -638,17 +517,17 @@ func (u *UASTChildren) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err
 		return nil, err
 	}
 
-	if child == nil {
-		return nil, nil
-	}
-
-	nodes, err := nodesFromBlobArray(child)
+	nodes, err := getNodes(ctx, child)
 	if err != nil {
 		return nil, err
 	}
 
+	if nodes == nil {
+		return nil, nil
+	}
+
 	children := flattenChildren(nodes)
-	return marshalNodes(children)
+	return marshalNodes(ctx, children)
 }
 
 func flattenChildren(nodes []*uast.Node) []*uast.Node {
