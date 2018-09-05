@@ -156,23 +156,12 @@ func languageHash(filename string, blob []byte) [8]byte {
 	return result
 }
 
-const blobPeekSize = 40
-
 func blobHash(blob []byte) []byte {
 	if len(blob) == 0 {
 		return nil
 	}
 
-	var result []byte
-	if len(blob) < blobPeekSize*2 {
-		result = blob
-	} else {
-		result = make([]byte, 0, blobPeekSize*2)
-		result = append(result, blob[:blobPeekSize]...)
-		result = append(result, blob[len(blob)-blobPeekSize:]...)
-	}
-
-	n := crc32.ChecksumIEEE(result)
+	n := crc32.ChecksumIEEE(blob)
 	hash := make([]byte, 4)
 	binary.LittleEndian.PutUint32(hash, n)
 	return hash
