@@ -37,10 +37,10 @@ On Ubuntu, it is
 sudo apt install libonig-dev
 ```
 
-To build enry with Oniguruma regexps, patch the imports with
+To build enry with Oniguruma regexps use the `oniguruma` build tag
 
 ```
-make oniguruma
+go get -v -t --tags oniguruma ./...
 ```
 
 and then rebuild the project.
@@ -162,7 +162,7 @@ We update enry when changes are done in linguist's master branch on the followin
 * [vendor.yml](https://github.com/github/linguist/blob/master/lib/linguist/vendor.yml)
 * [documentation.yml](https://github.com/github/linguist/blob/master/lib/linguist/documentation.yml)
 
-Currently we don't have any procedure established to automatically detect changes in the linguist project and regenerate the code. 
+Currently we don't have any procedure established to automatically detect changes in the linguist project and regenerate the code.
 So we update the generated code as needed, without any specific criteria.
 
 If you want to update *enry* because of changes in linguist, you can run the *go
@@ -217,7 +217,7 @@ If you want to reproduce the same benchmarks you can run:
 
     benchmarks/run.sh
 
-from the root's project directory and it'll run benchmarks for enry and linguist, parse the output, create csv files and create a histogram (you must have installed [gnuplot](http://gnuplot.info) in your system to get the histogram). 
+from the root's project directory and it'll run benchmarks for enry and linguist, parse the output, create csv files and create a histogram (you must have installed [gnuplot](http://gnuplot.info) in your system to get the histogram).
 
 This can take some time, so to run local benchmarks for a quick check you can either:
 
