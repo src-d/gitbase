@@ -4,6 +4,8 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"hash"
+	"os"
+	"strconv"
 	"strings"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -16,13 +18,21 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
-const defaultUASTCacheSize = 10000
+const (
+	uastCacheSize        = "GITBASE_UAST_CACHE_SIZE"
+	defaultUASTCacheSize = 10000
+)
 
 var uastCache *lru.Cache
 
 func init() {
-	var err error
-	uastCache, err = lru.New(defaultUASTCacheSize)
+	s := os.Getenv(uastCacheSize)
+	size, err := strconv.Atoi(s)
+	if err != nil || size <= 0 {
+		size = defaultUASTCacheSize
+	}
+
+	uastCache, err = lru.New(size)
 	if err != nil {
 		panic(fmt.Errorf("cannot initialize UAST cache: %s", err))
 	}
@@ -246,7 +256,7 @@ func NewUAST(args ...sql.Expression) (sql.Expression, error) {
 
 	switch len(args) {
 	default:
-		return nil, sql.ErrInvalidArgumentNumber.New("1, 2, or 3", len(args))
+		return nil, sql.ErrInvalidArgumentNumber.New("1, 2 or 3", len(args))
 	case 3:
 		xpath = args[2]
 		fallthrough

@@ -2,7 +2,6 @@ package function
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"hash"
@@ -64,7 +63,7 @@ func computeKey(h hash.Hash, mode, lang string, blob []byte) (string, error) {
 		return "", err
 	}
 
-	return base64.URLEncoding.EncodeToString(h.Sum(nil)), nil
+	return string(h.Sum(nil)), nil
 }
 
 func writeToHash(h hash.Hash, elements [][]byte) error {
