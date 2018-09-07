@@ -182,23 +182,31 @@ func joinTables(join *plan.InnerJoin) (*joinedTables, error) {
 func rearrange(join *plan.InnerJoin, squashedTable *joinedTables) sql.Node {
 	var projections []sql.Expression
 	var filters []sql.Expression
+	var parallelism int
 	plan.Inspect(join, func(node sql.Node) bool {
 		switch node := node.(type) {
 		case *plan.Project:
 			projections = append(projections, node.Projections...)
 		case *plan.Filter:
 			filters = append(filters, node.Expression)
+		case *plan.Exchange:
+			parallelism = node.Parallelism
 		}
 		return true
 	})
 
 	var node sql.Node = squashedTable
+
 	if len(filters) > 0 {
 		node = plan.NewFilter(expression.JoinAnd(filters...), node)
 	}
 
 	if len(projections) > 0 {
 		node = plan.NewProject(projections, node)
+	}
+
+	if parallelism > 1 {
+		node = plan.NewExchange(parallelism, node)
 	}
 
 	return node
@@ -865,7 +873,7 @@ func isJoinLeafSquashable(node sql.Node) bool {
 				return false
 			}
 			hasSquashableTables = true
-		case *plan.Project, *plan.Filter, *plan.TableAlias, nil:
+		case *plan.Project, *plan.Filter, *plan.TableAlias, *plan.Exchange, nil:
 		default:
 			hasUnsquashableNodes = true
 			return false

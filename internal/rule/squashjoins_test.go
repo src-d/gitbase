@@ -10,8 +10,38 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/parse"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
+
+func TestAnalyzeSquashJoinsExchange(t *testing.T) {
+	require := require.New(t)
+
+	catalog := sql.NewCatalog()
+	catalog.AddDatabase(gitbase.NewDatabase("foo"))
+	a := analyzer.NewBuilder(catalog).
+		WithParallelism(2).
+		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
+		Build()
+	a.CurrentDatabase = "foo"
+	ctx := sql.NewEmptyContext()
+
+	node, err := parse.Parse(ctx, `SELECT * FROM ref_commits NATURAL JOIN commits`)
+	require.NoError(err)
+
+	result, err := a.Analyze(ctx, node)
+	require.NoError(err)
+
+	project, ok := result.(*plan.Project)
+	require.True(ok)
+
+	exchange, ok := project.Child.(*plan.Exchange)
+	require.True(ok)
+	require.Equal(2, exchange.Parallelism)
+
+	_, ok = exchange.Child.(*gitbase.SquashedTable)
+	require.True(ok)
+}
 
 func TestSquashJoins(t *testing.T) {
 	require := require.New(t)
