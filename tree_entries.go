@@ -163,7 +163,7 @@ func (i *treeEntriesRowIter) next() (sql.Row, error) {
 	for {
 		if i.iter == nil {
 			var err error
-			i.iter, err = i.repo.Repo.TreeObjects()
+			i.iter, err = i.repo.TreeObjects()
 			if err != nil {
 				if i.skipGitErrors {
 					return nil, io.EOF
@@ -207,7 +207,7 @@ func (i *treeEntriesRowIter) nextByHash() (sql.Row, error) {
 
 		if i.tree == nil {
 			var err error
-			i.tree, err = i.repo.Repo.TreeObject(i.hashes[i.pos])
+			i.tree, err = i.repo.TreeObject(i.hashes[i.pos])
 			i.pos++
 			if err != nil {
 				if err == plumbing.ErrObjectNotFound || i.skipGitErrors {
@@ -332,7 +332,7 @@ func newTreeEntriesKeyValueIter(
 	repo *Repository,
 	columns []string,
 ) (sql.IndexKeyValueIter, error) {
-	trees, err := repo.Repo.TreeObjects()
+	trees, err := repo.TreeObjects()
 	if err != nil {
 		return nil, err
 	}

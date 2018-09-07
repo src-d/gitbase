@@ -215,7 +215,7 @@ func (i *commitBlobsRowIter) init() error {
 	if len(i.commits) > 0 {
 		i.iter, err = NewCommitsByHashIter(i.repo, i.commits)
 	} else {
-		i.iter, err = i.repo.Repo.CommitObjects()
+		i.iter, err = i.repo.CommitObjects()
 	}
 
 	return err

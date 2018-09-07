@@ -216,12 +216,12 @@ func (i *refRowIter) Next() (sql.Row, error) {
 
 func (i *refRowIter) init() error {
 	var err error
-	i.iter, err = i.repo.Repo.References()
+	i.iter, err = i.repo.References()
 	if err != nil {
 		return err
 	}
 
-	i.head, err = i.repo.Repo.Head()
+	i.head, err = i.repo.Head()
 	if err != nil && err != plumbing.ErrReferenceNotFound {
 		return err
 	}

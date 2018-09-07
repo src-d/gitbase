@@ -35,7 +35,7 @@ func TestCommitFilesTableRowIter(t *testing.T) {
 
 		require.NoError(err)
 
-		commits, err := repo.Repo.CommitObjects()
+		commits, err := repo.CommitObjects()
 		require.NoError(err)
 
 		for {

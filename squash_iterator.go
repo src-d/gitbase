@@ -147,7 +147,7 @@ func (i *squashRemoteIter) New(ctx *sql.Context, repo *Repository) (ChainableIte
 		return nil, err
 	}
 
-	remotes, err := repo.Repo.Remotes()
+	remotes, err := repo.Remotes()
 	if err != nil {
 		if !i.skipGitErrors {
 			return nil, err
@@ -280,7 +280,7 @@ func (i *squashRepoRemotesIter) Advance() error {
 				return err
 			}
 
-			i.remotes, err = i.repos.Repository().Repo.Remotes()
+			i.remotes, err = i.repos.Repository().Remotes()
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"iter":  "repoRemoteIter",
@@ -411,12 +411,12 @@ func (i *squashRefIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, 
 		return nil, err
 	}
 
-	refs, err := repo.Repo.References()
+	refs, err := repo.References()
 	if err != nil && !i.skipGitErrors {
 		return nil, err
 	}
 
-	head, err := repo.Repo.Head()
+	head, err := repo.Head()
 	if err != nil && !i.skipGitErrors &&
 		err != plumbing.ErrReferenceNotFound {
 		return nil, err
@@ -580,7 +580,7 @@ func (i *squashRefIndexIter) Advance() error {
 		}
 
 		refName := plumbing.ReferenceName(i.row[1].(string))
-		ref, err := i.repo.Repo.Reference(refName, true)
+		ref, err := i.repo.Reference(refName, true)
 		if err != nil {
 			if i.skipGitErrors {
 				continue
@@ -677,7 +677,7 @@ func (i *squashRepoRefsIter) Advance() error {
 				return err
 			}
 
-			i.refs, err = i.repos.Repository().Repo.References()
+			i.refs, err = i.repos.Repository().References()
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
@@ -691,7 +691,7 @@ func (i *squashRepoRefsIter) Advance() error {
 				return err
 			}
 
-			i.head, err = i.repos.Repository().Repo.Head()
+			i.head, err = i.repos.Repository().Head()
 			if err != nil &&
 				err != plumbing.ErrReferenceNotFound &&
 				!i.skipGitErrors {
@@ -819,7 +819,7 @@ func (i *squashRemoteRefsIter) Advance() error {
 				return err
 			}
 
-			i.refs, err = i.Repository().Repo.References()
+			i.refs, err = i.Repository().References()
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
@@ -833,7 +833,7 @@ func (i *squashRemoteRefsIter) Advance() error {
 				return err
 			}
 
-			i.head, err = i.Repository().Repo.Head()
+			i.head, err = i.Repository().Head()
 			if err != nil &&
 				err != plumbing.ErrReferenceNotFound &&
 				!i.skipGitErrors {
@@ -979,7 +979,7 @@ func (i *squashRefRefCommitsIter) Advance() error {
 				return err
 			}
 
-			i.commits = newIndexedCommitIter(i.skipGitErrors, i.Repository().Repo, commit)
+			i.commits = newIndexedCommitIter(i.skipGitErrors, i.Repository(), commit)
 		}
 
 		commit, idx, err := i.commits.Next()
@@ -1176,7 +1176,7 @@ func (i *squashRefCommitsIndexIter) Advance() error {
 		}
 
 		commitHash := plumbing.NewHash(i.row[1].(string))
-		i.commit, err = i.repo.Repo.CommitObject(commitHash)
+		i.commit, err = i.repo.CommitObject(commitHash)
 		if err != nil {
 			if i.skipGitErrors {
 				continue
@@ -1304,7 +1304,7 @@ func (i *squashCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIt
 		return nil, err
 	}
 
-	commits, err := repo.Repo.CommitObjects()
+	commits, err := repo.CommitObjects()
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"repo":  repo.ID,
@@ -1522,7 +1522,7 @@ func (i *squashRepoCommitsIter) Advance() error {
 				return err
 			}
 
-			i.commits, err = i.repos.Repository().Repo.CommitObjects()
+			i.commits, err = i.repos.Repository().CommitObjects()
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"repo":  i.repos.Repository().ID,
@@ -1758,7 +1758,7 @@ func (i *squashCommitTreesIndexIter) Advance() error {
 		}
 
 		treeHash := plumbing.NewHash(i.row[2].(string))
-		i.tree, err = i.repo.Repo.TreeObject(treeHash)
+		i.tree, err = i.repo.TreeObject(treeHash)
 		if err != nil {
 			if i.skipGitErrors {
 				continue
@@ -1853,7 +1853,7 @@ func (i *squashCommitTreesIter) Advance() error {
 
 			commit := i.commits.Commit()
 			i.trees, err = newCommitTreeIter(
-				i.Repository().Repo,
+				i.Repository(),
 				commit,
 				make(map[plumbing.Hash]struct{}),
 				i.skipGitErrors,
@@ -1966,7 +1966,7 @@ func (i *squashRepoTreeEntriesIter) Advance() error {
 				return err
 			}
 
-			i.trees, err = i.Repository().Repo.TreeObjects()
+			i.trees, err = i.Repository().TreeObjects()
 			if err != nil {
 				if i.skipGitErrors {
 					continue
@@ -2136,7 +2136,7 @@ func (i *squashCommitMainTreeIter) Schema() sql.Schema {
 type commitTreeIter struct {
 	skipGitErrors bool
 	tree          *object.Tree
-	repo          *git.Repository
+	repo          *Repository
 	stack         []*commitTreeStackFrame
 	seen          map[plumbing.Hash]struct{}
 }
@@ -2147,7 +2147,7 @@ type commitTreeStackFrame struct {
 }
 
 func newCommitTreeIter(
-	repo *git.Repository,
+	repo *Repository,
 	commit *object.Commit,
 	seen map[plumbing.Hash]struct{},
 	skipGitErrors bool,
@@ -2263,7 +2263,7 @@ func (i *squashTreeEntriesIter) New(ctx *sql.Context, repo *Repository) (Chainab
 		return nil, err
 	}
 
-	trees, err := repo.Repo.TreeObjects()
+	trees, err := repo.TreeObjects()
 	if err != nil && !session.SkipGitErrors {
 		return nil, err
 	}
@@ -2592,7 +2592,7 @@ func (i *squashCommitBlobsIndexIter) Advance() error {
 		}
 
 		blobHash := plumbing.NewHash(i.row[2].(string))
-		i.blob, err = i.repo.Repo.BlobObject(blobHash)
+		i.blob, err = i.repo.BlobObject(blobHash)
 		if err != nil {
 			if i.skipGitErrors {
 				continue
@@ -2696,7 +2696,7 @@ func (i *squashCommitBlobsIter) Advance() error {
 				return err
 			}
 
-			i.tree, err = i.Repository().Repo.TreeObject(i.commits.Commit().TreeHash)
+			i.tree, err = i.Repository().TreeObject(i.commits.Commit().TreeHash)
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"repo":      i.Repository().ID,
@@ -2815,7 +2815,7 @@ func (i *squashRepoBlobsIter) Advance() error {
 				return err
 			}
 
-			i.blobs, err = i.Repository().Repo.BlobObjects()
+			i.blobs, err = i.Repository().BlobObjects()
 			if err != nil {
 				return err
 			}
@@ -2922,7 +2922,7 @@ func (i *squashTreeEntryBlobsIter) Advance() error {
 			continue
 		}
 
-		i.blob, err = i.Repository().Repo.BlobObject(entry.Hash)
+		i.blob, err = i.Repository().BlobObject(entry.Hash)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"repo":  i.Repository().ID,
@@ -3364,7 +3364,7 @@ func evalFilters(ctx *sql.Context, row sql.Row, filters sql.Expression) (bool, e
 var errInvalidCommit = errors.NewKind("invalid commit of type: %T")
 
 func resolveCommit(repo *Repository, hash plumbing.Hash) (*object.Commit, error) {
-	obj, err := repo.Repo.Object(plumbing.AnyObject, hash)
+	obj, err := repo.Object(plumbing.AnyObject, hash)
 	if err != nil {
 		return nil, err
 	}
