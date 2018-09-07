@@ -519,6 +519,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
+  digest = "1:0495b9477d0a0f1e56c56b3ec02cc283a3892aa798fe891169f7a04333c4291e"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -535,7 +536,8 @@
     "sql/parse",
     "sql/plan"
   ]
-  revision = "090a17d38c22a28eccf631f400c11704f65bb6ce"
+  pruneopts = ""
+  revision = "52301175c6a6cc6e4ba87ebe44340690c0523f42"
 
 [[projects]]
   name = "gopkg.in/src-d/go-siva.v1"
@@ -588,6 +590,49 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2f333165e1487deeb9e53c4ca495781aabe6a0f61541e6f0d1ef34665e312fe3"
+  input-imports = [
+    "github.com/BurntSushi/toml",
+    "github.com/jessevdk/go-flags",
+    "github.com/opentracing/opentracing-go",
+    "github.com/pilosa/go-pilosa",
+    "github.com/sirupsen/logrus",
+    "github.com/stretchr/testify/require",
+    "github.com/uber/jaeger-client-go/config",
+    "google.golang.org/grpc/connectivity",
+    "gopkg.in/bblfsh/client-go.v2",
+    "gopkg.in/bblfsh/client-go.v2/tools",
+    "gopkg.in/bblfsh/sdk.v1/protocol",
+    "gopkg.in/bblfsh/sdk.v1/uast",
+    "gopkg.in/src-d/enry.v1",
+    "gopkg.in/src-d/go-billy-siva.v4",
+    "gopkg.in/src-d/go-billy.v4",
+    "gopkg.in/src-d/go-billy.v4/osfs",
+    "gopkg.in/src-d/go-errors.v1",
+    "gopkg.in/src-d/go-git-fixtures.v3",
+    "gopkg.in/src-d/go-git.v4",
+    "gopkg.in/src-d/go-git.v4/config",
+    "gopkg.in/src-d/go-git.v4/plumbing",
+    "gopkg.in/src-d/go-git.v4/plumbing/filemode",
+    "gopkg.in/src-d/go-git.v4/plumbing/format/idxfile",
+    "gopkg.in/src-d/go-git.v4/plumbing/format/objfile",
+    "gopkg.in/src-d/go-git.v4/plumbing/format/packfile",
+    "gopkg.in/src-d/go-git.v4/plumbing/object",
+    "gopkg.in/src-d/go-git.v4/plumbing/storer",
+    "gopkg.in/src-d/go-git.v4/storage/filesystem",
+    "gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit",
+    "gopkg.in/src-d/go-git.v4/utils/ioutil",
+    "gopkg.in/src-d/go-mysql-server.v0",
+    "gopkg.in/src-d/go-mysql-server.v0/server",
+    "gopkg.in/src-d/go-mysql-server.v0/sql",
+    "gopkg.in/src-d/go-mysql-server.v0/sql/analyzer",
+    "gopkg.in/src-d/go-mysql-server.v0/sql/expression",
+    "gopkg.in/src-d/go-mysql-server.v0/sql/expression/function",
+    "gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa",
+    "gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosalib",
+    "gopkg.in/src-d/go-mysql-server.v0/sql/parse",
+    "gopkg.in/src-d/go-mysql-server.v0/sql/plan",
+    "gopkg.in/src-d/go-vitess.v0/mysql",
+    "gopkg.in/yaml.v2",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
