@@ -4,19 +4,34 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
+	"os"
+	"strconv"
 
 	lru "github.com/hashicorp/golang-lru"
 	enry "gopkg.in/src-d/enry.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
-const defaultLanguageCacheSize = 10000
+const (
+	languageCacheSizeKey     = "GITBASE_LANGUAGE_CACHE_SIZE"
+	defaultLanguageCacheSize = 10000
+)
+
+func languageCacheSize() int {
+	v := os.Getenv(languageCacheSizeKey)
+	size, err := strconv.Atoi(v)
+	if err != nil || size <= 0 {
+		size = defaultLanguageCacheSize
+	}
+
+	return size
+}
 
 var languageCache *lru.TwoQueueCache
 
 func init() {
 	var err error
-	languageCache, err = lru.New2Q(defaultLanguageCacheSize)
+	languageCache, err = lru.New2Q(languageCacheSize())
 	if err != nil {
 		panic(fmt.Errorf("cannot initialize language cache: %s", err))
 	}

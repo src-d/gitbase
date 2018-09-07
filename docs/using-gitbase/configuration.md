@@ -12,6 +12,7 @@
 | `GITBASE_INDEX_DIR`          | directory to save indexes, default `/var/lib/gitbase/index`                        |
 | `GITBASE_TRACE`              | enable jaeger tracing, default disabled                                            |
 | `GITBASE_READONLY`           | allow read queries only, disabling creating and deleting indexes, default disabled |
+| `GITBASE_LANGUAGE_CACHE_SIZE`           | size of the cache for the `language` UDF. The size is the maximum number of elements kept in the cache, 10000 by default |
 
 ### Jaeger tracing variables
 
