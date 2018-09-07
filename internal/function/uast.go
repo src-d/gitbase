@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/sirupsen/logrus"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
 	"gopkg.in/bblfsh/client-go.v2/tools"
 	"gopkg.in/bblfsh/sdk.v1/uast"
@@ -53,8 +52,7 @@ type uastFunc struct {
 	Lang  sql.Expression
 	XPath sql.Expression
 
-	h        hash.Hash
-	errCache *lru.Cache
+	h hash.Hash
 }
 
 // IsNullable implements the Expression interface.
@@ -207,18 +205,10 @@ func (u *uastFunc) getUAST(
 	if ok {
 		node = value.(*uast.Node)
 	} else {
-		if u.errCache != nil {
-			_, ok := u.errCache.Get(key)
-			if ok {
-				return nil, nil
-			}
-		}
-
 		var err error
 		node, err = getUASTFromBblfsh(ctx, blob, lang, xpath, mode)
 		if err != nil {
 			if ErrParseBlob.Is(err) {
-				u.errCache.Add(key, struct{}{})
 				return nil, nil
 			}
 
@@ -267,18 +257,12 @@ func NewUAST(args ...sql.Expression) (sql.Expression, error) {
 		blob = args[0]
 	}
 
-	errCache, err := lru.New(defaultUASTCacheSize)
-	if err != nil {
-		logrus.Warn("couldn't initialize UAST cache for errors")
-	}
-
 	return &UAST{&uastFunc{
-		Mode:     mode,
-		Blob:     blob,
-		Lang:     lang,
-		XPath:    xpath,
-		h:        sha1.New(),
-		errCache: errCache,
+		Mode:  mode,
+		Blob:  blob,
+		Lang:  lang,
+		XPath: xpath,
+		h:     sha1.New(),
 	}}, nil
 }
 
@@ -314,18 +298,12 @@ var _ sql.Expression = (*UASTMode)(nil)
 
 // NewUASTMode creates a new UASTMode UDF.
 func NewUASTMode(mode, blob, lang sql.Expression) sql.Expression {
-	errCache, err := lru.New(defaultUASTCacheSize)
-	if err != nil {
-		logrus.Warn("couldn't initialize UAST cache for errors")
-	}
-
 	return &UASTMode{&uastFunc{
-		Mode:     mode,
-		Blob:     blob,
-		Lang:     lang,
-		XPath:    nil,
-		h:        sha1.New(),
-		errCache: errCache,
+		Mode:  mode,
+		Blob:  blob,
+		Lang:  lang,
+		XPath: nil,
+		h:     sha1.New(),
 	}}
 }
 
