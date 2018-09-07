@@ -1,11 +1,41 @@
 package function
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash/crc32"
+	"os"
+	"strconv"
 
+	lru "github.com/hashicorp/golang-lru"
 	enry "gopkg.in/src-d/enry.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
+
+const (
+	languageCacheSizeKey     = "GITBASE_LANGUAGE_CACHE_SIZE"
+	defaultLanguageCacheSize = 10000
+)
+
+func languageCacheSize() int {
+	v := os.Getenv(languageCacheSizeKey)
+	size, err := strconv.Atoi(v)
+	if err != nil || size <= 0 {
+		size = defaultLanguageCacheSize
+	}
+
+	return size
+}
+
+var languageCache *lru.TwoQueueCache
+
+func init() {
+	var err error
+	languageCache, err = lru.New2Q(languageCacheSize())
+	if err != nil {
+		panic(fmt.Errorf("cannot initialize language cache: %s", err))
+	}
+}
 
 // Language gets the language of a file given its path and
 // the optional content of the file.
@@ -110,11 +140,53 @@ func (f *Language) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		blob = right.([]byte)
 	}
 
-	if lang := enry.GetLanguage(path, blob); lang != "" {
-		return lang, nil
+	var hash [8]byte
+	if len(blob) > 0 {
+		hash = languageHash(path, blob)
+		value, ok := languageCache.Get(hash)
+		if ok {
+			return value, nil
+		}
 	}
 
-	return nil, nil
+	lang := enry.GetLanguage(path, blob)
+	if lang == "" {
+		return nil, nil
+	}
+
+	if len(blob) > 0 {
+		languageCache.Add(hash, lang)
+	}
+
+	return lang, nil
+}
+
+func languageHash(filename string, blob []byte) [8]byte {
+	fh := filenameHash(filename)
+	bh := blobHash(blob)
+
+	var result [8]byte
+	copy(result[:], fh)
+	copy(result[4:], bh)
+	return result
+}
+
+func blobHash(blob []byte) []byte {
+	if len(blob) == 0 {
+		return nil
+	}
+
+	n := crc32.ChecksumIEEE(blob)
+	hash := make([]byte, 4)
+	binary.LittleEndian.PutUint32(hash, n)
+	return hash
+}
+
+func filenameHash(filename string) []byte {
+	n := crc32.ChecksumIEEE([]byte(filename))
+	hash := make([]byte, 4)
+	binary.LittleEndian.PutUint32(hash, n)
+	return hash
 }
 
 // Children implements the Expression interface.
