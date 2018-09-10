@@ -47,6 +47,13 @@ const (
 	// ShardWidth is the number of column IDs in a shard.
 	ShardWidth = 1048576
 
+	// containersPerRowSegment is dependent upon ShardWidth,
+	// and it represents the number of containers per shard row
+	// (or rowSegment). Since containers are set in roaring
+	// to be 2^16, then this const should be ShardWidth / 2^16.
+	// It is represented as the exponent n of 2^n.
+	containersPerRowSegment = 4
+
 	// snapshotExt is the file extension used for an in-process snapshot.
 	snapshotExt = ".snapshotting"
 
@@ -106,6 +113,10 @@ type fragment struct {
 	// This is set by the parent field unless overridden for testing.
 	RowAttrStore AttrStore
 
+	// mutexVector is used for mutex field types. It's checked for an
+	// existing value (to clear) prior to setting a new value.
+	mutexVector vector
+
 	stats StatsClient
 }
 
@@ -153,7 +164,6 @@ func (f *fragment) Open() error {
 		pos := f.storage.Max()
 		f.maxRowID = pos / ShardWidth
 		f.stats.Gauge("rows", float64(f.maxRowID), 1.0)
-
 		return nil
 	}(); err != nil {
 		f.close()
@@ -363,7 +373,27 @@ func (f *fragment) unprotectedRow(rowID uint64, checkRowCache bool, updateRowCac
 func (f *fragment) setBit(rowID, columnID uint64) (changed bool, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	// handle mutux field type
+	if f.mutexVector != nil {
+		if err := f.handleMutex(rowID, columnID); err != nil {
+			return changed, errors.Wrap(err, "handling mutex")
+		}
+	}
+
 	return f.unprotectedSetBit(rowID, columnID)
+}
+
+// handleMutex will clear an existing row and store the new row
+// in the vector.
+func (f *fragment) handleMutex(rowID, columnID uint64) error {
+	if existingRowID, found := f.mutexVector.Get(columnID); found && existingRowID != rowID {
+		if _, err := f.unprotectedClearBit(existingRowID, columnID); err != nil {
+			return errors.Wrap(err, "clearing mutex value")
+		}
+	}
+	f.mutexVector.Set(columnID, rowID)
+	return nil
 }
 
 func (f *fragment) unprotectedSetBit(rowID, columnID uint64) (changed bool, err error) {
@@ -520,7 +550,7 @@ func (f *fragment) setValue(columnID uint64, bitDepth uint, value uint64) (chang
 }
 
 // importSetValue is a more efficient SetValue just for imports.
-func (f *fragment) importSetValue(columnID uint64, bitDepth uint, value uint64) (changed bool, err error) {
+func (f *fragment) importSetValue(columnID uint64, bitDepth uint, value uint64) (changed bool, err error) { // nolint: unparam
 
 	for i := uint(0); i < bitDepth; i++ {
 		if value&(1<<i) != 0 {
@@ -578,9 +608,9 @@ func (f *fragment) sum(filter *Row, bitDepth uint) (sum, count uint64, err error
 	//
 	//   10*(2^0) + 4*(2^1) + 3*(2^2) = 30
 	//
+	var cnt uint64
 	for i := uint(0); i < bitDepth; i++ {
 		row := f.row(uint64(i))
-		cnt := uint64(0)
 		if filter != nil {
 			cnt = row.intersectionCount(filter)
 		} else {
@@ -1159,12 +1189,11 @@ func (f *fragment) readContiguousChecksums(a *[]FragmentBlock, blockID int) (n i
 func (f *fragment) blockData(id int) (rowIDs, columnIDs []uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-
 	f.storage.ForEachRange(uint64(id)*HashBlockSize*ShardWidth, (uint64(id)+1)*HashBlockSize*ShardWidth, func(i uint64) {
 		rowIDs = append(rowIDs, i/ShardWidth)
 		columnIDs = append(columnIDs, i%ShardWidth)
 	})
-	return
+	return rowIDs, columnIDs
 }
 
 // mergeBlock compares the block's bits and computes a diff with another set of block bits.
@@ -1680,6 +1709,62 @@ func (f *fragment) readCacheFromArchive(r io.Reader) error {
 	return nil
 }
 
+func (f *fragment) rows() []uint64 {
+	i, _ := f.storage.Containers.Iterator(0)
+	rows := make([]uint64, 0)
+
+	var lastRow uint64 = math.MaxUint64
+
+	// Loop over the existing containers.
+	for i.Next() {
+		key, _ := i.Value()
+
+		// virtual row for the current container
+		vRow := key >> containersPerRowSegment
+
+		// skip dups
+		if vRow == lastRow {
+			continue
+		}
+
+		rows = append(rows, vRow)
+		lastRow = vRow
+	}
+	return rows
+
+}
+
+func (f *fragment) rowsForColumn(columnID uint64) []uint64 {
+	var colKey uint64
+
+	colID := columnID % ShardWidth
+	i, _ := f.storage.Containers.Iterator(0)
+
+	colVal := uint16(colID & 0xFFFF)
+
+	rows := make([]uint64, 0)
+
+	// Loop over the existing containers.
+	for i.Next() {
+		key, c := i.Value()
+
+		// virtual row for the current container
+		vRow := key >> containersPerRowSegment
+
+		// column container key for virtual row
+		colKey = ((vRow * ShardWidth) + colID) >> 16
+
+		if colKey != key {
+			continue
+		}
+
+		if c.Contains(colVal) {
+			rows = append(rows, vRow)
+		}
+	}
+	return rows
+}
+
 // FragmentBlock represents info about a subsection of the rows in a block.
 // This is used for comparing data in remote blocks for active anti-entropy.
 type FragmentBlock struct {
@@ -1752,7 +1837,7 @@ func (s *fragmentSyncer) syncFragment() error {
 		}
 
 		// Retrieve remote blocks.
-		blocks, err := s.Cluster.InternalClient.FragmentBlocks(context.Background(), &node.URI, s.Fragment.index, s.Fragment.field, s.Fragment.shard)
+		blocks, err := s.Cluster.InternalClient.FragmentBlocks(context.Background(), &node.URI, s.Fragment.index, s.Fragment.field, s.Fragment.view, s.Fragment.shard)
 		if err != nil && err != ErrFragmentNotFound {
 			return errors.Wrap(err, "getting blocks")
 		}
@@ -1831,7 +1916,7 @@ func (s *fragmentSyncer) syncBlock(id int) error {
 		uris = append(uris, uri)
 
 		// Only sync the standard block.
-		rowIDs, columnIDs, err := s.Cluster.InternalClient.BlockData(context.Background(), &node.URI, f.index, f.field, f.shard, id)
+		rowIDs, columnIDs, err := s.Cluster.InternalClient.BlockData(context.Background(), &node.URI, f.index, f.field, f.view, f.shard, id)
 		if err != nil {
 			return errors.Wrap(err, "getting block")
 		}
@@ -1903,12 +1988,12 @@ func (s *fragmentSyncer) syncBlock(id int) error {
 	return nil
 }
 
-func madvise(b []byte, advice int) (err error) {
-	_, _, e1 := syscall.Syscall(syscall.SYS_MADVISE, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)), uintptr(advice))
-	if e1 != 0 {
-		err = e1
+func madvise(b []byte, advice int) error { // nolint: unparam
+	_, _, err := syscall.Syscall(syscall.SYS_MADVISE, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)), uintptr(advice))
+	if err != 0 {
+		return err
 	}
-	return
+	return nil
 }
 
 // pairSet is a list of equal length row and column id lists.
@@ -1935,3 +2020,37 @@ func byteSlicesEqual(a [][]byte) bool {
 func pos(rowID, columnID uint64) uint64 {
 	return (rowID * ShardWidth) + (columnID % ShardWidth)
 }
+
+// vector stores the mapping of colID to rowID.
+// It's used for a mutex field type.
+type vector interface {
+	Get(colID uint64) (uint64, bool)
+	Set(colID, rowID uint64)
+}
+
+// rowsVector implements the vector interface by looking
+// at row data as needed.
+type rowsVector struct {
+	f *fragment
+}
+
+// newRowsVector returns a rowsVector for a given fragment.
+func newRowsVector(f *fragment) *rowsVector {
+	return &rowsVector{
+		f: f,
+	}
+}
+
+// Get returns the rowID associated to the given colID.
+// Additionally, it returns true if a value was found,
+// otherwise it returns false.
+func (v *rowsVector) Get(colID uint64) (uint64, bool) {
+	rows := v.f.rowsForColumn(colID)
+	if len(rows) == 1 {
+		return rows[0], true
+	}
+	return 0, false
+}
+
+// Set is not used for rowsVector.
+func (v *rowsVector) Set(colID, rowID uint64) {}

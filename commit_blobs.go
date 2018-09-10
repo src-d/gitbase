@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"io"
 
+	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
-type commitBlobsTable struct{}
+type commitBlobsTable struct {
+	filters []sql.Expression
+	index   sql.IndexLookup
+}
 
 // CommitBlobsSchema is the schema for the commit blobs table.
 var CommitBlobsSchema = sql.Schema{
@@ -19,7 +21,7 @@ var CommitBlobsSchema = sql.Schema{
 	{Name: "blob_hash", Type: sql.Text, Source: CommitBlobsTableName},
 }
 
-var _ sql.PushdownProjectionAndFiltersTable = (*commitBlobsTable)(nil)
+var _ Table = (*commitBlobsTable)(nil)
 
 func newCommitBlobsTable() Indexable {
 	return new(commitBlobsTable)
@@ -34,25 +36,74 @@ func (commitBlobsTable) String() string {
 	return printTable(CommitBlobsTableName, CommitBlobsSchema)
 }
 
-func (commitBlobsTable) Resolved() bool { return true }
-
 func (commitBlobsTable) Name() string { return CommitBlobsTableName }
 
 func (commitBlobsTable) Schema() sql.Schema { return CommitBlobsSchema }
 
-func (t *commitBlobsTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(t)
+func (t *commitBlobsTable) WithFilters(filters []sql.Expression) sql.Table {
+	nt := *t
+	nt.filters = filters
+	return &nt
 }
 
-func (t *commitBlobsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	return t, nil
+func (t *commitBlobsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
+	nt := *t
+	nt.index = idx
+	return &nt
 }
 
-func (commitBlobsTable) Children() []sql.Node { return nil }
+func (t *commitBlobsTable) IndexLookup() sql.IndexLookup { return t.index }
+func (t *commitBlobsTable) Filters() []sql.Expression    { return t.filters }
 
-func (commitBlobsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
+func (t *commitBlobsTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	return newRepositoryPartitionIter(ctx)
+}
+
+func (t *commitBlobsTable) PartitionRows(
+	ctx *sql.Context,
+	p sql.Partition,
+) (sql.RowIter, error) {
+	repo, err := getPartitionRepo(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
 	span, ctx := ctx.Span("gitbase.CommitBlobsTable")
-	iter, err := NewRowRepoIter(ctx, &commitBlobsIter{})
+	iter, err := rowIterWithSelectors(
+		ctx, CommitBlobsSchema, CommitBlobsTableName,
+		t.filters,
+		t.handledColumns(),
+		func(selectors selectors) (sql.RowIter, error) {
+			repos, err := selectors.textValues("repository_id")
+			if err != nil {
+				return nil, err
+			}
+
+			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+				return noRows, nil
+			}
+
+			commits, err := selectors.textValues("commit_hash")
+			if err != nil {
+				return nil, err
+			}
+
+			var indexValues sql.IndexValueIter
+			if t.index != nil {
+				if indexValues, err = t.index.Values(p); err != nil {
+					return nil, err
+				}
+			}
+
+			return &commitBlobsRowIter{
+				repo:          repo,
+				commits:       stringsToHashes(commits),
+				index:         indexValues,
+				skipGitErrors: shouldSkipErrors(ctx),
+			}, nil
+		},
+	)
+
 	if err != nil {
 		span.Finish()
 		return nil, err
@@ -65,72 +116,21 @@ func (commitBlobsTable) HandledFilters(filters []sql.Expression) []sql.Expressio
 	return handledFilters(CommitBlobsTableName, CommitBlobsSchema, filters)
 }
 
-func (commitBlobsTable) handledColumns() []string { return []string{"commit_hash", "repository_id"} }
-
-func (t *commitBlobsTable) WithProjectAndFilters(
-	ctx *sql.Context,
-	_, filters []sql.Expression,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.CommitBlobsTable")
-	iter, err := rowIterWithSelectors(
-		ctx, CommitBlobsSchema, CommitBlobsTableName,
-		filters, nil,
-		t.handledColumns(),
-		commitBlobsIterBuilder,
-	)
-
-	if err != nil {
-		span.Finish()
-		return nil, err
-	}
-
-	return sql.NewSpanIter(span, iter), nil
-}
-
-// IndexKeyValueIter implements the sql.Indexable interface.
-func (*commitBlobsTable) IndexKeyValueIter(
+// IndexKeyValues implements the sql.IndexableTable interface.
+func (*commitBlobsTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
-) (sql.IndexKeyValueIter, error) {
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	iter, err := NewRowRepoIter(ctx, new(commitBlobsIter))
-	if err != nil {
-		return nil, err
-	}
-
-	return &rowKeyValueIter{
-		new(commitBlobsRowKeyMapper),
-		iter,
+) (sql.PartitionIndexKeyValueIter, error) {
+	return newTablePartitionIndexKeyValueIter(
+		ctx,
+		newCommitBlobsTable(),
+		CommitBlobsTableName,
 		colNames,
-		CommitBlobsSchema,
-	}, nil
+		new(commitBlobsRowKeyMapper),
+	)
 }
 
-// WithProjectFiltersAndIndex implements sql.Indexable interface.
-func (*commitBlobsTable) WithProjectFiltersAndIndex(
-	ctx *sql.Context,
-	columns, filters []sql.Expression,
-	index sql.IndexValueIter,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.CommitBlobsTable.WithProjectFiltersAndIndex")
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		span.Finish()
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	var iter sql.RowIter = &rowIndexIter{new(commitBlobsRowKeyMapper), index}
-
-	if len(filters) > 0 {
-		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
-	}
-
-	return sql.NewSpanIter(span, iter), nil
-}
+func (commitBlobsTable) handledColumns() []string { return []string{"commit_hash", "repository_id"} }
 
 type commitBlobsRowKeyMapper struct{}
 
@@ -189,63 +189,71 @@ func (commitBlobsRowKeyMapper) toRow(data []byte) (sql.Row, error) {
 	return sql.Row{repo, commit, blob}, nil
 }
 
-func commitBlobsIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
-	repos, err := selectors.textValues("repository_id")
-	if err != nil {
-		return nil, err
-	}
-
-	commits, err := selectors.textValues("commit_hash")
-	if err != nil {
-		return nil, err
-	}
-
-	s, ok := ctx.Session.(*Session)
-	if !ok {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	return &commitBlobsIter{
-		repos:         repos,
-		commits:       commits,
-		skipGitErrors: s.SkipGitErrors,
-	}, nil
-}
-
-type commitBlobsIter struct {
+type commitBlobsRowIter struct {
 	repo          *Repository
 	iter          object.CommitIter
 	currCommit    *object.Commit
 	filesIter     *object.FileIter
+	index         sql.IndexValueIter
 	skipGitErrors bool
 
 	// selectors for faster filtering
-	repos   []string
-	commits []string
+	commits []plumbing.Hash
+	mapper  commitBlobsRowKeyMapper
 }
 
-func (i *commitBlobsIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	var iter object.CommitIter
-	if len(i.repos) == 0 || stringContains(i.repos, repo.ID) {
-		var err error
-		iter, err = NewCommitsByHashIter(repo, i.commits)
+func (i *commitBlobsRowIter) Next() (sql.Row, error) {
+	if i.index != nil {
+		return i.nextFromIndex()
+	}
+
+	return i.next()
+}
+
+func (i *commitBlobsRowIter) init() error {
+	var err error
+	if len(i.commits) > 0 {
+		i.iter, err = NewCommitsByHashIter(i.repo, i.commits)
+	} else {
+		i.iter, err = i.repo.Repo.CommitObjects()
+	}
+
+	return err
+}
+
+var commitBlobsCommitIdx = CommitBlobsSchema.IndexOf("commit_hash", CommitBlobsTableName)
+
+func (i *commitBlobsRowIter) nextFromIndex() (sql.Row, error) {
+	for {
+		key, err := i.index.Next()
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	return &commitBlobsIter{
-		repo:    repo,
-		iter:    iter,
-		repos:   i.repos,
-		commits: i.commits,
-	}, nil
+		row, err := i.mapper.toRow(key)
+		if err != nil {
+			return nil, err
+		}
+
+		hash := plumbing.NewHash(row[commitBlobsCommitIdx].(string))
+		if len(i.commits) > 0 && !hashContains(i.commits, hash) {
+			continue
+		}
+
+		return row, nil
+	}
 }
 
-func (i *commitBlobsIter) Next() (sql.Row, error) {
+func (i *commitBlobsRowIter) next() (sql.Row, error) {
 	for {
 		if i.iter == nil {
-			return nil, io.EOF
+			if err := i.init(); err != nil {
+				if i.skipGitErrors {
+					return nil, io.EOF
+				}
+
+				return nil, err
+			}
 		}
 
 		if i.currCommit == nil {
@@ -293,13 +301,17 @@ func (i *commitBlobsIter) Next() (sql.Row, error) {
 	}
 }
 
-func (i *commitBlobsIter) Close() error {
+func (i *commitBlobsRowIter) Close() error {
 	if i.filesIter != nil {
 		i.filesIter.Close()
 	}
 
 	if i.iter != nil {
 		i.iter.Close()
+	}
+
+	if i.index != nil {
+		return i.index.Close()
 	}
 
 	return nil

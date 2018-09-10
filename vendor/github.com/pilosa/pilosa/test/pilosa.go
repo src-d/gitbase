@@ -16,15 +16,19 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	gohttp "net/http"
 	"os"
+	"path"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pilosa/pilosa"
 	"github.com/pilosa/pilosa/http"
 	"github.com/pilosa/pilosa/server"
 	"github.com/pkg/errors"
@@ -120,10 +124,46 @@ func (m *Command) Reopen() error {
 	m.Command.Config = config
 
 	// Run new program.
-	if err := m.Start(); err != nil {
-		return err
+	return m.Start()
+}
+
+// MustCreateIndex uses this command's API to create an index and fails the test
+// if there is an error.
+func (m *Command) MustCreateIndex(t *testing.T, name string, opts pilosa.IndexOptions) *pilosa.Index {
+	idx, err := m.API.CreateIndex(context.Background(), name, opts)
+	if err != nil {
+		t.Fatalf("creating index: %v with options: %v, err: %v", name, opts, err)
 	}
-	return nil
+	return idx
+}
+
+// MustCreateField uses this command's API to create the field. The index must
+// already exist - it fails the test if there is an error.
+func (m *Command) MustCreateField(t *testing.T, index, field string, opts ...pilosa.FieldOption) *pilosa.Field {
+	f, err := m.API.CreateField(context.Background(), index, field, opts...)
+	if err != nil {
+		t.Fatalf("creating field: %s in index: %s err: %v", field, index, err)
+	}
+	return f
+}
+
+// MustQuery uses this command's API to execute the given query request, failing
+// if Query returns a non-nil error, otherwise returning the QueryResponse.
+func (m *Command) MustQuery(t *testing.T, req *pilosa.QueryRequest) pilosa.QueryResponse {
+	resp, err := m.API.Query(context.Background(), req)
+	if err != nil {
+		t.Fatalf("making query: %v, err: %v", req, err)
+	}
+	return resp
+}
+
+// MustRecalculateCaches calls RecalculateCaches on the command's API, and fails
+// if there is an error.
+func (m *Command) MustRecalculateCaches(t *testing.T) {
+	err := m.API.RecalculateCaches(context.Background())
+	if err != nil {
+		t.Fatalf("recalcluating caches: %v", err)
+	}
 }
 
 // URL returns the base URL string for accessing the running program.
@@ -147,6 +187,7 @@ func (m *Command) Query(index, rawQuery, query string) (string, error) {
 	return resp.Body, nil
 }
 
+// RecalculateCaches is deprecated. Use MustRecalculateCaches.
 func (m *Command) RecalculateCaches() error {
 	resp := MustDo("POST", fmt.Sprintf("%s/recalculate-caches", m.URL()), "")
 	if resp.StatusCode != 204 {
@@ -207,6 +248,10 @@ func newCluster(size int, opts ...[]server.CommandOption) (Cluster, error) {
 			commandOpts = opts[i%len(opts)]
 		}
 		m := NewCommandNode(i == 0, commandOpts...)
+		err := ioutil.WriteFile(path.Join(m.Config.DataDir, ".id"), []byte("node"+strconv.Itoa(i)), 0600)
+		if err != nil {
+			return nil, errors.Wrap(err, "writing node id")
+		}
 		cluster[i] = m
 	}
 
@@ -243,6 +288,9 @@ func MustDo(method, urlStr string, body string) *httpResponse {
 		urlStr,
 		strings.NewReader(body),
 	)
+	if err != nil {
+		panic(err)
+	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")

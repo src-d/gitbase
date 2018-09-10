@@ -25,7 +25,7 @@ type Cache struct {
 	// an item is evicted. Zero means no limit.
 	maxEntries int
 
-	// OnEvicted optionally specificies a callback function to be
+	// OnEvicted optionally specifies a callback function to be
 	// executed when an entry is purged from the cache.
 	OnEvicted func(key Key, value interface{})
 
@@ -73,17 +73,17 @@ func (c *Cache) Add(key Key, value interface{}) {
 // Get looks up a key's value from the cache.
 func (c *Cache) Get(key Key) (value interface{}, ok bool) {
 	if c.cache == nil {
-		return
+		return nil, false
 	}
 	if ele, hit := c.cache[key]; hit {
 		c.ll.MoveToFront(ele)
 		return ele.Value.(*entry).value, true
 	}
-	return
+	return nil, false
 }
 
 // remove removes the provided key from the cache.
-func (c *Cache) remove(key Key) {
+func (c *Cache) remove(key Key) { // nolint: megacheck
 	if c.cache == nil {
 		return
 	}
@@ -121,7 +121,7 @@ func (c *Cache) Len() int {
 }
 
 // clear purges all stored items from the cache.
-func (c *Cache) clear() {
+func (c *Cache) clear() { // nolint: megacheck
 	if c.OnEvicted != nil {
 		for _, e := range c.cache {
 			kv := e.Value.(*entry)

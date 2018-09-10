@@ -57,20 +57,20 @@ Usage:
 		panic(err)
 	}
 
-	// Create a Frame instance
-	stargazer, err := index.Frame("stargazer")
+	// Create a Field instance
+	stargazer, err := index.Field("stargazer")
 	if err != nil {
 		panic(err)
 	}
 
-	// Sync the schema with the server-side, so non-existing indexes/frames are created on the server-side.
+	// Sync the schema with the server-side, so non-existing indexes/fields are created on the server-side.
 	err = client.SyncSchema(schema)
 	if err != nil {
 		panic(err)
 	}
 
 	// Execute a query
-	response, err := client.Query(stargazer.Bitmap(5))
+	response, err := client.Query(stargazer.Row(5))
 	if err != nil {
 		panic(err)
 	}

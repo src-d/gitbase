@@ -51,32 +51,20 @@ func (e Error) Error() string {
 }
 
 // Predefined Pilosa errors.
-// Deprecated. Use Err forms instead.
-var (
-	ErrorEmptyCluster     = NewError("No usable addresses in the cluster")
-	ErrorIndexExists      = NewError("Index exists")
-	ErrorFrameExists      = NewError("Frame exists")
-	ErrorInvalidIndexName = NewError("Invalid index name")
-	ErrorInvalidFrameName = NewError("Invalid frame name")
-	ErrorInvalidLabel     = NewError("Invalid label")
-	ErrorTriedMaxHosts    = NewError("Tried max hosts, still failing")
-)
-
-// Predefined Pilosa errors.
 var (
 	ErrEmptyCluster           = NewError("No usable addresses in the cluster")
 	ErrIndexExists            = NewError("Index exists")
-	ErrFrameExists            = NewError("Frame exists")
+	ErrFieldExists            = NewError("Field exists")
 	ErrInvalidIndexName       = NewError("Invalid index name")
-	ErrInvalidFrameName       = NewError("Invalid frame name")
+	ErrInvalidFieldName       = NewError("Invalid field name")
 	ErrInvalidLabel           = NewError("Invalid label")
 	ErrInvalidKey             = NewError("Invalid key")
 	ErrTriedMaxHosts          = NewError("Tried max hosts, still failing")
 	ErrAddrURIClusterExpected = NewError("Addresses, URIs or a cluster is expected")
 	ErrInvalidQueryOption     = NewError("Invalid query option")
 	ErrInvalidIndexOption     = NewError("Invalid index option")
-	ErrInvalidFrameOption     = NewError("Invalid frame option")
+	ErrInvalidFieldOption     = NewError("Invalid field option")
 	ErrNoFragmentNodes        = NewError("No fragment nodes")
-	ErrNoSlice                = NewError("Index has no slices")
+	ErrNoShard                = NewError("Index has no shards")
 	ErrUnknownType            = NewError("Unknown type")
 )

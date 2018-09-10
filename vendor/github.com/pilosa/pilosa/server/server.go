@@ -44,10 +44,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func init() {
-	rand.Seed(time.Now().UTC().UnixNano())
-}
-
 type loggerLogger interface {
 	pilosa.Logger
 	Logger() *log.Logger
@@ -125,6 +121,9 @@ func NewCommand(stdin io.Reader, stdout, stderr io.Writer, opts ...CommandOption
 // Start starts the pilosa server - it returns once the server is running.
 func (m *Command) Start() (err error) {
 	defer close(m.Started)
+
+	// Seed random number generator
+	rand.Seed(time.Now().UTC().UnixNano())
 
 	// SetupServer
 	err = m.SetupServer()
@@ -231,7 +230,7 @@ func (m *Command) SetupServer() error {
 
 	diagnosticsInterval := time.Duration(0)
 	if m.Config.Metric.Diagnostics {
-		diagnosticsInterval = time.Duration(defaultDiagnosticsInterval)
+		diagnosticsInterval = defaultDiagnosticsInterval
 	}
 
 	statsClient, err := newStatsClient(m.Config.Metric.Service, m.Config.Metric.Host)
@@ -251,10 +250,9 @@ func (m *Command) SetupServer() error {
 
 	c := http.GetHTTPClient(TLSConfig)
 
-	// Setup connection to primary store if this is a replica.
-	var primaryTranslateStore pilosa.TranslateStore
+	// Primary store configuration is handled automatically now.
 	if m.Config.Translation.PrimaryURL != "" {
-		primaryTranslateStore = http.NewTranslateStore(m.Config.Translation.PrimaryURL)
+		m.logger.Printf("DEPRECATED: The primary-url configuration option is no longer used.")
 	}
 
 	// Set Coordinator.
@@ -279,7 +277,7 @@ func (m *Command) SetupServer() error {
 		pilosa.OptServerStatsClient(statsClient),
 		pilosa.OptServerURI(uri),
 		pilosa.OptServerInternalClient(http.NewInternalClientFromURI(uri, c)),
-		pilosa.OptServerPrimaryTranslateStore(primaryTranslateStore),
+		pilosa.OptServerPrimaryTranslateStoreFunc(http.NewTranslateStore),
 		pilosa.OptServerClusterDisabled(m.Config.Cluster.Disabled, m.Config.Cluster.Hosts),
 		pilosa.OptServerSerializer(proto.Serializer{}),
 		coordinatorOpt,

@@ -233,7 +233,7 @@ func connectToBblfsh(endpoint string) (*bblfsh.Client, error) {
 
 // NewSessionBuilder creates a SessionBuilder with the given Repository Pool.
 func NewSessionBuilder(pool *RepositoryPool, opts ...SessionOption) server.SessionBuilder {
-	return func(_ *mysql.Conn) sql.Session {
+	return func(*mysql.Conn) sql.Session {
 		return NewSession(pool, opts...)
 	}
 }
@@ -251,3 +251,11 @@ var ErrInvalidContext = errors.NewKind("invalid context received: %v")
 
 // ErrBblfshConnection is returned when it's impossible to connect to bblfsh.
 var ErrBblfshConnection = errors.NewKind("unable to establish a connection with the bblfsh server")
+
+func shouldSkipErrors(ctx *sql.Context) bool {
+	s, err := getSession(ctx)
+	if err != nil {
+		return false
+	}
+	return s.SkipGitErrors
+}

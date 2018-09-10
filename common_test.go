@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 type CleanupFunc func()
@@ -58,4 +59,8 @@ func buildSession(t *testing.T, repos fixtures.Fixtures,
 	ctx = sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	return ctx, paths, cleanup
+}
+
+func tableToRows(ctx *sql.Context, t sql.Table) ([]sql.Row, error) {
+	return sql.NodeToRows(ctx, plan.NewResolvedTable("", t))
 }

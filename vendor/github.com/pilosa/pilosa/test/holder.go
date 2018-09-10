@@ -65,11 +65,7 @@ func (h *Holder) Reopen() error {
 	h.Holder.Path = path
 	h.Holder.Logger = logger
 	h.Holder.NewAttrStore = boltdb.NewAttrStore
-	if err := h.Holder.Open(); err != nil {
-		return err
-	}
-
-	return nil
+	return h.Holder.Open()
 }
 
 // MustCreateIndexIfNotExists returns a given index. Panic on error.
@@ -117,14 +113,19 @@ func (h *Holder) RowTime(index, field string, rowID uint64, t time.Time, quantum
 	return row
 }
 
-// SetBit clears a bit on the given field.
+// SetBit sets a bit on the given field.
 func (h *Holder) SetBit(index, field string, rowID, columnID uint64) {
+	h.SetBitTime(index, field, rowID, columnID, nil)
+}
+
+// SetBitTime sets a bit with timestamp on the given field.
+func (h *Holder) SetBitTime(index, field string, rowID, columnID uint64, t *time.Time) {
 	idx := h.MustCreateIndexIfNotExists(index, pilosa.IndexOptions{})
 	f, err := idx.CreateFieldIfNotExists(field, pilosa.OptFieldTypeDefault())
 	if err != nil {
 		panic(err)
 	}
-	_, err = f.SetBit(rowID, columnID, nil)
+	_, err = f.SetBit(rowID, columnID, t)
 	if err != nil {
 		panic(err)
 	}

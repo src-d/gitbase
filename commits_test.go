@@ -8,33 +8,13 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
-func TestCommitsTable_Name(t *testing.T) {
+func TestCommitsTable(t *testing.T) {
 	require := require.New(t)
-
-	table := getTable(require, CommitsTableName)
-	require.Equal(CommitsTableName, table.Name())
-
-	// Check that each column source is the same as table name
-	for _, c := range table.Schema() {
-		require.Equal(CommitsTableName, c.Source)
-	}
-}
-
-func TestCommitsTable_Children(t *testing.T) {
-	require := require.New(t)
-
-	table := getTable(require, CommitsTableName)
-	require.Equal(0, len(table.Children()))
-}
-
-func TestCommitsTable_RowIter(t *testing.T) {
-	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := getTable(require, CommitsTableName)
-
-	rows, err := sql.NodeToRows(session, table)
+	table := newCommitsTable()
+	rows, err := tableToRows(ctx, table)
 	require.Nil(err)
 	require.Len(rows, 9)
 
@@ -47,55 +27,49 @@ func TestCommitsTable_RowIter(t *testing.T) {
 
 func TestCommitsPushdown(t *testing.T) {
 	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newCommitsTable().(sql.PushdownProjectionAndFiltersTable)
+	table := newCommitsTable()
 
-	iter, err := table.WithProjectAndFilters(session, nil, nil)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 9)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t1 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(1, sql.Text, CommitsTableName, "blob_hash", false),
 			expression.NewLiteral("918c48b83bd081e863dbe1b80f8998f058cd8294", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t1)
 	require.NoError(err)
 	require.Len(rows, 1)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t2 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(1, sql.Text, CommitsTableName, "blob_hash", false),
 			expression.NewLiteral("not exists", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t2)
 	require.NoError(err)
 	require.Len(rows, 0)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t3 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(3, sql.Text, CommitsTableName, "commit_author_email", false),
 			expression.NewLiteral("mcuadros@gmail.com", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t3)
 	require.NoError(err)
 	require.Len(rows, 8)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t4 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(3, sql.Text, CommitsTableName, "commit_author_email", false),
 			expression.NewLiteral("mcuadros@gmail.com", sql.Text),
@@ -105,22 +79,18 @@ func TestCommitsPushdown(t *testing.T) {
 			expression.NewLiteral("vendor stuff\n", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t4)
 	require.NoError(err)
 	require.Len(rows, 1)
 }
 
 func TestCommitsParents(t *testing.T) {
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
 	table := newCommitsTable()
-	iter, err := table.RowIter(session)
-	require.NoError(t, err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(t, err)
 	require.Len(t, rows, 9)
 
@@ -210,7 +180,7 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 	defer cleanup()
 
 	table := new(commitsTable)
-	iter, err := table.IndexKeyValueIter(ctx, []string{"commit_hash", "commit_author_email"})
+	iter, err := table.IndexKeyValues(ctx, []string{"commit_hash", "commit_author_email"})
 	require.NoError(err)
 
 	var expected = []keyValue{

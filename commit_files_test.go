@@ -19,11 +19,7 @@ func TestCommitFilesTableRowIter(t *testing.T) {
 	ctx, _, cleanup := setupRepos(t)
 	defer cleanup()
 
-	rowIter, err := table.RowIter(ctx)
-	require.NoError(err)
-	defer func() { require.NoError(rowIter.Close()) }()
-
-	rows, err := sql.RowIterToRows(rowIter)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	var expected []sql.Row

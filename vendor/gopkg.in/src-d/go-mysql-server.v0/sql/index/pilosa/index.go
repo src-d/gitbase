@@ -1,6 +1,9 @@
 package pilosa
 
 import (
+	"context"
+	"sync"
+
 	errors "gopkg.in/src-d/go-errors.v1"
 
 	pilosa "github.com/pilosa/go-pilosa"
@@ -12,6 +15,8 @@ import (
 type pilosaIndex struct {
 	client  *pilosa.Client
 	mapping *mapping
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 
 	db          string
 	table       string
@@ -47,15 +52,16 @@ func (idx *pilosaIndex) Get(keys ...interface{}) (sql.IndexLookup, error) {
 	if err != nil {
 		return nil, err
 	}
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 
 	return &indexLookup{
 		id:          idx.ID(),
-		client:      idx.client,
 		index:       index,
+		client:      idx.client,
 		mapping:     idx.mapping,
 		keys:        keys,
 		expressions: idx.expressions,
@@ -63,7 +69,7 @@ func (idx *pilosaIndex) Get(keys ...interface{}) (sql.IndexLookup, error) {
 }
 
 // Has checks if the given key is present in the index mapping
-func (idx *pilosaIndex) Has(key ...interface{}) (bool, error) {
+func (idx *pilosaIndex) Has(p sql.Partition, key ...interface{}) (bool, error) {
 	idx.mapping.open()
 	defer idx.mapping.close()
 
@@ -75,7 +81,7 @@ func (idx *pilosaIndex) Has(key ...interface{}) (bool, error) {
 	// We can make this loop parallel, but does it make sense?
 	// For how many (maximum) keys will be asked by one function call?
 	for i, expr := range idx.expressions {
-		name := frameName(idx.ID(), expr)
+		name := fieldName(idx.ID(), expr, p)
 
 		val, err := idx.mapping.get(name, key[i])
 		if err != nil || val == nil {
@@ -119,8 +125,9 @@ func (idx *pilosaIndex) AscendGreaterOrEqual(keys ...interface{}) (sql.IndexLook
 	if err != nil {
 		return nil, err
 	}
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 
@@ -150,8 +157,9 @@ func (idx *pilosaIndex) AscendLessThan(keys ...interface{}) (sql.IndexLookup, er
 	if err != nil {
 		return nil, err
 	}
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 
@@ -185,8 +193,9 @@ func (idx *pilosaIndex) AscendRange(greaterOrEqual, lessThan []interface{}) (sql
 	if err != nil {
 		return nil, err
 	}
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 
@@ -215,8 +224,9 @@ func (idx *pilosaIndex) DescendGreater(keys ...interface{}) (sql.IndexLookup, er
 	if err != nil {
 		return nil, err
 	}
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 
@@ -247,8 +257,9 @@ func (idx *pilosaIndex) DescendLessOrEqual(keys ...interface{}) (sql.IndexLookup
 	if err != nil {
 		return nil, err
 	}
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 
@@ -283,8 +294,9 @@ func (idx *pilosaIndex) DescendRange(lessOrEqual, greaterThan []interface{}) (sq
 	if err != nil {
 		return nil, err
 	}
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 
@@ -315,8 +327,8 @@ func (idx *pilosaIndex) Not(keys ...interface{}) (sql.IndexLookup, error) {
 		return nil, err
 	}
 
-	index, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+	index := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := idx.client.EnsureIndex(index); err != nil {
 		return nil, err
 	}
 

@@ -114,7 +114,7 @@ func (g *memberSet) joinWithRetry(hosts []string) error {
 }
 
 // retry periodically retries function fn a specified number of attempts.
-func retry(attempts int, sleep time.Duration, fn func() error) (err error) {
+func retry(attempts int, sleep time.Duration, fn func() error) (err error) { // nolint: unparam
 	for i := 0; ; i++ {
 		err = fn()
 		if err == nil {
@@ -305,15 +305,15 @@ func newEventReceiver(logger *log.Logger, papi *pilosa.API) *eventReceiver {
 }
 
 func (g *eventReceiver) NotifyJoin(n *memberlist.Node) {
-	g.ch <- memberlist.NodeEvent{memberlist.NodeJoin, n}
+	g.ch <- memberlist.NodeEvent{Event: memberlist.NodeJoin, Node: n}
 }
 
 func (g *eventReceiver) NotifyLeave(n *memberlist.Node) {
-	g.ch <- memberlist.NodeEvent{memberlist.NodeLeave, n}
+	g.ch <- memberlist.NodeEvent{Event: memberlist.NodeLeave, Node: n}
 }
 
 func (g *eventReceiver) NotifyUpdate(n *memberlist.Node) {
-	g.ch <- memberlist.NodeEvent{memberlist.NodeUpdate, n}
+	g.ch <- memberlist.NodeEvent{Event: memberlist.NodeUpdate, Node: n}
 }
 
 func (g *eventReceiver) listen() {

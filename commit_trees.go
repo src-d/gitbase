@@ -9,11 +9,12 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
-type commitTreesTable struct{}
+type commitTreesTable struct {
+	filters []sql.Expression
+	index   sql.IndexLookup
+}
 
 // CommitTreesSchema is the schema for the commit trees table.
 var CommitTreesSchema = sql.Schema{
@@ -22,12 +23,11 @@ var CommitTreesSchema = sql.Schema{
 	{Name: "tree_hash", Type: sql.Text, Source: CommitTreesTableName},
 }
 
-var _ sql.PushdownProjectionAndFiltersTable = (*commitTreesTable)(nil)
-
 func newCommitTreesTable() Indexable {
 	return new(commitTreesTable)
 }
 
+var _ Table = (*commitTreesTable)(nil)
 var _ Squashable = (*commitTreesTable)(nil)
 
 func (commitTreesTable) isSquashable()   {}
@@ -37,49 +37,65 @@ func (commitTreesTable) String() string {
 	return printTable(CommitTreesTableName, CommitTreesSchema)
 }
 
-func (commitTreesTable) Resolved() bool { return true }
-
 func (commitTreesTable) Name() string { return CommitTreesTableName }
 
 func (commitTreesTable) Schema() sql.Schema { return CommitTreesSchema }
 
-func (t *commitTreesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(t)
+func (t *commitTreesTable) WithFilters(filters []sql.Expression) sql.Table {
+	nt := *t
+	nt.filters = filters
+	return &nt
 }
 
-func (t *commitTreesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	return t, nil
+func (t *commitTreesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
+	nt := *t
+	nt.index = idx
+	return &nt
 }
 
-func (commitTreesTable) Children() []sql.Node { return nil }
+func (t *commitTreesTable) IndexLookup() sql.IndexLookup { return t.index }
+func (t *commitTreesTable) Filters() []sql.Expression    { return t.filters }
 
-func (commitTreesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.CommitTreesTable")
-	iter, err := NewRowRepoIter(ctx, &commitTreesIter{ctx: ctx})
+func (t *commitTreesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	return newRepositoryPartitionIter(ctx)
+}
+
+func (t *commitTreesTable) PartitionRows(
+	ctx *sql.Context,
+	p sql.Partition,
+) (sql.RowIter, error) {
+	repo, err := getPartitionRepo(ctx, p)
 	if err != nil {
-		span.Finish()
 		return nil, err
 	}
 
-	return sql.NewSpanIter(span, iter), nil
-}
-
-func (commitTreesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(CommitTreesTableName, CommitTreesSchema, filters)
-}
-
-func (commitTreesTable) handledColumns() []string { return []string{"commit_hash", "repository_id"} }
-
-func (t *commitTreesTable) WithProjectAndFilters(
-	ctx *sql.Context,
-	_, filters []sql.Expression,
-) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.CommitTreesTable")
 	iter, err := rowIterWithSelectors(
 		ctx, CommitTreesSchema, CommitTreesTableName,
-		filters, nil,
+		t.filters,
 		t.handledColumns(),
-		commitTreesIterBuilder,
+		func(selectors selectors) (sql.RowIter, error) {
+			repos, err := selectors.textValues("repository_id")
+			if err != nil {
+				return nil, err
+			}
+
+			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+				return noRows, nil
+			}
+
+			hashes, err := selectors.textValues("commit_hash")
+			if err != nil {
+				return nil, err
+			}
+
+			return &commitTreesRowIter{
+				ctx:           ctx,
+				repo:          repo,
+				commitHashes:  stringsToHashes(hashes),
+				skipGitErrors: shouldSkipErrors(ctx),
+			}, nil
+		},
 	)
 
 	if err != nil {
@@ -90,50 +106,25 @@ func (t *commitTreesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
-// IndexKeyValueIter implements the sql.Indexable interface.
-func (*commitTreesTable) IndexKeyValueIter(
+// IndexKeyValues implements the sql.IndexableTable interface.
+func (*commitTreesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
-) (sql.IndexKeyValueIter, error) {
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	iter, err := NewRowRepoIter(ctx, &commitTreesIter{ctx: ctx})
-	if err != nil {
-		return nil, err
-	}
-
-	return &rowKeyValueIter{
-		new(commitTreesRowKeyMapper),
-		iter,
+) (sql.PartitionIndexKeyValueIter, error) {
+	return newTablePartitionIndexKeyValueIter(
+		ctx,
+		newCommitTreesTable(),
+		CommitTreesTableName,
 		colNames,
-		CommitTreesSchema,
-	}, nil
+		new(commitTreesRowKeyMapper),
+	)
 }
 
-// WithProjectFiltersAndIndex implements sql.Indexable interface.
-func (*commitTreesTable) WithProjectFiltersAndIndex(
-	ctx *sql.Context,
-	columns, filters []sql.Expression,
-	index sql.IndexValueIter,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.CommitTreesTable.WithProjectFiltersAndIndex")
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		span.Finish()
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	var iter sql.RowIter = &rowIndexIter{new(commitTreesRowKeyMapper), index}
-
-	if len(filters) > 0 {
-		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
-	}
-
-	return sql.NewSpanIter(span, iter), nil
+func (commitTreesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
+	return handledFilters(CommitTreesTableName, CommitTreesSchema, filters)
 }
+
+func (commitTreesTable) handledColumns() []string { return []string{"commit_hash", "repository_id"} }
 
 type commitTreesRowKeyMapper struct{}
 
@@ -192,65 +183,73 @@ func (commitTreesRowKeyMapper) toRow(data []byte) (sql.Row, error) {
 	return sql.Row{repo, commit, tree}, nil
 }
 
-func commitTreesIterBuilder(ctx *sql.Context, selectors selectors, columns []sql.Expression) (RowRepoIter, error) {
-	repos, err := selectors.textValues("repository_id")
-	if err != nil {
-		return nil, err
-	}
-
-	hashes, err := selectors.textValues("commit_hash")
-	if err != nil {
-		return nil, err
-	}
-
-	return &commitTreesIter{
-		ctx:          ctx,
-		commitHashes: hashes,
-		repos:        repos,
-	}, nil
-}
-
-type commitTreesIter struct {
-	ctx  *sql.Context
-	repo *Repository
+type commitTreesRowIter struct {
+	ctx           *sql.Context
+	repo          *Repository
+	skipGitErrors bool
+	index         sql.IndexValueIter
 
 	commits object.CommitIter
 	commit  *object.Commit
 	trees   *object.TreeWalker
 
 	// selectors for faster filtering
-	repos        []string
-	commitHashes []string
+	commitHashes []plumbing.Hash
+	mapper       commitTreesRowKeyMapper
 }
 
-func (i *commitTreesIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	var commits object.CommitIter
-	if len(i.repos) == 0 || stringContains(i.repos, repo.ID) {
-		var err error
-		commits, err = NewCommitsByHashIter(repo, i.commitHashes)
+func (i *commitTreesRowIter) Next() (sql.Row, error) {
+	if i.index != nil {
+		return i.nextFromIndex()
+	}
+
+	return i.next()
+}
+
+func (i *commitTreesRowIter) init() error {
+	var err error
+	if len(i.commitHashes) > 0 {
+		i.commits, err = NewCommitsByHashIter(i.repo, i.commitHashes)
+	} else {
+		i.commits, err = i.repo.Repo.CommitObjects()
+	}
+
+	return err
+}
+
+var commitTreesHashIdx = CommitTreesSchema.IndexOf("commit_hash", CommitTreesTableName)
+
+func (i *commitTreesRowIter) nextFromIndex() (sql.Row, error) {
+	for {
+		key, err := i.index.Next()
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	return &commitTreesIter{
-		ctx:          i.ctx,
-		repo:         repo,
-		commits:      commits,
-		repos:        i.repos,
-		commitHashes: i.commitHashes,
-	}, nil
+		row, err := i.mapper.toRow(key)
+		if err != nil {
+			return nil, err
+		}
+
+		hash := plumbing.NewHash(row[commitTreesHashIdx].(string))
+		if len(i.commitHashes) > 0 && !hashContains(i.commitHashes, hash) {
+			continue
+		}
+
+		return row, nil
+	}
 }
 
-func (i *commitTreesIter) Next() (sql.Row, error) {
-	s, ok := i.ctx.Session.(*Session)
-	if !ok {
-		return nil, ErrInvalidGitbaseSession.New(i.ctx.Session)
-	}
-
+func (i *commitTreesRowIter) next() (sql.Row, error) {
 	for {
 		if i.commits == nil {
-			return nil, io.EOF
+			if err := i.init(); err != nil {
+				if i.skipGitErrors {
+					return nil, io.EOF
+				}
+
+				return nil, err
+			}
 		}
 
 		var tree *object.Tree
@@ -262,7 +261,7 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 					return nil, io.EOF
 				}
 
-				if s.SkipGitErrors {
+				if i.skipGitErrors {
 					continue
 				}
 
@@ -271,7 +270,7 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 
 			tree, err = commit.Tree()
 			if err != nil {
-				if s.SkipGitErrors {
+				if i.skipGitErrors {
 					continue
 				}
 
@@ -295,7 +294,7 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 			i.trees.Close()
 			i.trees = nil
 
-			if err == io.EOF || s.SkipGitErrors {
+			if err == io.EOF || i.skipGitErrors {
 				continue
 			}
 
@@ -314,13 +313,17 @@ func (i *commitTreesIter) Next() (sql.Row, error) {
 	}
 }
 
-func (i *commitTreesIter) Close() error {
+func (i *commitTreesRowIter) Close() error {
 	if i.commits != nil {
 		i.commits.Close()
 	}
 
 	if i.trees != nil {
 		i.trees.Close()
+	}
+
+	if i.index != nil {
+		return i.index.Close()
 	}
 
 	return nil

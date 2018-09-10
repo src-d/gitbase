@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -51,6 +52,7 @@ type Server struct {
 	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
 	TraceEnabled  bool     `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
 	ReadOnly      bool     `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
+	Parallelism   uint     `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
 
 	SkipGitErrors bool // SkipGitErrors disables failing when Git errors are found.
 	DisableGit    bool `long:"no-git" description:"disable the load of git standard repositories."`
@@ -67,12 +69,30 @@ func (l *jaegerLogrus) Error(s string) {
 	l.Entry.Error(s)
 }
 
-func NewDatabaseEngine(readonly bool, version string) *sqle.Engine {
+func NewDatabaseEngine(
+	readonly bool,
+	version string,
+	parallelism int,
+	squash bool,
+) *sqle.Engine {
 	catalog := sql.NewCatalog()
 	ab := analyzer.NewBuilder(catalog)
 	if readonly {
 		ab = ab.ReadOnly()
 	}
+
+	if parallelism == 0 {
+		parallelism = runtime.NumCPU()
+	}
+
+	if parallelism > 1 {
+		ab = ab.WithParallelism(parallelism)
+	}
+
+	if squash {
+		ab = ab.AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins)
+	}
+
 	a := ab.Build()
 	engine := sqle.New(catalog, a, &sqle.Config{
 		VersionPostfix: version,
@@ -156,7 +176,12 @@ func (c *Server) Execute(args []string) error {
 
 func (c *Server) buildDatabase() error {
 	if c.engine == nil {
-		c.engine = NewDatabaseEngine(c.ReadOnly, c.Version)
+		c.engine = NewDatabaseEngine(
+			c.ReadOnly,
+			c.Version,
+			int(c.Parallelism),
+			!c.DisableSquash,
+		)
 	}
 
 	c.pool = gitbase.NewRepositoryPool()
@@ -177,12 +202,6 @@ func (c *Server) buildDatabase() error {
 
 	if !c.DisableSquash {
 		logrus.Info("squash tables rule is enabled")
-		a := analyzer.NewBuilder(c.engine.Catalog).
-			AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
-			Build()
-
-		a.CurrentDatabase = c.engine.Analyzer.CurrentDatabase
-		c.engine.Analyzer = a
 	} else {
 		logrus.Warn("squash tables rule is disabled")
 	}

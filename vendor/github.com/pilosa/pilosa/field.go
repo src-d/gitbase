@@ -47,9 +47,10 @@ const (
 
 // Field types.
 const (
-	FieldTypeSet  = "set"
-	FieldTypeInt  = "int"
-	FieldTypeTime = "time"
+	FieldTypeSet   = "set"
+	FieldTypeInt   = "int"
+	FieldTypeTime  = "time"
+	FieldTypeMutex = "mutex"
 )
 
 // Field represents a container for views.
@@ -134,6 +135,18 @@ func OptFieldTypeTime(timeQuantum TimeQuantum) FieldOption {
 		}
 		fo.Type = FieldTypeTime
 		fo.TimeQuantum = timeQuantum
+		return nil
+	}
+}
+
+func OptFieldTypeMutex(cacheType string, cacheSize uint32) FieldOption {
+	return func(fo *FieldOptions) error {
+		if fo.Type != "" {
+			return errors.Errorf("field type is already set to: %s", fo.Type)
+		}
+		fo.Type = FieldTypeMutex
+		fo.CacheType = cacheType
+		fo.CacheSize = cacheSize
 		return nil
 	}
 }
@@ -400,6 +413,18 @@ func (f *Field) applyOptions(opt FieldOptions) error {
 			f.Close()
 			return errors.Wrap(err, "setting time quantum")
 		}
+	case FieldTypeMutex:
+		f.options.Type = FieldTypeMutex
+		if opt.CacheType != "" {
+			f.options.CacheType = opt.CacheType
+		}
+		if opt.CacheSize != 0 {
+			f.options.CacheSize = opt.CacheSize
+		}
+		f.options.Min = 0
+		f.options.Max = 0
+		f.options.TimeQuantum = ""
+		f.options.Keys = opt.Keys
 	default:
 		return errors.New("invalid field type")
 	}
@@ -489,43 +514,6 @@ func (f *Field) addBSIGroup(bsig *bsiGroup) error {
 	return nil
 }
 
-// deleteBSIGroupAndView deletes an existing bsiGroup on the schema.
-func (f *Field) deleteBSIGroupAndView(name string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	// Remove bsiGroup.
-	if err := f.deleteBSIGroup(name); err != nil {
-		return err
-	}
-
-	// Remove views.
-	viewName := viewBSIGroupPrefix + name
-	if view := f.viewMap[viewName]; view != nil {
-		delete(f.viewMap, viewName)
-
-		if err := view.close(); err != nil {
-			return errors.Wrap(err, "closing view")
-		} else if err := os.RemoveAll(view.path); err != nil {
-			return errors.Wrap(err, "deleting directory")
-		}
-	}
-
-	return nil
-}
-
-// deleteBSIGroup removes a single bsiGroup from bsiGroups.
-func (f *Field) deleteBSIGroup(name string) error {
-	for i, bsig := range f.bsiGroups {
-		if bsig.Name == name {
-			copy(f.bsiGroups[i:], f.bsiGroups[i+1:])
-			f.bsiGroups, f.bsiGroups[len(f.bsiGroups)-1] = f.bsiGroups[:len(f.bsiGroups)-1], nil
-			return nil
-		}
-	}
-	return ErrBSIGroupNotFound
-}
-
 // TimeQuantum returns the time quantum for the field.
 func (f *Field) TimeQuantum() TimeQuantum {
 	f.mu.Lock()
@@ -594,18 +582,6 @@ func (f *Field) views() []*view {
 	return other
 }
 
-// viewNames returns a list of all views (as a string) in the field.
-func (f *Field) viewNames() []string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	other := make([]string, 0, len(f.viewMap))
-	for viewName, _ := range f.viewMap {
-		other = append(other, viewName)
-	}
-	return other
-}
-
 // recalculateCaches recalculates caches on every view in the field.
 func (f *Field) recalculateCaches() {
 	for _, view := range f.views() {
@@ -658,8 +634,7 @@ func (f *Field) createViewIfNotExistsBase(name string) (*view, bool, error) {
 }
 
 func (f *Field) newView(path, name string) *view {
-	view := newView(path, f.index, f.name, name, f.options.CacheSize)
-	view.cacheType = f.options.CacheType
+	view := newView(path, f.index, f.name, name, f.options)
 	view.logger = f.logger
 	view.rowAttrStore = f.rowAttrStore
 	view.stats = f.Stats.WithTags(fmt.Sprintf("view:%s", name))
@@ -797,7 +772,7 @@ func groupCompare(a, b string, offset int) (lt, eq bool) {
 }
 
 func (f *Field) allTimeViewsSortedByQuantum() (me []*view) {
-	me = make([]*view, len(f.viewMap), len(f.viewMap))
+	me = make([]*view, len(f.viewMap))
 	prefix := viewStandard + "_"
 	offset := len(viewStandard) + 1
 	i := 0
@@ -821,9 +796,9 @@ func (f *Field) allTimeViewsSortedByQuantum() (me []*view) {
 				}
 			}
 		}
-		return
+		return lt
 	})
-	return
+	return me
 }
 
 // Value reads a field value for a column.
@@ -955,29 +930,6 @@ func (f *Field) Range(name string, op pql.Token, predicate int64) (*Row, error) 
 	return view.rangeOp(op, bsig.BitDepth(), baseValue)
 }
 
-func (f *Field) rangeBetween(name string, predicateMin, predicateMax int64) (*Row, error) {
-	// Retrieve and validate bsiGroup.
-	bsig := f.bsiGroup(name)
-	if bsig == nil {
-		return nil, ErrBSIGroupNotFound
-	} else if predicateMin > predicateMax {
-		return nil, ErrInvalidBetweenValue
-	}
-
-	// Retrieve bsiGroup's view.
-	view := f.view(viewBSIGroupPrefix + name)
-	if view == nil {
-		return nil, nil
-	}
-
-	baseValueMin, baseValueMax, outOfRange := bsig.baseValueBetween(predicateMin, predicateMax)
-	if outOfRange {
-		return NewRow(), nil
-	}
-
-	return view.rangeBetween(bsig.BitDepth(), baseValueMin, baseValueMax)
-}
-
 // Import bulk imports data.
 func (f *Field) Import(rowIDs, columnIDs []uint64, timestamps []*time.Time) error {
 	// Determine quantum if timestamps are set.
@@ -1048,9 +1000,9 @@ func (f *Field) importValue(columnIDs []uint64, values []int64) error {
 	dataByFragment := make(map[importKey]importValueData)
 	for i := range columnIDs {
 		columnID, value := columnIDs[i], values[i]
-		if int64(value) > bsig.Max {
+		if value > bsig.Max {
 			return fmt.Errorf("%v, columnID=%v, value=%v", ErrBSIGroupValueTooHigh, columnID, value)
-		} else if int64(value) < bsig.Min {
+		} else if value < bsig.Min {
 			return fmt.Errorf("%v, columnID=%v, value=%v", ErrBSIGroupValueTooLow, columnID, value)
 		}
 
@@ -1113,13 +1065,13 @@ func (p fieldInfoSlice) Less(i, j int) bool { return p[i].Name < p[j].Name }
 
 // FieldOptions represents options to set when initializing a field.
 type FieldOptions struct {
-	Type        string      `json:"type,omitempty"`
-	CacheType   string      `json:"cacheType,omitempty"`
-	CacheSize   uint32      `json:"cacheSize,omitempty"`
 	Min         int64       `json:"min,omitempty"`
 	Max         int64       `json:"max,omitempty"`
-	TimeQuantum TimeQuantum `json:"timeQuantum,omitempty"`
 	Keys        bool        `json:"keys"`
+	CacheSize   uint32      `json:"cacheSize,omitempty"`
+	CacheType   string      `json:"cacheType,omitempty"`
+	Type        string      `json:"type,omitempty"`
+	TimeQuantum TimeQuantum `json:"timeQuantum,omitempty"`
 }
 
 // applyDefaultOptions returns a new FieldOptions object
@@ -1189,6 +1141,18 @@ func (o *FieldOptions) MarshalJSON() ([]byte, error) {
 		}{
 			o.Type,
 			o.TimeQuantum,
+			o.Keys,
+		})
+	case FieldTypeMutex:
+		return json.Marshal(struct {
+			Type      string `json:"type"`
+			CacheType string `json:"cacheType"`
+			CacheSize uint32 `json:"cacheSize"`
+			Keys      bool   `json:"keys"`
+		}{
+			o.Type,
+			o.CacheType,
+			o.CacheSize,
 			o.Keys,
 		})
 	}

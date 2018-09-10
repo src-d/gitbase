@@ -4,14 +4,15 @@ import (
 	"io"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
-type commitsTable struct{}
+type commitsTable struct {
+	filters []sql.Expression
+	index   sql.IndexLookup
+}
 
 // CommitsSchema is the schema for the commits table.
 var CommitsSchema = sql.Schema{
@@ -28,9 +29,7 @@ var CommitsSchema = sql.Schema{
 	{Name: "commit_parents", Type: sql.Array(sql.Text), Nullable: false, Source: CommitsTableName},
 }
 
-var _ sql.PushdownProjectionAndFiltersTable = (*commitsTable)(nil)
-
-func newCommitsTable() Indexable {
+func newCommitsTable() *commitsTable {
 	return new(commitsTable)
 }
 
@@ -44,10 +43,6 @@ func (commitsTable) String() string {
 	return printTable(CommitsTableName, CommitsSchema)
 }
 
-func (commitsTable) Resolved() bool {
-	return true
-}
-
 func (commitsTable) Name() string {
 	return CommitsTableName
 }
@@ -56,49 +51,69 @@ func (commitsTable) Schema() sql.Schema {
 	return CommitsSchema
 }
 
-func (r *commitsTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(r)
+func (r *commitsTable) WithFilters(filters []sql.Expression) sql.Table {
+	nt := *r
+	nt.filters = filters
+	return &nt
 }
 
-func (r *commitsTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	return r, nil
+func (r *commitsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
+	nt := *r
+	nt.index = idx
+	return &nt
 }
 
-func (r commitsTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.CommitsTable")
-	iter := new(commitIter)
+func (r *commitsTable) IndexLookup() sql.IndexLookup { return r.index }
+func (r *commitsTable) Filters() []sql.Expression    { return r.filters }
 
-	repoIter, err := NewRowRepoIter(ctx, iter)
+func (r *commitsTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	return newRepositoryPartitionIter(ctx)
+}
+
+func (r *commitsTable) PartitionRows(
+	ctx *sql.Context,
+	p sql.Partition,
+) (sql.RowIter, error) {
+	repo, err := getPartitionRepo(ctx, p)
 	if err != nil {
-		span.Finish()
 		return nil, err
 	}
 
-	return sql.NewSpanIter(span, repoIter), nil
-}
-
-func (commitsTable) Children() []sql.Node {
-	return nil
-}
-
-func (commitsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(CommitsTableName, CommitsSchema, filters)
-}
-
-func (commitsTable) handledColumns() []string {
-	return []string{"commit_hash"}
-}
-
-func (r *commitsTable) WithProjectAndFilters(
-	ctx *sql.Context,
-	_, filters []sql.Expression,
-) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.CommitsTable")
 	iter, err := rowIterWithSelectors(
 		ctx, CommitsSchema, CommitsTableName,
-		filters, nil,
+		r.filters,
 		r.handledColumns(),
-		commitsIterBuilder,
+		func(selectors selectors) (sql.RowIter, error) {
+			hashes, err := selectors.textValues("commit_hash")
+			if err != nil {
+				return nil, err
+			}
+
+			if r.index != nil {
+				indexValues, err := r.index.Values(p)
+				if err != nil {
+					return nil, err
+				}
+
+				s, err := getSession(ctx)
+				if err != nil {
+					return nil, err
+				}
+
+				return newCommitsIndexIter(
+					indexValues,
+					s.Pool,
+					stringsToHashes(hashes),
+				), nil
+			}
+
+			return &commitIter{
+				repo:          repo,
+				hashes:        stringsToHashes(hashes),
+				skipGitErrors: shouldSkipErrors(ctx),
+			}, nil
+		},
 	)
 
 	if err != nil {
@@ -109,77 +124,68 @@ func (r *commitsTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
-// IndexKeyValueIter implements the sql.Indexable interface.
-func (*commitsTable) IndexKeyValueIter(
+func (commitsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
+	return handledFilters(CommitsTableName, CommitsSchema, filters)
+}
+
+func (commitsTable) handledColumns() []string {
+	return []string{"commit_hash"}
+}
+
+// IndexKeyValues implements the sql.IndexableTable interface.
+func (*commitsTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
-) (sql.IndexKeyValueIter, error) {
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	return newCommitsKeyValueIter(s.Pool, colNames)
-}
-
-// WithProjectFiltersAndIndex implements sql.Indexable interface.
-func (*commitsTable) WithProjectFiltersAndIndex(
-	ctx *sql.Context,
-	columns, filters []sql.Expression,
-	index sql.IndexValueIter,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.CommitsTable.WithProjectFiltersAndIndex")
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		span.Finish()
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	session, err := getSession(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var iter sql.RowIter = newCommitsIndexIter(index, session.Pool)
-
-	if len(filters) > 0 {
-		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
-	}
-
-	return sql.NewSpanIter(span, iter), nil
-}
-
-func commitsIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
-	hashes, err := selectors.textValues("commit_hash")
-	if err != nil {
-		return nil, err
-	}
-
-	return &commitIter{hashes: hashes}, nil
+) (sql.PartitionIndexKeyValueIter, error) {
+	return newPartitionedIndexKeyValueIter(
+		ctx,
+		newCommitsTable(),
+		colNames,
+		newCommitsKeyValueIter,
+	)
 }
 
 type commitIter struct {
-	repoID string
-	iter   object.CommitIter
-	hashes []string
+	repo          *Repository
+	iter          object.CommitIter
+	hashes        []plumbing.Hash
+	skipGitErrors bool
 }
 
-func (i *commitIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	iter, err := NewCommitsByHashIter(repo, i.hashes)
-	if err != nil {
-		return nil, err
+func (i *commitIter) init() error {
+	var err error
+	if len(i.hashes) > 0 {
+		i.iter, err = NewCommitsByHashIter(i.repo, i.hashes)
+	} else {
+		i.iter, err = i.repo.Repo.CommitObjects()
 	}
 
-	return &commitIter{repoID: repo.ID, iter: iter}, nil
+	return err
 }
 
 func (i *commitIter) Next() (sql.Row, error) {
-	o, err := i.iter.Next()
-	if err != nil {
-		return nil, err
-	}
+	for {
+		if i.iter == nil {
+			if err := i.init(); err != nil {
+				if i.skipGitErrors {
+					return nil, io.EOF
+				}
 
-	return commitToRow(i.repoID, o), nil
+				return nil, err
+			}
+		}
+
+		o, err := i.iter.Next()
+		if err != nil {
+			if err != io.EOF && i.skipGitErrors {
+				continue
+			}
+
+			return nil, err
+		}
+
+		return commitToRow(i.repo.ID, o), nil
+	}
 }
 
 func (i *commitIter) Close() error {
@@ -217,7 +223,7 @@ func getParentHashes(c *object.Commit) []interface{} {
 
 type commitsByHashIter struct {
 	repo       *Repository
-	hashes     []string
+	hashes     []plumbing.Hash
 	pos        int
 	commitIter object.CommitIter
 }
@@ -226,7 +232,7 @@ type commitsByHashIter struct {
 // to iterate. If the list is empty it scans all commits.
 func NewCommitsByHashIter(
 	repo *Repository,
-	hashes []string,
+	hashes []plumbing.Hash,
 ) (object.CommitIter, error) {
 	var commitIter object.CommitIter
 	var err error
@@ -282,9 +288,8 @@ func (i *commitsByHashIter) nextList() (*object.Commit, error) {
 			return nil, io.EOF
 		}
 
-		hash := plumbing.NewHash(i.hashes[i.pos])
+		commit, err := i.repo.Repo.CommitObject(i.hashes[i.pos])
 		i.pos++
-		commit, err := i.repo.Repo.CommitObject(hash)
 		if err == plumbing.ErrObjectNotFound {
 			continue
 		}
@@ -299,54 +304,40 @@ func (i *commitsByHashIter) nextList() (*object.Commit, error) {
 
 type commitsKeyValueIter struct {
 	repo    *Repository
-	pool    *RepositoryPool
-	repos   *RepositoryIter
 	commits object.CommitIter
 	idx     *repositoryIndex
 	columns []string
 }
 
-func newCommitsKeyValueIter(pool *RepositoryPool, columns []string) (*commitsKeyValueIter, error) {
-	repos, err := pool.RepoIter()
+func newCommitsKeyValueIter(
+	pool *RepositoryPool,
+	repo *Repository,
+	columns []string,
+) (sql.IndexKeyValueIter, error) {
+	var err error
+	r := pool.repositories[repo.ID]
+	idx, err := newRepositoryIndex(r)
+	if err != nil {
+		return nil, err
+	}
+
+	commits, err := repo.Repo.CommitObjects()
 	if err != nil {
 		return nil, err
 	}
 
 	return &commitsKeyValueIter{
-		pool:    pool,
-		repos:   repos,
 		columns: columns,
+		idx:     idx,
+		repo:    repo,
+		commits: commits,
 	}, nil
 }
 
 func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
 	for {
-		if i.commits == nil {
-			var err error
-			i.repo, err = i.repos.Next()
-			if err != nil {
-				return nil, nil, err
-			}
-
-			i.commits, err = i.repo.Repo.CommitObjects()
-			if err != nil {
-				return nil, nil, err
-			}
-
-			r := i.pool.repositories[i.repo.ID]
-			i.idx, err = newRepositoryIndex(r)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
 		commit, err := i.commits.Next()
 		if err != nil {
-			if err == io.EOF {
-				i.commits = nil
-				continue
-			}
-
 			return nil, nil, err
 		}
 
@@ -380,56 +371,73 @@ func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
 	}
 }
 
-func (i *commitsKeyValueIter) Close() error { return i.repos.Close() }
+func (i *commitsKeyValueIter) Close() error {
+	if i.commits != nil {
+		i.commits.Close()
+	}
+	return nil
+}
 
 type commitsIndexIter struct {
 	index   sql.IndexValueIter
+	hashes  []plumbing.Hash
 	decoder *objectDecoder
 	commit  *object.Commit // holds the last obtained commit
 	repoID  string         // holds the ID of the last obtained commit repository
 }
 
-func newCommitsIndexIter(index sql.IndexValueIter, pool *RepositoryPool) *commitsIndexIter {
+func newCommitsIndexIter(
+	index sql.IndexValueIter,
+	pool *RepositoryPool,
+	hashes []plumbing.Hash,
+) *commitsIndexIter {
 	return &commitsIndexIter{
 		index:   index,
 		decoder: newObjectDecoder(pool),
+		hashes:  hashes,
 	}
 }
 
 func (i *commitsIndexIter) Next() (sql.Row, error) {
-	var err error
-	var data []byte
-	defer closeIndexOnError(&err, i.index)
+	for {
+		var err error
+		var data []byte
+		defer closeIndexOnError(&err, i.index)
 
-	data, err = i.index.Next()
-	if err != nil {
-		return nil, err
+		data, err = i.index.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		var key packOffsetIndexKey
+		if err = decodeIndexKey(data, &key); err != nil {
+			return nil, err
+		}
+
+		i.repoID = key.Repository
+
+		obj, err := i.decoder.decode(
+			key.Repository,
+			plumbing.NewHash(key.Packfile),
+			key.Offset,
+			plumbing.NewHash(key.Hash),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var ok bool
+		i.commit, ok = obj.(*object.Commit)
+		if !ok {
+			return nil, ErrInvalidObjectType.New(obj, "*object.Commit")
+		}
+
+		if len(i.hashes) > 0 && !hashContains(i.hashes, i.commit.Hash) {
+			continue
+		}
+
+		return commitToRow(key.Repository, i.commit), nil
 	}
-
-	var key packOffsetIndexKey
-	if err = decodeIndexKey(data, &key); err != nil {
-		return nil, err
-	}
-
-	i.repoID = key.Repository
-
-	obj, err := i.decoder.decode(
-		key.Repository,
-		plumbing.NewHash(key.Packfile),
-		key.Offset,
-		plumbing.NewHash(key.Hash),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var ok bool
-	i.commit, ok = obj.(*object.Commit)
-	if !ok {
-		return nil, ErrInvalidObjectType.New(obj, "*object.Commit")
-	}
-
-	return commitToRow(key.Repository, i.commit), nil
 }
 
 func (i *commitsIndexIter) Close() error {

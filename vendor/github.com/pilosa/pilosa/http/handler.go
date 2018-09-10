@@ -51,8 +51,6 @@ type Handler struct {
 
 	api *pilosa.API
 
-	allowedOrigins []string
-
 	ln net.Listener
 
 	closeTimeout time.Duration
@@ -178,7 +176,7 @@ func (h *Handler) populateValidators() {
 	h.validators["GetExport"] = queryValidationSpecRequired("index", "field", "shard")
 	h.validators["GetFragmentData"] = queryValidationSpecRequired("index", "field", "shard")
 	h.validators["PostFragmentData"] = queryValidationSpecRequired("index", "field", "shard")
-	h.validators["GetFragmentBlocks"] = queryValidationSpecRequired("index", "field", "shard")
+	h.validators["GetFragmentBlocks"] = queryValidationSpecRequired("index", "field", "view", "shard")
 }
 
 func (h *Handler) queryArgValidator(next http.Handler) http.Handler {
@@ -234,6 +232,7 @@ func newRouter(handler *Handler) *mux.Router {
 	router.HandleFunc("/internal/fragment/nodes", handler.handleGetFragmentNodes).Methods("GET").Name("GetFragmentNodes")
 	router.HandleFunc("/internal/index/{index}/attr/diff", handler.handlePostIndexAttrDiff).Methods("POST")
 	router.HandleFunc("/internal/index/{index}/field/{field}/attr/diff", handler.handlePostFieldAttrDiff).Methods("POST")
+	router.HandleFunc("/internal/nodes", handler.handleGetNodes).Methods("GET").Name("GetNodes")
 	router.HandleFunc("/internal/shards/max", handler.handleGetShardsMax).Methods("GET") // TODO: deprecate, but it's being used by the client
 	router.HandleFunc("/internal/translate/data", handler.handleGetTranslateData).Methods("GET")
 
@@ -247,7 +246,7 @@ func newRouter(handler *Handler) *mux.Router {
 	return router
 }
 
-func (h *Handler) methodNotAllowedHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) methodNotAllowedHandler(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }
 
@@ -302,7 +301,7 @@ type successResponse struct {
 func (r *successResponse) check(err error) (statusCode int) {
 	if err == nil {
 		r.Success = true
-		return
+		return 0
 	}
 
 	cause := errors.Cause(err)
@@ -322,7 +321,7 @@ func (r *successResponse) check(err error) (statusCode int) {
 	r.Success = false
 	r.Error = &Error{Message: cause.Error()}
 
-	return
+	return statusCode
 }
 
 // write sends a response to the http.ResponseWriter based on the success
@@ -347,7 +346,7 @@ func (r *successResponse) write(w http.ResponseWriter, err error) {
 	}
 }
 
-func (h *Handler) handleHome(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleHome(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "Welcome. Pilosa is running. Visit https://www.pilosa.com/docs/ for more information.", http.StatusNotFound)
 }
 
@@ -684,6 +683,8 @@ func (h *Handler) handlePostField(w http.ResponseWriter, r *http.Request) {
 		fos = append(fos, pilosa.OptFieldTypeInt(*req.Options.Min, *req.Options.Max))
 	case pilosa.FieldTypeTime:
 		fos = append(fos, pilosa.OptFieldTypeTime(*req.Options.TimeQuantum))
+	case pilosa.FieldTypeMutex:
+		fos = append(fos, pilosa.OptFieldTypeMutex(*req.Options.CacheType, *req.Options.CacheSize))
 	}
 	if req.Options.Keys != nil {
 		if *req.Options.Keys {
@@ -760,6 +761,20 @@ func (o *fieldOptions) validate() error {
 			return pilosa.NewBadRequestError(errors.New("max does not apply to field type time"))
 		} else if o.TimeQuantum == nil {
 			return pilosa.NewBadRequestError(errors.New("timeQuantum is required for field type time"))
+		}
+	case pilosa.FieldTypeMutex:
+		if o.CacheType == nil {
+			o.CacheType = &defaultCacheType
+		}
+		if o.CacheSize == nil {
+			o.CacheSize = &defaultCacheSize
+		}
+		if o.Min != nil {
+			return pilosa.NewBadRequestError(errors.New("min does not apply to field type mutex"))
+		} else if o.Max != nil {
+			return pilosa.NewBadRequestError(errors.New("max does not apply to field type mutex"))
+		} else if o.TimeQuantum != nil {
+			return pilosa.NewBadRequestError(errors.New("timeQuantum does not apply to field type mutex"))
 		}
 	default:
 		return errors.Errorf("invalid field type: %s", o.Type)
@@ -878,7 +893,7 @@ func (h *Handler) readURLQueryRequest(r *http.Request) (*pilosa.QueryRequest, er
 }
 
 // writeQueryResponse writes the response from the executor to w.
-func (h *Handler) writeQueryResponse(w http.ResponseWriter, r *http.Request, resp *pilosa.QueryResponse) error {
+func (h *Handler) writeQueryResponse(w io.Writer, r *http.Request, resp *pilosa.QueryResponse) error {
 	if !validHeaderAcceptJSON(r.Header) {
 		return h.writeProtobufQueryResponse(w, resp)
 	}
@@ -886,7 +901,7 @@ func (h *Handler) writeQueryResponse(w http.ResponseWriter, r *http.Request, res
 }
 
 // writeProtobufQueryResponse writes the response from the executor to w as protobuf.
-func (h *Handler) writeProtobufQueryResponse(w http.ResponseWriter, resp *pilosa.QueryResponse) error {
+func (h *Handler) writeProtobufQueryResponse(w io.Writer, resp *pilosa.QueryResponse) error {
 	if buf, err := h.api.Serializer.Marshal(resp); err != nil {
 		return errors.Wrap(err, "marshalling")
 	} else if _, err := w.Write(buf); err != nil {
@@ -896,7 +911,7 @@ func (h *Handler) writeProtobufQueryResponse(w http.ResponseWriter, resp *pilosa
 }
 
 // writeJSONQueryResponse writes the response from the executor to w as JSON.
-func (h *Handler) writeJSONQueryResponse(w http.ResponseWriter, resp *pilosa.QueryResponse) error {
+func (h *Handler) writeJSONQueryResponse(w io.Writer, resp *pilosa.QueryResponse) error {
 	return json.NewEncoder(w).Encode(resp)
 }
 
@@ -1048,6 +1063,22 @@ func (h *Handler) handleGetFragmentNodes(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// handleGetNodes handles /internal/nodes requests.
+func (h *Handler) handleGetNodes(w http.ResponseWriter, r *http.Request) {
+	if !validHeaderAcceptJSON(r.Header) {
+		http.Error(w, "JSON only acceptable response", http.StatusNotAcceptable)
+		return
+	}
+
+	// Retrieve all nodes.
+	nodes := h.api.Hosts(r.Context())
+
+	// Write to response.
+	if err := json.NewEncoder(w).Encode(nodes); err != nil {
+		h.logger.Printf("json write error: %s", err)
+	}
+}
+
 // handleGetFragmentBlockData handles GET /internal/fragment/block/data requests.
 func (h *Handler) handleGetFragmentBlockData(w http.ResponseWriter, r *http.Request) {
 	buf, err := h.api.FragmentBlockData(r.Context(), r.Body)
@@ -1082,7 +1113,7 @@ func (h *Handler) handleGetFragmentBlocks(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	blocks, err := h.api.FragmentBlocks(r.Context(), q.Get("index"), q.Get("field"), shard)
+	blocks, err := h.api.FragmentBlocks(r.Context(), q.Get("index"), q.Get("field"), q.Get("view"), shard)
 	if err != nil {
 		if errors.Cause(err) == pilosa.ErrFragmentNotFound {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -1122,12 +1153,9 @@ func (h *Handler) handleGetVersion(w http.ResponseWriter, r *http.Request) {
 
 // QueryResult types.
 const (
-	queryResultTypeNil uint32 = iota
-	QueryResultTypeRow
+	QueryResultTypeRow uint32 = iota
 	QueryResultTypePairs
-	queryResultTypeValCount
 	QueryResultTypeUint64
-	queryResultTypeBool
 )
 
 // parseUint64Slice returns a slice of uint64s from a comma-delimited string.
@@ -1147,14 +1175,6 @@ func parseUint64Slice(s string) ([]uint64, error) {
 		a = append(a, num)
 	}
 	return a, nil
-}
-
-// errorString returns the string representation of err.
-func errorString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }
 
 func (h *Handler) handlePostClusterResizeSetCoordinator(w http.ResponseWriter, r *http.Request) {

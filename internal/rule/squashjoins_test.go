@@ -10,8 +10,38 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/parse"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
+
+func TestAnalyzeSquashJoinsExchange(t *testing.T) {
+	require := require.New(t)
+
+	catalog := sql.NewCatalog()
+	catalog.AddDatabase(gitbase.NewDatabase("foo"))
+	a := analyzer.NewBuilder(catalog).
+		WithParallelism(2).
+		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
+		Build()
+	a.CurrentDatabase = "foo"
+	ctx := sql.NewEmptyContext()
+
+	node, err := parse.Parse(ctx, `SELECT * FROM ref_commits NATURAL JOIN commits`)
+	require.NoError(err)
+
+	result, err := a.Analyze(ctx, node)
+	require.NoError(err)
+
+	project, ok := result.(*plan.Project)
+	require.True(ok)
+
+	exchange, ok := project.Child.(*plan.Exchange)
+	require.True(ok)
+	require.Equal(2, exchange.Parallelism)
+
+	_, ok = exchange.Child.(*gitbase.SquashedTable)
+	require.True(ok)
+}
 
 func TestSquashJoins(t *testing.T) {
 	require := require.New(t)
@@ -23,18 +53,18 @@ func TestSquashJoins(t *testing.T) {
 		plan.NewFilter(
 			lit(2),
 			plan.NewInnerJoin(
-				plan.NewPushdownProjectionAndFiltersTable(
-					nil, nil,
-					tables[gitbase.CommitsTableName].(sql.PushdownProjectionAndFiltersTable),
+				plan.NewResolvedTable(
+					gitbase.CommitsTableName,
+					tables[gitbase.CommitsTableName],
 				),
 				plan.NewInnerJoin(
-					plan.NewPushdownProjectionAndFiltersTable(
-						nil, nil,
-						tables[gitbase.RepositoriesTableName].(sql.PushdownProjectionAndFiltersTable),
+					plan.NewResolvedTable(
+						gitbase.RepositoriesTableName,
+						tables[gitbase.RepositoriesTableName],
 					),
-					plan.NewPushdownProjectionAndFiltersTable(
-						nil, nil,
-						tables[gitbase.ReferencesTableName].(sql.PushdownProjectionAndFiltersTable),
+					plan.NewResolvedTable(
+						gitbase.ReferencesTableName,
+						tables[gitbase.ReferencesTableName],
 					),
 					and(
 						eq(
@@ -55,11 +85,11 @@ func TestSquashJoins(t *testing.T) {
 		),
 	)
 
-	expected := plan.NewProject(
+	var expected sql.Node = plan.NewProject(
 		[]sql.Expression{lit(1)},
 		plan.NewFilter(
 			lit(2),
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefHEADCommitsIter(
 					gitbase.NewRepoRefsIter(
 						gitbase.NewAllReposIter(
@@ -97,10 +127,11 @@ func TestSquashJoins(t *testing.T) {
 
 	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
-	result, err = result.TransformUp(func(n sql.Node) (sql.Node, error) {
-		t, ok := n.(*squashedTable)
+	expected, err = expected.TransformUp(func(n sql.Node) (sql.Node, error) {
+		t, ok := n.(*gitbase.SquashedTable)
 		if ok {
-			t.schema = nil
+			// precompute schema
+			_ = t.Schema()
 			return t, nil
 		}
 
@@ -120,13 +151,13 @@ func TestSquashJoinsIndexes(t *testing.T) {
 	node := plan.NewProject(
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
-			plan.NewIndexableTable(
-				nil, nil, idx1,
-				tables[gitbase.CommitsTableName].(sql.Indexable),
+			plan.NewResolvedTable(
+				gitbase.CommitsTableName,
+				tables[gitbase.CommitsTableName].(sql.IndexableTable).WithIndexLookup(idx1),
 			),
-			plan.NewIndexableTable(
-				nil, nil, idx2,
-				tables[gitbase.CommitTreesTableName].(sql.Indexable),
+			plan.NewResolvedTable(
+				gitbase.CommitTreesTableName,
+				tables[gitbase.CommitTreesTableName].(sql.IndexableTable).WithIndexLookup(idx2),
 			),
 			eq(
 				col(0, gitbase.CommitsTableName, "commit_hash"),
@@ -137,7 +168,7 @@ func TestSquashJoinsIndexes(t *testing.T) {
 
 	expected := plan.NewProject(
 		[]sql.Expression{lit(1)},
-		newSquashedTable(
+		gitbase.NewSquashedTable(
 			gitbase.NewCommitTreesIter(
 				gitbase.NewIndexCommitsIter(idx1, nil),
 				nil,
@@ -169,13 +200,13 @@ func TestSquashJoinsUnsquashable(t *testing.T) {
 	node := plan.NewProject(
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
-			plan.NewPushdownProjectionAndFiltersTable(
-				nil, nil,
-				tables[gitbase.RepositoriesTableName].(sql.PushdownProjectionAndFiltersTable),
+			plan.NewResolvedTable(
+				gitbase.RepositoriesTableName,
+				tables[gitbase.RepositoriesTableName],
 			),
-			plan.NewLimit(1, plan.NewPushdownProjectionAndFiltersTable(
-				nil, nil,
-				tables[gitbase.ReferencesTableName].(sql.PushdownProjectionAndFiltersTable),
+			plan.NewLimit(1, plan.NewResolvedTable(
+				gitbase.ReferencesTableName,
+				tables[gitbase.ReferencesTableName],
 			)),
 			lit(4),
 		),
@@ -194,18 +225,18 @@ func TestSquashJoinsPartial(t *testing.T) {
 	node := plan.NewProject(
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
-			plan.NewLimit(1, plan.NewPushdownProjectionAndFiltersTable(
-				nil, nil,
-				tables[gitbase.CommitsTableName].(sql.PushdownProjectionAndFiltersTable),
+			plan.NewLimit(1, plan.NewResolvedTable(
+				gitbase.CommitsTableName,
+				tables[gitbase.CommitsTableName],
 			)),
 			plan.NewInnerJoin(
-				plan.NewPushdownProjectionAndFiltersTable(
-					nil, nil,
-					tables[gitbase.RepositoriesTableName].(sql.PushdownProjectionAndFiltersTable),
+				plan.NewResolvedTable(
+					gitbase.RepositoriesTableName,
+					tables[gitbase.RepositoriesTableName],
 				),
-				plan.NewPushdownProjectionAndFiltersTable(
-					nil, nil,
-					tables[gitbase.ReferencesTableName].(sql.PushdownProjectionAndFiltersTable),
+				plan.NewResolvedTable(
+					gitbase.ReferencesTableName,
+					tables[gitbase.ReferencesTableName],
 				),
 				and(
 					eq(
@@ -222,11 +253,11 @@ func TestSquashJoinsPartial(t *testing.T) {
 	expected := plan.NewProject(
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
-			plan.NewLimit(1, plan.NewPushdownProjectionAndFiltersTable(
-				nil, nil,
-				tables[gitbase.CommitsTableName].(sql.PushdownProjectionAndFiltersTable),
+			plan.NewLimit(1, plan.NewResolvedTable(
+				gitbase.CommitsTableName,
+				tables[gitbase.CommitsTableName],
 			)),
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRepoRefsIter(
 					gitbase.NewAllReposIter(lit(4)),
 					nil,
@@ -259,18 +290,18 @@ func TestSquashJoinsSchema(t *testing.T) {
 	tables := gitbase.NewDatabase("").Tables()
 
 	node := plan.NewInnerJoin(
-		plan.NewPushdownProjectionAndFiltersTable(
-			nil, nil,
-			tables[gitbase.CommitsTableName].(sql.PushdownProjectionAndFiltersTable),
+		plan.NewResolvedTable(
+			gitbase.CommitsTableName,
+			tables[gitbase.CommitsTableName],
 		),
 		plan.NewInnerJoin(
-			plan.NewPushdownProjectionAndFiltersTable(
-				nil, nil,
-				tables[gitbase.RepositoriesTableName].(sql.PushdownProjectionAndFiltersTable),
+			plan.NewResolvedTable(
+				gitbase.RepositoriesTableName,
+				tables[gitbase.RepositoriesTableName],
 			),
-			plan.NewPushdownProjectionAndFiltersTable(
-				nil, nil,
-				tables[gitbase.ReferencesTableName].(sql.PushdownProjectionAndFiltersTable),
+			plan.NewResolvedTable(
+				gitbase.ReferencesTableName,
+				tables[gitbase.ReferencesTableName],
 			),
 			and(
 				eq(
@@ -648,7 +679,7 @@ func TestBuildSquashedTable(t *testing.T) {
 		name     string
 		tables   []sql.Table
 		filters  []sql.Expression
-		columns  []sql.Expression
+		columns  []string
 		indexes  map[string]sql.IndexLookup
 		err      *errors.Kind
 		expected sql.Node
@@ -665,7 +696,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRepoRemotesIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(repoRemotesFilter, remotesFilter),
@@ -694,7 +725,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRemoteRefsIter(
 					gitbase.NewAllRemotesIter(
 						fixIdx(t, remotesFilter, gitbase.RemotesSchema),
@@ -728,7 +759,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRepoRefsIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -761,7 +792,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefHEADCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -806,7 +837,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewTreeTreeEntriesIter(
 					gitbase.NewCommitMainTreeIter(
 						gitbase.NewAllCommitsIter(
@@ -846,7 +877,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewRefHEADCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -895,7 +926,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewTreeEntryBlobsIter(
 					gitbase.NewAllTreeEntriesIter(
 						fixIdx(t, treeEntryFilter, gitbase.TreeEntriesSchema),
@@ -957,7 +988,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRepoCommitsIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -989,7 +1020,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefRefCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -1024,7 +1055,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefHeadRefCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -1059,7 +1090,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewAllRefCommitsIter(
 						fixIdx(t, refCommitsFilter, refCommitsCommitsSchema),
@@ -1094,7 +1125,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRepoTreeEntriesIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -1126,7 +1157,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefRefCommitsIter(
 					gitbase.NewRepoRefsIter(
 						gitbase.NewAllReposIter(repoFilter),
@@ -1152,7 +1183,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			),
 		},
 		{
-			"blobs with tree entries",
+			"repositories and blobs",
 			[]sql.Table{repositories, blobs},
 			[]sql.Expression{
 				repoFilter,
@@ -1160,12 +1191,10 @@ func TestBuildSquashedTable(t *testing.T) {
 				repoBlobsFilter,
 				repoBlobsRedundantFilter,
 			},
-			[]sql.Expression{expression.NewGetFieldWithTable(
-				0, sql.Int64, gitbase.BlobsTableName, "blob_content", false,
-			)},
+			[]string{"blob_content"},
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRepoBlobsIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -1201,7 +1230,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewRefRefCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -1249,7 +1278,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewRefHeadRefCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -1294,7 +1323,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewTreeTreeEntriesIter(
 					gitbase.NewAllCommitTreesIter(
 						fixIdx(t, commitTreesFilter, commitTreesTreeEntriesSchema),
@@ -1329,7 +1358,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitsCommitTreesSchema),
@@ -1365,7 +1394,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitMainTreeIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitsCommitTreesSchema),
@@ -1401,7 +1430,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewAllRefCommitsIter(
 						fixIdx(t, refCommitsFilter, refCommitsCommitTreesSchema),
@@ -1436,7 +1465,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewRefHEADCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -1475,7 +1504,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewAllRefCommitsIter(
 						fixIdx(t, refCommitsFilter, refCommitsCommitBlobsSchema),
@@ -1509,7 +1538,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitsCommitBlobsSchema),
@@ -1544,7 +1573,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobBlobsIter(
 					gitbase.NewAllCommitBlobsIter(
 						fixIdx(t, commitBlobsFilter, commitBlobsBlobsSchema),
@@ -1579,7 +1608,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.RefCommitsTableName: idx2,
 			},
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefRefCommitsIter(
 					gitbase.NewIndexRefsIter(nil, idx1),
 					nil,
@@ -1605,7 +1634,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.CommitsTableName:    idx2,
 			},
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewIndexRefCommitsIter(idx1, nil),
 					nil,
@@ -1631,7 +1660,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.CommitTreesTableName: idx2,
 			},
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewIndexCommitsIter(idx1, nil),
 					nil,
@@ -1658,7 +1687,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.TreeEntriesTableName: idx2,
 			},
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewTreeTreeEntriesIter(
 					gitbase.NewIndexCommitTreesIter(idx1, nil),
 					nil,
@@ -1685,7 +1714,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.BlobsTableName:       idx2,
 			},
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobBlobsIter(
 					gitbase.NewIndexCommitBlobsIter(idx1, nil),
 					nil,
@@ -1712,7 +1741,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.BlobsTableName:       idx2,
 			},
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewTreeEntryBlobsIter(
 					gitbase.NewIndexTreeEntriesIter(idx1, nil),
 					nil,
@@ -1739,7 +1768,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitFilesIter(
 					gitbase.NewRefHEADCommitsIter(gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -1774,7 +1803,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitFilesIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, gitbase.CommitsSchema),
@@ -1811,7 +1840,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitFileFilesIter(
 					gitbase.NewAllCommitFilesIter(
 						fixIdx(t, commitFilesFilter, gitbase.CommitFilesSchema),
@@ -1850,7 +1879,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.FilesTableName:       idx2,
 			},
 			nil,
-			newSquashedTable(
+			gitbase.NewSquashedTable(
 				gitbase.NewCommitFileFilesIter(
 					gitbase.NewIndexCommitFilesIter(idx1, nil),
 					nil,
@@ -1901,13 +1930,13 @@ func fixIdx(t *testing.T, e sql.Expression, schema sql.Schema) sql.Expression {
 
 func TestIsJoinLeafSquashable(t *testing.T) {
 	tables := gitbase.NewDatabase("").Tables()
-	t1 := plan.NewPushdownProjectionAndFiltersTable(
-		nil, nil,
-		tables[gitbase.RepositoriesTableName].(sql.PushdownProjectionAndFiltersTable),
+	t1 := plan.NewResolvedTable(
+		gitbase.RepositoriesTableName,
+		tables[gitbase.RepositoriesTableName],
 	)
-	t2 := plan.NewPushdownProjectionAndFiltersTable(
-		nil, nil,
-		tables[gitbase.ReferencesTableName].(sql.PushdownProjectionAndFiltersTable),
+	t2 := plan.NewResolvedTable(
+		gitbase.ReferencesTableName,
+		tables[gitbase.ReferencesTableName],
 	)
 
 	testCases := []struct {
@@ -2151,17 +2180,17 @@ func TestRemoveRedundantCompoundFilters(t *testing.T) {
 func TestIsJoinCondSquashable(t *testing.T) {
 	require := require.New(t)
 	tables := gitbase.NewDatabase("").Tables()
-	repos := plan.NewPushdownProjectionAndFiltersTable(
-		nil, nil,
-		tables[gitbase.ReferencesTableName].(sql.PushdownProjectionAndFiltersTable),
+	repos := plan.NewResolvedTable(
+		gitbase.ReferencesTableName,
+		tables[gitbase.ReferencesTableName],
 	)
-	refs := plan.NewPushdownProjectionAndFiltersTable(
-		nil, nil,
-		tables[gitbase.ReferencesTableName].(sql.PushdownProjectionAndFiltersTable),
+	refs := plan.NewResolvedTable(
+		gitbase.ReferencesTableName,
+		tables[gitbase.ReferencesTableName],
 	)
-	commits := plan.NewPushdownProjectionAndFiltersTable(
-		nil, nil,
-		tables[gitbase.CommitsTableName].(sql.PushdownProjectionAndFiltersTable),
+	commits := plan.NewResolvedTable(
+		gitbase.CommitsTableName,
+		tables[gitbase.CommitsTableName],
 	)
 
 	node := plan.NewInnerJoin(
@@ -2528,7 +2557,7 @@ type dummyLookup struct {
 	n int
 }
 
-func (dummyLookup) Values() (sql.IndexValueIter, error) {
+func (dummyLookup) Values(p sql.Partition) (sql.IndexValueIter, error) {
 	panic("dummyLookup Values is a placeholder")
 }
 

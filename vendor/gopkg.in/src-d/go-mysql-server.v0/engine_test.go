@@ -217,12 +217,9 @@ var queries = []struct {
 	{
 		`DESCRIBE FORMAT=TREE SELECT * FROM mytable`,
 		[]sql.Row{
-			{"PushdownProjectionAndFiltersTable"},
-			{" ├─ Columns(mytable.i, mytable.s)"},
-			{" ├─ Filters()"},
-			{" └─ Table(mytable)"},
-			{"     ├─ Column(i, INT64, nullable=false)"},
-			{"     └─ Column(s, TEXT, nullable=false)"},
+			sql.NewRow("Table(mytable): Projected "),
+			sql.NewRow(" ├─ Column(i, INT64, nullable=false)"),
+			sql.NewRow(" └─ Column(s, TEXT, nullable=false)"),
 		},
 	},
 	{
@@ -312,9 +309,19 @@ var queries = []struct {
 func TestQueries(t *testing.T) {
 	e := newEngine(t)
 
-	for _, tt := range queries {
-		testQuery(t, e, tt.query, tt.expected)
-	}
+	ep := newEngineWithParallelism(t, 2)
+
+	t.Run("sequential", func(t *testing.T) {
+		for _, tt := range queries {
+			testQuery(t, e, tt.query, tt.expected)
+		}
+	})
+
+	t.Run("parallel", func(t *testing.T) {
+		for _, tt := range queries {
+			testQuery(t, ep, tt.query, tt.expected)
+		}
+	})
 }
 
 func TestOrderByColumns(t *testing.T) {
@@ -350,13 +357,15 @@ func TestInsertInto(t *testing.T) {
 	)
 }
 
+const testNumPartitions = 5
+
 func TestAmbiguousColumnResolution(t *testing.T) {
 	require := require.New(t)
 
-	table := mem.NewTable("foo", sql.Schema{
+	table := mem.NewPartitionedTable("foo", sql.Schema{
 		{Name: "a", Type: sql.Int64, Source: "foo"},
 		{Name: "b", Type: sql.Text, Source: "foo"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, table,
@@ -365,10 +374,10 @@ func TestAmbiguousColumnResolution(t *testing.T) {
 		sql.NewRow(int64(3), "baz"),
 	)
 
-	table2 := mem.NewTable("bar", sql.Schema{
+	table2 := mem.NewPartitionedTable("bar", sql.Schema{
 		{Name: "b", Type: sql.Text, Source: "bar"},
 		{Name: "c", Type: sql.Int64, Source: "bar"},
-	})
+	}, testNumPartitions)
 	insertRows(
 		t, table2,
 		sql.NewRow("qux", int64(3)),
@@ -377,8 +386,8 @@ func TestAmbiguousColumnResolution(t *testing.T) {
 	)
 
 	db := mem.NewDatabase("mydb")
-	db.AddTable(table.Name(), table)
-	db.AddTable(table2.Name(), table2)
+	db.AddTable("foo", table)
+	db.AddTable("bar", table2)
 
 	e := sqle.NewDefault()
 	e.AddDatabase(db)
@@ -440,11 +449,11 @@ func TestDDL(t *testing.T) {
 func TestNaturalJoin(t *testing.T) {
 	require := require.New(t)
 
-	t1 := mem.NewTable("t1", sql.Schema{
+	t1 := mem.NewPartitionedTable("t1", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t1"},
 		{Name: "b", Type: sql.Text, Source: "t1"},
 		{Name: "c", Type: sql.Text, Source: "t1"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, t1,
@@ -453,11 +462,11 @@ func TestNaturalJoin(t *testing.T) {
 		sql.NewRow("a_3", "b_3", "c_3"),
 	)
 
-	t2 := mem.NewTable("t2", sql.Schema{
+	t2 := mem.NewPartitionedTable("t2", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t2"},
 		{Name: "b", Type: sql.Text, Source: "t2"},
 		{Name: "d", Type: sql.Text, Source: "t2"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, t2,
@@ -467,8 +476,8 @@ func TestNaturalJoin(t *testing.T) {
 	)
 
 	db := mem.NewDatabase("mydb")
-	db.AddTable(t1.Name(), t1)
-	db.AddTable(t2.Name(), t2)
+	db.AddTable("t1", t1)
+	db.AddTable("t2", t2)
 
 	e := sqle.NewDefault()
 	e.AddDatabase(db)
@@ -492,11 +501,11 @@ func TestNaturalJoin(t *testing.T) {
 func TestNaturalJoinEqual(t *testing.T) {
 	require := require.New(t)
 
-	t1 := mem.NewTable("t1", sql.Schema{
+	t1 := mem.NewPartitionedTable("t1", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t1"},
 		{Name: "b", Type: sql.Text, Source: "t1"},
 		{Name: "c", Type: sql.Text, Source: "t1"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, t1,
@@ -505,11 +514,11 @@ func TestNaturalJoinEqual(t *testing.T) {
 		sql.NewRow("a_3", "b_3", "c_3"),
 	)
 
-	t2 := mem.NewTable("t2", sql.Schema{
+	t2 := mem.NewPartitionedTable("t2", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t2"},
 		{Name: "b", Type: sql.Text, Source: "t2"},
 		{Name: "c", Type: sql.Text, Source: "t2"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, t2,
@@ -519,8 +528,8 @@ func TestNaturalJoinEqual(t *testing.T) {
 	)
 
 	db := mem.NewDatabase("mydb")
-	db.AddTable(t1.Name(), t1)
-	db.AddTable(t2.Name(), t2)
+	db.AddTable("t1", t1)
+	db.AddTable("t2", t2)
 
 	e := sqle.NewDefault()
 	e.AddDatabase(db)
@@ -544,9 +553,9 @@ func TestNaturalJoinEqual(t *testing.T) {
 func TestNaturalJoinDisjoint(t *testing.T) {
 	require := require.New(t)
 
-	t1 := mem.NewTable("t1", sql.Schema{
+	t1 := mem.NewPartitionedTable("t1", sql.Schema{
 		{Name: "a", Type: sql.Text, Source: "t1"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, t1,
@@ -555,9 +564,9 @@ func TestNaturalJoinDisjoint(t *testing.T) {
 		sql.NewRow("a3"),
 	)
 
-	t2 := mem.NewTable("t2", sql.Schema{
+	t2 := mem.NewPartitionedTable("t2", sql.Schema{
 		{Name: "b", Type: sql.Text, Source: "t2"},
-	})
+	}, testNumPartitions)
 	insertRows(
 		t, t2,
 		sql.NewRow("b1"),
@@ -566,8 +575,8 @@ func TestNaturalJoinDisjoint(t *testing.T) {
 	)
 
 	db := mem.NewDatabase("mydb")
-	db.AddTable(t1.Name(), t1)
-	db.AddTable(t2.Name(), t2)
+	db.AddTable("t1", t1)
+	db.AddTable("t2", t2)
 
 	e := sqle.NewDefault()
 	e.AddDatabase(db)
@@ -597,11 +606,11 @@ func TestNaturalJoinDisjoint(t *testing.T) {
 func TestInnerNestedInNaturalJoins(t *testing.T) {
 	require := require.New(t)
 
-	table1 := mem.NewTable("table1", sql.Schema{
+	table1 := mem.NewPartitionedTable("table1", sql.Schema{
 		{Name: "i", Type: sql.Int32, Source: "table1"},
 		{Name: "f", Type: sql.Float64, Source: "table1"},
 		{Name: "t", Type: sql.Text, Source: "table1"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, table1,
@@ -610,11 +619,11 @@ func TestInnerNestedInNaturalJoins(t *testing.T) {
 		sql.NewRow(int32(10), float64(2.1), "table1"),
 	)
 
-	table2 := mem.NewTable("table2", sql.Schema{
+	table2 := mem.NewPartitionedTable("table2", sql.Schema{
 		{Name: "i2", Type: sql.Int32, Source: "table2"},
 		{Name: "f2", Type: sql.Float64, Source: "table2"},
 		{Name: "t2", Type: sql.Text, Source: "table2"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, table2,
@@ -623,11 +632,11 @@ func TestInnerNestedInNaturalJoins(t *testing.T) {
 		sql.NewRow(int32(20), float64(2.2), "table2"),
 	)
 
-	table3 := mem.NewTable("table3", sql.Schema{
+	table3 := mem.NewPartitionedTable("table3", sql.Schema{
 		{Name: "i", Type: sql.Int32, Source: "table3"},
 		{Name: "f2", Type: sql.Float64, Source: "table3"},
 		{Name: "t3", Type: sql.Text, Source: "table3"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, table3,
@@ -661,34 +670,30 @@ func TestInnerNestedInNaturalJoins(t *testing.T) {
 	)
 }
 
-func testQuery(t *testing.T, e *sqle.Engine, q string, r []sql.Row) {
+func testQuery(t *testing.T, e *sqle.Engine, q string, expected []sql.Row) {
 	t.Run(q, func(t *testing.T) {
 		require := require.New(t)
 		session := sql.NewEmptyContext()
 
-		_, rows, err := e.Query(session, q)
+		_, iter, err := e.Query(session, q)
 		require.NoError(err)
 
-		var rs []sql.Row
-		for {
-			row, err := rows.Next()
-			if err == io.EOF {
-				break
-			}
-			require.NoError(err)
+		rows, err := sql.RowIterToRows(iter)
+		require.NoError(err)
 
-			rs = append(rs, row)
-		}
-
-		require.ElementsMatch(r, rs)
+		require.ElementsMatch(expected, rows)
 	})
 }
 
 func newEngine(t *testing.T) *sqle.Engine {
-	table := mem.NewTable("mytable", sql.Schema{
+	return newEngineWithParallelism(t, 1)
+}
+
+func newEngineWithParallelism(t *testing.T, parallelism int) *sqle.Engine {
+	table := mem.NewPartitionedTable("mytable", sql.Schema{
 		{Name: "i", Type: sql.Int64, Source: "mytable"},
 		{Name: "s", Type: sql.Text, Source: "mytable"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, table,
@@ -697,10 +702,10 @@ func newEngine(t *testing.T) *sqle.Engine {
 		sql.NewRow(int64(3), "third row"),
 	)
 
-	table2 := mem.NewTable("othertable", sql.Schema{
+	table2 := mem.NewPartitionedTable("othertable", sql.Schema{
 		{Name: "s2", Type: sql.Text, Source: "othertable"},
 		{Name: "i2", Type: sql.Int64, Source: "othertable"},
-	})
+	}, testNumPartitions)
 	insertRows(
 		t, table2,
 		sql.NewRow("first", int64(3)),
@@ -708,10 +713,10 @@ func newEngine(t *testing.T) *sqle.Engine {
 		sql.NewRow("third", int64(1)),
 	)
 
-	table3 := mem.NewTable("tabletest", sql.Schema{
+	table3 := mem.NewPartitionedTable("tabletest", sql.Schema{
 		{Name: "text", Type: sql.Text, Source: "tabletest"},
 		{Name: "number", Type: sql.Int32, Source: "tabletest"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, table3,
@@ -721,14 +726,23 @@ func newEngine(t *testing.T) *sqle.Engine {
 	)
 
 	db := mem.NewDatabase("mydb")
-	db.AddTable(table.Name(), table)
-	db.AddTable(table2.Name(), table2)
-	db.AddTable(table3.Name(), table3)
+	db.AddTable("mytable", table)
+	db.AddTable("othertable", table2)
+	db.AddTable("tabletest", table3)
 
-	e := sqle.NewDefault()
-	e.AddDatabase(db)
+	catalog := sql.NewCatalog()
+	catalog.AddDatabase(db)
 
-	return e
+	var a *analyzer.Analyzer
+	if parallelism > 1 {
+		a = analyzer.NewBuilder(catalog).WithParallelism(parallelism).Build()
+	} else {
+		a = analyzer.NewDefault(catalog)
+	}
+
+	a.CurrentDatabase = "mydb"
+
+	return sqle.New(catalog, a, new(sqle.Config))
 }
 
 const expectedTree = `Offset(2)
@@ -882,8 +896,8 @@ func TestIndexes(t *testing.T) {
 			rows, err := sql.RowIterToRows(it)
 			require.NoError(err)
 
-			require.Equal(tt.expected, rows)
-			require.Equal("plan.IndexableTable", tracer.Spans[len(tracer.Spans)-1])
+			require.ElementsMatch(tt.expected, rows)
+			require.Equal("plan.ResolvedTable", tracer.Spans[len(tracer.Spans)-1])
 		})
 	}
 }
@@ -917,10 +931,10 @@ func TestCreateIndex(t *testing.T) {
 func TestOrderByGroupBy(t *testing.T) {
 	require := require.New(t)
 
-	table := mem.NewTable("members", sql.Schema{
+	table := mem.NewPartitionedTable("members", sql.Schema{
 		{Name: "id", Type: sql.Int64, Source: "members"},
 		{Name: "team", Type: sql.Text, Source: "members"},
-	})
+	}, testNumPartitions)
 
 	insertRows(
 		t, table,
@@ -933,7 +947,7 @@ func TestOrderByGroupBy(t *testing.T) {
 	)
 
 	db := mem.NewDatabase("db")
-	db.AddTable(table.Name(), table)
+	db.AddTable("members", table)
 
 	e := sqle.NewDefault()
 	e.AddDatabase(db)
@@ -981,8 +995,7 @@ func TestTracing(t *testing.T) {
 		"plan.Sort",
 		"plan.Distinct",
 		"plan.Project",
-		"plan.Filter",
-		"plan.PushdownProjectionAndFiltersTable",
+		"plan.ResolvedTable",
 	}
 
 	var spanOperations []string
@@ -1002,13 +1015,13 @@ func TestTracing(t *testing.T) {
 func TestReadOnly(t *testing.T) {
 	require := require.New(t)
 
-	table := mem.NewTable("mytable", sql.Schema{
+	table := mem.NewPartitionedTable("mytable", sql.Schema{
 		{Name: "i", Type: sql.Int64, Source: "mytable"},
 		{Name: "s", Type: sql.Text, Source: "mytable"},
-	})
+	}, testNumPartitions)
 
 	db := mem.NewDatabase("mydb")
-	db.AddTable(table.Name(), table)
+	db.AddTable("mytable", table)
 
 	catalog := sql.NewCatalog()
 	catalog.AddDatabase(db)
