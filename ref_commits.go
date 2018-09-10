@@ -263,6 +263,8 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 		if i.refs == nil {
 			i.refs, err = i.repo.References()
 			if err != nil {
+				i.repo.Close()
+
 				if i.skipGitErrors {
 					return nil, io.EOF
 				}
@@ -275,6 +277,8 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 				if i.skipGitErrors {
 					continue
 				}
+
+				i.repo.Close()
 				return nil, err
 			}
 		}
@@ -286,6 +290,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 				ref, err = i.refs.Next()
 				if err != nil {
 					if err == io.EOF {
+						i.repo.Close()
 						return nil, io.EOF
 					}
 
@@ -293,6 +298,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 						continue
 					}
 
+					i.repo.Close()
 					return nil, err
 				}
 
@@ -315,6 +321,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 					continue
 				}
 
+				i.repo.Close()
 				return nil, err
 			}
 
@@ -332,6 +339,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 				continue
 			}
 
+			i.repo.Close()
 			return nil, err
 		}
 
@@ -389,6 +397,7 @@ type stackFrame struct {
 func (i *indexedCommitIter) Next() (*object.Commit, int, error) {
 	for {
 		if len(i.stack) == 0 {
+			i.repo.Close()
 			return nil, -1, io.EOF
 		}
 
@@ -410,6 +419,7 @@ func (i *indexedCommitIter) Next() (*object.Commit, int, error) {
 				continue
 			}
 
+			i.repo.Close()
 			return nil, -1, err
 		}
 
