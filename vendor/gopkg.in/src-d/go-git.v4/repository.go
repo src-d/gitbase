@@ -13,6 +13,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/internal/revision"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/packfile"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
@@ -220,10 +221,7 @@ func PlainInit(path string, isBare bool) (*Repository, error) {
 		dot, _ = wt.Chroot(GitDirName)
 	}
 
-	s, err := filesystem.NewStorage(dot)
-	if err != nil {
-		return nil, err
-	}
+	s := filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
 
 	return Init(s, wt)
 }
@@ -235,9 +233,8 @@ func PlainOpen(path string) (*Repository, error) {
 	return PlainOpenWithOptions(path, &PlainOpenOptions{})
 }
 
-// PlainOpen opens a git repository from the given path. It detects if the
-// repository is bare or a normal one. If the path doesn't contain a valid
-// repository ErrRepositoryNotExists is returned
+// PlainOpenWithOptions opens a git repository from the given path with specific
+// options. See PlainOpen for more info.
 func PlainOpenWithOptions(path string, o *PlainOpenOptions) (*Repository, error) {
 	dot, wt, err := dotGitToOSFilesystems(path, o.DetectDotGit)
 	if err != nil {
@@ -252,10 +249,7 @@ func PlainOpenWithOptions(path string, o *PlainOpenOptions) (*Repository, error)
 		return nil, err
 	}
 
-	s, err := filesystem.NewStorage(dot)
-	if err != nil {
-		return nil, err
-	}
+	s := filesystem.NewStorage(dot, cache.NewObjectLRUDefault())
 
 	return Open(s, wt)
 }

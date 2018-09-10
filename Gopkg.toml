@@ -17,7 +17,7 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-git.v4"
   source = "github.com/src-d/go-git"
-  revision = "5cc316baa64287c7e56cb7372a5046c30fd955c1"
+  revision = "208b3c3c32beaab14ebb7adf162fc136c939e99c"
 
 [[constraint]]
   name = "gopkg.in/src-d/go-git-fixtures.v3"
