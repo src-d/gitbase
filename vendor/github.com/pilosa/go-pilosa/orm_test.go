@@ -33,44 +33,44 @@
 package pilosa
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var schema = NewSchema()
-var sampleIndex = mustNewIndex(schema, "sample-index")
-var sampleFrame = mustNewFrame(sampleIndex, "sample-frame")
-var projectIndex = mustNewIndex(schema, "project-index")
-var collabFrame = mustNewFrame(projectIndex, "collaboration")
-var sampleField = sampleFrame.Field("sample-field")
-var b1 = sampleFrame.Bitmap(10)
-var b2 = sampleFrame.Bitmap(20)
-var b3 = sampleFrame.Bitmap(42)
-var b4 = collabFrame.Bitmap(2)
+var sampleIndex = schema.Index("sample-index")
+var sampleField = sampleIndex.Field("sample-field")
+var projectIndex = schema.Index("project-index")
+var collabField = projectIndex.Field("collaboration")
+var b1 = sampleField.Row(10)
+var b2 = sampleField.Row(20)
+var b3 = sampleField.Row(42)
+var b4 = collabField.Row(2)
 
 func TestSchemaDiff(t *testing.T) {
 	schema1 := NewSchema()
-	index11, _ := schema1.Index("diff-index1")
-	index11.Frame("frame1-1")
-	index11.Frame("frame1-2")
-	index12, _ := schema1.Index("diff-index2")
-	index12.Frame("frame2-1")
+	index11 := schema1.Index("diff-index1")
+	index11.Field("field1-1")
+	index11.Field("field1-2")
+	index12 := schema1.Index("diff-index2")
+	index12.Field("field2-1")
 
 	schema2 := NewSchema()
-	index21, _ := schema2.Index("diff-index1")
-	index21.Frame("another-frame")
+	index21 := schema2.Index("diff-index1")
+	index21.Field("another-field")
 
 	targetDiff12 := NewSchema()
-	targetIndex1, _ := targetDiff12.Index("diff-index1")
-	targetIndex1.Frame("frame1-1")
-	targetIndex1.Frame("frame1-2")
-	targetIndex2, _ := targetDiff12.Index("diff-index2")
-	targetIndex2.Frame("frame2-1")
+	targetIndex1 := targetDiff12.Index("diff-index1")
+	targetIndex1.Field("field1-1")
+	targetIndex1.Field("field1-2")
+	targetIndex2 := targetDiff12.Index("diff-index2")
+	targetIndex2.Field("field2-1")
 
 	diff12 := schema1.diff(schema2)
 	if !reflect.DeepEqual(targetDiff12, diff12) {
@@ -80,8 +80,8 @@ func TestSchemaDiff(t *testing.T) {
 
 func TestSchemaIndexes(t *testing.T) {
 	schema1 := NewSchema()
-	index11, _ := schema1.Index("diff-index1")
-	index12, _ := schema1.Index("diff-index2")
+	index11 := schema1.Index("diff-index1")
+	index12 := schema1.Index("diff-index2")
 	indexes := schema1.Indexes()
 	target := map[string]*Index{
 		"diff-index1": index11,
@@ -94,7 +94,7 @@ func TestSchemaIndexes(t *testing.T) {
 
 func TestSchemaToString(t *testing.T) {
 	schema1 := NewSchema()
-	index, _ := schema1.Index("test-index")
+	index := schema1.Index("test-index")
 	target := fmt.Sprintf(`map[string]*pilosa.Index{"test-index":(*pilosa.Index)(%p)}`, index)
 	if target != schema1.String() {
 		t.Fatalf("%s != %s", target, schema1.String())
@@ -102,243 +102,195 @@ func TestSchemaToString(t *testing.T) {
 }
 
 func TestNewIndex(t *testing.T) {
-	index1, err := schema.Index("index-name")
-	if err != nil {
-		t.Fatal(err)
-	}
+	index1 := schema.Index("index-name")
 	if index1.Name() != "index-name" {
 		t.Fatalf("index name was not set")
 	}
 	// calling schema.Index again should return the same index
-	index2, err := schema.Index("index-name")
-	if err != nil {
-		t.Fatal(err)
-	}
+	index2 := schema.Index("index-name")
 	if index1 != index2 {
 		t.Fatalf("calling schema.Index again should return the same index")
 	}
 }
 
-func TestNewIndexWithInvalidName(t *testing.T) {
-	_, err := schema.Index("$FOO")
-	if err == nil {
-		t.Fatal(err)
-	}
-}
-
 func TestIndexCopy(t *testing.T) {
-	index, err := schema.Index("my-index-4copy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = index.Frame("my-frame-4copy", TimeQuantumDayHour)
-	if err != nil {
-		t.Fatal(err)
-	}
+	index := schema.Index("my-index-4copy", OptIndexKeys(true))
+	index.Field("my-field-4copy", OptFieldTypeTime(TimeQuantumDayHour))
 	copiedIndex := index.copy()
 	if !reflect.DeepEqual(index, copiedIndex) {
 		t.Fatalf("copied index should be equivalent")
 	}
 }
 
-func TestIndexFrames(t *testing.T) {
-	schema1 := NewSchema()
-	index11, _ := schema1.Index("diff-index1")
-	frame11, _ := index11.Frame("frame1-1")
-	frame12, _ := index11.Frame("frame1-2")
-	frames := index11.Frames()
-	target := map[string]*Frame{
-		"frame1-1": frame11,
-		"frame1-2": frame12,
+func TestIndexOptions(t *testing.T) {
+	index := schema.Index("index-with-options", OptIndexKeys(true))
+	target := `{"options":{"keys":true}}`
+	if target != index.options.String() {
+		t.Fatalf("%s != %s", target, index.options.String())
 	}
-	if !reflect.DeepEqual(target, frames) {
-		t.Fatalf("calling index.Frames should return frames")
+}
+
+func TestNilIndexOption(t *testing.T) {
+	schema.Index("index-with-nil-option", nil)
+}
+
+func TestIndexFields(t *testing.T) {
+	schema1 := NewSchema()
+	index11 := schema1.Index("diff-index1")
+	field11 := index11.Field("field1-1")
+	field12 := index11.Field("field1-2")
+	fields := index11.Fields()
+	target := map[string]*Field{
+		"field1-1": field11,
+		"field1-2": field12,
+	}
+	if !reflect.DeepEqual(target, fields) {
+		t.Fatalf("calling index.Fields should return fields")
 	}
 }
 
 func TestIndexToString(t *testing.T) {
 	schema1 := NewSchema()
-	index, _ := schema1.Index("test-index")
-	target := fmt.Sprintf(`&pilosa.Index{name:"test-index", frames:map[string]*pilosa.Frame{}}`)
+	index := schema1.Index("test-index")
+	target := fmt.Sprintf(`&pilosa.Index{name:"test-index", options:(*pilosa.IndexOptions)(%p), fields:map[string]*pilosa.Field{}}`, index.options)
 	if target != index.String() {
 		t.Fatalf("%s != %s", target, index.String())
 	}
 }
 
-func TestFrame(t *testing.T) {
-	frame1, err := sampleIndex.Frame("nonexistent-frame")
-	if err != nil {
-		t.Fatal(err)
+func TestField(t *testing.T) {
+	field1 := sampleIndex.Field("nonexistent-field")
+	field2 := sampleIndex.Field("nonexistent-field")
+	if field1 != field2 {
+		t.Fatalf("calling index.Field again should return the same field")
 	}
-	frame2, err := sampleIndex.Frame("nonexistent-frame")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if frame1 != frame2 {
-		t.Fatalf("calling index.Frame again should return the same frame")
-	}
-	if frame1.Name() != "nonexistent-frame" {
-		t.Fatalf("calling frame.Name should return frame's name")
+	if field1.Name() != "nonexistent-field" {
+		t.Fatalf("calling field.Name should return field's name")
 	}
 }
 
-func TestFrameCopy(t *testing.T) {
-	options := &FrameOptions{
-		TimeQuantum:    TimeQuantumMonthDayHour,
-		CacheType:      CacheTypeRanked,
-		CacheSize:      123456,
-		InverseEnabled: true,
-	}
-	frame, err := sampleIndex.Frame("my-frame-4copy", options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	copiedFrame := frame.copy()
-	if !reflect.DeepEqual(frame, copiedFrame) {
-		t.Fatalf("copied frame should be equivalent")
+func TestFieldCopy(t *testing.T) {
+	field := sampleIndex.Field("my-field-4copy", OptFieldTypeSet(CacheTypeRanked, 123456))
+	copiedField := field.copy()
+	if !reflect.DeepEqual(field, copiedField) {
+		t.Fatalf("copied field should be equivalent")
 	}
 }
 
-func TestNewFrameWithInvalidName(t *testing.T) {
-	index, err := NewIndex("foo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = index.Frame("$$INVALIDFRAME$$")
-	if err == nil {
-		t.Fatal("Creating frames with invalid row labels should fail")
-	}
-}
-
-func TestFrameToString(t *testing.T) {
+func TestFieldToString(t *testing.T) {
 	schema1 := NewSchema()
-	index, _ := schema1.Index("test-index")
-	frame, _ := index.Frame("test-frame")
-	target := fmt.Sprintf(`&pilosa.Frame{name:"test-frame", index:(*pilosa.Index)(%p), options:(*pilosa.FrameOptions)(%p), fields:map[string]*pilosa.RangeField{}}`,
-		frame.index, frame.options)
-	if target != frame.String() {
-		t.Fatalf("%s != %s", target, frame.String())
+	index := schema1.Index("test-index")
+	field := index.Field("test-field")
+	target := fmt.Sprintf(`&pilosa.Field{name:"test-field", index:(*pilosa.Index)(%p), options:(*pilosa.FieldOptions)(%p)}`,
+		field.index, field.options)
+	if target != field.String() {
+		t.Fatalf("%s != %s", target, field.String())
 	}
 }
 
-func TestFrameFields(t *testing.T) {
+func TestNilFieldOption(t *testing.T) {
 	schema1 := NewSchema()
-	index, _ := schema1.Index("test-index")
-	frame, _ := index.Frame("test-frame")
-	field := frame.Field("some-field")
-	target := map[string]*RangeField{"some-field": field}
-	if !reflect.DeepEqual(target, frame.Fields()) {
-		t.Fatalf("%v != %v", target, frame.Fields())
+	index := schema1.Index("test-index")
+	index.Field("test-field-with-nil-option", nil)
+}
+
+func TestFieldSetType(t *testing.T) {
+	schema1 := NewSchema()
+	index := schema1.Index("test-index")
+	field := index.Field("test-set-field", OptFieldTypeSet(CacheTypeLRU, 1000), OptFieldKeys(true))
+	target := `{"options":{"type":"set","cacheType":"lru","cacheSize":1000,"keys":true}}`
+	if sortedString(target) != sortedString(field.options.String()) {
+		t.Fatalf("%s != %s", target, field.options.String())
 	}
 
-}
-
-func TestBitmap(t *testing.T) {
-	comparePQL(t,
-		"Bitmap(row=5, frame='sample-frame')",
-		sampleFrame.Bitmap(5))
-	comparePQL(t,
-		"Bitmap(row=10, frame='collaboration')",
-		collabFrame.Bitmap(10))
-}
-
-func TestBitmapK(t *testing.T) {
-	comparePQL(t,
-		"Bitmap(row='myrow', frame='sample-frame')",
-		sampleFrame.BitmapK("myrow"))
-}
-
-func TestInverseBitmap(t *testing.T) {
-	options := &FrameOptions{
-		InverseEnabled: true,
+	field = index.Field("test-set-field2", OptFieldTypeSet(CacheTypeLRU, -10), OptFieldKeys(true))
+	target = `{"options":{"type":"set","cacheType":"lru","keys":true}}`
+	if sortedString(target) != sortedString(field.options.String()) {
+		t.Fatalf("%s != %s", target, field.options.String())
 	}
-	f1, err := projectIndex.Frame("f1-inversable", options)
-	if err != nil {
-		t.Fatal(err)
+}
+
+func TestRow(t *testing.T) {
+	comparePQL(t,
+		"Row(collaboration=5)",
+		collabField.Row(5))
+
+	comparePQL(t,
+		"Row(collaboration='b7feb014-8ea7-49a8-9cd8-19709161ab63')",
+		collabField.Row("b7feb014-8ea7-49a8-9cd8-19709161ab63"))
+
+	q := collabField.Row(false)
+	if q.err == nil {
+		t.Fatalf("should have failed")
 	}
-	comparePQL(t,
-		"Bitmap(col=5, frame='f1-inversable')",
-		f1.InverseBitmap(5))
 }
 
-func TestInverseBitmapK(t *testing.T) {
-	options := &FrameOptions{
-		InverseEnabled: true,
+func TestSet(t *testing.T) {
+	comparePQL(t,
+		"Set(10,collaboration=5)",
+		collabField.Set(5, 10))
+
+	comparePQL(t,
+		`Set('some_id',collaboration='b7feb014-8ea7-49a8-9cd8-19709161ab63')`,
+		collabField.Set("b7feb014-8ea7-49a8-9cd8-19709161ab63", "some_id"))
+
+	q := collabField.Set(false, 10)
+	if q.err == nil {
+		t.Fatalf("should have failed")
 	}
-	f1, err := projectIndex.Frame("f1-inversable", options)
-	if err != nil {
-		t.Fatal(err)
+	q = collabField.Set(5, false)
+	if q.err == nil {
+		t.Fatalf("should have failed")
 	}
-	comparePQL(t,
-		"Bitmap(col='myrow', frame='f1-inversable')",
-		f1.InverseBitmapK("myrow"))
 }
 
-func TestSetBit(t *testing.T) {
-	comparePQL(t,
-		"SetBit(row=5, frame='sample-frame', col=10)",
-		sampleFrame.SetBit(5, 10))
-	comparePQL(t,
-		"SetBit(row=10, frame='collaboration', col=20)",
-		collabFrame.SetBit(10, 20))
-}
-
-func TestSetBitK(t *testing.T) {
-	comparePQL(t,
-		"SetBit(row='myrow', frame='sample-frame', col='mycol')",
-		sampleFrame.SetBitK("myrow", "mycol"))
-}
-
-func TestSetBitTimestamp(t *testing.T) {
+func TestTimestamp(t *testing.T) {
 	timestamp := time.Date(2017, time.April, 24, 12, 14, 0, 0, time.UTC)
 	comparePQL(t,
-		"SetBit(row=10, frame='collaboration', col=20, timestamp='2017-04-24T12:14')",
-		collabFrame.SetBitTimestamp(10, 20, timestamp))
+		"Set(20,collaboration=10,2017-04-24T12:14)",
+		collabField.SetTimestamp(10, 20, timestamp))
+
+	comparePQL(t,
+		"Set('mycol',collaboration='myrow',2017-04-24T12:14)",
+		collabField.SetTimestamp("myrow", "mycol", timestamp))
+
+	q := collabField.SetTimestamp(false, 20, timestamp)
+	if q.err == nil {
+		t.Fatalf("should have failed")
+	}
 }
 
-func TestSetBitTimestampK(t *testing.T) {
-	timestamp := time.Date(2017, time.April, 24, 12, 14, 0, 0, time.UTC)
+func TestClear(t *testing.T) {
 	comparePQL(t,
-		"SetBit(row='myrow', frame='collaboration', col='mycol', timestamp='2017-04-24T12:14')",
-		collabFrame.SetBitTimestampK("myrow", "mycol", timestamp))
-}
+		"Clear(10,collaboration=5)",
+		collabField.Clear(5, 10))
 
-func TestClearBit(t *testing.T) {
 	comparePQL(t,
-		"ClearBit(row=5, frame='sample-frame', col=10)",
-		sampleFrame.ClearBit(5, 10))
-}
+		"Clear('some_id',collaboration='b7feb014-8ea7-49a8-9cd8-19709161ab63')",
+		collabField.Clear("b7feb014-8ea7-49a8-9cd8-19709161ab63", "some_id"))
 
-func TestClearBitK(t *testing.T) {
-	comparePQL(t,
-		"ClearBit(row='myrow', frame='sample-frame', col='mycol')",
-		sampleFrame.ClearBitK("myrow", "mycol"))
-}
-
-func TestSetFieldValue(t *testing.T) {
-	comparePQL(t,
-		"SetFieldValue(frame='collaboration', col=50, foo=15)",
-		collabFrame.SetIntFieldValue(50, "foo", 15))
-}
-
-func TestSetValueK(t *testing.T) {
-	comparePQL(t,
-		"SetFieldValue(frame='sample-frame', col='mycol', sample-field=22)",
-		sampleField.SetIntValueK("mycol", 22))
+	q := collabField.Clear(false, 10)
+	if q.err == nil {
+		t.Fatalf("should have failed")
+	}
+	q = collabField.Clear(5, false)
+	if q.err == nil {
+		t.Fatalf("should have failed")
+	}
 }
 
 func TestUnion(t *testing.T) {
 	comparePQL(t,
-		"Union(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'))",
+		"Union(Row(sample-field=10),Row(sample-field=20))",
 		sampleIndex.Union(b1, b2))
 	comparePQL(t,
-		"Union(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'), Bitmap(row=42, frame='sample-frame'))",
+		"Union(Row(sample-field=10),Row(sample-field=20),Row(sample-field=42))",
 		sampleIndex.Union(b1, b2, b3))
 	comparePQL(t,
-		"Union(Bitmap(row=10, frame='sample-frame'), Bitmap(row=2, frame='collaboration'))",
+		"Union(Row(sample-field=10),Row(collaboration=2))",
 		sampleIndex.Union(b1, b4))
 	comparePQL(t,
-		"Union(Bitmap(row=10, frame='sample-frame'))",
+		"Union(Row(sample-field=10))",
 		sampleIndex.Union(b1))
 	comparePQL(t,
 		"Union()",
@@ -347,156 +299,149 @@ func TestUnion(t *testing.T) {
 
 func TestIntersect(t *testing.T) {
 	comparePQL(t,
-		"Intersect(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'))",
+		"Intersect(Row(sample-field=10),Row(sample-field=20))",
 		sampleIndex.Intersect(b1, b2))
 	comparePQL(t,
-		"Intersect(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'), Bitmap(row=42, frame='sample-frame'))",
+		"Intersect(Row(sample-field=10),Row(sample-field=20),Row(sample-field=42))",
 		sampleIndex.Intersect(b1, b2, b3))
 	comparePQL(t,
-		"Intersect(Bitmap(row=10, frame='sample-frame'), Bitmap(row=2, frame='collaboration'))",
+		"Intersect(Row(sample-field=10),Row(collaboration=2))",
 		sampleIndex.Intersect(b1, b4))
 	comparePQL(t,
-		"Intersect(Bitmap(row=10, frame='sample-frame'))",
+		"Intersect(Row(sample-field=10))",
 		sampleIndex.Intersect(b1))
 }
 
 func TestDifference(t *testing.T) {
 	comparePQL(t,
-		"Difference(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'))",
+		"Difference(Row(sample-field=10),Row(sample-field=20))",
 		sampleIndex.Difference(b1, b2))
 	comparePQL(t,
-		"Difference(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'), Bitmap(row=42, frame='sample-frame'))",
+		"Difference(Row(sample-field=10),Row(sample-field=20),Row(sample-field=42))",
 		sampleIndex.Difference(b1, b2, b3))
 	comparePQL(t,
-		"Difference(Bitmap(row=10, frame='sample-frame'), Bitmap(row=2, frame='collaboration'))",
+		"Difference(Row(sample-field=10),Row(collaboration=2))",
 		sampleIndex.Difference(b1, b4))
 	comparePQL(t,
-		"Difference(Bitmap(row=10, frame='sample-frame'))",
+		"Difference(Row(sample-field=10))",
 		sampleIndex.Difference(b1))
 }
 
 func TestXor(t *testing.T) {
 	comparePQL(t,
-		"Xor(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'))",
+		"Xor(Row(sample-field=10),Row(sample-field=20))",
 		sampleIndex.Xor(b1, b2))
 	comparePQL(t,
-		"Xor(Bitmap(row=10, frame='sample-frame'), Bitmap(row=20, frame='sample-frame'), Bitmap(row=42, frame='sample-frame'))",
+		"Xor(Row(sample-field=10),Row(sample-field=20),Row(sample-field=42))",
 		sampleIndex.Xor(b1, b2, b3))
 	comparePQL(t,
-		"Xor(Bitmap(row=10, frame='sample-frame'), Bitmap(row=2, frame='collaboration'))",
+		"Xor(Row(sample-field=10),Row(collaboration=2))",
 		sampleIndex.Xor(b1, b4))
 }
 
 func TestTopN(t *testing.T) {
 	comparePQL(t,
-		"TopN(frame='sample-frame', n=27, inverse=false)",
-		sampleFrame.TopN(27))
+		"TopN(collaboration,n=27)",
+		collabField.TopN(27))
 	comparePQL(t,
-		"TopN(frame='sample-frame', n=27, inverse=true)",
-		sampleFrame.InverseTopN(27))
+		"TopN(collaboration,Row(collaboration=3),n=10)",
+		collabField.RowTopN(10, collabField.Row(3)))
 	comparePQL(t,
-		"TopN(Bitmap(row=3, frame='collaboration'), frame='sample-frame', n=10, inverse=false)",
-		sampleFrame.BitmapTopN(10, collabFrame.Bitmap(3)))
+		"TopN(sample-field,Row(collaboration=7),n=12,attrName='category',attrValues=[80,81])",
+		sampleField.FilterAttrTopN(12, collabField.Row(7), "category", 80, 81))
 	comparePQL(t,
-		"TopN(Bitmap(row=3, frame='collaboration'), frame='sample-frame', n=10, inverse=true)",
-		sampleFrame.InverseBitmapTopN(10, collabFrame.Bitmap(3)))
-	comparePQL(t,
-		"TopN(Bitmap(row=7, frame='collaboration'), frame='sample-frame', n=12, inverse=false, field='category', filters=[80,81])",
-		sampleFrame.FilterFieldTopN(12, collabFrame.Bitmap(7), "category", 80, 81))
-	comparePQL(t,
-		"TopN(Bitmap(row=7, frame='collaboration'), frame='sample-frame', n=12, inverse=true, field='category', filters=[80,81])",
-		sampleFrame.InverseFilterFieldTopN(12, collabFrame.Bitmap(7), "category", 80, 81))
-	comparePQL(t,
-		"TopN(frame='sample-frame', n=12, inverse=true, field='category', filters=[80,81])",
-		sampleFrame.InverseFilterFieldTopN(12, nil, "category", 80, 81))
+		"TopN(sample-field,n=12,attrName='category',attrValues=[80,81])",
+		sampleField.FilterAttrTopN(12, nil, "category", 80, 81))
 }
 
 func TestFieldLT(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo < 10)",
-		sampleFrame.Field("foo").LT(10))
+		"Range(collaboration < 10)",
+		collabField.LT(10))
 }
 
 func TestFieldLTE(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo <= 10)",
-		sampleFrame.Field("foo").LTE(10))
+		"Range(collaboration <= 10)",
+		collabField.LTE(10))
 }
 
 func TestFieldGT(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo > 10)",
-		sampleFrame.Field("foo").GT(10))
+		"Range(collaboration > 10)",
+		collabField.GT(10))
 }
 
 func TestFieldGTE(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo >= 10)",
-		sampleFrame.Field("foo").GTE(10))
+		"Range(collaboration >= 10)",
+		collabField.GTE(10))
 }
 
 func TestFieldEquals(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo == 10)",
-		sampleFrame.Field("foo").Equals(10))
+		"Range(collaboration == 10)",
+		collabField.Equals(10))
 }
 
 func TestFieldNotEquals(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo != 10)",
-		sampleFrame.Field("foo").NotEquals(10))
+		"Range(collaboration != 10)",
+		collabField.NotEquals(10))
 }
 
 func TestFieldNotNull(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo != null)",
-		sampleFrame.Field("foo").NotNull())
+		"Range(collaboration != null)",
+		collabField.NotNull())
 }
 
 func TestFieldBetween(t *testing.T) {
 	comparePQL(t,
-		"Range(frame='sample-frame', foo >< [10,20])",
-		sampleFrame.Field("foo").Between(10, 20))
+		"Range(collaboration >< [10,20])",
+		collabField.Between(10, 20))
 }
 
 func TestFieldSum(t *testing.T) {
 	comparePQL(t,
-		"Sum(Bitmap(row=10, frame='sample-frame'), frame='sample-frame', field='foo')",
-		sampleFrame.Field("foo").Sum(sampleFrame.Bitmap(10)))
+		"Sum(Row(collaboration=10),field='collaboration')",
+		collabField.Sum(collabField.Row(10)))
 	comparePQL(t,
-		"Sum(frame='sample-frame', field='foo')",
-		sampleFrame.Field("foo").Sum(nil))
+		"Sum(field='collaboration')",
+		collabField.Sum(nil))
 }
 
-func TestFieldBSetIntValue(t *testing.T) {
+func TestSetValue(t *testing.T) {
 	comparePQL(t,
-		"SetFieldValue(frame='sample-frame', col=10, foo=20)",
-		sampleFrame.Field("foo").SetIntValue(10, 20))
-}
+		"Set(50, collaboration=15)",
+		collabField.SetIntValue(50, 15))
 
-func TestFieldInvalidName(t *testing.T) {
-	q := sampleFrame.Field("??foo").LT(10)
-	if q.Error() == nil {
+	comparePQL(t,
+		"Set('mycol', sample-field=22)",
+		sampleField.SetIntValue("mycol", 22))
+
+	q := sampleField.SetIntValue(false, 22)
+	if q.err == nil {
 		t.Fatalf("should have failed")
 	}
 }
 
 func TestFilterFieldTopNInvalidField(t *testing.T) {
-	q := sampleFrame.FilterFieldTopN(12, collabFrame.Bitmap(7), "$invalid$", 80, 81)
+	q := sampleField.FilterAttrTopN(12, collabField.Row(7), "$invalid$", 80, 81)
 	if q.Error() == nil {
 		t.Fatalf("should have failed")
 	}
 }
 
 func TestFilterFieldTopNInvalidValue(t *testing.T) {
-	q := sampleFrame.FilterFieldTopN(12, collabFrame.Bitmap(7), "category", 80, func() {})
+	q := sampleField.FilterAttrTopN(12, collabField.Row(7), "category", 80, func() {})
 	if q.Error() == nil {
 		t.Fatalf("should have failed")
 	}
 }
 
-func TestBitmapOperationInvalidArg(t *testing.T) {
-	invalid := sampleFrame.FilterFieldTopN(12, collabFrame.Bitmap(7), "$invalid$", 80, 81)
+func TestRowOperationInvalidArg(t *testing.T) {
+	invalid := sampleField.FilterAttrTopN(12, collabField.Row(7), "$invalid$", 80, 81)
 	// invalid argument in pos 1
 	q := sampleIndex.Union(invalid, b1)
 	if q.Error() == nil {
@@ -512,18 +457,18 @@ func TestBitmapOperationInvalidArg(t *testing.T) {
 	if q.Error() == nil {
 		t.Fatalf("should have failed")
 	}
-	// not enough bitmaps supplied
+	// not enough rows supplied
 	q = sampleIndex.Difference()
 	if q.Error() == nil {
 		t.Fatalf("should have failed")
 	}
-	// not enough bitmaps supplied
+	// not enough rows supplied
 	q = sampleIndex.Intersect()
 	if q.Error() == nil {
 		t.Fatalf("should have failed")
 	}
 
-	// not enough bitmaps supplied
+	// not enough rows supplied
 	q = sampleIndex.Xor(b1)
 	if q.Error() == nil {
 		t.Fatalf("should have failed")
@@ -536,8 +481,13 @@ func TestSetColumnAttrsTest(t *testing.T) {
 		"happy": true,
 	}
 	comparePQL(t,
-		"SetColumnAttrs(col=5, happy=true, quote=\"\\\"Don't worry, be happy\\\"\")",
+		"SetColumnAttrs(5,happy=true,quote=\"\\\"Don't worry, be happy\\\"\")",
 		projectIndex.SetColumnAttrs(5, attrs))
+
+	q := projectIndex.SetColumnAttrs(false, attrs)
+	if q.err == nil {
+		t.Fatalf("should have failed")
+	}
 }
 
 func TestSetColumnAttrsInvalidAttr(t *testing.T) {
@@ -555,10 +505,18 @@ func TestSetRowAttrsTest(t *testing.T) {
 		"quote":  "\"Don't worry, be happy\"",
 		"active": true,
 	}
+	comparePQL(t,
+		`SetRowAttrs(collaboration,5,active=true,quote="\"Don't worry, be happy\"")`,
+		collabField.SetRowAttrs(5, attrs))
 
 	comparePQL(t,
-		"SetRowAttrs(row=5, frame='collaboration', active=true, quote=\"\\\"Don't worry, be happy\\\"\")",
-		collabFrame.SetRowAttrs(5, attrs))
+		"SetRowAttrs(collaboration,'foo',active=true,quote=\"\\\"Don't worry, be happy\\\"\")",
+		collabField.SetRowAttrs("foo", attrs))
+
+	q := collabField.SetRowAttrs(false, attrs)
+	if q.err == nil {
+		t.Fatalf("should have failed")
+	}
 }
 
 func TestSetRowAttrsInvalidAttr(t *testing.T) {
@@ -566,37 +524,13 @@ func TestSetRowAttrsInvalidAttr(t *testing.T) {
 		"color":     "blue",
 		"$invalid$": true,
 	}
-	if collabFrame.SetRowAttrs(5, attrs).Error() == nil {
+	if collabField.SetRowAttrs(5, attrs).Error() == nil {
 		t.Fatalf("Should have failed")
 	}
-}
 
-func TestSetRowAttrsKTest(t *testing.T) {
-	attrs := map[string]interface{}{
-		"quote":  "\"Don't worry, be happy\"",
-		"active": true,
-	}
-
-	comparePQL(t,
-		"SetRowAttrs(row='foo', frame='collaboration', active=true, quote=\"\\\"Don't worry, be happy\\\"\")",
-		collabFrame.SetRowAttrsK("foo", attrs))
-}
-
-func TestSetRowAttrsKInvalidAttr(t *testing.T) {
-	attrs := map[string]interface{}{
-		"color":     "blue",
-		"$invalid$": true,
-	}
-	if collabFrame.SetRowAttrsK("foo", attrs).Error() == nil {
+	if collabField.SetRowAttrs("foo", attrs).Error() == nil {
 		t.Fatalf("Should have failed")
 	}
-}
-
-func TestSum(t *testing.T) {
-	b := collabFrame.Bitmap(42)
-	comparePQL(t,
-		"Sum(Bitmap(row=42, frame='collaboration'), frame='sample-frame', field='foo')",
-		sampleFrame.Sum(b, "foo"))
 }
 
 func TestBatchQuery(t *testing.T) {
@@ -604,107 +538,77 @@ func TestBatchQuery(t *testing.T) {
 	if q.Index() != sampleIndex {
 		t.Fatalf("The correct index should be assigned")
 	}
-	q.Add(sampleFrame.Bitmap(44))
-	q.Add(sampleFrame.Bitmap(10101))
+	q.Add(sampleField.Row(44))
+	q.Add(sampleField.Row(10101))
 	if q.Error() != nil {
 		t.Fatalf("Error should be nil")
 	}
-	comparePQL(t, "Bitmap(row=44, frame='sample-frame')Bitmap(row=10101, frame='sample-frame')", q)
+	comparePQL(t, "Row(sample-field=44)Row(sample-field=10101)", q)
+
+	q2 := sampleField.Row(false)
+	if q2.err == nil {
+		t.Fatalf("should have failed")
+	}
 }
 
 func TestBatchQueryWithError(t *testing.T) {
 	q := sampleIndex.BatchQuery()
-	q.Add(sampleFrame.FilterFieldTopN(12, collabFrame.Bitmap(7), "$invalid$", 80, 81))
+	q.Add(sampleField.FilterAttrTopN(12, collabField.Row(7), "$invalid$", 80, 81))
 	if q.Error() == nil {
 		t.Fatalf("The error must be set")
 	}
 }
 
 func TestCount(t *testing.T) {
-	q := projectIndex.Count(collabFrame.Bitmap(42))
-	comparePQL(t, "Count(Bitmap(row=42, frame='collaboration'))", q)
+	q := projectIndex.Count(collabField.Row(42))
+	comparePQL(t, "Count(Row(collaboration=42))", q)
 }
 
 func TestRange(t *testing.T) {
 	start := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2000, time.February, 2, 3, 4, 0, 0, time.UTC)
 	comparePQL(t,
-		"Range(row=10, frame='collaboration', start='1970-01-01T00:00', end='2000-02-02T03:04')",
-		collabFrame.Range(10, start, end))
-	comparePQL(t,
-		"Range(col=10, frame='collaboration', start='1970-01-01T00:00', end='2000-02-02T03:04')",
-		collabFrame.InverseRange(10, start, end))
-}
+		"Range(collaboration=10,1970-01-01T00:00,2000-02-02T03:04)",
+		collabField.Range(10, start, end))
 
-func TestRangeK(t *testing.T) {
-	start := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2000, time.February, 2, 3, 4, 0, 0, time.UTC)
 	comparePQL(t,
-		"Range(row='foo', frame='collaboration', start='1970-01-01T00:00', end='2000-02-02T03:04')",
-		collabFrame.RangeK("foo", start, end))
-	comparePQL(t,
-		"Range(col='foo', frame='collaboration', start='1970-01-01T00:00', end='2000-02-02T03:04')",
-		collabFrame.InverseRangeK("foo", start, end))
-}
+		"Range(collaboration='foo',1970-01-01T00:00,2000-02-02T03:04)",
+		collabField.Range("foo", start, end))
 
-func TestFrameOptionsToString(t *testing.T) {
-	frame, err := sampleIndex.Frame("stargazer",
-		TimeQuantumDayHour,
-		InverseEnabled(true),
-		RangeEnabled(true), // unnecessary, just to be able to have one less test
-		CacheTypeRanked,
-		CacheSize(1000),
-		IntField("foo", 10, 100),
-		IntField("bar", -1, 1))
-	if err != nil {
-		t.Fatal(err)
+	q := collabField.Range(false, start, end)
+	if q.err == nil {
+		t.Fatalf("should have failed")
 	}
-	jsonString := frame.options.String()
-	targetString := `{"options": {"cacheSize":1000,"cacheType":"ranked","fields":[{"max":100,"min":10,"name":"foo","type":"int"},{"max":1,"min":-1,"name":"bar","type":"int"}],"inverseEnabled":true,"rangeEnabled":true,"timeQuantum":"DH"}}`
+}
+
+func TestSetFieldOptions(t *testing.T) {
+	field := sampleIndex.Field("set-field", OptFieldTypeSet(CacheTypeRanked, 9999))
+	jsonString := field.options.String()
+	targetString := `{"options":{"type":"set","cacheType":"ranked","cacheSize":9999}}`
 	if sortedString(targetString) != sortedString(jsonString) {
 		t.Fatalf("`%s` != `%s`", targetString, jsonString)
 	}
+	compareFieldOptions(t, field.Options(), FieldTypeSet, TimeQuantumNone, CacheTypeRanked, 9999, 0, 0)
 }
 
-func TestInvalidFrameOption(t *testing.T) {
-	_, err := sampleIndex.Frame("invalid-frame-opt", 1)
-	if err == nil {
-		t.Fatalf("should have failed")
+func TestIntFieldOptions(t *testing.T) {
+	field := sampleIndex.Field("int-field", OptFieldTypeInt(-10, 100))
+	jsonString := field.options.String()
+	targetString := `{"options":{"type":"int","min":-10,"max":100}}`
+	if sortedString(targetString) != sortedString(jsonString) {
+		t.Fatalf("`%s` != `%s`", targetString, jsonString)
 	}
-	_, err = sampleIndex.Frame("invalid-frame-opt", TimeQuantumDayHour, nil)
-	if err == nil {
-		t.Fatalf("should have failed")
-	}
-	_, err = sampleIndex.Frame("invalid-frame-opt", TimeQuantumDayHour, &FrameOptions{})
-	if err == nil {
-		t.Fatalf("should have failed")
-	}
-	_, err = sampleIndex.Frame("invalid-frame-opt", FrameOptionErr(0))
-	if err == nil {
-		t.Fatalf("should have failed")
-	}
+	compareFieldOptions(t, field.Options(), FieldTypeInt, TimeQuantumNone, CacheTypeDefault, 0, -10, 100)
 }
 
-func TestAddInvalidField(t *testing.T) {
-	frameOptions := &FrameOptions{}
-	err := frameOptions.AddIntField("?invalid field!", 0, 100)
-	if err == nil {
-		t.Fatalf("Adding a field with an invalid name should have failed")
+func TestTimeFieldOptions(t *testing.T) {
+	field := sampleIndex.Field("time-field", OptFieldTypeTime(TimeQuantumDayHour))
+	jsonString := field.options.String()
+	targetString := `{"options":{"type":"time","timeQuantum":"DH"}}`
+	if sortedString(targetString) != sortedString(jsonString) {
+		t.Fatalf("`%s` != `%s`", targetString, jsonString)
 	}
-	err = frameOptions.AddIntField("valid", 10, 10)
-	if err == nil {
-		t.Fatalf("Adding a field with max <= min should have failed")
-	}
-}
-
-func TestCreateIntFieldWithInvalidName(t *testing.T) {
-	client := DefaultClient()
-	index, _ := NewIndex("foo")
-	frame, _ := index.Frame("foo")
-	err := client.CreateIntField(frame, "??invalid$$", 10, 20)
-	if err == nil {
-		t.Fatalf("Should have failed")
-	}
+	compareFieldOptions(t, field.Options(), FieldTypeTime, TimeQuantumDayHour, CacheTypeDefault, 0, 0, 0)
 }
 
 func TestEncodeMapPanicsOnMarshalFailure(t *testing.T) {
@@ -718,38 +622,62 @@ func TestEncodeMapPanicsOnMarshalFailure(t *testing.T) {
 	t.Fatal("Should have panicked")
 }
 
+func TestFormatIDKey(t *testing.T) {
+	testCase := [][]interface{}{
+		{uint(42), "42", nil},
+		{uint32(42), "42", nil},
+		{uint64(42), "42", nil},
+		{42, "42", nil},
+		{int32(42), "42", nil},
+		{int64(42), "42", nil},
+		{"foo", `'foo'`, nil},
+		{false, "", errors.New("error")},
+	}
+	for i, item := range testCase {
+		s, err := formatIDKey(item[0])
+		if item[2] != nil {
+			if err == nil {
+				t.Fatalf("Should have failed: %d", i)
+			}
+			continue
+		}
+		if item[1] != s {
+			t.Fatalf("%s != %s", item[1], s)
+		}
+	}
+}
+
 func comparePQL(t *testing.T, target string, q PQLQuery) {
+	t.Helper()
 	pql := q.serialize()
-	if pql != target {
-		t.Fatalf("%s != %s", pql, target)
+	if target != pql {
+		t.Fatalf("%s != %s", target, pql)
 	}
 }
 
-func mustNewIndex(schema *Schema, name string) (index *Index) {
-	index, err := schema.Index(name)
-	if err != nil {
-		panic(err)
+func compareFieldOptions(t *testing.T, opts *FieldOptions, fieldType FieldType, timeQuantum TimeQuantum, cacheType CacheType, cacheSize int, min int64, max int64) {
+	if fieldType != opts.Type() {
+		t.Fatalf("%s != %s", fieldType, opts.Type())
 	}
-	return
-}
-
-func mustNewFrame(index *Index, name string) *Frame {
-	var err error
-	frame, err := index.Frame(name)
-	if err != nil {
-		panic(err)
+	if timeQuantum != opts.TimeQuantum() {
+		t.Fatalf("%s != %s", timeQuantum, opts.TimeQuantum())
 	}
-	return frame
+	if cacheType != opts.CacheType() {
+		t.Fatalf("%s != %s", cacheType, opts.CacheType())
+	}
+	if cacheSize != opts.CacheSize() {
+		t.Fatalf("%d != %d", cacheSize, opts.CacheSize())
+	}
+	if min != opts.Min() {
+		t.Fatalf("%d != %d", min, opts.Min())
+	}
+	if max != opts.Max() {
+		t.Fatalf("%d != %d", max, opts.Max())
+	}
 }
 
 func sortedString(s string) string {
 	arr := strings.Split(s, "")
 	sort.Strings(arr)
 	return strings.Join(arr, "")
-}
-
-func FrameOptionErr(int) FrameOption {
-	return func(*FrameOptions) error {
-		return errors.New("Some error")
-	}
 }

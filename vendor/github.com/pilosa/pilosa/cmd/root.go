@@ -25,10 +25,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// TODO maybe give this an Add method which will ensure two command
-// with same name aren't added
-var subcommandFns = map[string]func(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command{}
-
 func NewRootCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	productName := "Pilosa " + pilosa.Version
 	if pilosa.EnterpriseEnabled {
@@ -69,9 +65,15 @@ Build Time: ` + pilosa.BuildTime + "\n",
 	rc.PersistentFlags().Bool("dry-run", false, "stop before executing")
 	_ = rc.PersistentFlags().MarkHidden("dry-run")
 	rc.PersistentFlags().StringP("config", "c", "", "Configuration file to read from.")
-	for _, subcomFn := range subcommandFns {
-		rc.AddCommand(subcomFn(stdin, stdout, stderr))
-	}
+
+	rc.AddCommand(newCheckCommand(stdin, stdout, stderr))
+	rc.AddCommand(newConfigCommand(stdin, stdout, stderr))
+	rc.AddCommand(newExportCommand(stdin, stdout, stderr))
+	rc.AddCommand(newGenerateConfigCommand(stdin, stdout, stderr))
+	rc.AddCommand(newImportCommand(stdin, stdout, stderr))
+	rc.AddCommand(newInspectCommand(stdin, stdout, stderr))
+	rc.AddCommand(newServeCmd(stdin, stdout, stderr))
+
 	rc.SetOutput(stderr)
 	return rc
 }
@@ -86,7 +88,7 @@ Build Time: ` + pilosa.BuildTime + "\n",
 // setAllConfig looks for environment variables which are capitalized versions
 // of the flag names with dashes replaced by underscores, and prefixed with
 // envPrefix plus an underscore.
-func setAllConfig(v *viper.Viper, flags *pflag.FlagSet, envPrefix string) error {
+func setAllConfig(v *viper.Viper, flags *pflag.FlagSet, envPrefix string) error { // nolint: unparam
 	// add cmd line flag def to viper
 	err := v.BindPFlags(flags)
 	if err != nil {

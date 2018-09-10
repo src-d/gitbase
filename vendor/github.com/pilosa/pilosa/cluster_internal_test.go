@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
@@ -182,9 +183,9 @@ func TestFragSources(t *testing.T) {
 			to:   c2,
 			idx:  idx,
 			expected: map[string][]*ResizeSource{
-				"node0": []*ResizeSource{},
-				"node1": []*ResizeSource{},
-				"node2": []*ResizeSource{
+				"node0": {},
+				"node1": {},
+				"node2": {
 					{&Node{"node0", URI{"http", "host0", 10101}, false}, "i", "f", "standard", uint64(0)},
 					{&Node{"node1", URI{"http", "host1", 10101}, false}, "i", "f", "standard", uint64(2)},
 				},
@@ -196,10 +197,10 @@ func TestFragSources(t *testing.T) {
 			to:   c3,
 			idx:  idx,
 			expected: map[string][]*ResizeSource{
-				"node0": []*ResizeSource{
+				"node0": {
 					{&Node{"node1", URI{"http", "host1", 10101}, false}, "i", "f", "standard", uint64(1)},
 				},
-				"node1": []*ResizeSource{
+				"node1": {
 					{&Node{"node0", URI{"http", "host0", 10101}, false}, "i", "f", "standard", uint64(0)},
 					{&Node{"node0", URI{"http", "host0", 10101}, false}, "i", "f", "standard", uint64(2)},
 				},
@@ -211,14 +212,14 @@ func TestFragSources(t *testing.T) {
 			to:   c4,
 			idx:  idx,
 			expected: map[string][]*ResizeSource{
-				"node0": []*ResizeSource{
+				"node0": {
 					{&Node{"node2", URI{"http", "host2", 10101}, false}, "i", "f", "standard", uint64(0)},
 					{&Node{"node2", URI{"http", "host2", 10101}, false}, "i", "f", "standard", uint64(2)},
 				},
-				"node1": []*ResizeSource{
+				"node1": {
 					{&Node{"node0", URI{"http", "host0", 10101}, false}, "i", "f", "standard", uint64(3)},
 				},
-				"node2": []*ResizeSource{},
+				"node2": {},
 			},
 			err: "",
 		},
@@ -316,7 +317,7 @@ func TestResizeJob(t *testing.T) {
 // Ensure the cluster can fairly distribute partitions across the nodes.
 func TestCluster_Owners(t *testing.T) {
 	c := cluster{
-		Nodes: []*Node{
+		nodes: []*Node{
 			{URI: NewTestURIFromHostPort("serverA", 1000)},
 			{URI: NewTestURIFromHostPort("serverB", 1000)},
 			{URI: NewTestURIFromHostPort("serverC", 1000)},
@@ -326,12 +327,12 @@ func TestCluster_Owners(t *testing.T) {
 	}
 
 	// Verify nodes are distributed.
-	if a := c.partitionNodes(0); !reflect.DeepEqual(a, []*Node{c.Nodes[0], c.Nodes[1]}) {
+	if a := c.partitionNodes(0); !reflect.DeepEqual(a, []*Node{c.nodes[0], c.nodes[1]}) {
 		t.Fatalf("unexpected owners: %s", spew.Sdump(a))
 	}
 
 	// Verify nodes go around the ring.
-	if a := c.partitionNodes(2); !reflect.DeepEqual(a, []*Node{c.Nodes[2], c.Nodes[0]}) {
+	if a := c.partitionNodes(2); !reflect.DeepEqual(a, []*Node{c.nodes[2], c.nodes[0]}) {
 		t.Fatalf("unexpected owners: %s", spew.Sdump(a))
 	}
 }
@@ -372,7 +373,8 @@ func TestHasher(t *testing.T) {
 		{0x0ddc0ffeebadf00d, []int{0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 15, 15, 15, 15}},
 	} {
 		for i, v := range tt.bucket {
-			if got := newHasher().Hash(tt.key, i+1); got != v {
+			hasher := &jmphasher{}
+			if got := hasher.Hash(tt.key, i+1); got != v {
 				t.Errorf("hash(%v,%v)=%v, want %v", tt.key, i+1, got, v)
 			}
 		}
@@ -383,7 +385,7 @@ func TestHasher(t *testing.T) {
 func TestCluster_ContainsShards(t *testing.T) {
 	c := NewTestCluster(5)
 	c.ReplicaN = 3
-	shards := c.containsShards("test", 10, c.Nodes[2])
+	shards := c.containsShards("test", 10, c.nodes[2])
 
 	if !reflect.DeepEqual(shards, []uint64{0, 2, 3, 5, 6, 9, 10}) {
 		t.Fatalf("unexpected shars for node's index: %v", shards)
@@ -444,6 +446,60 @@ func TestCluster_Nodes(t *testing.T) {
 		expected := []URI{uri0, uri1, uri2}
 		if !reflect.DeepEqual(actual, expected) {
 			t.Errorf("expected: %v, but got: %v", expected, actual)
+		}
+	})
+}
+
+func TestCluster_PreviousNode(t *testing.T) {
+	node0 := &Node{ID: "node0"}
+	node1 := &Node{ID: "node1"}
+	node2 := &Node{ID: "node2"}
+
+	t.Run("OneNode", func(t *testing.T) {
+		c := newCluster()
+		c.addNodeBasicSorted(node0)
+
+		c.Node = node0
+		if prev := c.unprotectedPreviousNode(); prev != nil {
+			t.Errorf("expected: nil, but got: %v", prev)
+		}
+	})
+
+	t.Run("TwoNode", func(t *testing.T) {
+		c := newCluster()
+		c.addNodeBasicSorted(node0)
+		c.addNodeBasicSorted(node1)
+
+		c.Node = node0
+		if prev := c.unprotectedPreviousNode(); prev != node1 {
+			t.Errorf("expected: node1, but got: %v", prev)
+		}
+
+		c.Node = node1
+		if prev := c.unprotectedPreviousNode(); prev != node0 {
+			t.Errorf("expected: node0, but got: %v", prev)
+		}
+	})
+
+	t.Run("ThreeNode", func(t *testing.T) {
+		c := newCluster()
+		c.addNodeBasicSorted(node0)
+		c.addNodeBasicSorted(node1)
+		c.addNodeBasicSorted(node2)
+
+		c.Node = node0
+		if prev := c.unprotectedPreviousNode(); prev != node2 {
+			t.Errorf("expected: node2, but got: %v", prev)
+		}
+
+		c.Node = node1
+		if prev := c.unprotectedPreviousNode(); prev != node0 {
+			t.Errorf("expected: node0, but got: %v", prev)
+		}
+
+		c.Node = node2
+		if prev := c.unprotectedPreviousNode(); prev != node1 {
+			t.Errorf("expected: node1, but got: %v", prev)
 		}
 	})
 }
@@ -749,13 +805,71 @@ func TestCluster_ResizeStates(t *testing.T) {
 	})
 }
 
+func TestAE(t *testing.T) {
+	t.Run("AbortDoesn'tBlockUninitialized", func(t *testing.T) {
+		c := newCluster()
+		ch := make(chan struct{})
+		go func() {
+			c.abortAntiEntropy()
+			close(ch)
+		}()
+		select {
+		case <-ch:
+			return
+		case <-time.After(time.Second):
+			t.Fatalf("aborting anti entropy on a new cluster blocked")
+		}
+	})
+
+	t.Run("AbortBlocksInitialized", func(t *testing.T) {
+		c := newCluster()
+		c.initializeAntiEntropy()
+		ch := make(chan struct{})
+		go func() {
+			c.abortAntiEntropy()
+			close(ch)
+		}()
+		select {
+		case <-ch:
+			t.Fatalf("aborting anti entropy on an initialized cluster didn't block")
+		case <-time.After(time.Microsecond * 100):
+		}
+	})
+
+	t.Run("AbortAntiEntropyQ", func(t *testing.T) {
+		c := newCluster()
+		c.initializeAntiEntropy()
+		if c.abortAntiEntropyQ() {
+			t.Fatalf("abortAntiEntropyQ should report false when abort not called")
+		}
+		go func() {
+			for {
+				if c.abortAntiEntropyQ() {
+					break
+				}
+			}
+		}()
+		ch := make(chan struct{})
+		go func() {
+			c.abortAntiEntropy()
+			close(ch)
+		}()
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			t.Fatalf("abort should not have blocked this long")
+		}
+	})
+
+}
+
 // Ensures that coordinator can be changed.
 func TestCluster_UpdateCoordinator(t *testing.T) {
 	t.Run("UpdateCoordinator", func(t *testing.T) {
 		c := NewTestCluster(2)
 
-		oldNode := c.Nodes[0]
-		newNode := c.Nodes[1]
+		oldNode := c.nodes[0]
+		newNode := c.nodes[1]
 
 		// Update coordinator to the same value.
 		if c.updateCoordinator(oldNode) {

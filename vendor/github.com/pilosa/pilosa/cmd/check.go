@@ -27,7 +27,7 @@ import (
 
 var checker *ctl.CheckCommand
 
-func newCheckCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
+func newCheckCommand(_ io.Reader, _, _ io.Writer) *cobra.Command {
 	checker = ctl.NewCheckCommand(os.Stdin, os.Stdout, os.Stderr)
 	checkCmd := &cobra.Command{
 		Use:   "check <path> [path2]...",
@@ -40,15 +40,8 @@ Performs a consistency check on data files.
 				return fmt.Errorf("path required")
 			}
 			checker.Paths = args
-			if err := checker.Run(context.Background()); err != nil {
-				return err
-			}
-			return nil
+			return checker.Run(context.Background())
 		},
 	}
 	return checkCmd
-}
-
-func init() {
-	subcommandFns["check"] = newCheckCommand
 }

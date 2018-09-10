@@ -196,18 +196,18 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:8c515d4fe1dfe61082e9043f60b1dd19797bfeb77c04e9e96e968a13290df8d1"
+  digest = "1:e51a679c408e8066526879897e72530c5df48a27ec4df7ae68c3417d67d19e09"
   name = "github.com/pilosa/go-pilosa"
   packages = [
     ".",
     "gopilosa_pbuf",
   ]
   pruneopts = ""
-  revision = "2a176035ff61f2aa4bac197314e0f4464bfea4a4"
-  version = "v0.9.0"
+  revision = "7061e94f4cfed62addfcf34c4c8b03b056f982de"
+  version = "v0.10.0"
 
 [[projects]]
-  digest = "1:58fca81afb30787f9d052a730c931fbdf734501ba570d766bca2275893216311"
+  digest = "1:2ce848409e7c67a285dc4bf04611ea37d22526af6d2b03db845b1942e6024b91"
   name = "github.com/pilosa/pilosa"
   packages = [
     ".",
@@ -217,8 +217,8 @@
     "roaring",
   ]
   pruneopts = ""
-  revision = "5f0ef7efca2285c1a0c6e9ef2c6bce94f38ec1ea"
-  version = "v1.0.2"
+  revision = "b22780ccf149c564f8ca271f66965aca1beb3dfa"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:7365acd48986e205ccb8652cc746f09c8b7876030d53710ea6ef7d0bd0dcd7ca"

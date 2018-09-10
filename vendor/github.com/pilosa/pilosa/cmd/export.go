@@ -26,7 +26,7 @@ import (
 
 var Exporter *ctl.ExportCommand
 
-func newExportCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
+func newExportCommand(_ io.Reader, _, _ io.Writer) *cobra.Command {
 	Exporter = ctl.NewExportCommand(os.Stdin, os.Stdout, os.Stderr)
 	exportCmd := &cobra.Command{
 		Use:   "export",
@@ -42,10 +42,7 @@ The format of the CSV file is:
 The file does not contain any headers.
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := Exporter.Run(context.Background()); err != nil {
-				return err
-			}
-			return nil
+			return Exporter.Run(context.Background())
 		},
 	}
 	flags := exportCmd.Flags()
@@ -57,8 +54,4 @@ The file does not contain any headers.
 	ctl.SetTLSConfig(flags, &Exporter.TLS.CertificatePath, &Exporter.TLS.CertificateKeyPath, &Exporter.TLS.SkipVerify)
 
 	return exportCmd
-}
-
-func init() {
-	subcommandFns["export"] = newExportCommand
 }

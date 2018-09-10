@@ -34,55 +34,6 @@ package pilosa
 
 import "testing"
 
-func TestValidateIndexName(t *testing.T) {
-	names := []string{
-		"a", "ab", "ab1", "b-c", "d_e",
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	}
-	for _, name := range names {
-		if validateIndexName(name) != nil {
-			t.Fatalf("Should be valid index name: %s", name)
-		}
-	}
-}
-
-func TestValidateIndexNameInvalid(t *testing.T) {
-	names := []string{
-		"", "'", "^", "/", "\\", "A", "*", "a:b", "valid?no", "yüce", "1", "_", "-",
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
-	}
-	for _, name := range names {
-		if validateIndexName(name) == nil {
-			t.Fatalf("Should be invalid index name: %s", name)
-		}
-	}
-}
-
-func TestValidateFrameName(t *testing.T) {
-	names := []string{
-		"a", "ab", "ab1", "b-c", "d_e",
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	}
-	for _, name := range names {
-		if validateFrameName(name) != nil {
-			t.Fatalf("Should be valid frame name: %s", name)
-		}
-	}
-}
-
-func TestValidateFrameNameInvalid(t *testing.T) {
-	names := []string{
-		"", "'", "^", "/", "\\", "A", "*", "a:b", "valid?no", "yüce", "_", "-", ".data", "d.e", "1",
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
-	}
-	for _, name := range names {
-		if validateFrameName(name) == nil {
-			t.Fatalf("Should be invalid frame name: %s", name)
-		}
-	}
-
-}
-
 func TestValidateLabel(t *testing.T) {
 	labels := []string{
 		"a", "ab", "ab1", "d_e", "A", "Bc", "B1", "aB", "b-c",

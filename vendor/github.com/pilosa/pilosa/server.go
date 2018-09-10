@@ -41,7 +41,7 @@ const (
 var _ broadcaster = &Server{}
 
 // Server represents a holder wrapped by a running HTTP server.
-type Server struct {
+type Server struct { // nolint: maligned
 	// Close management.
 	wg      sync.WaitGroup
 	closing chan struct{}
@@ -49,7 +49,6 @@ type Server struct {
 	// Internal
 	holder          *Holder
 	cluster         *cluster
-	translateFile   *TranslateFile
 	diagnostics     *diagnosticsCollector
 	executor        *executor
 	hosts           []string
@@ -69,8 +68,6 @@ type Server struct {
 	maxWritesPerRequest int
 	isCoordinator       bool
 	syncer              holderSyncer
-
-	primaryTranslateStore TranslateStore
 
 	defaultClient InternalClient
 	dataDir       string
@@ -163,9 +160,17 @@ func OptServerInternalClient(c InternalClient) ServerOption {
 	}
 }
 
+// DEPRECATED
 func OptServerPrimaryTranslateStore(store TranslateStore) ServerOption {
 	return func(s *Server) error {
-		s.primaryTranslateStore = store
+		s.logger.Printf("DEPRECATED: OptServerPrimaryTranslateStore")
+		return nil
+	}
+}
+
+func OptServerPrimaryTranslateStoreFunc(tf func(interface{}) TranslateStore) ServerOption {
+	return func(s *Server) error {
+		s.holder.NewPrimaryTranslateStore = tf
 		return nil
 	}
 }
@@ -232,11 +237,12 @@ func OptServerClusterHasher(h Hasher) ServerOption {
 // NewServer returns a new instance of Server.
 func NewServer(opts ...ServerOption) (*Server, error) {
 	s := &Server{
-		closing:     make(chan struct{}),
-		cluster:     newCluster(),
-		holder:      NewHolder(),
-		diagnostics: newDiagnosticsCollector(defaultDiagnosticServer),
-		systemInfo:  newNopSystemInfo(),
+		closing:       make(chan struct{}),
+		cluster:       newCluster(),
+		holder:        NewHolder(),
+		diagnostics:   newDiagnosticsCollector(defaultDiagnosticServer),
+		systemInfo:    newNopSystemInfo(),
+		defaultClient: nopInternalClient{},
 
 		gcNotifier: NopGCNotifier,
 
@@ -246,6 +252,9 @@ func NewServer(opts ...ServerOption) (*Server, error) {
 
 		logger: NopLogger,
 	}
+	s.executor = newExecutor(optExecutorInternalQueryClient(s.defaultClient))
+	s.cluster.InternalClient = s.defaultClient
+
 	s.diagnostics.server = s
 
 	for _, opt := range opts {
@@ -261,17 +270,13 @@ func NewServer(opts ...ServerOption) (*Server, error) {
 	}
 
 	s.holder.Path = path
+	s.holder.translateFile.Path = filepath.Join(path, ".keys")
 	s.holder.Logger = s.logger
 	s.holder.Stats.SetLogger(s.logger)
 
 	s.cluster.Path = path
 	s.cluster.logger = s.logger
 	s.cluster.holder = s.holder
-
-	// Initialize translation database.
-	s.translateFile = NewTranslateFile()
-	s.translateFile.Path = filepath.Join(path, ".keys")
-	s.translateFile.PrimaryTranslateStore = s.primaryTranslateStore
 
 	// Get or create NodeID.
 	s.nodeID = s.loadNodeID()
@@ -299,7 +304,7 @@ func NewServer(opts ...ServerOption) (*Server, error) {
 	s.executor.Holder = s.holder
 	s.executor.Node = node
 	s.executor.Cluster = s.cluster
-	s.executor.TranslateStore = s.translateFile
+	s.executor.TranslateStore = s.holder.translateFile
 	s.executor.MaxWritesPerRequest = s.maxWritesPerRequest
 	s.cluster.broadcaster = s
 	s.cluster.maxWritesPerRequest = s.maxWritesPerRequest
@@ -324,7 +329,7 @@ func (s *Server) Open() error {
 	}
 
 	// Initialize id-key storage.
-	if err := s.translateFile.Open(); err != nil {
+	if err := s.holder.translateFile.Open(); err != nil {
 		return err
 	}
 
@@ -370,7 +375,6 @@ func (s *Server) Close() error {
 	s.wg.Wait()
 
 	var errh error
-	var errt error
 	var errc error
 	if s.cluster != nil {
 		errc = s.cluster.close()
@@ -378,17 +382,12 @@ func (s *Server) Close() error {
 	if s.holder != nil {
 		errh = s.holder.Close()
 	}
-	if s.translateFile != nil {
-		errt = s.translateFile.Close()
-	}
-	// prefer to return holder error over translateFile error over cluster
+	// prefer to return holder error over cluster
 	// error. This order is somewhat arbitrary. It would be better if we had
 	// some way to combine all the errors, but probably not important enough to
 	// warrant the extra complexity.
 	if errh != nil {
 		return errors.Wrap(errh, "closing holder")
-	} else if errt != nil {
-		return errors.Wrap(errt, "closing translateFile")
 	}
 	return errors.Wrap(errc, "closing cluster")
 }
@@ -417,6 +416,8 @@ func (s *Server) monitorAntiEntropy() {
 	if s.antiEntropyInterval == 0 {
 		return // anti entropy disabled
 	}
+	s.cluster.initializeAntiEntropy()
+
 	ticker := time.NewTicker(s.antiEntropyInterval)
 	defer ticker.Stop()
 
@@ -428,11 +429,17 @@ func (s *Server) monitorAntiEntropy() {
 		select {
 		case <-s.closing:
 			return
+		case <-s.cluster.abortAntiEntropyCh: // receive here so we don't block resizing
+			continue
 		case <-ticker.C:
 			s.holder.Stats.Count("AntiEntropy", 1, 1.0)
 		}
 		t := time.Now()
-
+		if s.cluster.State() == ClusterStateResizing {
+			continue // don't launch anti-entropy during resize.
+			// the cluster sets its state to resizing and *then* sends to
+			// abortAntiEntropyCh before starting to resize
+		}
 		// Sync holders.
 		s.logger.Printf("holder sync beginning")
 		if err := s.syncer.SyncHolder(); err != nil {
@@ -444,6 +451,18 @@ func (s *Server) monitorAntiEntropy() {
 		s.logger.Printf("holder sync complete")
 		dif := time.Since(t)
 		s.holder.Stats.Histogram("AntiEntropyDuration", float64(dif), 1.0)
+
+		// Drain tick channel since we just finished anti-entropy. If the AE
+		// process took a long time, we don't want them to pile up on each
+		// other.
+		for {
+			select {
+			case <-ticker.C:
+				continue
+			default:
+			}
+			break
+		}
 	}
 }
 
@@ -542,7 +561,7 @@ func (s *Server) SendSync(m Message) error {
 		return fmt.Errorf("marshaling message: %v", err)
 	}
 	msg = append([]byte{getMessageType(m)}, msg...)
-	for _, node := range s.cluster.Nodes {
+	for _, node := range s.cluster.nodes {
 		node := node
 		s.logger.Printf("SendSync to: %s", node.URI)
 		// Don't forward the message to ourselves.
@@ -642,7 +661,7 @@ func (s *Server) monitorDiagnostics() {
 	s.diagnostics.SetVersion(Version)
 	s.diagnostics.Set("Host", s.uri.Host)
 	s.diagnostics.Set("Cluster", strings.Join(s.cluster.nodeIDs(), ","))
-	s.diagnostics.Set("NumNodes", len(s.cluster.Nodes))
+	s.diagnostics.Set("NumNodes", len(s.cluster.nodes))
 	s.diagnostics.Set("NumCPU", runtime.NumCPU())
 	s.diagnostics.Set("NodeID", s.nodeID)
 	s.diagnostics.Set("ClusterID", s.cluster.id)

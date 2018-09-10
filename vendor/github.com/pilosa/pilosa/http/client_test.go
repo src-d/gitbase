@@ -15,11 +15,14 @@
 package http_test
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	gohttp "net/http"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pilosa/pilosa"
@@ -28,13 +31,6 @@ import (
 	"github.com/pilosa/pilosa/server"
 	"github.com/pilosa/pilosa/test"
 )
-
-var defaultClient *gohttp.Client
-
-func init() {
-	defaultClient = http.GetHTTPClient(nil)
-
-}
 
 // Test distributed TopN Row count across 3 nodes.
 func TestClient_MultiNode(t *testing.T) {
@@ -125,9 +121,9 @@ func TestClient_MultiNode(t *testing.T) {
 
 	// Connect to each node to compare results.
 	client := make([]*Client, 3)
-	client[0] = MustNewClient(c[0].URL(), defaultClient)
-	client[1] = MustNewClient(c[1].URL(), defaultClient)
-	client[2] = MustNewClient(c[2].URL(), defaultClient)
+	client[0] = MustNewClient(c[0].URL(), http.GetHTTPClient(nil))
+	client[1] = MustNewClient(c[1].URL(), http.GetHTTPClient(nil))
+	client[2] = MustNewClient(c[2].URL(), http.GetHTTPClient(nil))
 
 	topN := 4
 	queryRequest := &pilosa.QueryRequest{
@@ -136,11 +132,6 @@ func TestClient_MultiNode(t *testing.T) {
 	}
 
 	result, err := client[0].Query(context.Background(), "i", queryRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	result, err = client[0].Query(context.Background(), "i", queryRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,6 +170,169 @@ func TestClient_MultiNode(t *testing.T) {
 	}
 }
 
+// Ensure client can export data.
+func TestClient_Export(t *testing.T) {
+	cmd := test.MustRunCluster(t, 1)[0]
+	host := cmd.URL()
+
+	cmd.MustCreateIndex(t, "keyed", pilosa.IndexOptions{Keys: true})
+	cmd.MustCreateIndex(t, "unkeyed", pilosa.IndexOptions{Keys: false})
+
+	cmd.MustCreateField(t, "keyed", "keyedf", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000), pilosa.OptFieldKeys())
+	cmd.MustCreateField(t, "keyed", "unkeyedf", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000))
+	cmd.MustCreateField(t, "unkeyed", "keyedf", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000), pilosa.OptFieldKeys())
+	cmd.MustCreateField(t, "unkeyed", "unkeyedf", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000))
+
+	c := MustNewClient(host, http.GetHTTPClient(nil))
+
+	data := []pilosa.Bit{
+		{RowID: 1, ColumnID: 100, RowKey: "row1", ColumnKey: "col100"},
+		{RowID: 1, ColumnID: 101, RowKey: "row1", ColumnKey: "col101"},
+		{RowID: 1, ColumnID: 102, RowKey: "row1", ColumnKey: "col102"},
+		{RowID: 1, ColumnID: 103, RowKey: "row1", ColumnKey: "col103"},
+		{RowID: 2, ColumnID: 200, RowKey: "row2", ColumnKey: "col200"},
+		{RowID: 2, ColumnID: 201, RowKey: "row2", ColumnKey: "col201"},
+		{RowID: 2, ColumnID: 202, RowKey: "row2", ColumnKey: "col202"},
+		{RowID: 2, ColumnID: 203, RowKey: "row2", ColumnKey: "col203"},
+	}
+
+	t.Run("Import unkeyed,unkeyedf", func(t *testing.T) {
+		// Populate data.
+		for _, bit := range data {
+			_, err := c.Query(context.Background(), "unkeyed", &pilosa.QueryRequest{
+				Query:  fmt.Sprintf(`Set(%d, unkeyedf=%d)`, bit.ColumnID, bit.RowID),
+				Remote: false,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		buf := bytes.NewBuffer(nil)
+		bw := bufio.NewWriter(buf)
+
+		// Send export request.
+		if err := c.ExportCSV(context.Background(), "unkeyed", "unkeyedf", 0, bw); err != nil {
+			t.Fatal(err)
+		}
+
+		got := buf.String()
+
+		// Expected output.
+		exp := ""
+		for _, bit := range data {
+			exp += fmt.Sprintf("%d,%d\n", bit.RowID, bit.ColumnID)
+		}
+
+		// Verify data.
+		if got != exp {
+			t.Fatalf("unexpected export data: %s", got)
+		}
+	})
+
+	t.Run("Import unkeyed,keyedf", func(t *testing.T) {
+		// Populate data.
+		for _, bit := range data {
+			_, err := c.Query(context.Background(), "unkeyed", &pilosa.QueryRequest{
+				Query:  fmt.Sprintf(`Set(%d, keyedf=%s)`, bit.ColumnID, bit.RowKey),
+				Remote: false,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		buf := bytes.NewBuffer(nil)
+		bw := bufio.NewWriter(buf)
+
+		// Send export request.
+		if err := c.ExportCSV(context.Background(), "unkeyed", "keyedf", 0, bw); err != nil {
+			t.Fatal(err)
+		}
+
+		got := buf.String()
+
+		// Expected output.
+		exp := ""
+		for _, bit := range data {
+			exp += fmt.Sprintf("%s,%d\n", bit.RowKey, bit.ColumnID)
+		}
+
+		// Verify data.
+		if got != exp {
+			t.Fatalf("unexpected export data: %s", got)
+		}
+	})
+
+	t.Run("Import keyed,unkeyedf", func(t *testing.T) {
+		// Populate data.
+		for _, bit := range data {
+			_, err := c.Query(context.Background(), "keyed", &pilosa.QueryRequest{
+				Query:  fmt.Sprintf(`Set("%s", unkeyedf=%d)`, bit.ColumnKey, bit.RowID),
+				Remote: false,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		buf := bytes.NewBuffer(nil)
+		bw := bufio.NewWriter(buf)
+
+		// Send export request.
+		if err := c.ExportCSV(context.Background(), "keyed", "unkeyedf", 0, bw); err != nil {
+			t.Fatal(err)
+		}
+
+		got := buf.String()
+
+		// Expected output.
+		exp := ""
+		for _, bit := range data {
+			exp += fmt.Sprintf("%d,%s\n", bit.RowID, bit.ColumnKey)
+		}
+
+		// Verify data.
+		if got != exp {
+			t.Fatalf("unexpected export data: %s", got)
+		}
+	})
+
+	t.Run("Import keyed,keyedf", func(t *testing.T) {
+		// Populate data.
+		for _, bit := range data {
+			_, err := c.Query(context.Background(), "keyed", &pilosa.QueryRequest{
+				Query:  fmt.Sprintf(`Set("%s", keyedf=%s)`, bit.ColumnKey, bit.RowKey),
+				Remote: false,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		buf := bytes.NewBuffer(nil)
+		bw := bufio.NewWriter(buf)
+
+		// Send export request.
+		if err := c.ExportCSV(context.Background(), "keyed", "keyedf", 0, bw); err != nil {
+			t.Fatal(err)
+		}
+
+		got := buf.String()
+
+		// Expected output.
+		exp := ""
+		for _, bit := range data {
+			exp += fmt.Sprintf("%s,%s\n", bit.RowKey, bit.ColumnKey)
+		}
+
+		// Verify data.
+		if got != exp {
+			t.Fatalf("unexpected export data: %s", got)
+		}
+	})
+}
+
 // Ensure client can bulk import data.
 func TestClient_Import(t *testing.T) {
 	cmd := test.MustRunCluster(t, 1)[0]
@@ -191,7 +345,7 @@ func TestClient_Import(t *testing.T) {
 	hldr.Row("i", "f", 0)
 
 	// Send import request.
-	c := MustNewClient(host, defaultClient)
+	c := MustNewClient(host, http.GetHTTPClient(nil))
 	if err := c.Import(context.Background(), "i", "f", 0, []pilosa.Bit{
 		{RowID: 0, ColumnID: 1},
 		{RowID: 0, ColumnID: 5},
@@ -207,6 +361,231 @@ func TestClient_Import(t *testing.T) {
 	if a := hldr.Row("i", "f", 200).Columns(); !reflect.DeepEqual(a, []uint64{6}) {
 		t.Fatalf("unexpected columns: %+v", a)
 	}
+}
+
+// Ensure client can bulk import data.
+func TestClient_ImportKeys(t *testing.T) {
+	t.Run("SingleNode", func(t *testing.T) {
+		cmd := test.MustRunCluster(t, 1)[0]
+		host := cmd.URL()
+
+		cmd.MustCreateIndex(t, "keyed", pilosa.IndexOptions{Keys: true})
+		cmd.MustCreateIndex(t, "unkeyed", pilosa.IndexOptions{Keys: false})
+
+		cmd.MustCreateField(t, "keyed", "keyedf", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000), pilosa.OptFieldKeys())
+		cmd.MustCreateField(t, "keyed", "unkeyedf", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000))
+		cmd.MustCreateField(t, "unkeyed", "keyedf", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000), pilosa.OptFieldKeys())
+
+		// Send import request.
+		c := MustNewClient(host, http.GetHTTPClient(nil))
+
+		t.Run("Import keyed,keyed", func(t *testing.T) {
+			if err := c.Import(context.Background(), "keyed", "keyedf", 0, []pilosa.Bit{
+				{RowKey: "green", ColumnKey: "eve"},
+				{RowKey: "green", ColumnKey: "alice"},
+				{RowKey: "green", ColumnKey: "bob"},
+				{RowKey: "blue", ColumnKey: "eve"},
+				{RowKey: "blue", ColumnKey: "alice"},
+				{RowKey: "purple", ColumnKey: "eve"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			cmd.MustRecalculateCaches(t)
+			resp := cmd.MustQuery(t, &pilosa.QueryRequest{
+				Index: "keyed",
+				Query: "TopN(keyedf)",
+			})
+			if pairs, ok := resp.Results[0].([]pilosa.Pair); !ok {
+				t.Fatalf("unexpected response type %T", resp.Results[0])
+			} else if !reflect.DeepEqual(pairs, []pilosa.Pair{
+				{Key: "green", Count: 3},
+				{Key: "blue", Count: 2},
+				{Key: "purple", Count: 1},
+			}) {
+				t.Fatalf("unexpected topn result: %v", pairs)
+			}
+		})
+
+		t.Run("Import keyed,unkeyedf", func(t *testing.T) {
+			if err := c.Import(context.Background(), "keyed", "unkeyedf", 0, []pilosa.Bit{
+				{RowID: 1, ColumnKey: "eve"},
+				{RowID: 1, ColumnKey: "alice"},
+				{RowID: 1, ColumnKey: "bob"},
+				{RowID: 2, ColumnKey: "eve"},
+				{RowID: 2, ColumnKey: "alice"},
+				{RowID: 3, ColumnKey: "eve"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			cmd.MustRecalculateCaches(t)
+			resp := cmd.MustQuery(t, &pilosa.QueryRequest{
+				Index: "keyed",
+				Query: "TopN(unkeyedf)",
+			})
+			if pairs, ok := resp.Results[0].([]pilosa.Pair); !ok {
+				t.Fatalf("unexpected response type %T", resp.Results[0])
+			} else if !reflect.DeepEqual(pairs, []pilosa.Pair{
+				{ID: 1, Count: 3},
+				{ID: 2, Count: 2},
+				{ID: 3, Count: 1},
+			}) {
+				t.Fatalf("unexpected topn result: %v", pairs)
+			}
+		})
+
+		t.Run("Import unkeyed,keyed", func(t *testing.T) {
+			if err := c.Import(context.Background(), "unkeyed", "keyedf", 0, []pilosa.Bit{
+				{RowKey: "green", ColumnID: 1},
+				{RowKey: "green", ColumnID: 2},
+				{RowKey: "green", ColumnID: 3},
+				{RowKey: "blue", ColumnID: 1},
+				{RowKey: "blue", ColumnID: 2},
+				{RowKey: "purple", ColumnID: 1},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			cmd.MustRecalculateCaches(t)
+			resp := cmd.MustQuery(t, &pilosa.QueryRequest{
+				Index: "unkeyed",
+				Query: "TopN(keyedf)",
+			})
+			if pairs, ok := resp.Results[0].([]pilosa.Pair); !ok {
+				t.Fatalf("unexpected response type %T", resp.Results[0])
+			} else if !reflect.DeepEqual(pairs, []pilosa.Pair{
+				{Key: "green", Count: 3},
+				{Key: "blue", Count: 2},
+				{Key: "purple", Count: 1},
+			}) {
+				t.Fatalf("unexpected topn result: %v", pairs)
+			}
+		})
+	})
+
+	t.Run("MultiNode", func(t *testing.T) {
+		cluster := test.MustRunCluster(t, 2)
+		cmd0 := cluster[0]
+		cmd1 := cluster[1]
+		host0 := cmd0.URL()
+		host1 := cmd1.URL()
+
+		cmd0.MustCreateIndex(t, "keyed", pilosa.IndexOptions{Keys: true})
+		cmd0.MustCreateField(t, "keyed", "keyedf0", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000), pilosa.OptFieldKeys())
+		cmd0.MustCreateField(t, "keyed", "keyedf1", pilosa.OptFieldTypeSet(pilosa.CacheTypeRanked, 1000), pilosa.OptFieldKeys())
+
+		// Send import request.
+		c0 := MustNewClient(host0, http.GetHTTPClient(nil))
+		c1 := MustNewClient(host1, http.GetHTTPClient(nil))
+
+		// Import to node0.
+		t.Run("Import node0", func(t *testing.T) {
+			if err := c0.ImportK(context.Background(), "keyed", "keyedf0", []pilosa.Bit{
+				{RowKey: "green", ColumnKey: "eve"},
+				{RowKey: "green", ColumnKey: "alice"},
+				{RowKey: "green", ColumnKey: "bob"},
+				{RowKey: "blue", ColumnKey: "eve"},
+				{RowKey: "blue", ColumnKey: "alice"},
+				{RowKey: "purple", ColumnKey: "eve"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			cmd0.MustRecalculateCaches(t)
+			resp := cmd0.MustQuery(t, &pilosa.QueryRequest{
+				Index: "keyed",
+				Query: "TopN(keyedf0)",
+			})
+			if pairs, ok := resp.Results[0].([]pilosa.Pair); !ok {
+				t.Fatalf("unexpected response type %T", resp.Results[0])
+			} else if !reflect.DeepEqual(pairs, []pilosa.Pair{
+				{Key: "green", Count: 3},
+				{Key: "blue", Count: 2},
+				{Key: "purple", Count: 1},
+			}) {
+				t.Fatalf("unexpected topn result: %v", pairs)
+			}
+		})
+
+		// Import to node1 (ensure import is routed to coordinator for translation).
+		t.Run("Import node1", func(t *testing.T) {
+			if err := c1.ImportK(context.Background(), "keyed", "keyedf1", []pilosa.Bit{
+				{RowKey: "green", ColumnKey: "eve"},
+				{RowKey: "green", ColumnKey: "alice"},
+				{RowKey: "green", ColumnKey: "bob"},
+				{RowKey: "blue", ColumnKey: "eve"},
+				{RowKey: "blue", ColumnKey: "alice"},
+				{RowKey: "purple", ColumnKey: "eve"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			// Wait for translation replication.
+			time.Sleep(500 * time.Millisecond)
+
+			cmd1.MustRecalculateCaches(t)
+			resp := cmd1.MustQuery(t, &pilosa.QueryRequest{
+				Index: "keyed",
+				Query: "TopN(keyedf1)",
+			})
+			if pairs, ok := resp.Results[0].([]pilosa.Pair); !ok {
+				t.Fatalf("unexpected response type %T", resp.Results[0])
+			} else if !reflect.DeepEqual(pairs, []pilosa.Pair{
+				{Key: "green", Count: 3},
+				{Key: "blue", Count: 2},
+				{Key: "purple", Count: 1},
+			}) {
+				t.Fatalf("unexpected topn result: %v", pairs)
+			}
+		})
+	})
+
+	t.Run("IntegerFieldSingleNode", func(t *testing.T) {
+		cmd := test.MustRunCluster(t, 1)[0]
+		host := cmd.URL()
+		holder := cmd.Server.Holder()
+		hldr := test.Holder{Holder: holder}
+
+		fldName := "f"
+
+		// Load bitmap into cache to ensure cache gets updated.
+		index := hldr.MustCreateIndexIfNotExists("i", pilosa.IndexOptions{Keys: true})
+		field, err := index.CreateFieldIfNotExists(fldName, pilosa.OptFieldTypeInt(-100, 100))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Send import request.
+		c := MustNewClient(host, http.GetHTTPClient(nil))
+		if err := c.ImportValue(context.Background(), "i", "f", 0, []pilosa.FieldValue{
+			{ColumnKey: "col1", Value: -10},
+			{ColumnKey: "col2", Value: 20},
+			{ColumnKey: "col3", Value: 40},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify Sum.
+		sum, cnt, err := field.Sum(nil, fldName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sum != 50 || cnt != 3 {
+			t.Fatalf("unexpected values: got sum=%v, count=%v; expected sum=50, cnt=3", sum, cnt)
+		}
+
+		// Verify Range
+		queryRequest := &pilosa.QueryRequest{
+			Query:  fmt.Sprintf(`Range(%s>10)`, fldName),
+			Remote: false,
+		}
+
+		result, err := c.Query(context.Background(), "i", queryRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(result.Results[0].(*pilosa.Row).Keys, []string{"col2", "col3"}) {
+			t.Fatalf("unexpected column keys: %s", spew.Sdump(result))
+		}
+	})
 }
 
 // Ensure client can bulk import value data.
@@ -226,7 +605,7 @@ func TestClient_ImportValue(t *testing.T) {
 	}
 
 	// Send import request.
-	c := MustNewClient(host, defaultClient)
+	c := MustNewClient(host, http.GetHTTPClient(nil))
 	if err := c.ImportValue(context.Background(), "i", "f", 0, []pilosa.FieldValue{
 		{ColumnID: 1, Value: -10},
 		{ColumnID: 2, Value: 20},
@@ -287,8 +666,8 @@ func TestClient_FragmentBlocks(t *testing.T) {
 
 	// Set a bit on a different shard.
 	hldr.SetBit("i", "f", 0, 1)
-	c := MustNewClient(cmd.URL(), defaultClient)
-	blocks, err := c.FragmentBlocks(context.Background(), nil, "i", "f", 0)
+	c := MustNewClient(cmd.URL(), http.GetHTTPClient(nil))
+	blocks, err := c.FragmentBlocks(context.Background(), nil, "i", "f", "standard", 0)
 	if err != nil {
 		t.Fatal(err)
 	} else if len(blocks) != 2 {
@@ -300,7 +679,7 @@ func TestClient_FragmentBlocks(t *testing.T) {
 	}
 
 	// Verify data matches local blocks.
-	if a, err := cmd.API.FragmentBlocks(context.Background(), "i", "f", 0); err != nil {
+	if a, err := cmd.API.FragmentBlocks(context.Background(), "i", "f", "standard", 0); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(a, blocks) {
 		t.Fatalf("blocks mismatch:\n\nexp=%s\n\ngot=%s\n\n", spew.Sdump(a), spew.Sdump(blocks))

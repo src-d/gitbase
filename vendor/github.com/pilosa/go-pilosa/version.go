@@ -1,2 +1,3 @@
 package pilosa
-const Version = "v0.8.0-16-g46c8a62"
+
+const Version = "v0.10.0"

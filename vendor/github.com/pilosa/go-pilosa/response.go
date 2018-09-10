@@ -43,7 +43,7 @@ import (
 // QueryResponse types.
 const (
 	QueryResultTypeNil uint32 = iota
-	QueryResultTypeBitmap
+	QueryResultTypeRow
 	QueryResultTypePairs
 	QueryResultTypeValCount
 	QueryResultTypeUint64
@@ -118,7 +118,7 @@ func (qr *QueryResponse) Column() ColumnItem {
 // QueryResult represents one of the results in the response.
 type QueryResult interface {
 	Type() uint32
-	Bitmap() BitmapResult
+	Row() RowResult
 	CountItems() []CountResultItem
 	Count() int64
 	Value() int64
@@ -129,8 +129,8 @@ func newQueryResultFromInternal(result *pbuf.QueryResult) (QueryResult, error) {
 	switch result.Type {
 	case QueryResultTypeNil:
 		return NilResult{}, nil
-	case QueryResultTypeBitmap:
-		return newBitmapResultFromInternal(result.Bitmap)
+	case QueryResultTypeRow:
+		return newRowResultFromInternal(result.Row)
 	case QueryResultTypePairs:
 		return countItemsFromInternal(result.Pairs), nil
 	case QueryResultTypeValCount:
@@ -171,43 +171,43 @@ func countItemsFromInternal(items []*pbuf.Pair) TopNResult {
 type TopNResult []CountResultItem
 
 func (TopNResult) Type() uint32                    { return QueryResultTypePairs }
-func (TopNResult) Bitmap() BitmapResult            { return BitmapResult{} }
+func (TopNResult) Row() RowResult                  { return RowResult{} }
 func (t TopNResult) CountItems() []CountResultItem { return t }
 func (TopNResult) Count() int64                    { return 0 }
 func (TopNResult) Value() int64                    { return 0 }
 func (TopNResult) Changed() bool                   { return false }
 
-// BitmapResult represents a result from Bitmap, Union, Intersect, Difference and Range PQL calls.
-type BitmapResult struct {
+// RowResult represents a result from Row, Union, Intersect, Difference and Range PQL calls.
+type RowResult struct {
 	Attributes map[string]interface{} `json:"attrs"`
-	Bits       []uint64               `json:"bits"`
+	Columns    []uint64               `json:"columns"`
 	Keys       []string               `json:"keys"`
 }
 
-func newBitmapResultFromInternal(bitmap *pbuf.Bitmap) (*BitmapResult, error) {
-	attrs, err := convertInternalAttrsToMap(bitmap.Attrs)
+func newRowResultFromInternal(row *pbuf.Row) (*RowResult, error) {
+	attrs, err := convertInternalAttrsToMap(row.Attrs)
 	if err != nil {
 		return nil, err
 	}
-	result := &BitmapResult{
+	result := &RowResult{
 		Attributes: attrs,
-		Bits:       bitmap.Bits,
-		Keys:       bitmap.Keys,
+		Columns:    row.Columns,
+		Keys:       row.Keys,
 	}
 	return result, nil
 }
 
-func (BitmapResult) Type() uint32                  { return QueryResultTypeBitmap }
-func (b BitmapResult) Bitmap() BitmapResult        { return b }
-func (BitmapResult) CountItems() []CountResultItem { return nil }
-func (BitmapResult) Count() int64                  { return 0 }
-func (BitmapResult) Value() int64                  { return 0 }
-func (BitmapResult) Changed() bool                 { return false }
+func (RowResult) Type() uint32                  { return QueryResultTypeRow }
+func (b RowResult) Row() RowResult              { return b }
+func (RowResult) CountItems() []CountResultItem { return nil }
+func (RowResult) Count() int64                  { return 0 }
+func (RowResult) Value() int64                  { return 0 }
+func (RowResult) Changed() bool                 { return false }
 
-func (b BitmapResult) MarshalJSON() ([]byte, error) {
-	bits := b.Bits
-	if bits == nil {
-		bits = []uint64{}
+func (b RowResult) MarshalJSON() ([]byte, error) {
+	columns := b.Columns
+	if columns == nil {
+		columns = []uint64{}
 	}
 	keys := b.Keys
 	if keys == nil {
@@ -215,11 +215,11 @@ func (b BitmapResult) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(struct {
 		Attributes map[string]interface{} `json:"attrs"`
-		Bits       []uint64               `json:"bits"`
+		Columns    []uint64               `json:"columns"`
 		Keys       []string               `json:"keys"`
 	}{
 		Attributes: b.Attributes,
-		Bits:       bits,
+		Columns:    columns,
 		Keys:       keys,
 	})
 }
@@ -230,7 +230,7 @@ type ValCountResult struct {
 }
 
 func (ValCountResult) Type() uint32                  { return QueryResultTypeValCount }
-func (ValCountResult) Bitmap() BitmapResult          { return BitmapResult{} }
+func (ValCountResult) Row() RowResult                { return RowResult{} }
 func (ValCountResult) CountItems() []CountResultItem { return nil }
 func (c ValCountResult) Count() int64                { return c.Cnt }
 func (c ValCountResult) Value() int64                { return c.Val }
@@ -239,7 +239,7 @@ func (ValCountResult) Changed() bool                 { return false }
 type IntResult int64
 
 func (IntResult) Type() uint32                  { return QueryResultTypeUint64 }
-func (IntResult) Bitmap() BitmapResult          { return BitmapResult{} }
+func (IntResult) Row() RowResult                { return RowResult{} }
 func (IntResult) CountItems() []CountResultItem { return nil }
 func (i IntResult) Count() int64                { return int64(i) }
 func (IntResult) Value() int64                  { return 0 }
@@ -248,7 +248,7 @@ func (IntResult) Changed() bool                 { return false }
 type BoolResult bool
 
 func (BoolResult) Type() uint32                  { return QueryResultTypeBool }
-func (BoolResult) Bitmap() BitmapResult          { return BitmapResult{} }
+func (BoolResult) Row() RowResult                { return RowResult{} }
 func (BoolResult) CountItems() []CountResultItem { return nil }
 func (BoolResult) Count() int64                  { return 0 }
 func (BoolResult) Value() int64                  { return 0 }
@@ -257,7 +257,7 @@ func (b BoolResult) Changed() bool               { return bool(b) }
 type NilResult struct{}
 
 func (NilResult) Type() uint32                  { return QueryResultTypeNil }
-func (NilResult) Bitmap() BitmapResult          { return BitmapResult{} }
+func (NilResult) Row() RowResult                { return RowResult{} }
 func (NilResult) CountItems() []CountResultItem { return nil }
 func (NilResult) Count() int64                  { return 0 }
 func (NilResult) Value() int64                  { return 0 }

@@ -13,8 +13,8 @@ before_install:
   - dep ensure
 script:
   - ./pilosa-master-linux-amd64/pilosa server --metric.diagnostics=false -b https://:20101 -d https_data --tls.skip-verify --tls.certificate test.pilosa.local.crt --tls.key test.pilosa.local.key --cluster.disabled static &
-  - PILOSA_BIND="https://:20101" make test-all-race
+  - PILOSA_BIND="https://:20101" make test-all-race TESTFLAGS=-v
   - pkill pilosa
   - ./pilosa-master-linux-amd64/pilosa server --metric.diagnostics=false -d http_data &
-  - GOARCH=386 make test-all
+  - GOARCH=386 make test-all TESTFLAGS=-v
   - $HOME/gopath/bin/goveralls -service=travis-ci -ignore "gopilosa_pbuf/public.pb.go" -flags="-tags=integration fullcoverage"

@@ -1143,6 +1143,38 @@ func TestFragment_Snapshot_Run(t *testing.T) {
 	}
 }
 
+// Ensure a fragment can set mutually exclusive values.
+func TestFragment_SetMutex(t *testing.T) {
+	f := mustOpenMutexFragment("i", "f", viewStandard, 0, "")
+	defer f.Close()
+
+	var cols []uint64
+
+	// Set a value on column 100.
+	if _, err := f.setBit(1, 100); err != nil {
+		t.Fatal(err)
+	}
+	// Verify the value was set.
+	cols = f.row(1).Columns()
+	if !reflect.DeepEqual(cols, []uint64{100}) {
+		t.Fatalf("mutex unexpected columns: %v", cols)
+	}
+
+	// Set a different value on column 100.
+	if _, err := f.setBit(2, 100); err != nil {
+		t.Fatal(err)
+	}
+	// Verify that value (row 1) was replaced (by row 2).
+	cols = f.row(1).Columns()
+	if !reflect.DeepEqual(cols, []uint64{}) {
+		t.Fatalf("mutex unexpected columns: %v", cols)
+	}
+	cols = f.row(2).Columns()
+	if !reflect.DeepEqual(cols, []uint64{100}) {
+		t.Fatalf("mutex unexpected columns: %v", cols)
+	}
+}
+
 func BenchmarkFragment_Snapshot(b *testing.B) {
 	if *FragmentPath == "" {
 		b.Skip("no fragment specified")
@@ -1250,12 +1282,21 @@ func mustOpenFragment(index, field, view string, shard uint64, cacheType string)
 
 	f := newFragment(file.Name(), index, field, view, shard)
 	f.CacheType = cacheType
-	f.RowAttrStore = newMemAttrStore()
+	f.RowAttrStore = &memAttrStore{
+		store: make(map[uint64]map[string]interface{}),
+	}
 
 	if err := f.Open(); err != nil {
 		panic(err)
 	}
 	return f
+}
+
+// mustOpenMutexFragment returns a new instance of Fragment for a mutex field.
+func mustOpenMutexFragment(index, field, view string, shard uint64, cacheType string) *fragment {
+	frag := mustOpenFragment(index, field, view, shard, cacheType)
+	frag.mutexVector = newRowsVector(frag)
+	return frag
 }
 
 // Reopen closes the fragment and reopens it as a new instance.
@@ -1277,4 +1318,82 @@ func (f *fragment) mustSetBits(rowID uint64, columnIDs ...uint64) {
 			panic(err)
 		}
 	}
+}
+
+// Test Various methods of retrieving RowIDs
+func TestFragment_RowsIteration(t *testing.T) {
+	t.Run("firstContainer", func(t *testing.T) {
+		f := mustOpenFragment("i", "f", viewStandard, 0, "")
+		defer f.Close()
+
+		expectedAll := make([]uint64, 0)
+		expectedOdd := make([]uint64, 0)
+		for i := uint64(100); i < uint64(200); i++ {
+			if _, err := f.setBit(i, i%2); err != nil {
+				t.Fatal(err)
+			}
+			expectedAll = append(expectedAll, i)
+			if i%2 == 1 {
+				expectedOdd = append(expectedOdd, i)
+			}
+		}
+
+		ids := f.rows()
+		if !reflect.DeepEqual(expectedAll, ids) {
+			t.Fatalf("Do not match %v %v", expectedAll, ids)
+		}
+
+		ids = f.rowsForColumn(1)
+		if !reflect.DeepEqual(expectedOdd, ids) {
+			t.Fatalf("Do not match %v %v", expectedOdd, ids)
+		}
+	})
+
+	t.Run("secondRow", func(t *testing.T) {
+		f := mustOpenFragment("i", "f", viewStandard, 0, "")
+		defer f.Close()
+
+		expected := []uint64{1, 2}
+		if _, err := f.setBit(1, 66000); err != nil {
+			t.Fatal(err)
+		} else if _, err := f.setBit(2, 66000); err != nil {
+			t.Fatal(err)
+		} else if _, err := f.setBit(2, 166000); err != nil {
+			t.Fatal(err)
+		}
+
+		ids := f.rows()
+		if !reflect.DeepEqual(expected, ids) {
+			t.Fatalf("Do not match %v %v", expected, ids)
+		}
+
+		ids = f.rowsForColumn(66000)
+		if !reflect.DeepEqual(expected, ids) {
+			t.Fatalf("Do not match %v %v", expected, ids)
+		}
+	})
+
+	t.Run("combinations", func(t *testing.T) {
+		f := mustOpenFragment("i", "f", viewStandard, 0, "")
+		defer f.Close()
+
+		expectedRows := make([]uint64, 0)
+		for r := uint64(1); r < uint64(10000); r += 100 {
+			expectedRows = append(expectedRows, r)
+			for c := uint64(1); c < uint64(ShardWidth-1); c += 10000 {
+				if _, err := f.setBit(r, c); err != nil {
+					t.Fatal(err)
+				}
+
+				ids := f.rows()
+				if !reflect.DeepEqual(expectedRows, ids) {
+					t.Fatalf("Do not match %v %v", expectedRows, ids)
+				}
+				ids = f.rowsForColumn(c)
+				if !reflect.DeepEqual(expectedRows, ids) {
+					t.Fatalf("Do not match %v %v", expectedRows, ids)
+				}
+			}
+		}
+	})
 }

@@ -41,10 +41,11 @@ type view struct {
 	field string
 	name  string
 
+	fieldType string
+	cacheType string
 	cacheSize uint32
 
 	// Fragments by shard.
-	cacheType string // passed in by field
 	fragments map[uint64]*fragment
 
 	// maxShard maintains this view's max shard in order to
@@ -58,15 +59,17 @@ type view struct {
 }
 
 // newView returns a new instance of View.
-func newView(path, index, field, name string, cacheSize uint32) *view {
+func newView(path, index, field, name string, fieldOptions FieldOptions) *view {
 	return &view{
-		path:      path,
-		index:     index,
-		field:     field,
-		name:      name,
-		cacheSize: cacheSize,
+		path:  path,
+		index: index,
+		field: field,
+		name:  name,
 
-		cacheType: DefaultCacheType,
+		fieldType: fieldOptions.Type,
+		cacheType: fieldOptions.CacheType,
+		cacheSize: fieldOptions.CacheSize,
+
 		fragments: make(map[uint64]*fragment),
 
 		broadcaster: NopBroadcaster,
@@ -251,6 +254,9 @@ func (v *view) newFragment(path string, shard uint64) *fragment {
 	frag.CacheSize = v.cacheSize
 	frag.Logger = v.logger
 	frag.stats = v.stats.WithTags(fmt.Sprintf("shard:%d", shard))
+	if v.fieldType == FieldTypeMutex {
+		frag.mutexVector = newRowsVector(frag)
+	}
 	return frag
 }
 
@@ -399,20 +405,6 @@ func (v *view) rangeOp(op pql.Token, bitDepth uint, predicate uint64) (*Row, err
 	r := NewRow()
 	for _, frag := range v.allFragments() {
 		other, err := frag.rangeOp(op, bitDepth, predicate)
-		if err != nil {
-			return nil, err
-		}
-		r = r.Union(other)
-	}
-	return r, nil
-}
-
-// rangeBetween returns bitmaps with a field value encoding matching any
-// value between predicateMin and predicateMax.
-func (v *view) rangeBetween(bitDepth uint, predicateMin, predicateMax uint64) (*Row, error) {
-	r := NewRow()
-	for _, frag := range v.allFragments() {
-		other, err := frag.rangeBetween(bitDepth, predicateMin, predicateMax)
 		if err != nil {
 			return nil, err
 		}

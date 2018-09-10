@@ -671,7 +671,7 @@ func (e *executor) executeDifferenceShard(ctx context.Context, index string, c *
 	return other, nil
 }
 
-func (e *executor) executeBitmapShard(ctx context.Context, index string, c *pql.Call, shard uint64) (*Row, error) {
+func (e *executor) executeBitmapShard(_ context.Context, index string, c *pql.Call, shard uint64) (*Row, error) {
 	// Fetch column label from index.
 	idx := e.Holder.Index(index)
 	if idx == nil {
@@ -799,7 +799,7 @@ func (e *executor) executeRangeShard(ctx context.Context, index string, c *pql.C
 }
 
 // executeBSIGroupRangeShard executes a range(bsiGroup) call for a local shard.
-func (e *executor) executeBSIGroupRangeShard(ctx context.Context, index string, c *pql.Call, shard uint64) (*Row, error) {
+func (e *executor) executeBSIGroupRangeShard(_ context.Context, index string, c *pql.Call, shard uint64) (*Row, error) {
 	// Only one conditional should be present.
 	if len(c.Args) == 0 {
 		return nil, errors.New("Range(): condition required")
@@ -1054,7 +1054,7 @@ func (e *executor) executeClearBitField(ctx context.Context, index string, c *pq
 		}
 
 		// Forward call to remote node otherwise.
-		if res, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil, opt); err != nil {
+		if res, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil); err != nil {
 			return false, err
 		} else {
 			ret = res[0].(bool)
@@ -1146,7 +1146,7 @@ func (e *executor) executeSetBitField(ctx context.Context, index string, c *pql.
 		}
 
 		// Forward call to remote node otherwise.
-		if res, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil, opt); err != nil {
+		if res, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil); err != nil {
 			return false, err
 		} else {
 			ret = res[0].(bool)
@@ -1178,7 +1178,7 @@ func (e *executor) executeSetValueField(ctx context.Context, index string, c *pq
 		}
 
 		// Forward call to remote node otherwise.
-		if res, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil, opt); err != nil {
+		if res, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil); err != nil {
 			return false, err
 		} else {
 			ret = res[0].(bool)
@@ -1225,11 +1225,11 @@ func (e *executor) executeSetRowAttrs(ctx context.Context, index string, c *pql.
 	}
 
 	// Execute on remote nodes in parallel.
-	nodes := Nodes(e.Cluster.Nodes).FilterID(e.Node.ID)
+	nodes := Nodes(e.Cluster.nodes).FilterID(e.Node.ID)
 	resp := make(chan error, len(nodes))
 	for _, node := range nodes {
 		go func(node *Node) {
-			_, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil, opt)
+			_, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil)
 			resp <- err
 		}(node)
 	}
@@ -1311,11 +1311,11 @@ func (e *executor) executeBulkSetRowAttrs(ctx context.Context, index string, cal
 	}
 
 	// Execute on remote nodes in parallel.
-	nodes := Nodes(e.Cluster.Nodes).FilterID(e.Node.ID)
+	nodes := Nodes(e.Cluster.nodes).FilterID(e.Node.ID)
 	resp := make(chan error, len(nodes))
 	for _, node := range nodes {
 		go func(node *Node) {
-			_, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: calls}, nil, opt)
+			_, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: calls}, nil)
 			resp <- err
 		}(node)
 	}
@@ -1360,11 +1360,11 @@ func (e *executor) executeSetColumnAttrs(ctx context.Context, index string, c *p
 	}
 
 	// Execute on remote nodes in parallel.
-	nodes := Nodes(e.Cluster.Nodes).FilterID(e.Node.ID)
+	nodes := Nodes(e.Cluster.nodes).FilterID(e.Node.ID)
 	resp := make(chan error, len(nodes))
 	for _, node := range nodes {
 		go func(node *Node) {
-			_, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil, opt)
+			_, err := e.remoteExec(ctx, node, index, &pql.Query{Calls: []*pql.Call{c}}, nil)
 			resp <- err
 		}(node)
 	}
@@ -1379,8 +1379,8 @@ func (e *executor) executeSetColumnAttrs(ctx context.Context, index string, c *p
 	return nil
 }
 
-// exec executes a PQL query remotely for a set of shards on a node.
-func (e *executor) remoteExec(ctx context.Context, node *Node, index string, q *pql.Query, shards []uint64, opt *execOptions) (results []interface{}, err error) {
+// remoteExec executes a PQL query remotely for a set of shards on a node.
+func (e *executor) remoteExec(ctx context.Context, node *Node, index string, q *pql.Query, shards []uint64) (results []interface{}, err error) { // nolint: interfacer
 	// Encode request object.
 	pbreq := &QueryRequest{
 		Query:  q.String(),
@@ -1431,7 +1431,7 @@ func (e *executor) mapReduce(ctx context.Context, index string, shards []uint64,
 	// processing should be done locally so we start with just the local node.
 	var nodes []*Node
 	if !opt.Remote {
-		nodes = Nodes(e.Cluster.Nodes).Clone()
+		nodes = Nodes(e.Cluster.nodes).Clone()
 	} else {
 		nodes = []*Node{e.Cluster.unprotectedNodeByID(e.Node.ID)}
 	}
@@ -1493,7 +1493,7 @@ func (e *executor) mapper(ctx context.Context, ch chan mapResponse, nodes []*Nod
 			if n.ID == e.Node.ID {
 				resp.result, resp.err = e.mapperLocal(ctx, nodeShards, mapFn, reduceFn)
 			} else if !opt.Remote {
-				results, err := e.remoteExec(ctx, n, index, &pql.Query{Calls: []*pql.Call{c}}, nodeShards, opt)
+				results, err := e.remoteExec(ctx, n, index, &pql.Query{Calls: []*pql.Call{c}}, nodeShards)
 				if len(results) > 0 {
 					resp.result = results[0]
 				}
@@ -1680,15 +1680,6 @@ type execOptions struct {
 	Remote          bool
 	ExcludeRowAttrs bool
 	ExcludeColumns  bool
-}
-
-// decodeError returns an error representation of s if s is non-blank.
-// Returns nil if s is blank.
-func decodeError(s string) error {
-	if s == "" {
-		return nil
-	}
-	return errors.New(s)
 }
 
 // hasOnlySetRowAttrs returns true if calls only contains SetRowAttrs() calls.
