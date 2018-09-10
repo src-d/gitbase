@@ -11,6 +11,7 @@ import (
 	"gopkg.in/bblfsh/sdk.v1/protocol"
 	"gopkg.in/bblfsh/sdk.v1/uast"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -418,7 +419,7 @@ func setup(t *testing.T) (*sql.Context, func()) {
 	t.Helper()
 	require.NoError(t, fixtures.Init())
 
-	pool := gitbase.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
 	for _, f := range fixtures.ByTag("worktree") {
 		pool.AddGit(f.Worktree().Root())
 	}

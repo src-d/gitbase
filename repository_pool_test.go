@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
@@ -36,7 +37,7 @@ func TestRepository(t *testing.T) {
 func TestRepositoryPoolBasic(t *testing.T) {
 	require := require.New(t)
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 
 	repo, err := pool.GetPos(0)
 	require.Nil(repo)
@@ -46,7 +47,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Nil(repo)
 	require.EqualError(err, ErrPoolRepoNotFound.New("foo").Error())
 
-	pool.Add(gitRepo("0", "/directory/should/not/exist"))
+	pool.Add(gitRepo("0", "/directory/should/not/exist", pool.cache))
 	repo, err = pool.GetPos(0)
 	require.Nil(repo)
 	require.EqualError(err, git.ErrRepositoryNotExists.Error())
@@ -56,7 +57,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	err = pool.Add(gitRepo("1", path))
+	err = pool.Add(gitRepo("1", path, pool.cache))
 	require.NoError(err)
 
 	repo, err = pool.GetPos(1)
@@ -69,7 +70,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Equal("1", repo.ID)
 	require.NotNil(repo.Repo)
 
-	err = pool.Add(gitRepo("1", path))
+	err = pool.Add(gitRepo("1", path, pool.cache))
 	require.Error(err)
 	require.True(errRepoAlreadyRegistered.Is(err))
 
@@ -85,7 +86,7 @@ func TestRepositoryPoolGit(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 
 	require.NoError(pool.AddGit(path))
 
@@ -118,9 +119,9 @@ func TestRepositoryPoolIterator(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool := NewRepositoryPool()
-	pool.Add(gitRepo("0", path))
-	pool.Add(gitRepo("1", path))
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	pool.Add(gitRepo("0", path, pool.cache))
+	pool.Add(gitRepo("1", path, pool.cache))
 
 	iter, err := pool.RepoIter()
 	require.NoError(err)
@@ -204,13 +205,13 @@ func TestRepositoryRowIterator(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	session := NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	max := 64
 
 	for i := 0; i < max; i++ {
-		pool.Add(gitRepo(strconv.Itoa(i), path))
+		pool.Add(gitRepo(strconv.Itoa(i), path, pool.cache))
 	}
 
 	testRepoIter(max, require, ctx)
@@ -235,7 +236,7 @@ func TestRepositoryPoolSiva(t *testing.T) {
 
 	expectedRepos := 3
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	path := filepath.Join(
 		os.Getenv("GOPATH"),
 		"src", "github.com", "src-d", "gitbase",
@@ -344,16 +345,16 @@ func testCaseRepositoryErrorIter(
 
 func TestRepositoryErrorIter(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
-	pool := NewRepositoryPool()
-	pool.Add(gitRepo("one", path))
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	pool.Add(gitRepo("one", path, pool.cache))
 
 	iter := &testErrorIter{}
 	testCaseRepositoryErrorIter(t, pool, iter, errIter, false)
 }
 
 func TestRepositoryErrorBadRepository(t *testing.T) {
-	pool := NewRepositoryPool()
-	pool.Add(gitRepo("one", "badpath"))
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	pool.Add(gitRepo("one", "badpath", pool.cache))
 
 	iter := &testErrorIter{}
 
@@ -381,8 +382,8 @@ func TestRepositoryErrorBadRepository(t *testing.T) {
 
 func TestRepositoryErrorBadRow(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
-	pool := NewRepositoryPool()
-	pool.Add(gitRepo("one", path))
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	pool.Add(gitRepo("one", path, pool.cache))
 
 	iter := &testErrorIter{}
 
@@ -416,8 +417,8 @@ func TestRepositoryErrorBadRow(t *testing.T) {
 
 func TestRepositoryIteratorOrder(t *testing.T) {
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
-	pool := NewRepositoryPool()
-	pool.Add(gitRepo("one", path))
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	pool.Add(gitRepo("one", path, pool.cache))
 
 	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	ctx := sql.NewContext(timeout,

@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
@@ -35,7 +36,7 @@ func buildSession(t *testing.T, repos fixtures.Fixtures,
 
 	require.NoError(fixtures.Init())
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	for _, fixture := range repos {
 		path := fixture.Worktree().Root()
 		ok, err := IsGitRepo(path)

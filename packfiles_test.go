@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 var testSivaFilePath = filepath.Join("_testdata", "fff7062de8474d10a67d417ccea87ba6f58ca81d.siva")
@@ -13,7 +14,7 @@ var testSivaFilePath = filepath.Join("_testdata", "fff7062de8474d10a67d417ccea87
 func TestRepositoryPackfiles(t *testing.T) {
 	require := require.New(t)
 
-	fs, packfiles, err := repositoryPackfiles(sivaRepo("siva", testSivaFilePath))
+	fs, packfiles, err := repositoryPackfiles(sivaRepo("siva", testSivaFilePath, cache.NewObjectLRUDefault()))
 
 	require.NoError(err)
 	require.Equal([]plumbing.Hash{
@@ -24,7 +25,7 @@ func TestRepositoryPackfiles(t *testing.T) {
 }
 
 func TestRepositoryIndex(t *testing.T) {
-	idx, err := newRepositoryIndex(sivaRepo("siva", testSivaFilePath))
+	idx, err := newRepositoryIndex(sivaRepo("siva", testSivaFilePath, cache.NewObjectLRUDefault()))
 	require.NoError(t, err)
 
 	testCases := []struct {

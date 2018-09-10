@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -36,10 +37,10 @@ func TestRepositoriesTable_RowIter(t *testing.T) {
 		"seven", "eight", "nine",
 	}
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 
 	for _, id := range repoIDs {
-		pool.Add(gitRepo(id, ""))
+		pool.Add(gitRepo(id, "", pool.cache))
 	}
 
 	session := NewSession(pool)

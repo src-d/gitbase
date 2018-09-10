@@ -16,6 +16,7 @@ import (
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
@@ -33,7 +34,7 @@ func TestIntegration(t *testing.T) {
 
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
 
-	pool := gitbase.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
 	require.NoError(t, pool.AddGitWithID("worktree", path))
 
 	testCases := []struct {
@@ -443,7 +444,7 @@ func TestMissingHeadRefs(t *testing.T) {
 		"_testdata",
 	)
 
-	pool := gitbase.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
 	require.NoError(
 		filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -829,7 +830,7 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 		require.NoError(t, fixtures.Clean())
 	}
 
-	pool := gitbase.NewRepositoryPool()
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
 	for _, f := range fixtures.ByTag("worktree") {
 		pool.AddGitWithID("worktree", f.Worktree().Root())
 	}

@@ -15,6 +15,7 @@ import (
 	gopilosa "github.com/pilosa/go-pilosa"
 	"github.com/sirupsen/logrus"
 	"github.com/uber/jaeger-client-go/config"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -39,18 +40,19 @@ type Server struct {
 	pool   *gitbase.RepositoryPool
 	name   string
 
-	Version       string   // Version of the application.
-	Directories   []string `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
-	Depth         int      `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
-	Host          string   `long:"host" default:"localhost" description:"Host where the server is going to listen"`
-	Port          int      `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
-	User          string   `short:"u" long:"user" default:"root" description:"User name used for connection"`
-	Password      string   `short:"P" long:"password" default:"" description:"Password used for connection"`
-	PilosaURL     string   `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server" env:"PILOSA_ENDPOINT"`
-	IndexDir      string   `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
-	DisableSquash bool     `long:"no-squash" description:"Disables the table squashing."`
-	TraceEnabled  bool     `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
-	ReadOnly      bool     `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
+	Version       string         // Version of the application.
+	Directories   []string       `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
+	Depth         int            `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
+	Host          string         `long:"host" default:"localhost" description:"Host where the server is going to listen."`
+	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen."`
+	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection."`
+	Password      string         `short:"P" long:"password" default:"" description:"Password used for connection."`
+	PilosaURL     string         `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server." env:"PILOSA_ENDPOINT"`
+	IndexDir      string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
+	CacheSize     cache.FileSize `long:"cache" default:"536870912" description:"Object cache size" env:"GITBASE_CACHE_SIZE"`
+	DisableSquash bool           `long:"no-squash" description:"Disables the table squashing."`
+	TraceEnabled  bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
+	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
 
 	SkipGitErrors bool // SkipGitErrors disables failing when Git errors are found.
 	DisableGit    bool `long:"no-git" description:"disable the load of git standard repositories."`
@@ -159,7 +161,7 @@ func (c *Server) buildDatabase() error {
 		c.engine = NewDatabaseEngine(c.ReadOnly, c.Version)
 	}
 
-	c.pool = gitbase.NewRepositoryPool()
+	c.pool = gitbase.NewRepositoryPool(c.CacheSize)
 
 	if err := c.addDirectories(); err != nil {
 		return err

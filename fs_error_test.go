@@ -13,6 +13,7 @@ import (
 	billy "gopkg.in/src-d/go-billy.v4"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
@@ -56,7 +57,7 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 	fixture := fixtures.ByTag("worktree").One()
 	baseFS := fixture.Worktree()
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 
 	fs, err := brokenFS(brokenPackfile, baseFS)
 	require.NoError(err)
@@ -118,12 +119,13 @@ func testTable(t *testing.T, tableName string, number int) {
 }
 
 type billyRepository struct {
-	id string
-	fs billy.Filesystem
+	id    string
+	fs    billy.Filesystem
+	cache cache.Object
 }
 
 func billyRepo(id string, fs billy.Filesystem) repository {
-	return &billyRepository{id, fs}
+	return &billyRepository{id, fs, cache.NewObjectLRUDefault()}
 }
 
 func (r *billyRepository) ID() string {
@@ -131,10 +133,7 @@ func (r *billyRepository) ID() string {
 }
 
 func (r *billyRepository) Repo() (*Repository, error) {
-	storage, err := filesystem.NewStorage(r.fs)
-	if err != nil {
-		return nil, err
-	}
+	storage := filesystem.NewStorage(r.fs, r.cache)
 
 	repo, err := git.Open(storage, r.fs)
 	if err != nil {
@@ -150,6 +149,10 @@ func (r *billyRepository) FS() (billy.Filesystem, error) {
 
 func (r *billyRepository) Path() string {
 	return r.id
+}
+
+func (r *billyRepository) Cache() cache.Object {
+	return r.cache
 }
 
 type brokenType uint64
