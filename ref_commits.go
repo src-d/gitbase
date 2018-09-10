@@ -353,6 +353,8 @@ func (i *refCommitsRowIter) Close() error {
 		return i.index.Close()
 	}
 
+	i.repo.Close()
+
 	return nil
 }
 

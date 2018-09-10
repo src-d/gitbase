@@ -282,6 +282,8 @@ func (i *filesRowIter) Close() error {
 		i.commits.Close()
 	}
 
+	i.repo.Close()
+
 	return nil
 }
 

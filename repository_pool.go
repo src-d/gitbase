@@ -35,10 +35,47 @@ func NewRepository(id string, repo *git.Repository) *Repository {
 	}
 }
 
+// Close closes all opened files in the repository.
+func (r *Repository) Close() {
+	if r != nil && r.Repository != nil {
+		f, ok := r.Storer.(*filesystem.Storage)
+		if ok {
+			// The only type of error returned is "file already closed" and
+			// we don't want to do anything with it.
+			f.Close()
+		}
+	}
+}
+
 // NewRepositoryFromPath creates and initializes a new Repository structure
 // and initializes a go-git repository
 func NewRepositoryFromPath(id, path string) (*Repository, error) {
-	repo, err := git.PlainOpen(path)
+	op := filesystem.Options{
+		ExclusiveAccess: true,
+		KeepDescriptors: true,
+	}
+
+	var wt billy.Filesystem
+	fs := osfs.New(path)
+	f, err := fs.Stat(git.GitDirName)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	if f != nil && f.IsDir() {
+		wt = fs
+		fs, err = fs.Chroot(git.GitDirName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	sto, err := filesystem.NewStorageWithOptions(fs, op)
+	if err != nil {
+		return nil, err
+	}
+
+	repo, err := git.Open(sto, wt)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +100,12 @@ func NewSivaRepositoryFromPath(id, path string) (*Repository, error) {
 		return nil, err
 	}
 
-	sto, err := filesystem.NewStorage(fs)
+	op := filesystem.Options{
+		ExclusiveAccess: true,
+		KeepDescriptors: true,
+	}
+
+	sto, err := filesystem.NewStorageWithOptions(fs, op)
 	if err != nil {
 		return nil, err
 	}

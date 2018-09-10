@@ -314,5 +314,7 @@ func (i *commitBlobsRowIter) Close() error {
 		return i.index.Close()
 	}
 
+	i.repo.Close()
+
 	return nil
 }
