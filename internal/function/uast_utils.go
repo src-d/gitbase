@@ -3,13 +3,14 @@ package function
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"hash"
 	"io"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/src-d/gitbase"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
-	"gopkg.in/bblfsh/client-go.v2/tools"
 	"gopkg.in/bblfsh/sdk.v1/uast"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -52,12 +53,40 @@ func exprToString(
 	return x.(string), nil
 }
 
-func getUAST(
-	ctx *sql.Context,
-	bytes []byte,
+func computeKey(h hash.Hash, mode, lang string, blob []byte) (string, error) {
+	h.Reset()
+	if err := writeToHash(h, [][]byte{
+		[]byte(mode),
+		[]byte(lang),
+		blob,
+	}); err != nil {
+		return "", err
+	}
+
+	return string(h.Sum(nil)), nil
+}
+
+func writeToHash(h hash.Hash, elements [][]byte) error {
+	for _, e := range elements {
+		n, err := h.Write(e)
+		if err != nil {
+			return err
+		}
+
+		if n != len(e) {
+			return fmt.Errorf("cache key hash: " +
+				"couldn't write all the content")
+		}
+	}
+
+	return nil
+}
+
+func getUASTFromBblfsh(ctx *sql.Context,
+	blob []byte,
 	lang, xpath string,
 	mode bblfsh.Mode,
-) (interface{}, error) {
+) (*uast.Node, error) {
 	session, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
@@ -81,27 +110,20 @@ func getUAST(
 		}
 	}
 
-	resp, err := client.ParseWithMode(ctx, mode, lang, bytes)
+	resp, err := client.ParseWithMode(ctx, mode, lang, blob)
 	if err != nil {
-		logrus.Warn(ErrParseBlob.New(err))
-		return nil, nil
+		err := ErrParseBlob.New(err)
+		logrus.Warn(err)
+		return nil, err
 	}
 
 	if len(resp.Errors) > 0 {
-		logrus.Warn(ErrParseBlob.New(strings.Join(resp.Errors, "\n")))
+		err := ErrParseBlob.New(strings.Join(resp.Errors, "\n"))
+		logrus.Warn(err)
+		return nil, err
 	}
 
-	var nodes []*uast.Node
-	if xpath == "" {
-		nodes = []*uast.Node{resp.UAST}
-	} else {
-		nodes, err = tools.Filter(resp.UAST, xpath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return marshalNodes(ctx, nodes)
+	return resp.UAST, nil
 }
 
 func marshalNodes(ctx *sql.Context, nodes []*uast.Node) (data interface{}, err error) {
@@ -192,6 +214,10 @@ func nodesFromBlobArray(data interface{}) ([]*uast.Node, error) {
 	}
 
 	arr := data.([]interface{})
+	if len(arr) == 0 {
+		return nil, nil
+	}
+
 	var nodes = make([]*uast.Node, len(arr))
 	for i, n := range arr {
 		node := uast.NewNode()
@@ -219,6 +245,10 @@ func nodesFromBlob(data interface{}) ([]*uast.Node, error) {
 }
 
 func unmarshalNodes(data []byte) ([]*uast.Node, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
 	nodes := []*uast.Node{}
 	buf := bytes.NewBuffer(data)
 	for {
