@@ -184,7 +184,7 @@ func (i *commitFilesRowIter) init() error {
 	if len(i.commitHashes) > 0 {
 		i.commits, err = NewCommitsByHashIter(i.repo, i.commitHashes)
 	} else {
-		i.commits, err = i.repo.Repo.CommitObjects()
+		i.commits, err = i.repo.CommitObjects()
 	}
 
 	return err
@@ -417,7 +417,7 @@ func newCommitFilesKeyValueIter(
 		return nil, err
 	}
 
-	commits, err := repo.Repo.CommitObjects()
+	commits, err := repo.CommitObjects()
 	if err != nil {
 		return nil, err
 	}

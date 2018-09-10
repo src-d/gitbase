@@ -21,12 +21,12 @@ func TestRepository(t *testing.T) {
 	repo := NewRepository("identifier", gitRepo)
 
 	require.Equal("identifier", repo.ID)
-	require.Equal(gitRepo, repo.Repo)
+	require.Equal(gitRepo, repo.Repository)
 
 	repo = NewRepository("/other/path", nil)
 
 	require.Equal("/other/path", repo.ID)
-	require.Nil(repo.Repo)
+	require.Nil(repo.Repository)
 }
 
 func TestRepositoryPoolBasic(t *testing.T) {
@@ -58,12 +58,12 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	repo, err = pool.GetPos(1)
 	require.NoError(err)
 	require.Equal("1", repo.ID)
-	require.NotNil(repo.Repo)
+	require.NotNil(repo)
 
 	repo, err = pool.GetRepo("1")
 	require.NoError(err)
 	require.Equal("1", repo.ID)
-	require.NotNil(repo.Repo)
+	require.NotNil(repo)
 
 	err = pool.Add(gitRepo("1", path))
 	require.Error(err)
@@ -87,10 +87,10 @@ func TestRepositoryPoolGit(t *testing.T) {
 
 	repo, err := pool.GetPos(0)
 	require.Equal(path, repo.ID)
-	require.NotNil(repo.Repo)
+	require.NotNil(repo)
 	require.NoError(err)
 
-	iter, err := repo.Repo.CommitObjects()
+	iter, err := repo.CommitObjects()
 	require.NoError(err)
 
 	count := 0
@@ -174,7 +174,7 @@ func TestRepositoryPoolSiva(t *testing.T) {
 		repo, err := pool.GetPos(i)
 		require.NoError(err)
 
-		iter, err := repo.Repo.CommitObjects()
+		iter, err := repo.CommitObjects()
 		require.NoError(err)
 
 		require.NoError(iter.ForEach(func(c *object.Commit) error {

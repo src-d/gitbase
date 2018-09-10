@@ -5,7 +5,6 @@ import (
 	"io"
 	"strings"
 
-	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -262,7 +261,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 	for {
 		var err error
 		if i.refs == nil {
-			i.refs, err = i.repo.Repo.References()
+			i.refs, err = i.repo.References()
 			if err != nil {
 				if i.skipGitErrors {
 					return nil, io.EOF
@@ -271,7 +270,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 				return nil, err
 			}
 
-			i.head, err = i.repo.Repo.Head()
+			i.head, err = i.repo.Head()
 			if err != nil && err != plumbing.ErrReferenceNotFound {
 				if i.skipGitErrors {
 					continue
@@ -319,7 +318,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 				return nil, err
 			}
 
-			i.commits = newIndexedCommitIter(i.skipGitErrors, i.repo.Repo, commit)
+			i.commits = newIndexedCommitIter(i.skipGitErrors, i.repo, commit)
 		}
 
 		commit, idx, err := i.commits.Next()
@@ -359,12 +358,16 @@ func (i *refCommitsRowIter) Close() error {
 
 type indexedCommitIter struct {
 	skipGitErrors bool
-	repo          *git.Repository
+	repo          *Repository
 	stack         []*stackFrame
 	seen          map[plumbing.Hash]struct{}
 }
 
-func newIndexedCommitIter(skipGitErrors bool, repo *git.Repository, start *object.Commit) *indexedCommitIter {
+func newIndexedCommitIter(
+	skipGitErrors bool,
+	repo *Repository,
+	start *object.Commit,
+) *indexedCommitIter {
 	return &indexedCommitIter{
 		skipGitErrors: skipGitErrors,
 		repo:          repo,

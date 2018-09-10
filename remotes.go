@@ -80,7 +80,7 @@ func (r *remotesTable) PartitionRows(
 		r.filters,
 		r.handledColumns(),
 		func(selectors) (sql.RowIter, error) {
-			remotes, err := repo.Repo.Remotes()
+			remotes, err := repo.Remotes()
 			if err != nil {
 				return nil, err
 			}
@@ -229,7 +229,7 @@ func newRemotesKeyValueIter(
 	repo *Repository,
 	columns []string,
 ) (sql.IndexKeyValueIter, error) {
-	remotes, err := repo.Repo.Remotes()
+	remotes, err := repo.Remotes()
 	if err != nil {
 		return nil, err
 	}

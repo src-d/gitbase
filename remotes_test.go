@@ -20,10 +20,8 @@ func TestRemotesTable(t *testing.T) {
 
 	session := ctx.Session.(*Session)
 	pool := session.Pool
-	repository, err := pool.GetPos(0)
+	repo, err := pool.GetPos(0)
 	require.NoError(err)
-
-	repo := repository.Repo
 
 	config := gitconfig.RemoteConfig{
 		Name: "my_remote",
@@ -52,7 +50,7 @@ func TestRemotesTable(t *testing.T) {
 
 			num := urlstring[len(urlstring)-1:]
 
-			require.Equal(repository.ID, row[0])
+			require.Equal(repo.ID, row[0])
 
 			url := fmt.Sprintf("url%v", num)
 			require.Equal(url, row[2]) // push

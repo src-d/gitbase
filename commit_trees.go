@@ -211,7 +211,7 @@ func (i *commitTreesRowIter) init() error {
 	if len(i.commitHashes) > 0 {
 		i.commits, err = NewCommitsByHashIter(i.repo, i.commitHashes)
 	} else {
-		i.commits, err = i.repo.Repo.CommitObjects()
+		i.commits, err = i.repo.CommitObjects()
 	}
 
 	return err

@@ -157,7 +157,7 @@ func (i *commitIter) init() error {
 	if len(i.hashes) > 0 {
 		i.iter, err = NewCommitsByHashIter(i.repo, i.hashes)
 	} else {
-		i.iter, err = i.repo.Repo.CommitObjects()
+		i.iter, err = i.repo.CommitObjects()
 	}
 
 	return err
@@ -237,7 +237,7 @@ func NewCommitsByHashIter(
 	var commitIter object.CommitIter
 	var err error
 	if len(hashes) == 0 {
-		commitIter, err = repo.Repo.CommitObjects()
+		commitIter, err = repo.CommitObjects()
 		if err != nil {
 			return nil, err
 		}
@@ -288,7 +288,7 @@ func (i *commitsByHashIter) nextList() (*object.Commit, error) {
 			return nil, io.EOF
 		}
 
-		commit, err := i.repo.Repo.CommitObject(i.hashes[i.pos])
+		commit, err := i.repo.CommitObject(i.hashes[i.pos])
 		i.pos++
 		if err == plumbing.ErrObjectNotFound {
 			continue
@@ -321,7 +321,7 @@ func newCommitsKeyValueIter(
 		return nil, err
 	}
 
-	commits, err := repo.Repo.CommitObjects()
+	commits, err := repo.CommitObjects()
 	if err != nil {
 		return nil, err
 	}

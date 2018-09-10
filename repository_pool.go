@@ -23,15 +23,15 @@ var (
 
 // Repository struct holds an initialized repository and its ID
 type Repository struct {
-	ID   string
-	Repo *git.Repository
+	*git.Repository
+	ID string
 }
 
 // NewRepository creates and initializes a new Repository structure
 func NewRepository(id string, repo *git.Repository) *Repository {
 	return &Repository{
-		ID:   id,
-		Repo: repo,
+		Repository: repo,
+		ID:         id,
 	}
 }
 

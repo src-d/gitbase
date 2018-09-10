@@ -186,7 +186,7 @@ type filesRowIter struct {
 func (i *filesRowIter) init() error {
 	var err error
 	i.seen = make(map[plumbing.Hash]struct{})
-	i.commits, err = i.repo.Repo.CommitObjects()
+	i.commits, err = i.repo.CommitObjects()
 	return err
 }
 
@@ -403,7 +403,7 @@ func newFilesKeyValueIter(pool *RepositoryPool, repo *Repository, columns []stri
 		return nil, err
 	}
 
-	commits, err := repo.Repo.CommitObjects()
+	commits, err := repo.CommitObjects()
 	if err != nil {
 		return nil, err
 	}

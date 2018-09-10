@@ -175,7 +175,7 @@ type blobRowIter struct {
 
 func (i *blobRowIter) init() error {
 	var err error
-	i.iter, err = i.repo.Repo.BlobObjects()
+	i.iter, err = i.repo.BlobObjects()
 	return err
 }
 
@@ -193,7 +193,7 @@ func (i *blobRowIter) nextByHash() (sql.Row, error) {
 			return nil, io.EOF
 		}
 
-		blob, err := i.repo.Repo.BlobObject(i.hashes[i.pos])
+		blob, err := i.repo.BlobObject(i.hashes[i.pos])
 		i.pos++
 		if err != nil {
 			if err == plumbing.ErrObjectNotFound || i.skipGitErrors {
@@ -334,7 +334,7 @@ func newBlobsKeyValueIter(
 	repo *Repository,
 	columns []string,
 ) (sql.IndexKeyValueIter, error) {
-	blobs, err := repo.Repo.BlobObjects()
+	blobs, err := repo.BlobObjects()
 	if err != nil {
 		return nil, err
 	}
