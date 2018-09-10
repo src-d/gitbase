@@ -13,6 +13,7 @@
 | `GITBASE_TRACE`              | enable jaeger tracing, default disabled                                            |
 | `GITBASE_READONLY`           | allow read queries only, disabling creating and deleting indexes, default disabled |
 | `GITBASE_LANGUAGE_CACHE_SIZE`           | size of the cache for the `language` UDF. The size is the maximum number of elements kept in the cache, 10000 by default |
+| `GITBASE_UAST_CACHE_SIZE`           | size of the cache for the `uast` and `uast_mode` UDFs. The size is the maximum number of elements kept in the cache, 10000 by default |
 
 ### Jaeger tracing variables
 

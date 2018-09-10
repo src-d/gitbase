@@ -33,11 +33,11 @@ func TestUASTMode(t *testing.T) {
 	ctx, cleanup := setup(t)
 	defer cleanup()
 
-	mode := &UASTMode{
-		Mode: expression.NewGetField(0, sql.Text, "", false),
-		Blob: expression.NewGetField(1, sql.Blob, "", false),
-		Lang: expression.NewGetField(2, sql.Text, "", false),
-	}
+	mode := NewUASTMode(
+		expression.NewGetField(0, sql.Text, "", false),
+		expression.NewGetField(1, sql.Blob, "", false),
+		expression.NewGetField(2, sql.Text, "", false),
+	)
 
 	oldSerialization := []bool{true, false}
 	for _, s := range oldSerialization {
@@ -49,7 +49,7 @@ func TestUASTMode(t *testing.T) {
 		u, _ := bblfshFixtures(t, ctx)
 		testCases := []struct {
 			name     string
-			fn       *UASTMode
+			fn       sql.Expression
 			row      sql.Row
 			expected interface{}
 		}{
@@ -74,20 +74,23 @@ func TestUAST(t *testing.T) {
 	ctx, cleanup := setup(t)
 	defer cleanup()
 
-	fn1 := &UAST{
-		Blob: expression.NewGetField(0, sql.Blob, "", false),
-	}
+	fn1, err := NewUAST(
+		expression.NewGetField(0, sql.Blob, "", false),
+	)
+	require.NoError(t, err)
 
-	fn2 := &UAST{
-		Blob: expression.NewGetField(0, sql.Blob, "", false),
-		Lang: expression.NewGetField(1, sql.Text, "", false),
-	}
+	fn2, err := NewUAST(
+		expression.NewGetField(0, sql.Blob, "", false),
+		expression.NewGetField(1, sql.Text, "", false),
+	)
+	require.NoError(t, err)
 
-	fn3 := &UAST{
-		Blob:  expression.NewGetField(0, sql.Blob, "", false),
-		Lang:  expression.NewGetField(1, sql.Text, "", false),
-		XPath: expression.NewGetField(2, sql.Text, "", false),
-	}
+	fn3, err := NewUAST(
+		expression.NewGetField(0, sql.Blob, "", false),
+		expression.NewGetField(1, sql.Text, "", false),
+		expression.NewGetField(2, sql.Text, "", false),
+	)
+	require.NoError(t, err)
 
 	oldSerialization := []bool{true, false}
 	for _, s := range oldSerialization {
@@ -102,7 +105,7 @@ func TestUAST(t *testing.T) {
 
 		testCases := []struct {
 			name     string
-			fn       *UAST
+			fn       sql.Expression
 			row      sql.Row
 			expected interface{}
 		}{
