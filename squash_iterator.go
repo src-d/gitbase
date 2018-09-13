@@ -782,6 +782,8 @@ func NewRemoteRefsIter(
 func (i *squashRemoteRefsIter) Repository() *Repository { return i.remotes.Repository() }
 func (i *squashRemoteRefsIter) Ref() *Ref               { return i.ref }
 func (i *squashRemoteRefsIter) Close() error {
+	i.Repository().Close()
+
 	if i.refs != nil {
 		i.refs.Close()
 	}
@@ -934,6 +936,8 @@ func (i *squashRefRefCommitsIter) Close() error {
 	if i.refs != nil {
 		i.refs.Close()
 	}
+
+	i.Repository().Close()
 	return nil
 }
 func (i *squashRefRefCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
@@ -1165,6 +1169,8 @@ func (i *squashRefCommitsIndexIter) Advance() error {
 
 		repoID := i.row[0]
 		if i.repo == nil || repoID != i.repo.ID {
+			i.repo.Close()
+
 			i.repo, err = i.pool.GetRepo(i.row[0].(string))
 			if err != nil {
 				if i.skipGitErrors {
@@ -1204,6 +1210,7 @@ func (i *squashRefCommitsIndexIter) Schema() sql.Schema {
 	return RefCommitsSchema
 }
 func (i *squashRefCommitsIndexIter) Close() error {
+	i.repo.Close()
 	return i.iter.Close()
 }
 
@@ -1226,6 +1233,8 @@ func (i *squashRefCommitCommitsIter) Close() error {
 	if i.refCommits != nil {
 		i.refCommits.Close()
 	}
+
+	i.Repository().Close()
 	return nil
 }
 func (i *squashRefCommitCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
@@ -1296,6 +1305,8 @@ func (i *squashCommitsIter) Close() error {
 	if i.commits != nil {
 		i.commits.Close()
 	}
+
+	i.repo.Close()
 	return nil
 }
 func (i *squashCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
@@ -1432,6 +1443,8 @@ func (i *squashCommitsIndexIter) Advance() error {
 		}
 
 		if i.repo == nil || i.repo.ID != i.iter.repoID {
+			i.repo.Close()
+
 			i.repo, err = i.pool.GetRepo(i.iter.repoID)
 			if err != nil {
 				if i.skipGitErrors {
@@ -1464,6 +1477,7 @@ func (i *squashCommitsIndexIter) Schema() sql.Schema {
 	return CommitsSchema
 }
 func (i *squashCommitsIndexIter) Close() error {
+	i.repo.Close()
 	return i.iter.Close()
 }
 
@@ -1490,9 +1504,12 @@ func (i *squashRepoCommitsIter) Close() error {
 		i.commits.Close()
 	}
 
+	i.Repository().Close()
+
 	if i.repos != nil {
 		return i.repos.Close()
 	}
+
 	return nil
 }
 func (i *squashRepoCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
@@ -1517,6 +1534,8 @@ func (i *squashRepoCommitsIter) Row() sql.Row { return i.row }
 func (i *squashRepoCommitsIter) Advance() error {
 	for {
 		if i.commits == nil {
+			i.Repository().Close()
+
 			err := i.repos.Advance()
 			if err != nil {
 				return err
@@ -1594,6 +1613,8 @@ func NewRefHEADCommitsIter(
 func (i *squashRefHeadCommitsIter) Repository() *Repository { return i.refs.Repository() }
 func (i *squashRefHeadCommitsIter) Commit() *object.Commit  { return i.commit }
 func (i *squashRefHeadCommitsIter) Close() error {
+	i.Repository().Close()
+
 	if i.refs != nil {
 		return i.refs.Close()
 	}
@@ -1786,6 +1807,7 @@ func (i *squashCommitTreesIndexIter) Schema() sql.Schema {
 	return CommitTreesSchema
 }
 func (i *squashCommitTreesIndexIter) Close() error {
+	i.repo.Close()
 	return i.iter.Close()
 }
 
@@ -1933,6 +1955,8 @@ func (i *squashRepoTreeEntriesIter) Close() error {
 		i.trees.Close()
 	}
 
+	i.Repository().Close()
+
 	if i.repos != nil {
 		return i.repos.Close()
 	}
@@ -1961,6 +1985,8 @@ func (i *squashRepoTreeEntriesIter) Row() sql.Row { return i.row }
 func (i *squashRepoTreeEntriesIter) Advance() error {
 	for {
 		if i.trees == nil {
+			i.Repository().Close()
+
 			err := i.repos.Advance()
 			if err != nil {
 				return err
@@ -2059,6 +2085,8 @@ func NewCommitMainTreeIter(
 func (i *squashCommitMainTreeIter) Repository() *Repository { return i.commits.Repository() }
 func (i *squashCommitMainTreeIter) Tree() *object.Tree      { return i.tree }
 func (i *squashCommitMainTreeIter) Close() error {
+	i.Repository().Close()
+
 	if i.commits != nil {
 		return i.commits.Close()
 	}
@@ -2251,6 +2279,8 @@ func NewAllTreeEntriesIter(filters sql.Expression) TreeEntriesIter {
 func (i *squashTreeEntriesIter) Repository() *Repository { return i.repo }
 func (i *squashTreeEntriesIter) TreeEntry() *TreeEntry   { return i.entry }
 func (i *squashTreeEntriesIter) Close() error {
+	i.Repository().Close()
+
 	if i.trees != nil {
 		i.trees.Close()
 	}
@@ -2420,6 +2450,7 @@ func (i *squashTreeEntriesIndexIter) Schema() sql.Schema {
 	return TreeEntriesSchema
 }
 func (i *squashTreeEntriesIndexIter) Close() error {
+	i.Repository().Close()
 	return i.iter.Close()
 }
 
@@ -2451,6 +2482,8 @@ func NewTreeTreeEntriesIter(
 func (i *squashTreeTreeEntriesIter) Repository() *Repository { return i.trees.Repository() }
 func (i *squashTreeTreeEntriesIter) TreeEntry() *TreeEntry   { return i.entry }
 func (i *squashTreeTreeEntriesIter) Close() error {
+	i.Repository().Close()
+
 	if i.trees != nil {
 		return i.trees.Close()
 	}
@@ -2620,6 +2653,7 @@ func (i *squashCommitBlobsIndexIter) Schema() sql.Schema {
 	return CommitBlobsSchema
 }
 func (i *squashCommitBlobsIndexIter) Close() error {
+	i.Repository().Close()
 	return i.iter.Close()
 }
 
@@ -2656,6 +2690,8 @@ func (i *squashCommitBlobsIter) Close() error {
 	if i.files != nil {
 		i.files.Close()
 	}
+
+	i.Repository().Close()
 
 	if i.commits != nil {
 		return i.commits.Close()
@@ -2787,6 +2823,8 @@ func (i *squashRepoBlobsIter) Close() error {
 		i.blobs.Close()
 	}
 
+	i.Repository().Close()
+
 	if i.repos != nil {
 		return i.repos.Close()
 	}
@@ -2810,6 +2848,8 @@ func (i *squashRepoBlobsIter) Row() sql.Row { return i.row }
 func (i *squashRepoBlobsIter) Advance() error {
 	for {
 		if i.blobs == nil {
+			i.repos.Repository().Close()
+
 			err := i.repos.Advance()
 			if err != nil {
 				return err
@@ -3169,6 +3209,7 @@ func (i *squashCommitFilesIter) Close() error {
 		i.files.Close()
 	}
 
+	i.Repository().Close()
 	return i.commits.Close()
 }
 func (i *squashCommitFilesIter) Schema() sql.Schema {
@@ -3229,6 +3270,8 @@ func (i *squashIndexCommitFilesIter) Advance() error {
 		i.file = commitFile.File
 
 		if i.repo == nil || i.repo.ID != commitFile.Repository {
+			i.repo.Close()
+
 			i.repo, err = i.pool.GetRepo(commitFile.Repository)
 			if err != nil {
 				if i.skipGitErrors {
@@ -3272,7 +3315,11 @@ func (i *squashIndexCommitFilesIter) File() *object.File      { return i.file }
 func (i *squashIndexCommitFilesIter) TreeHash() plumbing.Hash { return i.treeHash }
 func (i *squashIndexCommitFilesIter) Row() sql.Row            { return i.row }
 func (i *squashIndexCommitFilesIter) Schema() sql.Schema      { return CommitFilesSchema }
-func (i *squashIndexCommitFilesIter) Close() error            { return i.iter.Close() }
+
+func (i *squashIndexCommitFilesIter) Close() error {
+	i.repo.Close()
+	return i.iter.Close()
+}
 
 type squashCommitFileFilesIter struct {
 	files       FilesIter
@@ -3345,7 +3392,10 @@ func (i *squashCommitFileFilesIter) Row() sql.Row            { return i.row }
 func (i *squashCommitFileFilesIter) Schema() sql.Schema {
 	return append(i.files.Schema(), FilesSchema...)
 }
-func (i *squashCommitFileFilesIter) Close() error { return i.files.Close() }
+func (i *squashCommitFileFilesIter) Close() error {
+	i.Repository().Close()
+	return i.files.Close()
+}
 
 func evalFilters(ctx *sql.Context, row sql.Row, filters sql.Expression) (bool, error) {
 	v, err := filters.Eval(ctx, row)

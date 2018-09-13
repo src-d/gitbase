@@ -213,10 +213,12 @@ func (i *squashRowIter) Next() (sql.Row, error) {
 		row, err := i.iter.Next()
 		if err != nil {
 			if err == io.EOF {
+				i.iter.Close()
 				i.iter = nil
 				continue
 			}
 
+			i.iter.Close()
 			return nil, err
 		}
 

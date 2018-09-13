@@ -239,6 +239,8 @@ func (i *blobRowIter) Close() error {
 		i.iter.Close()
 	}
 
+	i.repo.Close()
+
 	return nil
 }
 

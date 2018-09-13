@@ -193,6 +193,8 @@ func (i *commitIter) Close() error {
 		i.iter.Close()
 	}
 
+	i.repo.Close()
+
 	return nil
 }
 

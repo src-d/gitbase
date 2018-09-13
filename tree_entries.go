@@ -236,6 +236,8 @@ func (i *treeEntriesRowIter) Close() error {
 		i.iter.Close()
 	}
 
+	i.repo.Close()
+
 	return nil
 }
 

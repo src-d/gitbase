@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	. "gopkg.in/check.v1"
@@ -424,6 +425,18 @@ func (s *SuiteDotGit) TestObjectPacks(c *C) {
 	fs := f.DotGit()
 	dir := New(fs)
 
+	testObjectPacks(c, fs, dir, f)
+}
+
+func (s *SuiteDotGit) TestObjectPacksExclusive(c *C) {
+	f := fixtures.Basic().ByTag(".git").One()
+	fs := f.DotGit()
+	dir := NewWithOptions(fs, Options{ExclusiveAccess: true})
+
+	testObjectPacks(c, fs, dir, f)
+}
+
+func testObjectPacks(c *C, fs billy.Filesystem, dir *DotGit, f *fixtures.Fixture) {
 	hashes, err := dir.ObjectPacks()
 	c.Assert(err, IsNil)
 	c.Assert(hashes, HasLen, 1)
@@ -450,6 +463,45 @@ func (s *SuiteDotGit) TestObjectPack(c *C) {
 	pack, err := dir.ObjectPack(f.PackfileHash)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Ext(pack.Name()), Equals, ".pack")
+}
+
+func (s *SuiteDotGit) TestObjectPackWithKeepDescriptors(c *C) {
+	f := fixtures.Basic().ByTag(".git").One()
+	fs := f.DotGit()
+	dir := NewWithOptions(fs, Options{KeepDescriptors: true})
+
+	pack, err := dir.ObjectPack(f.PackfileHash)
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Ext(pack.Name()), Equals, ".pack")
+
+	// Move to an specific offset
+	pack.Seek(42, os.SEEK_SET)
+
+	pack2, err := dir.ObjectPack(f.PackfileHash)
+	c.Assert(err, IsNil)
+
+	// If the file is the same the offset should be the same
+	offset, err := pack2.Seek(0, os.SEEK_CUR)
+	c.Assert(err, IsNil)
+	c.Assert(offset, Equals, int64(42))
+
+	err = dir.Close()
+	c.Assert(err, IsNil)
+
+	pack2, err = dir.ObjectPack(f.PackfileHash)
+	c.Assert(err, IsNil)
+
+	// If the file is opened again its offset should be 0
+	offset, err = pack2.Seek(0, os.SEEK_CUR)
+	c.Assert(err, IsNil)
+	c.Assert(offset, Equals, int64(0))
+
+	err = pack2.Close()
+	c.Assert(err, IsNil)
+
+	err = dir.Close()
+	c.Assert(err, NotNil)
+
 }
 
 func (s *SuiteDotGit) TestObjectPackIdx(c *C) {
@@ -506,6 +558,17 @@ func (s *SuiteDotGit) TestObjects(c *C) {
 	fs := fixtures.ByTag(".git").ByTag("unpacked").One().DotGit()
 	dir := New(fs)
 
+	testObjects(c, fs, dir)
+}
+
+func (s *SuiteDotGit) TestObjectsExclusive(c *C) {
+	fs := fixtures.ByTag(".git").ByTag("unpacked").One().DotGit()
+	dir := NewWithOptions(fs, Options{ExclusiveAccess: true})
+
+	testObjects(c, fs, dir)
+}
+
+func testObjects(c *C, fs billy.Filesystem, dir *DotGit) {
 	hashes, err := dir.Objects()
 	c.Assert(err, IsNil)
 	c.Assert(hashes, HasLen, 187)
