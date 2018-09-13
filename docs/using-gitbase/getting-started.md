@@ -64,8 +64,13 @@ brew install oniguruma
 
 Linux:
 
+- Debian-based distros:
 ```
-sudo apt-get install libonig2
+sudo apt-get install libonig2 libonig-dev
+```
+- Arch linux:
+```
+pacman -S oniguruma
 ```
 
 Then build gitbase like this:
