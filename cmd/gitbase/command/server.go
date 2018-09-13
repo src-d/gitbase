@@ -49,7 +49,7 @@ type Server struct {
 	Password      string         `short:"P" long:"password" default:"" description:"Password used for connection."`
 	PilosaURL     string         `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server." env:"PILOSA_ENDPOINT"`
 	IndexDir      string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
-	CacheSize     cache.FileSize `long:"cache" default:"536870912" description:"Object cache size" env:"GITBASE_CACHE_SIZE"`
+	CacheSize     cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
 	DisableSquash bool           `long:"no-squash" description:"Disables the table squashing."`
 	TraceEnabled  bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
 	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
@@ -161,7 +161,7 @@ func (c *Server) buildDatabase() error {
 		c.engine = NewDatabaseEngine(c.ReadOnly, c.Version)
 	}
 
-	c.pool = gitbase.NewRepositoryPool(c.CacheSize)
+	c.pool = gitbase.NewRepositoryPool(c.CacheSize * cache.MiByte)
 
 	if err := c.addDirectories(); err != nil {
 		return err
