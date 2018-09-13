@@ -73,6 +73,13 @@ func WithOldUASTSerialization(enabled bool) SessionOption {
 	}
 }
 
+// WithBaseSession sets the given session as the base session.
+func WithBaseSession(sess sql.Session) SessionOption {
+	return func(s *Session) {
+		s.Session = sess
+	}
+}
+
 // NewSession creates a new Session. It requires a repository pool and any
 // number of session options can be passed to configure the session.
 func NewSession(pool *RepositoryPool, opts ...SessionOption) *Session {
@@ -233,7 +240,8 @@ func connectToBblfsh(endpoint string) (*bblfsh.Client, error) {
 
 // NewSessionBuilder creates a SessionBuilder with the given Repository Pool.
 func NewSessionBuilder(pool *RepositoryPool, opts ...SessionOption) server.SessionBuilder {
-	return func(*mysql.Conn) sql.Session {
+	return func(c *mysql.Conn, host string) sql.Session {
+		opts = append(opts, WithBaseSession(sql.NewSession(host, c.User)))
 		return NewSession(pool, opts...)
 	}
 }

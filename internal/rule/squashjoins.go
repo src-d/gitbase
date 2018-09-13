@@ -771,13 +771,14 @@ func buildSquashedTable(
 		indexedTables = []string{firstTable}
 	}
 
-	var node sql.Node = gitbase.NewSquashedTable(
+	table := gitbase.NewSquashedTable(
 		iter,
 		mapping,
 		allFilters,
 		indexedTables,
 		tableNames...,
 	)
+	var node sql.Node = plan.NewResolvedTable(table)
 
 	if len(filters) > 0 {
 		f, err := fixFieldIndexes(expression.JoinAnd(filters...), iter.Schema())
