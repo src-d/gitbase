@@ -46,6 +46,10 @@ type Holder struct {
 	// Indexes by name.
 	indexes map[string]*Index
 
+	// Key/ID translation
+	translateFile            *TranslateFile
+	NewPrimaryTranslateStore func(interface{}) TranslateStore
+
 	// opened channel is closed once Open() completes.
 	opened chan struct{}
 
@@ -76,6 +80,9 @@ func NewHolder() *Holder {
 		closing: make(chan struct{}),
 
 		opened: make(chan struct{}),
+
+		translateFile:            NewTranslateFile(),
+		NewPrimaryTranslateStore: newNopTranslateStore,
 
 		broadcaster: NopBroadcaster,
 		Stats:       NopStatsClient,
@@ -160,6 +167,13 @@ func (h *Holder) Close() error {
 			return errors.Wrap(err, "closing index")
 		}
 	}
+
+	if h.translateFile != nil {
+		if err := h.translateFile.Close(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -560,6 +574,14 @@ func (h *Holder) logStartup() error {
 	return nil
 }
 
+func (h *Holder) setPrimaryTranslateStore(node *Node) {
+	var nodeID string
+	if node != nil {
+		nodeID = node.ID
+	}
+	h.translateFile.SetPrimaryStore(nodeID, h.NewPrimaryTranslateStore(node))
+}
+
 // holderSyncer is an active anti-entropy tool that compares the local holder
 // with a remote holder based on block checksums and resolves differences.
 type holderSyncer struct {
@@ -577,8 +599,11 @@ type holderSyncer struct {
 	Closing <-chan struct{}
 }
 
-// IsClosing returns true if the syncer has been marked to close.
+// IsClosing returns true if the syncer has been asked to close.
 func (s *holderSyncer) IsClosing() bool {
+	if s.Cluster.abortAntiEntropyQ() {
+		return true
+	}
 	select {
 	case <-s.Closing:
 		return true
@@ -635,7 +660,7 @@ func (s *holderSyncer) SyncHolder() error {
 
 					// Sync fragment if own it.
 					if err := s.syncFragment(di.Name, fi.Name, vi.Name, shard); err != nil {
-						return fmt.Errorf("fragment sync error: index=%s, field=%s, shard=%d, err=%s", di.Name, fi.Name, shard, err)
+						return fmt.Errorf("fragment sync error: index=%s, field=%s, view=%s, shard=%d, err=%s", di.Name, fi.Name, vi.Name, shard, err)
 					}
 				}
 			}
@@ -666,7 +691,7 @@ func (s *holderSyncer) syncIndex(index string) error {
 	s.Stats.CountWithCustomTags("ColumnAttrStoreBlocks", int64(len(blks)), 1.0, []string{indexTag})
 
 	// Sync with every other host.
-	for _, node := range Nodes(s.Cluster.Nodes).FilterID(s.Node.ID) {
+	for _, node := range Nodes(s.Cluster.nodes).FilterID(s.Node.ID) {
 		// Retrieve attributes from differing blocks.
 		// Skip update and recomputation if no attributes have changed.
 		m, err := s.Cluster.InternalClient.ColumnAttrDiff(context.Background(), &node.URI, index, blks)
@@ -710,7 +735,7 @@ func (s *holderSyncer) syncField(index, name string) error {
 	s.Stats.CountWithCustomTags("RowAttrStoreBlocks", int64(len(blks)), 1.0, []string{indexTag, fieldTag})
 
 	// Sync with every other host.
-	for _, node := range Nodes(s.Cluster.Nodes).FilterID(s.Node.ID) {
+	for _, node := range Nodes(s.Cluster.nodes).FilterID(s.Node.ID) {
 		// Retrieve attributes from differing blocks.
 		// Skip update and recomputation if no attributes have changed.
 		m, err := s.Cluster.InternalClient.RowAttrDiff(context.Background(), &node.URI, index, name, blks)

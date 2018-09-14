@@ -1,6 +1,7 @@
 package pilosa
 
 import (
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -21,10 +22,10 @@ import (
 const (
 	// DriverID the unique name of the pilosa driver.
 	DriverID = "pilosa"
-	// IndexNamePrefix the pilosa's indexes prefix
+	// IndexNamePrefix the pilosa's indexes prefix.
 	IndexNamePrefix = "idx"
-	// FrameNamePrefix the pilosa's frames prefix
-	FrameNamePrefix = "frm"
+	// FieldNamePrefix the pilosa's field prefix.
+	FieldNamePrefix = "fld"
 
 	// ConfigFileName is the name of an index config file.
 	ConfigFileName = "config.yml"
@@ -39,7 +40,7 @@ const (
 var (
 	errCorruptedIndex    = errors.NewKind("the index in %q is corrupted")
 	errInvalidIndexType  = errors.NewKind("expecting a pilosa index, instead got %T")
-	errDeletePilosaFrame = errors.NewKind("error deleting pilosa frame %s: %s")
+	errDeletePilosaField = errors.NewKind("error deleting pilosa field %s: %s")
 )
 
 // Driver implements sql.IndexDriver interface.
@@ -49,7 +50,7 @@ type Driver struct {
 
 	// used for saving
 	bitBatches  []*bitBatch
-	frames      []*pilosa.Frame
+	fields      []*pilosa.Field
 	timePilosa  time.Duration
 	timeMapping time.Duration
 }
@@ -163,6 +164,7 @@ func (d *Driver) loadIndex(db, table, id string) (sql.Index, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if cfg.Driver(DriverID) == nil {
 		return nil, errCorruptedIndex.New(dir)
 	}
@@ -171,56 +173,52 @@ func (d *Driver) loadIndex(db, table, id string) (sql.Index, error) {
 	return idx, nil
 }
 
-// Save the given index (mapping and bitmap)
-func (d *Driver) Save(
+func (d *Driver) savePartition(
 	ctx *sql.Context,
-	i sql.Index,
-	iter sql.IndexKeyValueIter,
-) (err error) {
+	partition sql.Partition,
+	kviter sql.IndexKeyValueIter,
+	schema *pilosa.Schema,
+	idx *pilosaIndex,
+	offset uint64,
+) (uint64, error) {
 	var colID uint64
-	start := time.Now()
-
-	idx, ok := i.(*pilosaIndex)
-	if !ok {
-		return errInvalidIndexType.New(i)
-	}
-
-	processingFile := d.processingFilePath(idx.Database(), idx.Table(), idx.ID())
-	if err = index.CreateProcessingFile(processingFile); err != nil {
-		return err
-	}
-
-	// Retrieve the pilosa schema
-	schema, err := d.client.Schema()
-	if err != nil {
-		return err
-	}
-
+	var err error
 	// Create a pilosa index and frame objects in memory
-	pilosaIndex, err := schema.Index(indexName(idx.Database(), idx.Table()))
-	if err != nil {
-		return err
+	pilosaIndex := schema.Index(indexName(idx.Database(), idx.Table()))
+	if err := d.client.EnsureIndex(pilosaIndex); err != nil {
+		return 0, err
 	}
 
-	d.frames = make([]*pilosa.Frame, len(idx.Expressions()))
+	d.fields = make([]*pilosa.Field, len(idx.Expressions()))
 	for i, e := range idx.Expressions() {
-		frm, err := pilosaIndex.Frame(frameName(idx.ID(), e))
-		if err != nil {
-			return err
-		}
-		// make sure we delete the index in every run before inserting, since there may
-		// be previous data
-		if err = d.client.DeleteFrame(frm); err != nil {
-			return errDeletePilosaFrame.New(frm.Name(), err)
+		name := fieldName(idx.ID(), e, partition)
+		field := pilosaIndex.Field(name, pilosa.OptFieldTypeSet(
+			pilosa.CacheTypeDefault,
+			pilosa.CacheSizeDefault,
+		))
+
+		if err := d.client.CreateField(field); err != nil {
+			if err == pilosa.ErrFieldExists {
+				// make sure we delete the index in every run before inserting,
+				// since there may be previous data
+				if err := d.client.DeleteField(field); err != nil {
+					return 0, errDeletePilosaField.New(field.Name(), err)
+				}
+
+				if err := d.client.CreateField(field); err != nil {
+					return 0, fmt.Errorf("failed to create field after delete: %s", err)
+				}
+			} else {
+				return 0, fmt.Errorf("failed to create pilosa field: %s", err)
+			}
 		}
 
-		d.frames[i] = frm
+		d.fields[i] = field
 	}
 
 	// Make sure the index and frames exists on the server
-	err = d.client.SyncSchema(schema)
-	if err != nil {
-		return err
+	if err = d.client.SyncSchema(schema); err != nil {
+		return 0, fmt.Errorf("unable to sync schema: %s", err)
 	}
 
 	// Open mapping in create mode. After finishing the transaction is rolled
@@ -240,39 +238,40 @@ func (d *Driver) Save(
 		idx.mapping.close()
 	}()
 
-	d.bitBatches = make([]*bitBatch, len(d.frames))
+	d.bitBatches = make([]*bitBatch, len(d.fields))
 	for i := range d.bitBatches {
 		d.bitBatches[i] = newBitBatch(sql.IndexBatchSize)
 	}
 
-	for colID = uint64(0); err == nil; colID++ {
+	for colID = offset; err == nil; colID++ {
 		// commit each batch of objects (pilosa and boltdb)
 		if colID%sql.IndexBatchSize == 0 && colID != 0 {
-			d.saveBatch(ctx, idx.mapping, colID)
+			if err = d.saveBatch(ctx, idx.mapping, colID); err != nil {
+				return 0, err
+			}
 		}
 
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-ctx.Context.Done():
+			return 0, ctx.Context.Err()
 
 		default:
 			var (
 				values   []interface{}
 				location []byte
 			)
-			values, location, err = iter.Next()
-			if err != nil {
+			if values, location, err = kviter.Next(); err != nil {
 				break
 			}
 
-			for i, frm := range d.frames {
+			for i, frm := range d.fields {
 				if values[i] == nil {
 					continue
 				}
 
 				rowID, err := idx.mapping.getRowID(frm.Name(), values[i])
 				if err != nil {
-					return err
+					return 0, err
 				}
 
 				d.bitBatches[i].Add(rowID, colID)
@@ -282,13 +281,64 @@ func (d *Driver) Save(
 	}
 
 	if err != nil && err != io.EOF {
-		return err
+		return 0, err
 	}
 
 	rollback = false
 
 	err = d.savePilosa(ctx, colID)
 	if err != nil {
+		return 0, err
+	}
+
+	return colID - offset, nil
+}
+
+// Save the given index (mapping and bitmap)
+func (d *Driver) Save(
+	ctx *sql.Context,
+	i sql.Index,
+	iter sql.PartitionIndexKeyValueIter,
+) (err error) {
+	start := time.Now()
+
+	idx, ok := i.(*pilosaIndex)
+	if !ok {
+		return errInvalidIndexType.New(i)
+	}
+	idx.wg.Add(1)
+	defer idx.wg.Done()
+	ctx.Context, idx.cancel = context.WithCancel(ctx.Context)
+	processingFile := d.processingFilePath(idx.Database(), idx.Table(), idx.ID())
+	if err = index.CreateProcessingFile(processingFile); err != nil {
+		return err
+	}
+
+	// Retrieve the pilosa schema
+	schema, err := d.client.Schema()
+	if err != nil {
+		return err
+	}
+
+	var rows uint64
+	for {
+		partition, kviter, err := iter.Next()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		numRows, err := d.savePartition(ctx, partition, kviter, schema, idx, rows)
+		if err != nil {
+			return err
+		}
+
+		rows += numRows
+	}
+
+	if err := iter.Close(); err != nil {
 		return err
 	}
 
@@ -296,36 +346,56 @@ func (d *Driver) Save(
 		"duration": time.Since(start),
 		"pilosa":   d.timePilosa,
 		"mapping":  d.timeMapping,
-		"rows":     colID,
+		"rows":     rows,
 		"id":       i.ID(),
 	}).Debugf("finished pilosa indexing")
 
 	return index.RemoveProcessingFile(processingFile)
 }
 
-// Delete the index with the given path.
-func (d *Driver) Delete(idx sql.Index) error {
+// Delete the given index for all partitions in the iterator.
+func (d *Driver) Delete(i sql.Index, partitions sql.PartitionIter) error {
+	idx, ok := i.(*pilosaIndex)
+	if !ok {
+		return errInvalidIndexType.New(i)
+	}
+	if idx.cancel != nil {
+		idx.cancel()
+		idx.wg.Wait()
+	}
+
 	if err := os.RemoveAll(filepath.Join(d.root, idx.Database(), idx.Table(), idx.ID())); err != nil {
 		return err
 	}
 
-	index, err := pilosa.NewIndex(indexName(idx.Database(), idx.Table()))
-	if err != nil {
+	index := pilosa.NewIndex(indexName(idx.Database(), idx.Table()))
+	if err := d.client.EnsureIndex(index); err != nil {
 		return err
 	}
 
-	frames := index.Frames()
-	for _, ex := range idx.Expressions() {
-		frm, ok := frames[frameName(idx.ID(), ex)]
-		if !ok {
-			continue
-		}
-
-		if err = d.client.DeleteFrame(frm); err != nil {
+	for {
+		p, err := partitions.Next()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return err
 		}
+
+		fields := index.Fields()
+		for _, ex := range idx.Expressions() {
+			f, ok := fields[fieldName(idx.ID(), ex, p)]
+			if !ok {
+				continue
+			}
+
+			if err = d.client.DeleteField(f); err != nil {
+				return err
+			}
+		}
 	}
-	return nil
+
+	return partitions.Close()
 }
 
 func (d *Driver) saveBatch(ctx *sql.Context, m *mapping, colID uint64) error {
@@ -340,14 +410,14 @@ func (d *Driver) saveBatch(ctx *sql.Context, m *mapping, colID uint64) error {
 func (d *Driver) savePilosa(ctx *sql.Context, colID uint64) error {
 	span, _ := ctx.Span("pilosa.Save.bitBatch",
 		opentracing.Tag{Key: "cols", Value: colID},
-		opentracing.Tag{Key: "frames", Value: len(d.frames)},
+		opentracing.Tag{Key: "fields", Value: len(d.fields)},
 	)
 	defer span.Finish()
 
 	start := time.Now()
 
-	for i, frm := range d.frames {
-		err := d.client.ImportFrame(frm, d.bitBatches[i])
+	for i, f := range d.fields {
+		err := d.client.ImportField(f, d.bitBatches[i])
 		if err != nil {
 			span.LogKV("error", err)
 			return err
@@ -388,7 +458,8 @@ func (d *Driver) saveMapping(
 
 type bitBatch struct {
 	size uint64
-	bits []pilosa.Bit
+	rows []uint64
+	cols []uint64
 	pos  uint64
 }
 
@@ -400,24 +471,26 @@ func newBitBatch(size uint64) *bitBatch {
 }
 
 func (b *bitBatch) Clean() {
-	b.bits = make([]pilosa.Bit, 0, b.size)
+	b.cols = make([]uint64, 0, b.size)
+	b.rows = make([]uint64, 0, b.size)
 	b.pos = 0
 }
 
 func (b *bitBatch) Add(row, col uint64) {
-	b.bits = append(b.bits, pilosa.Bit{
-		RowID:    row,
-		ColumnID: col,
-	})
+	b.rows = append(b.rows, row)
+	b.cols = append(b.cols, col)
 }
 
 func (b *bitBatch) NextRecord() (pilosa.Record, error) {
-	if b.pos >= uint64(len(b.bits)) {
+	if b.pos >= uint64(len(b.rows)) {
 		return nil, io.EOF
 	}
 
 	b.pos++
-	return b.bits[b.pos-1], nil
+	return pilosa.Column{
+		RowID:    b.rows[b.pos-1],
+		ColumnID: b.cols[b.pos-1],
+	}, nil
 }
 
 func indexName(db, table string) string {
@@ -428,11 +501,12 @@ func indexName(db, table string) string {
 	return fmt.Sprintf("%s-%x", IndexNamePrefix, h.Sum(nil))
 }
 
-func frameName(id string, ex string) string {
+func fieldName(id string, ex string, p sql.Partition) string {
 	h := sha1.New()
 	io.WriteString(h, id)
 	io.WriteString(h, ex)
-	return fmt.Sprintf("%s-%x", FrameNamePrefix, h.Sum(nil))
+	h.Write(p.Key())
+	return fmt.Sprintf("%s-%x", FieldNamePrefix, h.Sum(nil))
 }
 
 // mkdir makes an empty index directory (if doesn't exist) and returns a path.

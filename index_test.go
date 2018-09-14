@@ -16,6 +16,14 @@ func assertEncodeKey(t *testing.T, key indexKey) []byte {
 	return data
 }
 
+type partitionIndexLookup map[string]sql.IndexValueIter
+
+func (l partitionIndexLookup) Values(p sql.Partition) (sql.IndexValueIter, error) {
+	return l[string(p.Key())], nil
+}
+
+func (partitionIndexLookup) Indexes() []string { return nil }
+
 type indexValueIter struct {
 	values [][]byte
 	pos    int
@@ -42,47 +50,73 @@ type keyValue struct {
 	values []interface{}
 }
 
-func assertIndexKeyValueIter(t *testing.T, iter sql.IndexKeyValueIter, expected []keyValue) {
+func assertIndexKeyValueIter(t *testing.T, iter sql.PartitionIndexKeyValueIter, expected []keyValue) {
 	t.Helper()
 	require := require.New(t)
 
 	var result []keyValue
 	for {
-		values, key, err := iter.Next()
+		_, kviter, err := iter.Next()
 		if err == io.EOF {
 			break
 		}
 		require.NoError(err)
 
-		result = append(result, keyValue{key, values})
+		for {
+			values, key, err := kviter.Next()
+			if err == io.EOF {
+				break
+			}
+			require.NoError(err)
+
+			result = append(result, keyValue{key, values})
+		}
+
+		require.NoError(kviter.Close())
 	}
 
 	require.NoError(iter.Close())
 	require.ElementsMatch(expected, result)
 }
 
-func tableIndexValues(t *testing.T, table Indexable, ctx *sql.Context) sql.IndexValueIter {
-	kvIter, err := table.IndexKeyValueIter(ctx, nil)
+func tableIndexLookup(
+	t *testing.T,
+	table sql.IndexableTable,
+	ctx *sql.Context,
+) sql.IndexLookup {
+	t.Helper()
+	iter, err := table.IndexKeyValues(ctx, nil)
 	require.NoError(t, err)
 
-	var values [][]byte
+	lookup := make(partitionIndexLookup)
 	for {
-		_, val, err := kvIter.Next()
+		p, kvIter, err := iter.Next()
 		if err == io.EOF {
 			break
 		}
 		require.NoError(t, err)
-		values = append(values, val)
+
+		var values [][]byte
+		for {
+			_, val, err := kvIter.Next()
+			if err == io.EOF {
+				break
+			}
+			require.NoError(t, err)
+			values = append(values, val)
+		}
+		require.NoError(t, kvIter.Close())
+		lookup[string(p.Key())] = newIndexValueIter(values...)
 	}
 
-	require.NoError(t, kvIter.Close())
+	require.NoError(t, iter.Close())
 
-	return newIndexValueIter(values...)
+	return lookup
 }
 
 func testTableIndex(
 	t *testing.T,
-	table Indexable,
+	table Table,
 	filters []sql.Expression,
 ) {
 	t.Helper()
@@ -90,31 +124,25 @@ func testTableIndex(
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	i, err := table.WithProjectAndFilters(ctx, nil, nil)
-	require.NoError(err)
-	expected, err := sql.RowIterToRows(i)
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
-	index := tableIndexValues(t, table, ctx)
-	iter, err := table.WithProjectFiltersAndIndex(ctx, nil, nil, index)
-	require.NoError(err)
+	indexable := table.(sql.IndexableTable)
+	lookup := tableIndexLookup(t, indexable, ctx)
+	tbl := table.(sql.IndexableTable).WithIndexLookup(lookup)
 
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, tbl)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
 
-	iter, err = table.WithProjectAndFilters(ctx, nil, filters)
+	expected, err = tableToRows(ctx, table.WithFilters(filters))
 	require.NoError(err)
 
-	expected, err = sql.RowIterToRows(iter)
-	require.NoError(err)
+	lookup = tableIndexLookup(t, indexable, ctx)
+	tbl = table.WithFilters(filters).(sql.IndexableTable).WithIndexLookup(lookup)
 
-	index = tableIndexValues(t, table, ctx)
-	iter, err = table.WithProjectFiltersAndIndex(ctx, nil, filters, index)
-	require.NoError(err)
-
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, tbl)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)

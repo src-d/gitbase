@@ -6,14 +6,15 @@ import (
 	"strconv"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
-type treeEntriesTable struct{}
+type treeEntriesTable struct {
+	filters []sql.Expression
+	index   sql.IndexLookup
+}
 
 // TreeEntriesSchema is the schema for the tree entries table.
 var TreeEntriesSchema = sql.Schema{
@@ -24,9 +25,7 @@ var TreeEntriesSchema = sql.Schema{
 	{Name: "tree_entry_mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 }
 
-var _ sql.PushdownProjectionAndFiltersTable = (*treeEntriesTable)(nil)
-
-func newTreeEntriesTable() Indexable {
+func newTreeEntriesTable() *treeEntriesTable {
 	return new(treeEntriesTable)
 }
 
@@ -36,10 +35,6 @@ var _ Squashable = (*treeEntriesTable)(nil)
 func (treeEntriesTable) isSquashable()   {}
 func (treeEntriesTable) isGitbaseTable() {}
 
-func (treeEntriesTable) Resolved() bool {
-	return true
-}
-
 func (treeEntriesTable) Name() string {
 	return TreeEntriesTableName
 }
@@ -48,52 +43,69 @@ func (treeEntriesTable) Schema() sql.Schema {
 	return TreeEntriesSchema
 }
 
-func (r *treeEntriesTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(r)
+func (r *treeEntriesTable) WithFilters(filters []sql.Expression) sql.Table {
+	nt := *r
+	nt.filters = filters
+	return &nt
 }
 
-func (r *treeEntriesTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	return r, nil
+func (r *treeEntriesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
+	nt := *r
+	nt.index = idx
+	return &nt
 }
 
-func (r treeEntriesTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.TreeEntriesTable")
-	iter := new(treeEntryIter)
+func (r *treeEntriesTable) IndexLookup() sql.IndexLookup { return r.index }
+func (r *treeEntriesTable) Filters() []sql.Expression    { return r.filters }
 
-	repoIter, err := NewRowRepoIter(ctx, iter)
+func (r *treeEntriesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	return newRepositoryPartitionIter(ctx)
+}
+
+func (r *treeEntriesTable) PartitionRows(
+	ctx *sql.Context,
+	p sql.Partition,
+) (sql.RowIter, error) {
+	repo, err := getPartitionRepo(ctx, p)
 	if err != nil {
-		span.Finish()
 		return nil, err
 	}
 
-	return sql.NewSpanIter(span, repoIter), nil
-}
-
-func (treeEntriesTable) Children() []sql.Node {
-	return nil
-}
-
-func (treeEntriesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
-	return handledFilters(TreeEntriesTableName, TreeEntriesSchema, filters)
-}
-
-func (treeEntriesTable) handledColumns() []string {
-	return []string{"tree_hash"}
-}
-
-func (r *treeEntriesTable) WithProjectAndFilters(
-	ctx *sql.Context,
-	_, filters []sql.Expression,
-) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.TreeEntriesTable")
-	// TODO: could be optimized even more checking that only tree_hash is
-	// projected. There would be no need to iterate files in this case, and
-	// it would be much faster.
 	iter, err := rowIterWithSelectors(
 		ctx, TreeEntriesSchema, TreeEntriesTableName,
-		filters, nil,
+		r.filters,
 		r.handledColumns(),
-		treeEntriesIterBuilder,
+		func(selectors selectors) (sql.RowIter, error) {
+			hashes, err := selectors.textValues("tree_hash")
+			if err != nil {
+				return nil, err
+			}
+
+			if r.index != nil {
+				values, err := r.index.Values(p)
+				if err != nil {
+					return nil, err
+				}
+
+				session, err := getSession(ctx)
+				if err != nil {
+					return nil, err
+				}
+
+				return newTreeEntriesIndexIter(
+					values,
+					session.Pool,
+					stringsToHashes(hashes),
+				), nil
+			}
+
+			return &treeEntriesRowIter{
+				repo:          repo,
+				hashes:        stringsToHashes(hashes),
+				skipGitErrors: shouldSkipErrors(ctx),
+			}, nil
+		},
 	)
 
 	if err != nil {
@@ -104,85 +116,71 @@ func (r *treeEntriesTable) WithProjectAndFilters(
 	return sql.NewSpanIter(span, iter), nil
 }
 
-// IndexKeyValueIter implements the sql.Indexable interface.
-func (*treeEntriesTable) IndexKeyValueIter(
-	ctx *sql.Context,
-	colNames []string,
-) (sql.IndexKeyValueIter, error) {
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	return newTreeEntriesKeyValueIter(s.Pool, colNames)
+func (treeEntriesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
+	return handledFilters(TreeEntriesTableName, TreeEntriesSchema, filters)
 }
 
-// WithProjectFiltersAndIndex implements sql.Indexable interface.
-func (*treeEntriesTable) WithProjectFiltersAndIndex(
-	ctx *sql.Context,
-	columns, filters []sql.Expression,
-	index sql.IndexValueIter,
-) (sql.RowIter, error) {
-	span, ctx := ctx.Span("gitbase.TreeEntriesTable.WithProjectFiltersAndIndex")
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		span.Finish()
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	session, err := getSession(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var iter sql.RowIter = newTreeEntriesIndexIter(index, session.Pool)
-
-	if len(filters) > 0 {
-		iter = plan.NewFilterIter(ctx, expression.JoinAnd(filters...), iter)
-	}
-
-	return sql.NewSpanIter(span, iter), nil
-}
-
-func treeEntriesIterBuilder(_ *sql.Context, selectors selectors, _ []sql.Expression) (RowRepoIter, error) {
-	if len(selectors["tree_hash"]) == 0 {
-		return new(treeEntryIter), nil
-	}
-
-	hashes, err := selectors.textValues("tree_hash")
-	if err != nil {
-		return nil, err
-	}
-
-	return &treeEntriesByHashIter{hashes: hashes}, nil
+func (treeEntriesTable) handledColumns() []string {
+	return []string{"tree_hash"}
 }
 
 func (r treeEntriesTable) String() string {
 	return printTable(TreeEntriesTableName, TreeEntriesSchema)
 }
 
-type treeEntryIter struct {
-	i      *object.TreeIter
-	tree   *object.Tree
-	cursor int
-	repoID string
+// IndexKeyValues implements the sql.IndexableTable interface.
+func (*treeEntriesTable) IndexKeyValues(
+	ctx *sql.Context,
+	colNames []string,
+) (sql.PartitionIndexKeyValueIter, error) {
+	return newPartitionedIndexKeyValueIter(
+		ctx,
+		newTreeEntriesTable(),
+		colNames,
+		newTreeEntriesKeyValueIter,
+	)
 }
 
-func (i *treeEntryIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	iter, err := repo.Repo.TreeObjects()
-	if err != nil {
-		return nil, err
+type treeEntriesRowIter struct {
+	hashes        []plumbing.Hash
+	pos           int
+	tree          *object.Tree
+	iter          *object.TreeIter
+	cursor        int
+	repo          *Repository
+	skipGitErrors bool
+}
+
+func (i *treeEntriesRowIter) Next() (sql.Row, error) {
+	if len(i.hashes) > 0 {
+		return i.nextByHash()
 	}
 
-	return &treeEntryIter{repoID: repo.ID, i: iter}, nil
+	return i.next()
 }
 
-func (i *treeEntryIter) Next() (sql.Row, error) {
+func (i *treeEntriesRowIter) next() (sql.Row, error) {
 	for {
+		if i.iter == nil {
+			var err error
+			i.iter, err = i.repo.TreeObjects()
+			if err != nil {
+				if i.skipGitErrors {
+					return nil, io.EOF
+				}
+
+				return nil, err
+			}
+		}
+
 		if i.tree == nil {
 			var err error
-			i.tree, err = i.i.Next()
+			i.tree, err = i.iter.Next()
 			if err != nil {
+				if err != io.EOF && i.skipGitErrors {
+					continue
+				}
+
 				return nil, err
 			}
 
@@ -197,43 +195,22 @@ func (i *treeEntryIter) Next() (sql.Row, error) {
 		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
 		i.cursor++
 
-		return treeEntryToRow(i.repoID, entry), nil
+		return treeEntryToRow(i.repo.ID, entry), nil
 	}
 }
 
-func (i *treeEntryIter) Close() error {
-	if i.i != nil {
-		i.i.Close()
-	}
-
-	return nil
-}
-
-type treeEntriesByHashIter struct {
-	hashes []string
-	pos    int
-	tree   *object.Tree
-	cursor int
-	repo   *Repository
-}
-
-func (i *treeEntriesByHashIter) NewIterator(repo *Repository) (RowRepoIter, error) {
-	return &treeEntriesByHashIter{hashes: i.hashes, repo: repo}, nil
-}
-
-func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
+func (i *treeEntriesRowIter) nextByHash() (sql.Row, error) {
 	for {
 		if i.pos >= len(i.hashes) && i.tree == nil {
 			return nil, io.EOF
 		}
 
 		if i.tree == nil {
-			hash := plumbing.NewHash(i.hashes[i.pos])
-			i.pos++
 			var err error
-			i.tree, err = i.repo.Repo.TreeObject(hash)
+			i.tree, err = i.repo.TreeObject(i.hashes[i.pos])
+			i.pos++
 			if err != nil {
-				if err == plumbing.ErrObjectNotFound {
+				if err == plumbing.ErrObjectNotFound || i.skipGitErrors {
 					continue
 				}
 				return nil, err
@@ -254,7 +231,13 @@ func (i *treeEntriesByHashIter) Next() (sql.Row, error) {
 	}
 }
 
-func (i *treeEntriesByHashIter) Close() error {
+func (i *treeEntriesRowIter) Close() error {
+	if i.iter != nil {
+		i.iter.Close()
+	}
+
+	i.repo.Close()
+
 	return nil
 }
 
@@ -338,7 +321,6 @@ func (k *treeEntriesIndexKey) decode(data []byte) error {
 
 type treeEntriesKeyValueIter struct {
 	pool    *RepositoryPool
-	repos   *RepositoryIter
 	repo    *Repository
 	idx     *repositoryIndex
 	trees   *object.TreeIter
@@ -347,48 +329,37 @@ type treeEntriesKeyValueIter struct {
 	columns []string
 }
 
-func newTreeEntriesKeyValueIter(pool *RepositoryPool, columns []string) (*treeEntriesKeyValueIter, error) {
-	repos, err := pool.RepoIter()
+func newTreeEntriesKeyValueIter(
+	pool *RepositoryPool,
+	repo *Repository,
+	columns []string,
+) (sql.IndexKeyValueIter, error) {
+	trees, err := repo.TreeObjects()
+	if err != nil {
+		return nil, err
+	}
+
+	r := pool.repositories[repo.ID]
+	idx, err := newRepositoryIndex(r)
 	if err != nil {
 		return nil, err
 	}
 
 	return &treeEntriesKeyValueIter{
 		pool:    pool,
-		repos:   repos,
+		repo:    repo,
 		columns: columns,
+		idx:     idx,
+		trees:   trees,
 	}, nil
 }
 
 func (i *treeEntriesKeyValueIter) Next() ([]interface{}, []byte, error) {
 	for {
-		if i.trees == nil {
-			var err error
-			i.repo, err = i.repos.Next()
-			if err != nil {
-				return nil, nil, err
-			}
-
-			i.trees, err = i.repo.Repo.TreeObjects()
-			if err != nil {
-				return nil, nil, err
-			}
-
-			repo := i.pool.repositories[i.repo.ID]
-			i.idx, err = newRepositoryIndex(repo)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
 		if i.tree == nil {
 			var err error
 			i.tree, err = i.trees.Next()
 			if err != nil {
-				if err == io.EOF {
-					i.trees = nil
-					continue
-				}
 				return nil, nil, err
 			}
 			i.pos = 0
@@ -433,70 +404,87 @@ func (i *treeEntriesKeyValueIter) Next() ([]interface{}, []byte, error) {
 	}
 }
 
-func (i *treeEntriesKeyValueIter) Close() error { return i.repos.Close() }
+func (i *treeEntriesKeyValueIter) Close() error {
+	if i.trees != nil {
+		i.trees.Close()
+	}
+	return nil
+}
 
 type treeEntriesIndexIter struct {
 	index          sql.IndexValueIter
 	decoder        *objectDecoder
 	prevTreeOffset int64
+	hashes         []plumbing.Hash
 	tree           *object.Tree // holds the last obtained tree
 	entry          *TreeEntry   // holds the last obtained tree entry
 	repoID         string       // holds the repo ID of the last tree entry processed
 }
 
-func newTreeEntriesIndexIter(index sql.IndexValueIter, pool *RepositoryPool) *treeEntriesIndexIter {
+func newTreeEntriesIndexIter(
+	index sql.IndexValueIter,
+	pool *RepositoryPool,
+	hashes []plumbing.Hash,
+) *treeEntriesIndexIter {
 	return &treeEntriesIndexIter{
 		index:   index,
 		decoder: newObjectDecoder(pool),
+		hashes:  hashes,
 	}
 }
 
 func (i *treeEntriesIndexIter) Next() (sql.Row, error) {
-	var err error
-	var data []byte
-	defer closeIndexOnError(&err, i.index)
+	for {
+		var err error
+		var data []byte
+		defer closeIndexOnError(&err, i.index)
 
-	data, err = i.index.Next()
-	if err != nil {
-		return nil, err
-	}
-
-	var key treeEntriesIndexKey
-	if err = decodeIndexKey(data, &key); err != nil {
-		return nil, err
-	}
-
-	i.repoID = key.Repository
-
-	var tree *object.Tree
-	if i.prevTreeOffset == key.Offset && key.Offset >= 0 ||
-		(i.tree != nil && i.tree.Hash.String() == key.Hash) {
-		tree = i.tree
-	} else {
-		var obj object.Object
-		obj, err = i.decoder.decode(
-			key.Repository,
-			plumbing.NewHash(key.Packfile),
-			key.Offset,
-			plumbing.NewHash(key.Hash),
-		)
+		data, err = i.index.Next()
 		if err != nil {
 			return nil, err
 		}
 
-		var ok bool
-		i.tree, ok = obj.(*object.Tree)
-		if !ok {
-			err = ErrInvalidObjectType.New(obj, "*object.Tree")
+		var key treeEntriesIndexKey
+		if err = decodeIndexKey(data, &key); err != nil {
 			return nil, err
 		}
 
-		tree = i.tree
-	}
+		i.repoID = key.Repository
 
-	i.prevTreeOffset = key.Offset
-	i.entry = &TreeEntry{tree.Hash, tree.Entries[key.Pos]}
-	return treeEntryToRow(key.Repository, i.entry), nil
+		var tree *object.Tree
+		if i.prevTreeOffset == key.Offset && key.Offset >= 0 ||
+			(i.tree != nil && i.tree.Hash.String() == key.Hash) {
+			tree = i.tree
+		} else {
+			var obj object.Object
+			obj, err = i.decoder.decode(
+				key.Repository,
+				plumbing.NewHash(key.Packfile),
+				key.Offset,
+				plumbing.NewHash(key.Hash),
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			var ok bool
+			i.tree, ok = obj.(*object.Tree)
+			if !ok {
+				err = ErrInvalidObjectType.New(obj, "*object.Tree")
+				return nil, err
+			}
+
+			if len(i.hashes) > 0 && !hashContains(i.hashes, i.tree.Hash) {
+				continue
+			}
+
+			tree = i.tree
+		}
+
+		i.prevTreeOffset = key.Offset
+		i.entry = &TreeEntry{tree.Hash, tree.Entries[key.Pos]}
+		return treeEntryToRow(key.Repository, i.entry), nil
+	}
 }
 
 func (i *treeEntriesIndexIter) Close() error {

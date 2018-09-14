@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 
 	"gopkg.in/src-d/go-billy-siva.v4"
@@ -15,7 +14,6 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 var (
@@ -26,22 +24,55 @@ var (
 
 // Repository struct holds an initialized repository and its ID
 type Repository struct {
-	ID   string
-	Repo *git.Repository
+	*git.Repository
+	ID string
 }
 
 // NewRepository creates and initializes a new Repository structure
 func NewRepository(id string, repo *git.Repository) *Repository {
 	return &Repository{
-		ID:   id,
-		Repo: repo,
+		Repository: repo,
+		ID:         id,
+	}
+}
+
+// Close closes all opened files in the repository.
+func (r *Repository) Close() {
+	if r != nil && r.Repository != nil {
+		f, ok := r.Storer.(*filesystem.Storage)
+		if ok {
+			// The only type of error returned is "file already closed" and
+			// we don't want to do anything with it.
+			f.Close()
+		}
 	}
 }
 
 // NewRepositoryFromPath creates and initializes a new Repository structure
 // and initializes a go-git repository
-func NewRepositoryFromPath(id, path string) (*Repository, error) {
-	repo, err := git.PlainOpen(path)
+func NewRepositoryFromPath(id, path string, cache cache.Object) (*Repository, error) {
+	op := filesystem.Options{
+		ExclusiveAccess: true,
+		KeepDescriptors: true,
+	}
+
+	var wt billy.Filesystem
+	fs := osfs.New(path)
+	f, err := fs.Stat(git.GitDirName)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	if f != nil && f.IsDir() {
+		wt = fs
+		fs, err = fs.Chroot(git.GitDirName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	sto := filesystem.NewStorageWithOptions(fs, cache, op)
+	repo, err := git.Open(sto, wt)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +97,13 @@ func NewSivaRepositoryFromPath(id, path string, cache cache.Object) (*Repository
 		return nil, err
 	}
 
-	sto := filesystem.NewStorage(fs, cache)
+	op := filesystem.Options{
+		ExclusiveAccess: true,
+		KeepDescriptors: true,
+	}
+
+	sto := filesystem.NewStorageWithOptions(fs, cache, op)
+
 	repo, err := git.Open(sto, nil)
 	if err != nil {
 		return nil, err
@@ -98,7 +135,7 @@ func (r *gitRepository) ID() string {
 }
 
 func (r *gitRepository) Repo() (*Repository, error) {
-	return NewRepositoryFromPath(r.id, r.path)
+	return NewRepositoryFromPath(r.id, r.path, r.cache)
 }
 
 func (r *gitRepository) FS() (billy.Filesystem, error) {
@@ -258,122 +295,4 @@ func (i *RepositoryIter) Next() (*Repository, error) {
 // Close finished iterator. It's no-op.
 func (i *RepositoryIter) Close() error {
 	return nil
-}
-
-// RowRepoIter is the interface needed by each iterator
-// implementation
-type RowRepoIter interface {
-	NewIterator(*Repository) (RowRepoIter, error)
-	Next() (sql.Row, error)
-	Close() error
-}
-
-type iteratorBuilder func(*sql.Context, selectors, []sql.Expression) (RowRepoIter, error)
-
-// RowRepoIter is used as the base to iterate over all the repositories
-// in the pool
-type rowRepoIter struct {
-	mu sync.Mutex
-
-	currRepoIter   RowRepoIter
-	repositoryIter *RepositoryIter
-	iter           RowRepoIter
-	session        *Session
-	ctx            *sql.Context
-}
-
-// NewRowRepoIter initializes a new repository iterator.
-//
-// * ctx: it should contain a gitbase.Session
-// * iter: specific RowRepoIter interface
-//     * NewIterator: called when a new repository is about to be iterated,
-//         returns a new RowRepoIter
-//     * Next: called for each row
-//     * Close: called when a repository finished iterating
-func NewRowRepoIter(
-	ctx *sql.Context,
-	iter RowRepoIter,
-) (sql.RowIter, error) {
-	s, ok := ctx.Session.(*Session)
-	if !ok || s == nil {
-		return nil, ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	rIter, err := s.Pool.RepoIter()
-	if err != nil {
-		return nil, err
-	}
-
-	repoIter := rowRepoIter{
-		currRepoIter:   nil,
-		repositoryIter: rIter,
-		iter:           iter,
-		session:        s,
-		ctx:            ctx,
-	}
-
-	return &repoIter, nil
-}
-
-// Next gets the next row
-func (i *rowRepoIter) Next() (sql.Row, error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	for {
-		select {
-		case <-i.ctx.Done():
-			return nil, ErrSessionCanceled.New()
-
-		default:
-			if i.currRepoIter == nil {
-				repo, err := i.repositoryIter.Next()
-				if err != nil {
-					if err == io.EOF {
-						return nil, io.EOF
-					}
-
-					if i.session.SkipGitErrors {
-						continue
-					}
-
-					return nil, err
-				}
-
-				i.currRepoIter, err = i.iter.NewIterator(repo)
-				if err != nil {
-					if i.session.SkipGitErrors {
-						continue
-					}
-
-					return nil, err
-				}
-			}
-
-			row, err := i.currRepoIter.Next()
-			if err != nil {
-				if err == io.EOF {
-					i.currRepoIter.Close()
-					i.currRepoIter = nil
-					continue
-				}
-
-				if i.session.SkipGitErrors {
-					continue
-				}
-
-				return nil, err
-			}
-
-			return row, nil
-		}
-	}
-}
-
-// Close called to close the iterator
-func (i *rowRepoIter) Close() error {
-	if i.currRepoIter != nil {
-		i.currRepoIter.Close()
-	}
-	return i.iter.Close()
 }

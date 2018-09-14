@@ -23,7 +23,7 @@ var (
 
 // Indexable represents an indexable gitbase table.
 type Indexable interface {
-	sql.Indexable
+	sql.IndexableTable
 	gitBase
 }
 

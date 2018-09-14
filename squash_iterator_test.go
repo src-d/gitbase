@@ -41,7 +41,10 @@ func TestSquashContextCancelled(t *testing.T) {
 	require.NoError(err)
 
 	for _, it := range iters {
-		iter, err := it.New(ctx, session.Pool)
+		repo, err := session.Pool.GetPos(0)
+		require.NoError(err)
+
+		iter, err := it.New(ctx, repo)
 		require.NoError(err)
 
 		err = iter.Advance()
@@ -132,9 +135,8 @@ func TestAllRefsIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	it, err := NewRowRepoIter(ctx, new(referenceIter))
-	require.NoError(err)
-	expected, err := sql.RowIterToRows(it)
+	table := newReferencesTable()
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -315,9 +317,7 @@ func TestAllCommitsIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	it, err := NewRowRepoIter(ctx, new(commitIter))
-	require.NoError(err)
-	expected, err := sql.RowIterToRows(it)
+	expected, err := tableToRows(ctx, newCommitsTable())
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -404,9 +404,8 @@ func TestRefHEADCommitsIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	it, err := NewRowRepoIter(ctx, new(referenceIter))
-	require.NoError(err)
-	expected, err := sql.RowIterToRows(it)
+	table := newReferencesTable()
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.Len(rows, len(expected))
@@ -462,9 +461,7 @@ func TestAllTreeEntriesIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	it, err := NewRowRepoIter(ctx, new(treeEntryIter))
-	require.NoError(err)
-	expected, err := sql.RowIterToRows(it)
+	expected, err := tableToRows(ctx, newTreeEntriesTable())
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -656,10 +653,7 @@ func TestRepoBlobsIter(t *testing.T) {
 		),
 	)
 
-	iter, err := NewRowRepoIter(ctx, new(blobIter))
-	require.NoError(err)
-
-	expected, err := sql.RowIterToRows(iter)
+	expected, err := tableToRows(ctx, newBlobsTable())
 	require.NoError(err)
 
 	for i := range rows {
@@ -700,16 +694,14 @@ func TestCommitBlobsIter(t *testing.T) {
 }
 
 func chainableIterRowsError(t *testing.T, ctx *sql.Context, iter ChainableIter) {
-	it, err := NewChainableRowIter(ctx, iter)
-	require.NoError(t, err)
-	_, err = sql.RowIterToRows(it)
+	table := newSquashTable(iter)
+	_, err := tableToRows(ctx, table)
 	require.Error(t, err)
 }
 
 func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql.Row {
-	it, err := NewChainableRowIter(ctx, iter)
-	require.NoError(t, err)
-	rows, err := sql.RowIterToRows(it)
+	table := newSquashTable(iter)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(t, err)
 	return rows
 }
@@ -751,22 +743,18 @@ func TestIndexRefsIter(t *testing.T) {
 	ctx, index, cleanup := setupWithIndex(t, new(referencesTable))
 	defer cleanup()
 
-	it, err := NewChainableRowIter(
-		ctx,
+	table := newSquashTable(
 		NewAllRefsIter(nil, false),
 	)
+
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
-	expected, err := sql.RowIterToRows(it)
-	require.NoError(err)
-
-	it, err = NewChainableRowIter(
-		ctx,
+	table = newSquashTable(
 		NewIndexRefsIter(nil, index),
 	)
-	require.NoError(err)
 
-	rows, err := sql.RowIterToRows(it)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -778,13 +766,11 @@ func TestIndexRefCommitsIter(t *testing.T) {
 	ctx, index, cleanup := setupWithIndex(t, new(refCommitsTable))
 	defer cleanup()
 
-	it, err := NewChainableRowIter(
-		ctx,
+	table := newSquashTable(
 		NewRefCommitCommitsIter(NewAllRefCommitsIter(nil), nil),
 	)
-	require.NoError(err)
 
-	expected, err := sql.RowIterToRows(it)
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	iter := NewRefCommitCommitsIter(
@@ -792,10 +778,9 @@ func TestIndexRefCommitsIter(t *testing.T) {
 		nil,
 	)
 
-	it, err = NewChainableRowIter(ctx, iter)
-	require.NoError(err)
+	table = newSquashTable(iter)
 
-	rows, err := sql.RowIterToRows(it)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -807,13 +792,11 @@ func TestIndexCommitsIter(t *testing.T) {
 	ctx, index, cleanup := setupWithIndex(t, new(commitsTable))
 	defer cleanup()
 
-	it, err := NewChainableRowIter(
-		ctx,
+	table := newSquashTable(
 		NewCommitTreesIter(NewAllCommitsIter(nil, false), nil, false),
 	)
-	require.NoError(err)
 
-	expected, err := sql.RowIterToRows(it)
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	iter := NewCommitTreesIter(
@@ -822,10 +805,9 @@ func TestIndexCommitsIter(t *testing.T) {
 		false,
 	)
 
-	it, err = NewChainableRowIter(ctx, iter)
-	require.NoError(err)
+	table = newSquashTable(iter)
 
-	rows, err := sql.RowIterToRows(it)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -837,13 +819,11 @@ func TestIndexCommitTreesIter(t *testing.T) {
 	ctx, index, cleanup := setupWithIndex(t, new(commitTreesTable))
 	defer cleanup()
 
-	it, err := NewChainableRowIter(
-		ctx,
+	table := newSquashTable(
 		NewTreeTreeEntriesIter(NewAllCommitTreesIter(nil), nil, false),
 	)
-	require.NoError(err)
 
-	expected, err := sql.RowIterToRows(it)
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	iter := NewTreeTreeEntriesIter(
@@ -852,10 +832,9 @@ func TestIndexCommitTreesIter(t *testing.T) {
 		false,
 	)
 
-	it, err = NewChainableRowIter(ctx, iter)
-	require.NoError(err)
+	table = newSquashTable(iter)
 
-	rows, err := sql.RowIterToRows(it)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -867,13 +846,11 @@ func TestIndexCommitBlobsIter(t *testing.T) {
 	ctx, index, cleanup := setupWithIndex(t, new(commitBlobsTable))
 	defer cleanup()
 
-	it, err := NewChainableRowIter(
-		ctx,
+	table := newSquashTable(
 		NewCommitBlobBlobsIter(NewAllCommitBlobsIter(nil), nil, false),
 	)
-	require.NoError(err)
 
-	expected, err := sql.RowIterToRows(it)
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	iter := NewCommitBlobBlobsIter(
@@ -882,10 +859,9 @@ func TestIndexCommitBlobsIter(t *testing.T) {
 		false,
 	)
 
-	it, err = NewChainableRowIter(ctx, iter)
-	require.NoError(err)
+	table = newSquashTable(iter)
 
-	rows, err := sql.RowIterToRows(it)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -897,13 +873,11 @@ func TestIndexTreeEntriesIter(t *testing.T) {
 	ctx, index, cleanup := setupWithIndex(t, new(treeEntriesTable))
 	defer cleanup()
 
-	it, err := NewChainableRowIter(
-		ctx,
+	table := newSquashTable(
 		NewTreeEntryBlobsIter(NewAllTreeEntriesIter(nil), nil, false),
 	)
-	require.NoError(err)
 
-	expected, err := sql.RowIterToRows(it)
+	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	iter := NewTreeEntryBlobsIter(
@@ -912,10 +886,9 @@ func TestIndexTreeEntriesIter(t *testing.T) {
 		false,
 	)
 
-	it, err = NewChainableRowIter(ctx, iter)
-	require.NoError(err)
+	table = newSquashTable(iter)
 
-	rows, err := sql.RowIterToRows(it)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -927,7 +900,7 @@ func setupWithIndex(
 ) (*sql.Context, sql.IndexLookup, CleanupFunc) {
 	t.Helper()
 	ctx, _, cleanup := setup(t)
-	index := &lookup{tableIndexValues(t, table, ctx)}
+	index := tableIndexLookup(t, table, ctx)
 	return ctx, index, cleanup
 }
 
@@ -963,10 +936,9 @@ func TestRefsIterSiva(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			it, err := NewChainableRowIter(ctx, tt.iter)
-			require.NoError(err)
+			table := newSquashTable(tt.iter)
 
-			rows, err := sql.RowIterToRows(it)
+			rows, err := tableToRows(ctx, table)
 			require.NoError(err)
 
 			// remove all non-ref columns
@@ -980,13 +952,11 @@ func TestRefsIterSiva(t *testing.T) {
 
 	t.Run("remote refs", func(t *testing.T) {
 		require := require.New(t)
-		it, err := NewChainableRowIter(
-			ctx,
+		table := newSquashTable(
 			NewRemoteRefsIter(NewAllRemotesIter(nil), nil),
 		)
-		require.NoError(err)
 
-		rows, err := sql.RowIterToRows(it)
+		rows, err := tableToRows(ctx, table)
 		require.NoError(err)
 
 		// remove all non-ref columns
@@ -1014,4 +984,8 @@ func (l lookup) Values() (sql.IndexValueIter, error) {
 
 func (l lookup) Indexes() []string {
 	return []string{"test_idx"}
+}
+
+func newSquashTable(iter ChainableIter) sql.Table {
+	return NewSquashedTable(iter, nil, nil, nil)
 }

@@ -8,33 +8,14 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
-func TestBlobsTable_Name(t *testing.T) {
-	require := require.New(t)
-
-	table := getTable(require, BlobsTableName)
-	require.Equal(BlobsTableName, table.Name())
-
-	// Check that each column source is the same as table name
-	for _, c := range table.Schema() {
-		require.Equal(BlobsTableName, c.Source)
-	}
-}
-
-func TestBlobsTable_Children(t *testing.T) {
-	require := require.New(t)
-
-	table := getTable(require, BlobsTableName)
-	require.Equal(0, len(table.Children()))
-}
-
-func TestBlobsTable_RowIter(t *testing.T) {
+func TestBlobsTable(t *testing.T) {
 	require := require.New(t)
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
 	table := getTable(require, BlobsTableName)
 
-	rows, err := sql.NodeToRows(ctx, table)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 10)
 
@@ -56,11 +37,8 @@ func TestBlobsLimit(t *testing.T) {
 		blobsMaxSize = prev
 	}()
 
-	table := newBlobsTable()
-	iter, err := table.RowIter(session)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	table := newBlobsTable().WithProjection([]string{"blob_content"})
+	rows, err := tableToRows(session, table)
 	require.NoError(err)
 
 	expected := []struct {
@@ -91,47 +69,34 @@ func TestBlobsLimit(t *testing.T) {
 
 func TestBlobsPushdown(t *testing.T) {
 	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newBlobsTable().(sql.PushdownProjectionAndFiltersTable)
+	table := newBlobsTable()
 
-	iter, err := table.WithProjectAndFilters(session, nil, nil)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 10)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t2 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(1, sql.Text, BlobsTableName, "blob_hash", false),
 			expression.NewLiteral("32858aad3c383ed1ff0a0f9bdf231d54a00c9e88", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t2)
 	require.NoError(err)
 	require.Len(rows, 1)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
-		expression.NewLessThan(
-			expression.NewGetFieldWithTable(2, sql.Int64, BlobsTableName, "blob_size", false),
-			expression.NewLiteral(int64(10), sql.Int64),
-		),
-	})
-	require.NoError(err)
-
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t3 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(1, sql.Text, BlobsTableName, "blob_hash", false),
 			expression.NewLiteral("not exists", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t3)
 	require.NoError(err)
 	require.Len(rows, 0)
 }
@@ -142,7 +107,7 @@ func TestBlobsIndexKeyValueIter(t *testing.T) {
 	defer cleanup()
 
 	table := new(blobsTable)
-	iter, err := table.IndexKeyValueIter(ctx, []string{"blob_hash", "blob_size"})
+	iter, err := table.IndexKeyValues(ctx, []string{"blob_hash", "blob_size"})
 	require.NoError(err)
 
 	var expected = []keyValue{

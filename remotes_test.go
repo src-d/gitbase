@@ -11,38 +11,17 @@ import (
 	gitconfig "gopkg.in/src-d/go-git.v4/config"
 )
 
-func TestRemotesTable_Name(t *testing.T) {
-	require := require.New(t)
-
-	table := getTable(require, RemotesTableName)
-	require.Equal(RemotesTableName, table.Name())
-
-	// Check that each column source is the same as table name
-	for _, c := range table.Schema() {
-		require.Equal(RemotesTableName, c.Source)
-	}
-}
-
-func TestRemotesTable_Children(t *testing.T) {
-	require := require.New(t)
-
-	table := getTable(require, RemotesTableName)
-	require.Equal(0, len(table.Children()))
-}
-
-func TestRemotesTable_RowIter(t *testing.T) {
+func TestRemotesTable(t *testing.T) {
 	require := require.New(t)
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := getTable(require, RemotesTableName)
+	table := newRemotesTable()
 
 	session := ctx.Session.(*Session)
 	pool := session.Pool
-	repository, err := pool.GetPos(0)
+	repo, err := pool.GetPos(0)
 	require.NoError(err)
-
-	repo := repository.Repo
 
 	config := gitconfig.RemoteConfig{
 		Name: "my_remote",
@@ -56,7 +35,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 	_, err = repo.CreateRemote(&config)
 	require.NoError(err)
 
-	rows, err := sql.NodeToRows(ctx, table)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 3)
 
@@ -71,7 +50,7 @@ func TestRemotesTable_RowIter(t *testing.T) {
 
 			num := urlstring[len(urlstring)-1:]
 
-			require.Equal(repository.ID, row[0])
+			require.Equal(repo.ID, row[0])
 
 			url := fmt.Sprintf("url%v", num)
 			require.Equal(url, row[2]) // push
@@ -88,39 +67,34 @@ func TestRemotesTable_RowIter(t *testing.T) {
 
 func TestRemotesPushdown(t *testing.T) {
 	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newRemotesTable().(sql.PushdownProjectionAndFiltersTable)
+	table := newRemotesTable()
 
-	iter, err := table.WithProjectAndFilters(session, nil, nil)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 1)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t1 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetField(1, sql.Text, "name", false),
 			expression.NewLiteral("foo", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t1)
 	require.NoError(err)
 	require.Len(rows, 0)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t2 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetField(1, sql.Text, "name", false),
 			expression.NewLiteral("origin", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t2)
 	require.NoError(err)
 	require.Len(rows, 1)
 }
@@ -131,7 +105,7 @@ func TestRemotesIndexKeyValueIter(t *testing.T) {
 	defer cleanup()
 
 	table := new(remotesTable)
-	iter, err := table.IndexKeyValueIter(ctx, []string{"remote_name", "remote_push_url"})
+	iter, err := table.IndexKeyValues(ctx, []string{"remote_name", "remote_push_url"})
 	require.NoError(err)
 
 	var expected = []keyValue{

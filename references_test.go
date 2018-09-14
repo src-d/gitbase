@@ -7,107 +7,73 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
-func TestReferencesTable_Name(t *testing.T) {
+func TestReferencesTable(t *testing.T) {
 	require := require.New(t)
-
-	table := getTable(require, ReferencesTableName)
-	require.Equal(ReferencesTableName, table.Name())
-
-	// Check that each column source is the same as table name
-	for _, c := range table.Schema() {
-		require.Equal(ReferencesTableName, c.Source)
-	}
-}
-
-func TestReferencesTable_Children(t *testing.T) {
-	require := require.New(t)
-
-	table := getTable(require, ReferencesTableName)
-	require.Equal(0, len(table.Children()))
-}
-
-func TestReferencesTable_RowIter(t *testing.T) {
-	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := getTable(require, ReferencesTableName)
-
-	rows, err := sql.NodeToRows(session, plan.NewSort(
-		[]plan.SortField{{Column: expression.NewGetField(0, sql.Text, "name", false), Order: plan.Ascending}},
-		table))
+	table := newReferencesTable()
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
-	require.NotEqual(0, len(rows))
-	repoName, ok := rows[0][0].(string)
-	require.True(ok)
+	for i := range rows {
+		// remove repository id
+		rows[i] = rows[i][1:]
+	}
 
 	expected := []sql.Row{
-		sql.NewRow(repoName, "HEAD", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
-		sql.NewRow(repoName, "refs/heads/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
-		sql.NewRow(repoName, "refs/remotes/origin/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
-		sql.NewRow(repoName, "refs/remotes/origin/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow("HEAD", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow("refs/heads/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
+		sql.NewRow("refs/remotes/origin/branch", "e8d3ffab552895c19b9fcf7aa264d277cde33881"),
+		sql.NewRow("refs/remotes/origin/master", "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
 	}
 	require.ElementsMatch(expected, rows)
-
-	schema := table.Schema()
-	for idx, row := range rows {
-		err := schema.CheckRow(row)
-		require.NoError(err, "row %d doesn't conform to schema", idx)
-	}
 }
 
 func TestReferencesPushdown(t *testing.T) {
 	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newReferencesTable().(sql.PushdownProjectionAndFiltersTable)
+	table := newReferencesTable()
 
-	iter, err := table.WithProjectAndFilters(session, nil, nil)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 	require.Len(rows, 4)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t1 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(2, sql.Text, ReferencesTableName, "hash", false),
 			expression.NewLiteral("e8d3ffab552895c19b9fcf7aa264d277cde33881", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t1)
 	require.NoError(err)
 	require.Len(rows, 1)
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t2 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(1, sql.Text, RepositoriesTableName, "name", false),
 			expression.NewLiteral("refs/remotes/origin/master", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t2)
 	require.NoError(err)
 	require.Len(rows, 1)
 	require.Equal("6ecf0ef2c2dffb796033e5a02219af86ec6584e5", rows[0][2])
 
-	iter, err = table.WithProjectAndFilters(session, nil, []sql.Expression{
+	t3 := table.WithFilters([]sql.Expression{
 		expression.NewEquals(
 			expression.NewGetFieldWithTable(1, sql.Text, ReferencesTableName, "name", false),
 			expression.NewLiteral("refs/remotes/origin/develop", sql.Text),
 		),
 	})
-	require.NoError(err)
 
-	rows, err = sql.RowIterToRows(iter)
+	rows, err = tableToRows(ctx, t3)
 	require.NoError(err)
 	require.Len(rows, 0)
 }
@@ -117,12 +83,10 @@ func TestReferencesIndexKeyValueIter(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	iter, err := new(referencesTable).IndexKeyValueIter(ctx, []string{"ref_name"})
+	iter, err := newReferencesTable().IndexKeyValues(ctx, []string{"ref_name"})
 	require.NoError(err)
 
-	i, err := new(referencesTable).RowIter(ctx)
-	require.NoError(err)
-	rows, err := sql.RowIterToRows(i)
+	rows, err := tableToRows(ctx, newReferencesTable())
 	require.NoError(err)
 
 	var expected []keyValue

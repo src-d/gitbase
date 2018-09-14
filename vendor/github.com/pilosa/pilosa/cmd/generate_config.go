@@ -26,7 +26,7 @@ import (
 
 var generateConf *ctl.GenerateConfigCommand
 
-func newGenerateConfigCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
+func newGenerateConfigCommand(_ io.Reader, _, _ io.Writer) *cobra.Command {
 	generateConf = ctl.NewGenerateConfigCommand(os.Stdin, os.Stdout, os.Stderr)
 	confCmd := &cobra.Command{
 		Use:   "generate-config",
@@ -34,16 +34,9 @@ func newGenerateConfigCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.
 		Long: `generate-config prints the default configuration to stdout
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := generateConf.Run(context.Background()); err != nil {
-				return err
-			}
-			return nil
+			return generateConf.Run(context.Background())
 		},
 	}
 
 	return confCmd
-}
-
-func init() {
-	subcommandFns["generate-config"] = newGenerateConfigCommand
 }

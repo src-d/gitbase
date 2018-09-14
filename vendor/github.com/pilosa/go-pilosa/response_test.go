@@ -42,25 +42,25 @@ import (
 	pbuf "github.com/pilosa/go-pilosa/gopilosa_pbuf"
 )
 
-func TestNewBitmapResultFromInternal(t *testing.T) {
+func TestNewRowResultFromInternal(t *testing.T) {
 	targetAttrs := map[string]interface{}{
 		"name":       "some string",
 		"age":        int64(95),
 		"registered": true,
 		"height":     1.83,
 	}
-	targetBits := []uint64{5, 10}
+	targetColumns := []uint64{5, 10}
 	attrs := []*pbuf.Attr{
 		{Key: "name", StringValue: "some string", Type: 1},
 		{Key: "age", IntValue: 95, Type: 2},
 		{Key: "registered", BoolValue: true, Type: 3},
 		{Key: "height", FloatValue: 1.83, Type: 4},
 	}
-	bitmap := &pbuf.Bitmap{
-		Attrs: attrs,
-		Bits:  []uint64{5, 10},
+	row := &pbuf.Row{
+		Attrs:   attrs,
+		Columns: []uint64{5, 10},
 	}
-	result, err := newBitmapResultFromInternal(bitmap)
+	result, err := newRowResultFromInternal(row)
 	if err != nil {
 		t.Fatalf("Failed with error: %s", err)
 	}
@@ -68,7 +68,7 @@ func TestNewBitmapResultFromInternal(t *testing.T) {
 	if !reflect.DeepEqual(targetAttrs, result.Attributes) {
 		t.Fatal()
 	}
-	if !reflect.DeepEqual(targetBits, result.Bits) {
+	if !reflect.DeepEqual(targetColumns, result.Columns) {
 		t.Fatal()
 	}
 }
@@ -80,7 +80,7 @@ func TestNewQueryResponseFromInternal(t *testing.T) {
 		"registered": true,
 		"height":     1.83,
 	}
-	targetBits := []uint64{5, 10}
+	targetColumns := []uint64{5, 10}
 	targetCountItems := []CountResultItem{
 		{ID: 10, Count: 100},
 	}
@@ -90,16 +90,16 @@ func TestNewQueryResponseFromInternal(t *testing.T) {
 		{Key: "registered", BoolValue: true, Type: 3},
 		{Key: "height", FloatValue: 1.83, Type: 4},
 	}
-	bitmap := &pbuf.Bitmap{
-		Attrs: attrs,
-		Bits:  []uint64{5, 10},
+	row := &pbuf.Row{
+		Attrs:   attrs,
+		Columns: []uint64{5, 10},
 	}
 	pairs := []*pbuf.Pair{
 		{ID: 10, Count: 100},
 	}
 	response := &pbuf.QueryResponse{
 		Results: []*pbuf.QueryResult{
-			{Type: QueryResultTypeBitmap, Bitmap: bitmap},
+			{Type: QueryResultTypeRow, Row: row},
 			{Type: QueryResultTypePairs, Pairs: pairs},
 		},
 		Err: "",
@@ -122,11 +122,11 @@ func TestNewQueryResponseFromInternal(t *testing.T) {
 	if results[0] != qr.Result() {
 		t.Fatalf("Result() should return the first result")
 	}
-	if !reflect.DeepEqual(targetAttrs, results[0].Bitmap().Attributes) {
-		t.Fatalf("The bitmap result should contain the attributes")
+	if !reflect.DeepEqual(targetAttrs, results[0].Row().Attributes) {
+		t.Fatalf("The row result should contain the attributes")
 	}
-	if !reflect.DeepEqual(targetBits, results[0].Bitmap().Bits) {
-		t.Fatalf("The bitmap result should contain the bits")
+	if !reflect.DeepEqual(targetColumns, results[0].Row().Columns) {
+		t.Fatalf("The row result should contain the columns")
 	}
 	if !reflect.DeepEqual(targetCountItems, results[1].CountItems()) {
 		t.Fatalf("The response should include count items")
@@ -156,11 +156,11 @@ func TestNewQueryResponseFromInternalFailure(t *testing.T) {
 	attrs := []*pbuf.Attr{
 		{Key: "name", StringValue: "some string", Type: 99},
 	}
-	bitmap := &pbuf.Bitmap{
+	row := &pbuf.Row{
 		Attrs: attrs,
 	}
 	response := &pbuf.QueryResponse{
-		Results: []*pbuf.QueryResult{{Type: QueryResultTypeBitmap, Bitmap: bitmap}},
+		Results: []*pbuf.QueryResult{{Type: QueryResultTypeRow, Row: row}},
 	}
 	qr, err := newQueryResponseFromInternal(response)
 	if qr != nil && err == nil {
@@ -203,15 +203,15 @@ func TestMarshalResults(t *testing.T) {
 		{Key: "registered", BoolValue: true, Type: 3},
 		{Key: "height", FloatValue: 1.83, Type: 4},
 	}
-	bitmap := &pbuf.Bitmap{
-		Attrs: attrs,
-		Bits:  []uint64{5, 10},
+	row := &pbuf.Row{
+		Attrs:   attrs,
+		Columns: []uint64{5, 10},
 	}
 	pairs := []*pbuf.Pair{
 		{ID: 10, Count: 100},
 	}
 	pbufResults := []*pbuf.QueryResult{
-		{Type: QueryResultTypeBitmap, Bitmap: bitmap},
+		{Type: QueryResultTypeRow, Row: row},
 		{Type: QueryResultTypePairs, Pairs: pairs},
 	}
 	resultJSONStrings := make([]string, len(pbufResults))
@@ -227,7 +227,7 @@ func TestMarshalResults(t *testing.T) {
 		resultJSONStrings[i] = string(b)
 	}
 	targetJSON := []string{
-		`{"attrs":{"age":95,"height":1.83,"name":"some string","registered":true},"bits":[5,10],"keys":[]}`,
+		`{"attrs":{"age":95,"height":1.83,"name":"some string","registered":true},"columns":[5,10],"keys":[]}`,
 		`[{"id":10,"count":100}]`,
 	}
 	for i := range targetJSON {
@@ -252,22 +252,22 @@ func TestTopNResult(t *testing.T) {
 	result := TopNResult{
 		CountResultItem{ID: 100, Count: 10},
 	}
-	expectResult(t, result, QueryResultTypePairs, BitmapResult{}, []CountResultItem{{100, "", 10}}, 0, 0, false)
+	expectResult(t, result, QueryResultTypePairs, RowResult{}, []CountResultItem{{100, "", 10}}, 0, 0, false)
 }
 
-func TestBitmapResult(t *testing.T) {
-	result := BitmapResult{
-		Bits: []uint64{1, 2, 3},
+func TestRowResult(t *testing.T) {
+	result := RowResult{
+		Columns: []uint64{1, 2, 3},
 	}
-	targetBmp := BitmapResult{
-		Bits: []uint64{1, 2, 3},
+	targetBmp := RowResult{
+		Columns: []uint64{1, 2, 3},
 	}
-	expectResult(t, result, QueryResultTypeBitmap, targetBmp, nil, 0, 0, false)
+	expectResult(t, result, QueryResultTypeRow, targetBmp, nil, 0, 0, false)
 }
 
-func TestBitmapResultNilBits(t *testing.T) {
-	result := BitmapResult{
-		Bits: nil,
+func TestRowResultNilColumns(t *testing.T) {
+	result := RowResult{
+		Columns: nil,
 	}
 	_, err := result.MarshalJSON()
 	if err != nil {
@@ -280,30 +280,30 @@ func TestSumCountResult(t *testing.T) {
 		Val: 100,
 		Cnt: 50,
 	}
-	expectResult(t, result, QueryResultTypeValCount, BitmapResult{}, nil, 100, 50, false)
+	expectResult(t, result, QueryResultTypeValCount, RowResult{}, nil, 100, 50, false)
 }
 
 func TestIntResult(t *testing.T) {
 	result := IntResult(11)
-	expectResult(t, result, QueryResultTypeUint64, BitmapResult{}, nil, 0, 11, false)
+	expectResult(t, result, QueryResultTypeUint64, RowResult{}, nil, 0, 11, false)
 }
 
 func TestBoolResult(t *testing.T) {
 	result := BoolResult(true)
-	expectResult(t, result, QueryResultTypeBool, BitmapResult{}, nil, 0, 0, true)
+	expectResult(t, result, QueryResultTypeBool, RowResult{}, nil, 0, 0, true)
 }
 
 func TestNilResult(t *testing.T) {
 	result := NilResult{}
-	expectResult(t, result, QueryResultTypeNil, BitmapResult{}, nil, 0, 0, false)
+	expectResult(t, result, QueryResultTypeNil, RowResult{}, nil, 0, 0, false)
 }
 
-func expectResult(t *testing.T, r QueryResult, resultType uint32, bmp BitmapResult, countItems []CountResultItem, sum int64, count int64, changed bool) {
+func expectResult(t *testing.T, r QueryResult, resultType uint32, bmp RowResult, countItems []CountResultItem, sum int64, count int64, changed bool) {
 	if resultType != r.Type() {
 		log.Fatalf("Result type: %d != %d", resultType, r.Type())
 	}
-	if !reflect.DeepEqual(bmp, r.Bitmap()) {
-		log.Fatalf("Bitmap: %v != %v", bmp, r.Bitmap())
+	if !reflect.DeepEqual(bmp, r.Row()) {
+		log.Fatalf("Row: %v != %v", bmp, r.Row())
 	}
 	if !reflect.DeepEqual(countItems, r.CountItems()) {
 		log.Fatalf("Count items: %v != %v", countItems, r.CountItems())

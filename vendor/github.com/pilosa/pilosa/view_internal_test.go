@@ -26,11 +26,18 @@ func mustOpenView(index, field, name string) *view {
 		panic(err)
 	}
 
-	v := newView(path, index, field, name, DefaultCacheSize)
+	fo := FieldOptions{
+		CacheType: DefaultCacheType,
+		CacheSize: DefaultCacheSize,
+	}
+
+	v := newView(path, index, field, name, fo)
 	if err := v.open(); err != nil {
 		panic(err)
 	}
-	v.rowAttrStore = newMemAttrStore()
+	v.rowAttrStore = &memAttrStore{
+		store: make(map[uint64]map[string]interface{}),
+	}
 	return v
 }
 

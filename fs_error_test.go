@@ -108,7 +108,7 @@ func testTable(t *testing.T, tableName string, number int) {
 	defer cleanup()
 
 	table := getTable(require, tableName)
-	rows, err := sql.NodeToRows(ctx, table)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	if len(rows) < number {

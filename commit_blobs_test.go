@@ -1,7 +1,6 @@
 package gitbase
 
 import (
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -83,18 +82,10 @@ func TestCommitBlobsTableRowIter(t *testing.T) {
 		sql.NewRow(paths[1], "f52d9c374365fec7f9962f11ebf517588b9e236e", "278871477afb195f908155a65b5c651f1cfd02d3"),
 	}
 
-	rowIter, err := table.RowIter(ctx)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
-	defer func() { require.NoError(rowIter.Close()) }()
 
-	for _, expected := range expectedRows {
-		row, err := rowIter.Next()
-		require.NoError(err)
-		require.Equal(expected, row)
-	}
-
-	_, err = rowIter.Next()
-	require.Equal(err, io.EOF)
+	require.ElementsMatch(expectedRows, rows)
 }
 
 func TestCommitBlobsTablePushdown(t *testing.T) {
@@ -148,18 +139,11 @@ func TestCommitBlobsTablePushdown(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rowIter, err := table.WithProjectAndFilters(ctx, nil, test.filters)
+			tbl := table.WithFilters(test.filters)
+			rows, err := tableToRows(ctx, tbl)
 			require.NoError(err)
-			defer func() { require.NoError(rowIter.Close()) }()
 
-			for _, expected := range test.expectedRows {
-				row, err := rowIter.Next()
-				require.NoError(err)
-				require.Equal(expected, row)
-			}
-
-			_, err = rowIter.Next()
-			require.Equal(err, io.EOF)
+			require.ElementsMatch(test.expectedRows, rows)
 		})
 	}
 }
@@ -170,12 +154,10 @@ func TestCommitBlobsIndexKeyValueIter(t *testing.T) {
 	defer cleanup()
 
 	table := new(commitBlobsTable)
-	iter, err := table.IndexKeyValueIter(ctx, []string{"blob_hash", "commit_hash"})
+	iter, err := table.IndexKeyValues(ctx, []string{"blob_hash", "commit_hash"})
 	require.NoError(err)
 
-	i, err := table.RowIter(ctx)
-	require.NoError(err)
-	rows, err := sql.RowIterToRows(i)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	var expected []keyValue

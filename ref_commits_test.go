@@ -14,10 +14,7 @@ func TestRefCommitsRowIter(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	iter, err := new(refCommitsTable).RowIter(ctx)
-	require.NoError(err)
-
-	rows, err := sql.RowIterToRows(iter)
+	rows, err := tableToRows(ctx, newRefCommitsTable())
 	require.NoError(err)
 
 	for i, row := range rows {
@@ -115,10 +112,9 @@ func TestRefCommitsPushdown(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			iter, err := table.WithProjectAndFilters(ctx, nil, tt.filters)
-			require.NoError(err)
+			tbl := table.WithFilters(tt.filters)
 
-			rows, err := sql.RowIterToRows(iter)
+			rows, err := tableToRows(ctx, tbl)
 			require.NoError(err)
 
 			for i, row := range rows {
@@ -138,12 +134,10 @@ func TestRefCommitsIndexKeyValueIter(t *testing.T) {
 	defer cleanup()
 
 	table := new(refCommitsTable)
-	iter, err := table.IndexKeyValueIter(ctx, []string{"ref_name", "commit_hash"})
+	iter, err := table.IndexKeyValues(ctx, []string{"ref_name", "commit_hash"})
 	require.NoError(err)
 
-	i, err := table.RowIter(ctx)
-	require.NoError(err)
-	rows, err := sql.RowIterToRows(i)
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	var expected []keyValue

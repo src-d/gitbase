@@ -1,14 +1,13 @@
 # Package configuration
 PROJECT = go-mysql-server
 COMMANDS =
+GO_TAGS = oniguruma
 
 # Including ci Makefile
-MAKEFILE = Makefile.main
-CI_REPOSITORY = https://github.com/src-d/ci.git
-CI_FOLDER = .ci
-
+CI_REPOSITORY ?= https://github.com/src-d/ci.git
+CI_BRANCH ?= v1
+CI_PATH ?= .ci
+MAKEFILE := $(CI_PATH)/Makefile.main
 $(MAKEFILE):
-	@git clone --quiet $(CI_REPOSITORY) $(CI_FOLDER); \
-	cp $(CI_FOLDER)/$(MAKEFILE) .;
-
+	git clone --quiet --depth 1 -b $(CI_BRANCH) $(CI_REPOSITORY) $(CI_PATH);
 -include $(MAKEFILE)
