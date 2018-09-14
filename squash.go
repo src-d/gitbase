@@ -2,7 +2,6 @@ package gitbase
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -181,51 +180,3 @@ func (i schemaMapperIter) Next() (sql.Row, error) {
 	return row, nil
 }
 func (i schemaMapperIter) Close() error { return i.iter.Close() }
-
-type squashRowIter struct {
-	ctx        *sql.Context
-	partitions sql.PartitionIter
-	t          sql.Table
-	iter       sql.RowIter
-}
-
-func (i *squashRowIter) Next() (sql.Row, error) {
-	for {
-		if i.iter == nil {
-			p, err := i.partitions.Next()
-			if err != nil {
-				return nil, err
-			}
-
-			i.iter, err = i.t.PartitionRows(i.ctx, p)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		row, err := i.iter.Next()
-		if err != nil {
-			if err == io.EOF {
-				i.iter.Close()
-				i.iter = nil
-				continue
-			}
-
-			i.iter.Close()
-			return nil, err
-		}
-
-		return row, nil
-	}
-}
-
-func (i *squashRowIter) Close() error {
-	if i.iter != nil {
-		if err := i.iter.Close(); err != nil {
-			_ = i.partitions.Close()
-			return err
-		}
-	}
-
-	return i.partitions.Close()
-}
