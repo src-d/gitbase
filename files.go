@@ -46,7 +46,9 @@ func (r *filesTable) WithFilters(filters []sql.Expression) sql.Table {
 }
 
 func (r *filesTable) WithProjection(colNames []string) sql.Table {
-	return r
+	nt := *r
+	nt.projection = colNames
+	return &nt
 }
 
 func (r *filesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
