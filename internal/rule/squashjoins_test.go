@@ -34,7 +34,6 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	require.NoError(err)
 
 	project, ok := result.(*plan.Project)
-	fmt.Printf("%T", result)
 	require.True(ok)
 
 	exchange, ok := project.Child.(*plan.Exchange)
