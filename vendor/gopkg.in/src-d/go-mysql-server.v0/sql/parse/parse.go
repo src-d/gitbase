@@ -29,11 +29,12 @@ var (
 )
 
 var (
-	describeTablesRegex = regexp.MustCompile(`^describe\s+table\s+(.*)`)
-	createIndexRegex    = regexp.MustCompile(`^create\s+index\s+`)
-	dropIndexRegex      = regexp.MustCompile(`^drop\s+index\s+`)
-	showIndexRegex      = regexp.MustCompile(`^show\s+(index|indexes|keys)\s+(from|in)\s+\S+\s*`)
-	describeRegex       = regexp.MustCompile(`^(describe|desc|explain)\s+(.*)\s+`)
+	describeTablesRegex  = regexp.MustCompile(`^describe\s+table\s+(.*)`)
+	createIndexRegex     = regexp.MustCompile(`^create\s+index\s+`)
+	dropIndexRegex       = regexp.MustCompile(`^drop\s+index\s+`)
+	showIndexRegex       = regexp.MustCompile(`^show\s+(index|indexes|keys)\s+(from|in)\s+\S+\s*`)
+	describeRegex        = regexp.MustCompile(`^(describe|desc|explain)\s+(.*)\s+`)
+	fullProcessListRegex = regexp.MustCompile(`^show\s+(full\s+)?processlist$`)
 )
 
 // Parse parses the given SQL sentence and returns the corresponding node.
@@ -58,6 +59,8 @@ func Parse(ctx *sql.Context, s string) (sql.Node, error) {
 		return parseShowIndex(s)
 	case describeRegex.MatchString(lowerQuery):
 		return parseDescribeQuery(ctx, s)
+	case fullProcessListRegex.MatchString(lowerQuery):
+		return plan.NewShowProcessList(), nil
 	}
 
 	stmt, err := sqlparser.Parse(s)
@@ -89,7 +92,37 @@ func convert(ctx *sql.Context, stmt sqlparser.Statement, query string) (sql.Node
 		return convertInsert(ctx, n)
 	case *sqlparser.DDL:
 		return convertDDL(n)
+	case *sqlparser.Set:
+		return convertSet(ctx, n)
 	}
+}
+
+func convertSet(ctx *sql.Context, n *sqlparser.Set) (sql.Node, error) {
+	if n.Scope == sqlparser.GlobalStr {
+		return nil, ErrUnsupportedFeature.New("SET global variables")
+	}
+
+	var variables = make([]plan.SetVariable, len(n.Exprs))
+	for i, e := range n.Exprs {
+		expr, err := exprToExpression(e.Expr)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println(strings.TrimSpace(strings.ToLower(e.Name.Qualifier.Name.String())))
+		switch strings.TrimSpace(strings.ToLower(e.Name.Qualifier.Name.String())) {
+		case "@@session", "": // do nothing
+		default:
+			return nil, ErrUnsupportedFeature.New("qualifiers in set variable names other than @@session")
+		}
+
+		variables[i] = plan.SetVariable{
+			Name:  e.Name.Name.Lowered(),
+			Value: expr,
+		}
+	}
+
+	return plan.NewSet(variables...), nil
 }
 
 func convertShow(s *sqlparser.Show) (sql.Node, error) {

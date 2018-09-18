@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func TestMisusedAlias(t *testing.T) {
 			),
 			expression.NewUnresolvedColumn("alias_i"),
 		},
-		plan.NewResolvedTable("mytable", table),
+		plan.NewResolvedTable(table),
 	)
 
 	// the first iteration wrap the unresolved column "alias_i" as a maybeAlias
@@ -49,14 +50,14 @@ func TestQualifyColumns(t *testing.T) {
 		[]sql.Expression{
 			expression.NewUnresolvedColumn("i"),
 		},
-		plan.NewResolvedTable("mytable", table),
+		plan.NewResolvedTable(table),
 	)
 
 	expected := plan.NewProject(
 		[]sql.Expression{
 			expression.NewUnresolvedQualifiedColumn("mytable", "i"),
 		},
-		plan.NewResolvedTable("mytable", table),
+		plan.NewResolvedTable(table),
 	)
 
 	result, err := f.Apply(sql.NewEmptyContext(), nil, node)
@@ -67,7 +68,7 @@ func TestQualifyColumns(t *testing.T) {
 		[]sql.Expression{
 			expression.NewUnresolvedQualifiedColumn("mytable", "i"),
 		},
-		plan.NewResolvedTable("mytable", table),
+		plan.NewResolvedTable(table),
 	)
 
 	result, err = f.Apply(sql.NewEmptyContext(), nil, node)
@@ -78,14 +79,14 @@ func TestQualifyColumns(t *testing.T) {
 		[]sql.Expression{
 			expression.NewUnresolvedQualifiedColumn("a", "i"),
 		},
-		plan.NewTableAlias("a", plan.NewResolvedTable("mytable", table)),
+		plan.NewTableAlias("a", plan.NewResolvedTable(table)),
 	)
 
 	expected = plan.NewProject(
 		[]sql.Expression{
 			expression.NewUnresolvedQualifiedColumn("mytable", "i"),
 		},
-		plan.NewTableAlias("a", plan.NewResolvedTable("mytable", table)),
+		plan.NewTableAlias("a", plan.NewResolvedTable(table)),
 	)
 
 	result, err = f.Apply(sql.NewEmptyContext(), nil, node)
@@ -96,7 +97,7 @@ func TestQualifyColumns(t *testing.T) {
 		[]sql.Expression{
 			expression.NewUnresolvedColumn("z"),
 		},
-		plan.NewTableAlias("a", plan.NewResolvedTable("mytable", table)),
+		plan.NewTableAlias("a", plan.NewResolvedTable(table)),
 	)
 
 	result, err = f.Apply(sql.NewEmptyContext(), nil, node)
@@ -107,7 +108,7 @@ func TestQualifyColumns(t *testing.T) {
 		[]sql.Expression{
 			expression.NewUnresolvedQualifiedColumn("foo", "i"),
 		},
-		plan.NewTableAlias("a", plan.NewResolvedTable("mytable", table)),
+		plan.NewTableAlias("a", plan.NewResolvedTable(table)),
 	)
 
 	result, err = f.Apply(sql.NewEmptyContext(), nil, node)
@@ -119,8 +120,8 @@ func TestQualifyColumns(t *testing.T) {
 			expression.NewUnresolvedColumn("i"),
 		},
 		plan.NewCrossJoin(
-			plan.NewResolvedTable("mytable", table),
-			plan.NewResolvedTable("mytable2", table2),
+			plan.NewResolvedTable(table),
+			plan.NewResolvedTable(table2),
 		),
 	)
 
@@ -134,7 +135,7 @@ func TestQualifyColumns(t *testing.T) {
 			[]sql.Expression{
 				expression.NewGetFieldWithTable(0, sql.Int64, "mytable", "i", false),
 			},
-			plan.NewResolvedTable("mytable", table),
+			plan.NewResolvedTable(table),
 		),
 	)
 	// preload schema
@@ -145,7 +146,7 @@ func TestQualifyColumns(t *testing.T) {
 			expression.NewUnresolvedQualifiedColumn("a", "i"),
 		},
 		plan.NewCrossJoin(
-			plan.NewTableAlias("a", plan.NewResolvedTable("mytable", table)),
+			plan.NewTableAlias("a", plan.NewResolvedTable(table)),
 			subquery,
 		),
 	)
@@ -155,7 +156,7 @@ func TestQualifyColumns(t *testing.T) {
 			expression.NewUnresolvedQualifiedColumn("mytable", "i"),
 		},
 		plan.NewCrossJoin(
-			plan.NewTableAlias("a", plan.NewResolvedTable("mytable", table)),
+			plan.NewTableAlias("a", plan.NewResolvedTable(table)),
 			subquery,
 		),
 	)
@@ -179,7 +180,7 @@ func TestQualifyColumnsQualifiedStar(t *testing.T) {
 				expression.NewQualifiedStar("mytable"),
 			),
 		},
-		plan.NewResolvedTable("mytable", table),
+		plan.NewResolvedTable(table),
 	)
 
 	expected := plan.NewProject(
@@ -190,10 +191,38 @@ func TestQualifyColumnsQualifiedStar(t *testing.T) {
 				expression.NewStar(),
 			),
 		},
-		plan.NewResolvedTable("mytable", table),
+		plan.NewResolvedTable(table),
 	)
 
 	result, err := f.Apply(sql.NewEmptyContext(), nil, node)
 	require.NoError(err)
+	require.Equal(expected, result)
+}
+
+func TestResolveColumnsSession(t *testing.T) {
+	require := require.New(t)
+
+	ctx := sql.NewContext(context.Background(), sql.WithSession(sql.NewBaseSession()))
+	ctx.Set("foo_bar", sql.Int64, int64(42))
+
+	node := plan.NewProject(
+		[]sql.Expression{
+			expression.NewUnresolvedColumn("@@foo_bar"),
+			expression.NewUnresolvedColumn("@@bar_baz"),
+		},
+		plan.NewResolvedTable(dualTable),
+	)
+
+	result, err := resolveColumns(ctx, NewDefault(nil), node)
+	require.NoError(err)
+
+	expected := plan.NewProject(
+		[]sql.Expression{
+			expression.NewGetSessionField("@@foo_bar", sql.Int64, int64(42)),
+			expression.NewGetSessionField("@@bar_baz", sql.Null, nil),
+		},
+		plan.NewResolvedTable(dualTable),
+	)
+
 	require.Equal(expected, result)
 }

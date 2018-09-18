@@ -63,5 +63,5 @@ func buildSession(t *testing.T, repos fixtures.Fixtures,
 }
 
 func tableToRows(ctx *sql.Context, t sql.Table) ([]sql.Row, error) {
-	return sql.NodeToRows(ctx, plan.NewResolvedTable("", t))
+	return sql.NodeToRows(ctx, plan.NewResolvedTable(t))
 }

@@ -150,14 +150,14 @@ func pushdown(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
 				}
 			}
 
-			return plan.NewResolvedTable(node.Name(), table), nil
+			return plan.NewResolvedTable(table), nil
 		default:
 			expressioner, ok := node.(sql.Expressioner)
 			if !ok {
 				return node, nil
 			}
 
-			schemas := []sql.Schema{}
+			var schemas []sql.Schema
 			for _, child := range node.Children() {
 				schemas = append(schemas, child.Schema())
 			}

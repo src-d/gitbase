@@ -2,12 +2,13 @@ package gitbase
 
 import (
 	"fmt"
-	"io"
 	"strings"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
+// SquashedTable is a table that combines the output of some tables as the
+// inputs of others with chaining so it's less expensive to compute.
 type SquashedTable struct {
 	iter           ChainableIter
 	tables         []string
@@ -17,6 +18,7 @@ type SquashedTable struct {
 	schema         sql.Schema
 }
 
+// NewSquashedTable creates a new SquashedTable.
 func NewSquashedTable(
 	iter ChainableIter,
 	mapping []int,
@@ -28,28 +30,13 @@ func NewSquashedTable(
 }
 
 var _ sql.Table = (*SquashedTable)(nil)
-var _ sql.Node = (*SquashedTable)(nil)
 
-func (SquashedTable) Children() []sql.Node { return nil }
-func (SquashedTable) Resolved() bool       { return true }
-
-func (t *SquashedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
-	partitions, err := t.Partitions(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &squashRowIter{ctx: ctx, partitions: partitions, t: t}, nil
+// Name implements the sql.Table interface.
+func (t *SquashedTable) Name() string {
+	return fmt.Sprintf("SquashedTable(%s)", strings.Join(t.tables, ", "))
 }
 
-func (t *SquashedTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(t)
-}
-
-func (t *SquashedTable) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
-	return t, nil
-}
-
+// Schema implements the sql.Table interface.
 func (t *SquashedTable) Schema() sql.Schema {
 	if len(t.schemaMappings) == 0 {
 		return t.iter.Schema()
@@ -66,10 +53,12 @@ func (t *SquashedTable) Schema() sql.Schema {
 	return t.schema
 }
 
+// Partitions implements the sql.Table interface.
 func (t *SquashedTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
 	return newRepositoryPartitionIter(ctx)
 }
 
+// PartitionRows implements the sql.Table interface.
 func (t *SquashedTable) PartitionRows(ctx *sql.Context, p sql.Partition) (sql.RowIter, error) {
 	span, ctx := ctx.Span("gitbase.SquashedTable")
 
@@ -149,6 +138,7 @@ type chainableRowIter struct {
 	ChainableIter
 }
 
+// NewChainableRowIter converts a ChainableIter into a sql.RowIter.
 func NewChainableRowIter(iter ChainableIter) sql.RowIter {
 	return &chainableRowIter{iter}
 }
@@ -166,6 +156,8 @@ type schemaMapperIter struct {
 	mappings []int
 }
 
+// NewSchemaMapperIter reorders the rows in the given row iter according to the
+// given column mappings.
 func NewSchemaMapperIter(iter sql.RowIter, mappings []int) sql.RowIter {
 	return &schemaMapperIter{iter, mappings}
 }
@@ -188,51 +180,3 @@ func (i schemaMapperIter) Next() (sql.Row, error) {
 	return row, nil
 }
 func (i schemaMapperIter) Close() error { return i.iter.Close() }
-
-type squashRowIter struct {
-	ctx        *sql.Context
-	partitions sql.PartitionIter
-	t          sql.Table
-	iter       sql.RowIter
-}
-
-func (i *squashRowIter) Next() (sql.Row, error) {
-	for {
-		if i.iter == nil {
-			p, err := i.partitions.Next()
-			if err != nil {
-				return nil, err
-			}
-
-			i.iter, err = i.t.PartitionRows(i.ctx, p)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		row, err := i.iter.Next()
-		if err != nil {
-			if err == io.EOF {
-				i.iter.Close()
-				i.iter = nil
-				continue
-			}
-
-			i.iter.Close()
-			return nil, err
-		}
-
-		return row, nil
-	}
-}
-
-func (i *squashRowIter) Close() error {
-	if i.iter != nil {
-		if err := i.iter.Close(); err != nil {
-			_ = i.partitions.Close()
-			return err
-		}
-	}
-
-	return i.partitions.Close()
-}

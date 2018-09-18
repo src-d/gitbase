@@ -3,25 +3,82 @@ package sql
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
 
+type key uint
+
+const (
+	// QueryKey to access query in the context.
+	QueryKey key = iota
+)
+
 // Session holds the session data.
 type Session interface {
-	// TODO: add config
+	// Address of the server.
+	Address() string
+	// User of the session.
+	User() string
+	// Set session configuration.
+	Set(key string, typ Type, value interface{})
+	// Get session configuration.
+	Get(key string) (Type, interface{})
 }
 
 // BaseSession is the basic session type.
 type BaseSession struct {
-	// TODO: add config
+	addr   string
+	user   string
+	mu     sync.RWMutex
+	config map[string]typedValue
 }
 
-// NewBaseSession creates a new basic session.
+// User returns the current user of the session.
+func (s *BaseSession) User() string { return s.user }
+
+// Address returns the server address.
+func (s *BaseSession) Address() string { return s.addr }
+
+// Set implements the Session interface.
+func (s *BaseSession) Set(key string, typ Type, value interface{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.config[key] = typedValue{typ, value}
+}
+
+// Get implements the Session interface.
+func (s *BaseSession) Get(key string) (Type, interface{}) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.config[key]
+	if !ok {
+		return Null, nil
+	}
+
+	return v.typ, v.value
+}
+
+type typedValue struct {
+	typ   Type
+	value interface{}
+}
+
+// NewSession creates a new session with data.
+func NewSession(address string, user string) Session {
+	return &BaseSession{
+		addr:   address,
+		user:   user,
+		config: make(map[string]typedValue),
+	}
+}
+
+// NewBaseSession creates a new empty session.
 func NewBaseSession() Session {
-	return &BaseSession{}
+	return &BaseSession{config: make(map[string]typedValue)}
 }
 
 // Context of the query execution.
@@ -81,6 +138,13 @@ func (c *Context) Span(
 	ctx := opentracing.ContextWithSpan(c.Context, span)
 
 	return span, &Context{ctx, c.Session, c.tracer}
+}
+
+// WithQuery adds the query to the context.
+func (c *Context) WithQuery(query string) *Context {
+	nc := *c
+	nc.Context = context.WithValue(c.Context, QueryKey, query)
+	return &nc
 }
 
 // NewSpanIter creates a RowIter executed in the given span.

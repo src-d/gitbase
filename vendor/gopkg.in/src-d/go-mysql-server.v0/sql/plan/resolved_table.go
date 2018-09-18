@@ -9,20 +9,14 @@ import (
 // ResolvedTable represents a resolved SQL Table.
 type ResolvedTable struct {
 	sql.Table
-	name string
 }
 
-var _ sql.Table = (*ResolvedTable)(nil)
 var _ sql.Node = (*ResolvedTable)(nil)
-var _ sql.Nameable = (*ResolvedTable)(nil)
 
 // NewResolvedTable creates a new instance of ResolvedTable.
-func NewResolvedTable(name string, table sql.Table) *ResolvedTable {
-	return &ResolvedTable{table, name}
+func NewResolvedTable(table sql.Table) *ResolvedTable {
+	return &ResolvedTable{table}
 }
-
-// Name implements the Nameable interface.
-func (t *ResolvedTable) Name() string { return t.name }
 
 // Resolved implements the Resolvable interface.
 func (*ResolvedTable) Resolved() bool {
@@ -30,9 +24,7 @@ func (*ResolvedTable) Resolved() bool {
 }
 
 // Children implements the Node interface.
-func (*ResolvedTable) Children() []sql.Node {
-	return []sql.Node{}
-}
+func (*ResolvedTable) Children() []sql.Node { return nil }
 
 // RowIter implements the RowIter interface.
 func (t *ResolvedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
@@ -53,7 +45,7 @@ func (t *ResolvedTable) RowIter(ctx *sql.Context) (sql.RowIter, error) {
 
 // TransformUp implements the Transformable interface.
 func (t *ResolvedTable) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(NewResolvedTable(t.name, t.Table))
+	return f(NewResolvedTable(t.Table))
 }
 
 // TransformExpressionsUp implements the Transformable interface.
@@ -96,6 +88,10 @@ func (i *tableIter) Next() (sql.Row, error) {
 
 	row, err := i.rows.Next()
 	if err != nil && err == io.EOF {
+		if err := i.rows.Close(); err != nil {
+			return nil, err
+		}
+
 		i.partition = nil
 		i.rows = nil
 		return i.Next()
@@ -105,5 +101,11 @@ func (i *tableIter) Next() (sql.Row, error) {
 }
 
 func (i *tableIter) Close() error {
+	if i.rows != nil {
+		if err := i.rows.Close(); err != nil {
+			_ = i.partitions.Close()
+			return err
+		}
+	}
 	return i.partitions.Close()
 }
