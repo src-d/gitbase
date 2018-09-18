@@ -574,7 +574,7 @@
   version = "v3.1.0"
 
 [[projects]]
-  digest = "1:a77c60b21f224f0ddc9c7e9407008c6e7dfbca88e5a6e827aa27ecf80497ebb6"
+  digest = "1:01240830e7642f4ee1d3aac6cfae160a96b48294ec37856f98e9e9b266e117e1"
   name = "gopkg.in/src-d/go-git.v4"
   packages = [
     ".",
@@ -619,7 +619,7 @@
     "utils/merkletrie/noder",
   ]
   pruneopts = ""
-  revision = "d3cec13ac0b195bfb897ed038a08b5130ab9969e"
+  revision = "2fb32d2a8601213b6db109d3e9028c6b64af1874"
   source = "github.com/src-d/go-git"
 
 [[projects]]
@@ -728,6 +728,7 @@
     "gopkg.in/src-d/go-git.v4",
     "gopkg.in/src-d/go-git.v4/config",
     "gopkg.in/src-d/go-git.v4/plumbing",
+    "gopkg.in/src-d/go-git.v4/plumbing/cache",
     "gopkg.in/src-d/go-git.v4/plumbing/filemode",
     "gopkg.in/src-d/go-git.v4/plumbing/format/idxfile",
     "gopkg.in/src-d/go-git.v4/plumbing/format/objfile",

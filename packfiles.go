@@ -166,10 +166,7 @@ func getUnpackedObject(repo repository, hash plumbing.Hash) (o object.Object, er
 
 	defer ioutil.CheckClose(f, &err)
 
-	storage, err := filesystem.NewStorage(fs)
-	if err != nil {
-		return nil, err
-	}
+	storage := filesystem.NewStorage(fs, repo.Cache())
 
 	obj := storage.NewEncodedObject()
 	r, err := objfile.NewReader(f)
@@ -224,11 +221,7 @@ func newRepoObjectDecoder(
 		return nil, err
 	}
 
-	storage, err := filesystem.NewStorage(fs)
-	if err != nil {
-		_ = packf.Close()
-		return nil, err
-	}
+	storage := filesystem.NewStorage(fs, repo.Cache())
 
 	idx, err := openPackfileIndex(dot, hash)
 	if err != nil {

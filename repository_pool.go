@@ -12,6 +12,7 @@ import (
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
@@ -49,7 +50,7 @@ func (r *Repository) Close() {
 
 // NewRepositoryFromPath creates and initializes a new Repository structure
 // and initializes a go-git repository
-func NewRepositoryFromPath(id, path string) (*Repository, error) {
+func NewRepositoryFromPath(id, path string, cache cache.Object) (*Repository, error) {
 	op := filesystem.Options{
 		ExclusiveAccess: true,
 		KeepDescriptors: true,
@@ -70,11 +71,7 @@ func NewRepositoryFromPath(id, path string) (*Repository, error) {
 		}
 	}
 
-	sto, err := filesystem.NewStorageWithOptions(fs, op)
-	if err != nil {
-		return nil, err
-	}
-
+	sto := filesystem.NewStorageWithOptions(fs, cache, op)
 	repo, err := git.Open(sto, wt)
 	if err != nil {
 		return nil, err
@@ -85,7 +82,7 @@ func NewRepositoryFromPath(id, path string) (*Repository, error) {
 
 // NewSivaRepositoryFromPath creates and initializes a new Repository structure
 // and initializes a go-git repository backed by a siva file.
-func NewSivaRepositoryFromPath(id, path string) (*Repository, error) {
+func NewSivaRepositoryFromPath(id, path string, cache cache.Object) (*Repository, error) {
 	localfs := osfs.New(filepath.Dir(path))
 
 	tmpDir, err := ioutil.TempDir(os.TempDir(), "gitbase-siva")
@@ -105,10 +102,7 @@ func NewSivaRepositoryFromPath(id, path string) (*Repository, error) {
 		KeepDescriptors: true,
 	}
 
-	sto, err := filesystem.NewStorageWithOptions(fs, op)
-	if err != nil {
-		return nil, err
-	}
+	sto := filesystem.NewStorageWithOptions(fs, cache, op)
 
 	repo, err := git.Open(sto, nil)
 	if err != nil {
@@ -123,15 +117,17 @@ type repository interface {
 	Repo() (*Repository, error)
 	FS() (billy.Filesystem, error)
 	Path() string
+	Cache() cache.Object
 }
 
 type gitRepository struct {
-	id   string
-	path string
+	id    string
+	path  string
+	cache cache.Object
 }
 
-func gitRepo(id, path string) repository {
-	return &gitRepository{id, path}
+func gitRepo(id, path string, cache cache.Object) repository {
+	return &gitRepository{id, path, cache}
 }
 
 func (r *gitRepository) ID() string {
@@ -139,7 +135,7 @@ func (r *gitRepository) ID() string {
 }
 
 func (r *gitRepository) Repo() (*Repository, error) {
-	return NewRepositoryFromPath(r.id, r.path)
+	return NewRepositoryFromPath(r.id, r.path, r.cache)
 }
 
 func (r *gitRepository) FS() (billy.Filesystem, error) {
@@ -150,13 +146,18 @@ func (r *gitRepository) Path() string {
 	return r.path
 }
 
-type sivaRepository struct {
-	id   string
-	path string
+func (r *gitRepository) Cache() cache.Object {
+	return r.cache
 }
 
-func sivaRepo(id, path string) repository {
-	return &sivaRepository{id, path}
+type sivaRepository struct {
+	id    string
+	path  string
+	cache cache.Object
+}
+
+func sivaRepo(id, path string, cache cache.Object) repository {
+	return &sivaRepository{id, path, cache}
 }
 
 func (r *sivaRepository) ID() string {
@@ -164,7 +165,7 @@ func (r *sivaRepository) ID() string {
 }
 
 func (r *sivaRepository) Repo() (*Repository, error) {
-	return NewSivaRepositoryFromPath(r.id, r.path)
+	return NewSivaRepositoryFromPath(r.id, r.path, r.cache)
 }
 
 func (r *sivaRepository) FS() (billy.Filesystem, error) {
@@ -184,17 +185,23 @@ func (r *sivaRepository) Path() string {
 	return r.path
 }
 
+func (r *sivaRepository) Cache() cache.Object {
+	return r.cache
+}
+
 // RepositoryPool holds a pool git repository paths and
 // functionality to open and iterate them.
 type RepositoryPool struct {
 	repositories map[string]repository
 	idOrder      []string
+	cache        cache.Object
 }
 
-// NewRepositoryPool initializes a new RepositoryPool
-func NewRepositoryPool() *RepositoryPool {
+// NewRepositoryPool initializes a new RepositoryPool with LRU cache.
+func NewRepositoryPool(maxCacheSize cache.FileSize) *RepositoryPool {
 	return &RepositoryPool{
 		repositories: make(map[string]repository),
+		cache:        cache.NewObjectLRU(maxCacheSize),
 	}
 }
 
@@ -218,17 +225,17 @@ func (p *RepositoryPool) AddGit(path string) error {
 
 // AddGitWithID adds a git repository to the pool. ID should be specified.
 func (p *RepositoryPool) AddGitWithID(id, path string) error {
-	return p.Add(gitRepo(id, path))
+	return p.Add(gitRepo(id, path, p.cache))
 }
 
 // AddSivaFile adds a siva file to the pool. It also sets its path as ID.
 func (p *RepositoryPool) AddSivaFile(path string) error {
-	return p.Add(sivaRepo(path, path))
+	return p.Add(sivaRepo(path, path, p.cache))
 }
 
 // AddSivaFileWithID adds a siva file to the pool. ID should be specified.
 func (p *RepositoryPool) AddSivaFileWithID(id, path string) error {
-	return p.Add(sivaRepo(id, path))
+	return p.Add(sivaRepo(id, path, p.cache))
 }
 
 // GetPos retrieves a repository at a given position. If the position is

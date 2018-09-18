@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
@@ -712,10 +713,10 @@ func setupIter(t *testing.T) (*sql.Context, func()) {
 func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Context, func()) {
 	require.NoError(t, fixtures.Init())
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	if badRepo {
 		// TODO: add repo with errors
-		pool.Add(gitRepo("bad_repo", "bad_path"))
+		pool.Add(gitRepo("bad_repo", "bad_path", pool.cache))
 	}
 
 	for _, f := range fixtures.ByTag("worktree") {
@@ -905,7 +906,7 @@ func setupWithIndex(
 
 func TestRefsIterSiva(t *testing.T) {
 	path := filepath.Join("_testdata", "05893125684f2d3943cd84a7ab2b75e53668fba1.siva")
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	require.NoError(t, pool.AddSivaFile(path))
 
 	session := NewSession(pool)

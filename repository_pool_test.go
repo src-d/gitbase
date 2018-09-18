@@ -1,7 +1,6 @@
 package gitbase
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
@@ -32,7 +32,7 @@ func TestRepository(t *testing.T) {
 func TestRepositoryPoolBasic(t *testing.T) {
 	require := require.New(t)
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 
 	repo, err := pool.GetPos(0)
 	require.Nil(repo)
@@ -42,7 +42,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Nil(repo)
 	require.EqualError(err, ErrPoolRepoNotFound.New("foo").Error())
 
-	pool.Add(gitRepo("0", "/directory/should/not/exist"))
+	pool.Add(gitRepo("0", "/directory/should/not/exist", pool.cache))
 	repo, err = pool.GetPos(0)
 	require.Nil(repo)
 	require.EqualError(err, git.ErrRepositoryNotExists.Error())
@@ -52,7 +52,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	err = pool.Add(gitRepo("1", path))
+	err = pool.Add(gitRepo("1", path, pool.cache))
 	require.NoError(err)
 
 	repo, err = pool.GetPos(1)
@@ -65,7 +65,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	require.Equal("1", repo.ID)
 	require.NotNil(repo)
 
-	err = pool.Add(gitRepo("1", path))
+	err = pool.Add(gitRepo("1", path, pool.cache))
 	require.Error(err)
 	require.True(errRepoAlreadyRegistered.Is(err))
 
@@ -81,7 +81,7 @@ func TestRepositoryPoolGit(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 
 	require.NoError(pool.AddGit(path))
 
@@ -114,9 +114,9 @@ func TestRepositoryPoolIterator(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 
-	pool := NewRepositoryPool()
-	pool.Add(gitRepo("0", path))
-	pool.Add(gitRepo("1", path))
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	pool.Add(gitRepo("0", path, pool.cache))
+	pool.Add(gitRepo("1", path, pool.cache))
 
 	iter, err := pool.RepoIter()
 	require.NoError(err)
@@ -144,7 +144,7 @@ func TestRepositoryPoolSiva(t *testing.T) {
 
 	expectedRepos := 3
 
-	pool := NewRepositoryPool()
+	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	path := filepath.Join(
 		os.Getenv("GOPATH"),
 		"src", "github.com", "src-d", "gitbase",
@@ -185,5 +185,3 @@ func TestRepositoryPoolSiva(t *testing.T) {
 
 	require.Equal(expected, result)
 }
-
-var errIter = fmt.Errorf("Error iter")
