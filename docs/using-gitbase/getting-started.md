@@ -79,6 +79,8 @@ Then build gitbase like this:
 go build -tags oniguruma -o gitbase ./cmd/gitbase/main.go
 ```
 
+**Note:** prebuilt binaries do not include oniguruma support.
+
 On Windows:
 
 Because gitbase uses [bblfsh's client-go](https://github.com/bblfsh/client-go), which uses cgo, you need to install some dependencies by hand instead of just using `go get`. Use this instead:

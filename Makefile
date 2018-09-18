@@ -1,7 +1,6 @@
 # Package configuration
 PROJECT = gitbase
 COMMANDS = cmd/gitbase
-GO_TAGS = oniguruma
 
 # Including ci Makefile
 CI_REPOSITORY ?= https://github.com/src-d/ci.git
