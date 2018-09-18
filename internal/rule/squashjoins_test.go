@@ -23,6 +23,7 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 		WithParallelism(2).
 		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
 		Build()
+	a.Batches = a.Batches[:len(a.Batches)-1] // remove the track_process rule
 	a.CurrentDatabase = "foo"
 	ctx := sql.NewEmptyContext()
 
@@ -39,7 +40,10 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	require.True(ok)
 	require.Equal(2, exchange.Parallelism)
 
-	_, ok = exchange.Child.(*gitbase.SquashedTable)
+	rt, ok := exchange.Child.(*plan.ResolvedTable)
+	require.True(ok)
+
+	_, ok = rt.Table.(*gitbase.SquashedTable)
 	require.True(ok)
 }
 
@@ -54,16 +58,13 @@ func TestSquashJoins(t *testing.T) {
 			lit(2),
 			plan.NewInnerJoin(
 				plan.NewResolvedTable(
-					gitbase.CommitsTableName,
 					tables[gitbase.CommitsTableName],
 				),
 				plan.NewInnerJoin(
 					plan.NewResolvedTable(
-						gitbase.RepositoriesTableName,
 						tables[gitbase.RepositoriesTableName],
 					),
 					plan.NewResolvedTable(
-						gitbase.ReferencesTableName,
 						tables[gitbase.ReferencesTableName],
 					),
 					and(
@@ -89,38 +90,40 @@ func TestSquashJoins(t *testing.T) {
 		[]sql.Expression{lit(1)},
 		plan.NewFilter(
 			lit(2),
-			gitbase.NewSquashedTable(
-				gitbase.NewRefHEADCommitsIter(
-					gitbase.NewRepoRefsIter(
-						gitbase.NewAllReposIter(
-							and(
-								lit(3),
-								lit(4),
+			plan.NewResolvedTable(
+				gitbase.NewSquashedTable(
+					gitbase.NewRefHEADCommitsIter(
+						gitbase.NewRepoRefsIter(
+							gitbase.NewAllReposIter(
+								and(
+									lit(3),
+									lit(4),
+								),
 							),
+							nil,
+							false,
 						),
 						nil,
 						false,
 					),
+					[]int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0, 1, 2, 3},
+					[]sql.Expression{
+						eq(
+							col(0, gitbase.ReferencesTableName, "commit_hash"),
+							col(0, gitbase.CommitsTableName, "commit_hash"),
+						),
+						lit(3),
+						eq(
+							col(0, gitbase.RepositoriesTableName, "repository_id"),
+							col(0, gitbase.ReferencesTableName, "repository_id"),
+						),
+						lit(4),
+					},
 					nil,
-					false,
+					gitbase.RepositoriesTableName,
+					gitbase.ReferencesTableName,
+					gitbase.CommitsTableName,
 				),
-				[]int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 0, 1, 2, 3},
-				[]sql.Expression{
-					eq(
-						col(0, gitbase.ReferencesTableName, "commit_hash"),
-						col(0, gitbase.CommitsTableName, "commit_hash"),
-					),
-					lit(3),
-					eq(
-						col(0, gitbase.RepositoriesTableName, "repository_id"),
-						col(0, gitbase.ReferencesTableName, "repository_id"),
-					),
-					lit(4),
-				},
-				nil,
-				gitbase.RepositoriesTableName,
-				gitbase.ReferencesTableName,
-				gitbase.CommitsTableName,
 			),
 		),
 	)
@@ -128,10 +131,10 @@ func TestSquashJoins(t *testing.T) {
 	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
 	expected, err = expected.TransformUp(func(n sql.Node) (sql.Node, error) {
-		t, ok := n.(*gitbase.SquashedTable)
+		t, ok := n.(*plan.ResolvedTable)
 		if ok {
 			// precompute schema
-			_ = t.Schema()
+			_ = t.Table.Schema()
 			return t, nil
 		}
 
@@ -152,11 +155,9 @@ func TestSquashJoinsIndexes(t *testing.T) {
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
 			plan.NewResolvedTable(
-				gitbase.CommitsTableName,
 				tables[gitbase.CommitsTableName].(sql.IndexableTable).WithIndexLookup(idx1),
 			),
 			plan.NewResolvedTable(
-				gitbase.CommitTreesTableName,
 				tables[gitbase.CommitTreesTableName].(sql.IndexableTable).WithIndexLookup(idx2),
 			),
 			eq(
@@ -168,22 +169,24 @@ func TestSquashJoinsIndexes(t *testing.T) {
 
 	expected := plan.NewProject(
 		[]sql.Expression{lit(1)},
-		gitbase.NewSquashedTable(
-			gitbase.NewCommitTreesIter(
-				gitbase.NewIndexCommitsIter(idx1, nil),
-				nil,
-				false,
-			),
-			nil,
-			[]sql.Expression{
-				eq(
-					col(0, gitbase.CommitsTableName, "commit_hash"),
-					col(0, gitbase.CommitTreesTableName, "commit_hash"),
+		plan.NewResolvedTable(
+			gitbase.NewSquashedTable(
+				gitbase.NewCommitTreesIter(
+					gitbase.NewIndexCommitsIter(idx1, nil),
+					nil,
+					false,
 				),
-			},
-			[]string{gitbase.CommitsTableName},
-			gitbase.CommitsTableName,
-			gitbase.CommitTreesTableName,
+				nil,
+				[]sql.Expression{
+					eq(
+						col(0, gitbase.CommitsTableName, "commit_hash"),
+						col(0, gitbase.CommitTreesTableName, "commit_hash"),
+					),
+				},
+				[]string{gitbase.CommitsTableName},
+				gitbase.CommitsTableName,
+				gitbase.CommitTreesTableName,
+			),
 		),
 	)
 
@@ -201,11 +204,9 @@ func TestSquashJoinsUnsquashable(t *testing.T) {
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
 			plan.NewResolvedTable(
-				gitbase.RepositoriesTableName,
 				tables[gitbase.RepositoriesTableName],
 			),
 			plan.NewLimit(1, plan.NewResolvedTable(
-				gitbase.ReferencesTableName,
 				tables[gitbase.ReferencesTableName],
 			)),
 			lit(4),
@@ -226,16 +227,13 @@ func TestSquashJoinsPartial(t *testing.T) {
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
 			plan.NewLimit(1, plan.NewResolvedTable(
-				gitbase.CommitsTableName,
 				tables[gitbase.CommitsTableName],
 			)),
 			plan.NewInnerJoin(
 				plan.NewResolvedTable(
-					gitbase.RepositoriesTableName,
 					tables[gitbase.RepositoriesTableName],
 				),
 				plan.NewResolvedTable(
-					gitbase.ReferencesTableName,
 					tables[gitbase.ReferencesTableName],
 				),
 				and(
@@ -254,26 +252,27 @@ func TestSquashJoinsPartial(t *testing.T) {
 		[]sql.Expression{lit(1)},
 		plan.NewInnerJoin(
 			plan.NewLimit(1, plan.NewResolvedTable(
-				gitbase.CommitsTableName,
 				tables[gitbase.CommitsTableName],
 			)),
-			gitbase.NewSquashedTable(
-				gitbase.NewRepoRefsIter(
-					gitbase.NewAllReposIter(lit(4)),
-					nil,
-					false,
-				),
-				nil,
-				[]sql.Expression{
-					eq(
-						col(0, gitbase.RepositoriesTableName, "repository_id"),
-						col(0, gitbase.ReferencesTableName, "repository_id"),
+			plan.NewResolvedTable(
+				gitbase.NewSquashedTable(
+					gitbase.NewRepoRefsIter(
+						gitbase.NewAllReposIter(lit(4)),
+						nil,
+						false,
 					),
-					lit(4),
-				},
-				nil,
-				gitbase.RepositoriesTableName,
-				gitbase.ReferencesTableName,
+					nil,
+					[]sql.Expression{
+						eq(
+							col(0, gitbase.RepositoriesTableName, "repository_id"),
+							col(0, gitbase.ReferencesTableName, "repository_id"),
+						),
+						lit(4),
+					},
+					nil,
+					gitbase.RepositoriesTableName,
+					gitbase.ReferencesTableName,
+				),
 			),
 			lit(3),
 		),
@@ -291,16 +290,13 @@ func TestSquashJoinsSchema(t *testing.T) {
 
 	node := plan.NewInnerJoin(
 		plan.NewResolvedTable(
-			gitbase.CommitsTableName,
 			tables[gitbase.CommitsTableName],
 		),
 		plan.NewInnerJoin(
 			plan.NewResolvedTable(
-				gitbase.RepositoriesTableName,
 				tables[gitbase.RepositoriesTableName],
 			),
 			plan.NewResolvedTable(
-				gitbase.ReferencesTableName,
 				tables[gitbase.ReferencesTableName],
 			),
 			and(
@@ -682,7 +678,7 @@ func TestBuildSquashedTable(t *testing.T) {
 		columns  []string
 		indexes  map[string]sql.IndexLookup
 		err      *errors.Kind
-		expected sql.Node
+		expected *gitbase.SquashedTable
 	}{
 		{
 			"repos with remotes",
@@ -1916,7 +1912,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				require.True(tt.err.Is(err))
 			} else {
 				require.NoError(err)
-				require.Equal(tt.expected, result)
+				require.Equal(plan.NewResolvedTable(tt.expected), result)
 			}
 		})
 	}
@@ -1931,11 +1927,9 @@ func fixIdx(t *testing.T, e sql.Expression, schema sql.Schema) sql.Expression {
 func TestIsJoinLeafSquashable(t *testing.T) {
 	tables := gitbase.NewDatabase("").Tables()
 	t1 := plan.NewResolvedTable(
-		gitbase.RepositoriesTableName,
 		tables[gitbase.RepositoriesTableName],
 	)
 	t2 := plan.NewResolvedTable(
-		gitbase.ReferencesTableName,
 		tables[gitbase.ReferencesTableName],
 	)
 
@@ -2181,15 +2175,12 @@ func TestIsJoinCondSquashable(t *testing.T) {
 	require := require.New(t)
 	tables := gitbase.NewDatabase("").Tables()
 	repos := plan.NewResolvedTable(
-		gitbase.ReferencesTableName,
 		tables[gitbase.ReferencesTableName],
 	)
 	refs := plan.NewResolvedTable(
-		gitbase.ReferencesTableName,
 		tables[gitbase.ReferencesTableName],
 	)
 	commits := plan.NewResolvedTable(
-		gitbase.CommitsTableName,
 		tables[gitbase.CommitsTableName],
 	)
 

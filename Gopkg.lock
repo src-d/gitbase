@@ -623,7 +623,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:82a1df9fc3d44ae369769247c22efbbf53e9904a26254c93d9852023fd5a0bcf"
+  digest = "1:2bc91a329d46bb6b7aa90842551d7f89102ef15e842f95e25b077fe0c45b0d3a"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -642,7 +642,7 @@
     "sql/plan",
   ]
   pruneopts = ""
-  revision = "bafb29ae6359a6ad757b64751f3f8a5c807adc70"
+  revision = "28b0ab840c6aeb47b77598496ee4fc4aadec7feb"
 
 [[projects]]
   digest = "1:952e82e2343990fa2bb01e42f13da314e6968b734e87b7b1a76892fab2029fda"
