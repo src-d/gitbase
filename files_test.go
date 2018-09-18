@@ -73,7 +73,7 @@ func TestFilesRowIter(t *testing.T) {
 	require.ElementsMatch(expected, rows)
 }
 
-func TestFilesTablePushdown(t *testing.T) {
+func TestFilesTablePushdownFilters(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
@@ -149,6 +149,56 @@ func TestFilesTablePushdown(t *testing.T) {
 			}
 
 			require.Equal(tt.expected, rows)
+		})
+	}
+}
+
+func TestFilesTablePushdownProjection(t *testing.T) {
+	ctx, _, cleanup := setup(t)
+	defer cleanup()
+
+	filters := []sql.Expression{
+		expression.NewEquals(
+			expression.NewGetFieldWithTable(1, sql.Text, FilesTableName, "file_path", false),
+			expression.NewLiteral("LICENSE", sql.Text),
+		),
+	}
+	table := new(filesTable).WithFilters(filters).(*filesTable)
+
+	testCases := []struct {
+		name        string
+		projections []string
+		expected    func(content []byte, size int64) bool
+	}{
+		{
+			"with blob_content projected",
+			[]string{"blob_content"},
+			func(content []byte, size int64) bool { return int64(len(content)) == size },
+		},
+		{
+			"without blob_content projected",
+			nil,
+			func(content []byte, size int64) bool { return len(content) == 0 },
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			require := require.New(t)
+			tbl := table.WithProjection(test.projections)
+
+			rows, err := tableToRows(ctx, tbl)
+			require.NoError(err)
+
+			for _, row := range rows {
+				content, ok := row[5].([]byte)
+				require.True(ok)
+
+				size, ok := row[6].(int64)
+				require.True(ok)
+
+				require.True(test.expected(content, size))
+			}
 		})
 	}
 }
