@@ -14,6 +14,7 @@ import (
 )
 
 type referencesTable struct {
+	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
 }
@@ -61,10 +62,6 @@ func (r *referencesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 
 func (r *referencesTable) IndexLookup() sql.IndexLookup { return r.index }
 func (r *referencesTable) Filters() []sql.Expression    { return r.filters }
-
-func (r *referencesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (r *referencesTable) PartitionRows(
 	ctx *sql.Context,

@@ -10,6 +10,7 @@ import (
 )
 
 type commitBlobsTable struct {
+	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
 }
@@ -54,10 +55,6 @@ func (t *commitBlobsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 
 func (t *commitBlobsTable) IndexLookup() sql.IndexLookup { return t.index }
 func (t *commitBlobsTable) Filters() []sql.Expression    { return t.filters }
-
-func (t *commitBlobsTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (t *commitBlobsTable) PartitionRows(
 	ctx *sql.Context,

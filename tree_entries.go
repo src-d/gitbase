@@ -12,6 +12,7 @@ import (
 )
 
 type treeEntriesTable struct {
+	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
 }
@@ -57,10 +58,6 @@ func (r *treeEntriesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 
 func (r *treeEntriesTable) IndexLookup() sql.IndexLookup { return r.index }
 func (r *treeEntriesTable) Filters() []sql.Expression    { return r.filters }
-
-func (r *treeEntriesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (r *treeEntriesTable) PartitionRows(
 	ctx *sql.Context,

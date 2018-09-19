@@ -10,6 +10,7 @@ import (
 )
 
 type remotesTable struct {
+	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
 }
@@ -60,10 +61,6 @@ func (r *remotesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 
 func (r *remotesTable) IndexLookup() sql.IndexLookup { return r.index }
 func (r *remotesTable) Filters() []sql.Expression    { return r.filters }
-
-func (r *remotesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (r *remotesTable) PartitionRows(
 	ctx *sql.Context,

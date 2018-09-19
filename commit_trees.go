@@ -12,6 +12,7 @@ import (
 )
 
 type commitTreesTable struct {
+	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
 }
@@ -55,10 +56,6 @@ func (t *commitTreesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 
 func (t *commitTreesTable) IndexLookup() sql.IndexLookup { return t.index }
 func (t *commitTreesTable) Filters() []sql.Expression    { return t.filters }
-
-func (t *commitTreesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (t *commitTreesTable) PartitionRows(
 	ctx *sql.Context,

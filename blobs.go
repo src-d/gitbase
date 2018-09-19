@@ -26,6 +26,7 @@ var (
 )
 
 type blobsTable struct {
+	partitioned
 	filters    []sql.Expression
 	projection []string
 	index      sql.IndexLookup
@@ -82,10 +83,6 @@ func (r *blobsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 func (r *blobsTable) IndexLookup() sql.IndexLookup { return r.index }
 func (r *blobsTable) Filters() []sql.Expression    { return r.filters }
 func (r *blobsTable) Projection() []string         { return r.projection }
-
-func (r *blobsTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (r *blobsTable) PartitionRows(
 	ctx *sql.Context,

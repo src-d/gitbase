@@ -10,6 +10,7 @@ import (
 // SquashedTable is a table that combines the output of some tables as the
 // inputs of others with chaining so it's less expensive to compute.
 type SquashedTable struct {
+	partitioned
 	iter           ChainableIter
 	tables         []string
 	schemaMappings []int
@@ -26,10 +27,17 @@ func NewSquashedTable(
 	indexedTables []string,
 	tables ...string,
 ) *SquashedTable {
-	return &SquashedTable{iter, tables, mapping, filters, indexedTables, nil}
+	return &SquashedTable{
+		iter:           iter,
+		tables:         tables,
+		schemaMappings: mapping,
+		filters:        filters,
+		indexedTables:  indexedTables,
+	}
 }
 
 var _ sql.Table = (*SquashedTable)(nil)
+var _ sql.PartitionCounter = (*SquashedTable)(nil)
 
 // Name implements the sql.Table interface.
 func (t *SquashedTable) Name() string {
@@ -51,11 +59,6 @@ func (t *SquashedTable) Schema() sql.Schema {
 	}
 
 	return t.schema
-}
-
-// Partitions implements the sql.Table interface.
-func (t *SquashedTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
 }
 
 // PartitionRows implements the sql.Table interface.
