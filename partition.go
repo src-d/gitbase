@@ -7,8 +7,27 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
+// partitioned is an embeddable helper that contains the methods for a table
+// that is partitioned by repository.
+type partitioned struct{}
+
+func (partitioned) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
+	return newRepositoryPartitionIter(ctx)
+}
+
+func (partitioned) PartitionCount(ctx *sql.Context) (int64, error) {
+	s, err := getSession(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(len(s.Pool.repositories)), nil
+}
+
+// RepositoryPartition represents a partition which is a repository id.
 type RepositoryPartition string
 
+// Key implements the sql.Partition interface.
 func (p RepositoryPartition) Key() []byte {
 	return []byte(p)
 }
@@ -41,6 +60,8 @@ func (i *repositoryPartitionIter) Close() error {
 	return nil
 }
 
+// ErrNoRepositoryPartition is returned when the partition is not a valid
+// repository partition.
 var ErrNoRepositoryPartition = errors.NewKind("%T not a valid repository partition")
 
 func getPartitionRepo(ctx *sql.Context, p sql.Partition) (*Repository, error) {

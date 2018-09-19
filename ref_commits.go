@@ -13,6 +13,7 @@ import (
 )
 
 type refCommitsTable struct {
+	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
 }
@@ -58,10 +59,6 @@ func (t *refCommitsTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 
 func (t *refCommitsTable) IndexLookup() sql.IndexLookup { return t.index }
 func (t *refCommitsTable) Filters() []sql.Expression    { return t.filters }
-
-func (t *refCommitsTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (t *refCommitsTable) PartitionRows(
 	ctx *sql.Context,

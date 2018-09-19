@@ -7,6 +7,7 @@ import (
 )
 
 type repositoriesTable struct {
+	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
 }
@@ -52,10 +53,6 @@ func (r *repositoriesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 	nt := *r
 	nt.index = idx
 	return &nt
-}
-
-func (r *repositoriesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
 }
 
 func (r *repositoriesTable) PartitionRows(

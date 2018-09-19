@@ -11,6 +11,7 @@ import (
 )
 
 type filesTable struct {
+	partitioned
 	filters    []sql.Expression
 	projection []string
 	index      sql.IndexLookup
@@ -60,10 +61,6 @@ func (r *filesTable) WithIndexLookup(idx sql.IndexLookup) sql.Table {
 func (r *filesTable) IndexLookup() sql.IndexLookup { return r.index }
 func (r *filesTable) Filters() []sql.Expression    { return r.filters }
 func (r *filesTable) Projection() []string         { return r.projection }
-
-func (r *filesTable) Partitions(ctx *sql.Context) (sql.PartitionIter, error) {
-	return newRepositoryPartitionIter(ctx)
-}
 
 func (r *filesTable) PartitionRows(
 	ctx *sql.Context,

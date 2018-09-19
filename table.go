@@ -9,6 +9,7 @@ import (
 // Table represents a gitbase table.
 type Table interface {
 	sql.FilteredTable
+	sql.PartitionCounter
 	gitBase
 }
 
