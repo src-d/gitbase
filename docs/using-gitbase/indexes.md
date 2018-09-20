@@ -2,7 +2,7 @@
 
 `gitbase` allows you to speed up queries creating indexes.
 
-Indexes are implemented as bitmaps using [pilosa](https://github.com/pilosa/pilosa) as a backend storage for them. To run a pilosa instance see the [getting started](./getting-started.md) section.
+Indexes are implemented as bitmaps using [pilosa](https://github.com/pilosa/pilosa) as a backend storage for them.
 
 Thus, to create indexes you must specify pilosa as the type of index. You can find some examples in the [examples](./examples.md#create-an-index-for-columns-on-a-table) section about managing indexes.
 
