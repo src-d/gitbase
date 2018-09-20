@@ -57,6 +57,11 @@ func SquashJoins(
 		return nil, err
 	}
 
+	n, err = reorderExchanges(n, projectSquashes)
+	if err != nil {
+		return nil, err
+	}
+
 	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
 		switch n := n.(type) {
 		case *plan.Project:
@@ -102,6 +107,105 @@ func countProjectSquashes(n sql.Node) int {
 	})
 
 	return squashableProjects - 1
+}
+
+func reorderExchanges(n sql.Node, squashableProjects int) (sql.Node, error) {
+	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+		if squashableProjects < 1 {
+			return n, nil
+		}
+
+		if len(n.Children()) != 1 {
+			return n, nil
+		}
+
+		child, ok := mayReorder(n.Children()[0])
+		if !ok {
+			return n, nil
+		}
+
+		var node sql.Node
+		switch unary := n.(type) {
+		case *plan.Distinct:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.Describe:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.Exchange:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.Filter:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.GroupBy:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.Limit:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.Offset:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.QueryProcess:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.Project:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.Sort:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.SubqueryAlias:
+			u := *unary
+			u.Child = child
+			node = &u
+		case *plan.TableAlias:
+			u := *unary
+			u.Child = child
+			node = &u
+		default:
+			return n, nil
+		}
+
+		squashableProjects--
+		return node, nil
+	})
+}
+
+func mayReorder(child sql.Node) (sql.Node, bool) {
+	// looking for a tree structure
+	// Project -> Exchange -> Project
+	p1, ok := child.(*plan.Project)
+	if !ok {
+		return nil, false
+	}
+
+	ex, ok := p1.Child.(*plan.Exchange)
+	if !ok {
+		return nil, false
+	}
+
+	p2, ok := ex.Child.(*plan.Project)
+	if !ok {
+		return nil, false
+	}
+
+	// changing to Exchange -> Project -> Project
+	p1 = plan.NewProject(p1.Projections, p2)
+	ex = plan.NewExchange(ex.Parallelism, p1)
+
+	return ex, true
 }
 
 func squashProjects(parent, child *plan.Project) (sql.Node, bool) {
