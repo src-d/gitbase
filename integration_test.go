@@ -3,6 +3,7 @@ package gitbase_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -415,6 +416,57 @@ func TestSquashCorrectness(t *testing.T) {
 			)
 		})
 	}
+}
+
+// see https://github.com/src-d/gitbase/issues/481
+func TestSquashReorderExchanges(t *testing.T) {
+	foo := gitbase.NewDatabase("foo")
+	engine := command.NewDatabaseEngine(false, "test", 0, true)
+
+	engine.AddDatabase(foo)
+	engine.Catalog.RegisterFunctions(function.Functions)
+
+	require.NoError(t, fixtures.Init())
+	defer func() {
+		require.NoError(t, fixtures.Clean())
+	}()
+
+	path := fixtures.ByTag("worktree").One().Worktree().Root()
+
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
+	require.NoError(t, pool.AddGitWithID("worktree", path))
+
+	query := `
+	SELECT
+		files.file_path,
+		ref_commits.repository_id,
+		files.blob_content
+    	FROM
+		files
+    	NATURAL JOIN
+		commit_files
+    	NATURAL JOIN
+		ref_commits
+    	WHERE
+		ref_commits.ref_name = 'HEAD'
+		AND ref_commits.history_index BETWEEN 0 AND 5
+		AND is_binary(blob_content) = false
+		AND files.file_path NOT REGEXP '^vendor.*'
+		AND (
+	    		blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
+	    		OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
+		)
+    	LIMIT 1
+	`
+
+	session := gitbase.NewSession(pool)
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+
+	_, iter, err := engine.Query(ctx, query)
+	require.NoError(t, err)
+
+	_, err = iter.Next()
+	require.EqualError(t, err, io.EOF.Error())
 }
 
 func queryResults(
