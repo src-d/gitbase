@@ -5,7 +5,6 @@
 | Name                         | Description                                                                        |
 |:-----------------------------|:-----------------------------------------------------------------------------------|
 | `BBLFSH_ENDPOINT`            | bblfshd endpoint, default "127.0.0.1:9432"                                         |
-| `PILOSA_ENDPOINT`            | pilosa endpoint, default "http://localhost:10101"                                  |
 | `GITBASE_BLOBS_MAX_SIZE`     | maximum blob size to return in MiB, default 5 MiB                                  |
 | `GITBASE_BLOBS_ALLOW_BINARY` | enable retrieval of binary blobs, default `false`                                  |
 | `GITBASE_SKIP_GIT_ERRORS`    | do not stop queries on git errors, default disabled                                |
@@ -73,7 +72,6 @@ Help Options:
       -p, --port=        Port where the server is going to listen (default: 3306)
       -u, --user=        User name used for connection (default: root)
       -P, --password=    Password used for connection
-          --pilosa=      URL to your pilosa server (default: http://localhost:10101) [$PILOSA_ENDPOINT]
       -i, --index=       Directory where the gitbase indexes information will be persisted. (default: /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
           --no-squash    Disables the table squashing.
           --trace        Enables jaeger tracing [$GITBASE_TRACE]

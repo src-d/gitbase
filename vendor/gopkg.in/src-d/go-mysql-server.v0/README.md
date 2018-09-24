@@ -40,15 +40,6 @@ To install it, run:
 go get gopkg.in/src-d/go-mysql-server.v0
 ```
 
-You might run into trouble using `go get` on the library because of breaking changes introduced in `go-pilosa`, which is used for indexes. To fix these issues you can do the following:
-
-```
-cd $GOPATH/src/github.com/pilosa/go-pilosa
-git checkout v0.10.0
-```
-
-Right now, we only support versions v1.x from pilosa. In the future, a more robust solution to this problem will be provided.
-
 ## Documentation
 
 * [go-mysql-server godoc](https://godoc.org/github.com/src-d/go-mysql-server)
@@ -222,6 +213,16 @@ CREATE INDEX foo ON table USING driverid (col1, col2)
 ```
 
 You can see an example of a driver implementation inside the `sql/index/pilosa` package, where the pilosa driver is implemented.
+
+Index creation is synchronous by default, to make it asynchronous, use `WITH (async = true)`, for example:
+
+```sql
+CREATE INDEX foo ON table USING driverid (col1, col2) WITH (async = true)
+```
+
+### Old `pilosalib` driver
+
+`pilosalib` driver was renamed to `pilosa` and now `pilosa` does not require an external pilosa server.
 
 ## Powered by go-mysql-server
 

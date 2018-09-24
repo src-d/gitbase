@@ -5,7 +5,6 @@
 `gitbase` has two optional dependencies that should be running on your system if you're planning on using certain functionality.
 
 - [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.6.1 (only if you're planning to use the `UAST` functionality provided in gitbase)
-- [pilosa](https://github.com/pilosa/pilosa) 0.9.0 (only if you're planning on using indexes)
 
 ## Installing gitbase
 
@@ -16,16 +15,6 @@ The easiest way to run the gitbase server is using Docker, however you have the 
 You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
 ```
 docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/gitbase:latest
-```
-
-If you want to speedup gitbase using indexes you must run a pilosa container:
-```
-docker run -it --rm --name pilosa -p 10101:10101 pilosa/pilosa:v0.9.0
-```
-
-Then link the gitbase container to the pilosa one:
-```
-docker run --rm --name gitbase -p 3306:3306 --link pilosa:pilosa -e PILOSA_ENDPOINT="http://pilosa:10101" -v /my/git/repos:/opt/repos srcd/gitbase:latest
 ```
 
 **Note:** remember to replace `/my/git/repos` with the local path where your repositories are stored in your computer.

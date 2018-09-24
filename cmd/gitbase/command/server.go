@@ -13,7 +13,6 @@ import (
 	"github.com/src-d/gitbase/internal/rule"
 
 	"github.com/opentracing/opentracing-go"
-	gopilosa "github.com/pilosa/go-pilosa"
 	"github.com/sirupsen/logrus"
 	"github.com/uber/jaeger-client-go/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
@@ -22,7 +21,6 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosalib"
 	"gopkg.in/src-d/go-vitess.v0/mysql"
 )
 
@@ -48,7 +46,6 @@ type Server struct {
 	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
 	Password      string         `short:"P" long:"password" default:"" description:"Password used for connection"`
-	PilosaURL     string         `long:"pilosa" default:"http://localhost:10101" description:"URL to your pilosa server" env:"PILOSA_ENDPOINT"`
 	IndexDir      string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
 	CacheSize     cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
 	Parallelism   uint           `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
@@ -217,14 +214,9 @@ func (c *Server) registerDrivers() error {
 
 	logrus.Debug("created index storage")
 
-	if client, err := gopilosa.NewClient(c.PilosaURL); err == nil {
-		logrus.Debug("established connection with pilosa")
-		c.engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(filepath.Join(c.IndexDir, pilosa.DriverID), client))
-	} else {
-		logrus.WithError(err).Warn("cannot connect to pilosa")
-	}
-
-	c.engine.Catalog.RegisterIndexDriver(pilosalib.NewDriver(filepath.Join(c.IndexDir, pilosalib.DriverID)))
+	c.engine.Catalog.RegisterIndexDriver(
+		pilosa.NewDriver(filepath.Join(c.IndexDir, pilosa.DriverID)),
+	)
 	logrus.Debug("registered pilosa index driver")
 
 	return nil

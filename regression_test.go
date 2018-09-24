@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosalib"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -29,8 +28,7 @@ func TestRegressionQueries(t *testing.T) {
 	tmpDir, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
 	require.NoError(err)
 	defer os.RemoveAll(tmpDir)
-	engine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
-	engine.Catalog.RegisterIndexDriver(pilosalib.NewDriver(tmpDir))
+	engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(tmpDir))
 
 	ctx := sql.NewContext(
 		context.TODO(),
