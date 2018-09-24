@@ -475,10 +475,6 @@ func (i *squashRefIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
-				"type": ref.Type(),
-				"ref":  ref.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 
@@ -864,10 +860,6 @@ func (i *squashRemoteRefsIter) Advance() error {
 		}
 
 		if ref.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
-				"type": ref.Type(),
-				"ref":  ref.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 

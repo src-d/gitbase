@@ -6,7 +6,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -294,10 +293,6 @@ func (i *refRowIter) next() (sql.Row, error) {
 		}
 
 		if o.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
-				"type": o.Type(),
-				"ref":  o.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
 			continue
 		}
 
