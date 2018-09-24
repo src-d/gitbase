@@ -569,7 +569,7 @@ func BenchmarkQueries(b *testing.B) {
 	tmpDir, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
 	require.NoError(b, err)
 	defer os.RemoveAll(tmpDir)
-	indexesEngine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
+	indexesEngine.Catalog.RegisterIndexDriver(pilosa.NewDriver(tmpDir))
 
 	ctx := sql.NewContext(
 		context.TODO(),
@@ -583,7 +583,7 @@ func BenchmarkQueries(b *testing.B) {
 	tmpDir2, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
 	require.NoError(b, err)
 	defer os.RemoveAll(tmpDir2)
-	squashIndexEngine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir2))
+	squashIndexEngine.Catalog.RegisterIndexDriver(pilosa.NewDriver(tmpDir2))
 
 	cleanupIndexes := createTestIndexes(b, indexesEngine, ctx)
 	defer cleanupIndexes()
@@ -630,7 +630,7 @@ func TestIndexes(t *testing.T) {
 	tmpDir, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	engine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
+	engine.Catalog.RegisterIndexDriver(pilosa.NewDriver(tmpDir))
 
 	ctx := sql.NewContext(
 		context.TODO(),
@@ -643,7 +643,7 @@ func TestIndexes(t *testing.T) {
 	tmpDir2, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir2)
-	squashEngine.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir2))
+	squashEngine.Catalog.RegisterIndexDriver(pilosa.NewDriver(tmpDir2))
 
 	cleanupIndexes := createTestIndexes(t, engine, ctx)
 	defer cleanupIndexes()
