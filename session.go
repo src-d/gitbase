@@ -241,7 +241,7 @@ func connectToBblfsh(endpoint string) (*bblfsh.Client, error) {
 // NewSessionBuilder creates a SessionBuilder with the given Repository Pool.
 func NewSessionBuilder(pool *RepositoryPool, opts ...SessionOption) server.SessionBuilder {
 	return func(c *mysql.Conn, host string) sql.Session {
-		opts = append(opts, WithBaseSession(sql.NewSession(host, c.User)))
+		opts = append(opts, WithBaseSession(sql.NewSession(host, c.User, c.ConnectionID)))
 		return NewSession(pool, opts...)
 	}
 }
