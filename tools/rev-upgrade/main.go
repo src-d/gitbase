@@ -16,6 +16,8 @@ import (
 	git "gopkg.in/src-d/go-git.v4"
 )
 
+const lockFile = "Gopkg.lock"
+
 type project struct {
 	Name     string
 	Revision string
@@ -140,6 +142,11 @@ func replace(w *git.Worktree, oldRev, newRev string) error {
 
 	files := make(map[string]struct{})
 	for _, r := range res {
+		// ignore replacements on lockfile so update works
+		if r.FileName == lockFile {
+			continue
+		}
+
 		if _, ok := files[r.FileName]; !ok {
 			files[r.FileName] = struct{}{}
 		}

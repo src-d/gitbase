@@ -128,6 +128,14 @@ var queries = []struct {
 		},
 	},
 	{
+		`SELECT COUNT(*) as cnt, s as fi FROM mytable GROUP BY fi`,
+		[]sql.Row{
+			{int32(1), "first row"},
+			{int32(1), "second row"},
+			{int32(1), "third row"},
+		},
+	},
+	{
 		"SELECT CAST(-3 AS UNSIGNED) FROM mytable",
 		[]sql.Row{
 			{uint64(18446744073709551613)},
@@ -791,7 +799,7 @@ func TestIndexes(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, os.MkdirAll(tmpDir, 0644))
-	e.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
+	e.Catalog.RegisterIndexDriver(pilosa.NewDriver(tmpDir))
 
 	_, _, err = e.Query(
 		sql.NewEmptyContext(),
@@ -910,7 +918,7 @@ func TestCreateIndex(t *testing.T) {
 	require.NoError(err)
 
 	require.NoError(os.MkdirAll(tmpDir, 0644))
-	e.Catalog.RegisterIndexDriver(pilosa.NewIndexDriver(tmpDir))
+	e.Catalog.RegisterIndexDriver(pilosa.NewDriver(tmpDir))
 
 	_, iter, err := e.Query(sql.NewEmptyContext(), "CREATE INDEX myidx ON mytable USING pilosa (i)")
 	require.NoError(err)

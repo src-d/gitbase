@@ -196,17 +196,6 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:e51a679c408e8066526879897e72530c5df48a27ec4df7ae68c3417d67d19e09"
-  name = "github.com/pilosa/go-pilosa"
-  packages = [
-    ".",
-    "gopilosa_pbuf",
-  ]
-  pruneopts = ""
-  revision = "7061e94f4cfed62addfcf34c4c8b03b056f982de"
-  version = "v0.10.0"
-
-[[projects]]
   digest = "1:2ce848409e7c67a285dc4bf04611ea37d22526af6d2b03db845b1942e6024b91"
   name = "github.com/pilosa/pilosa"
   packages = [
@@ -623,7 +612,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:11c793e98bee8e1981a70c03192bd2fdbc8b568e7ffbcfbfca54d197590e6e64"
+  digest = "1:af22aa7abd6da66a47244a8c35dfde22d6711d07d02f2656801fc55e5df0cedc"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -637,12 +626,11 @@
     "sql/expression/function/aggregation",
     "sql/index",
     "sql/index/pilosa",
-    "sql/index/pilosalib",
     "sql/parse",
     "sql/plan",
   ]
   pruneopts = ""
-  revision = "e8316f5430855f55b0da4b5c63fc990d75c2c085"
+  revision = "255f4a35c69f573b6b19d73f03dd7265961dcba3"
 
 [[projects]]
   digest = "1:952e82e2343990fa2bb01e42f13da314e6968b734e87b7b1a76892fab2029fda"
@@ -710,7 +698,6 @@
     "github.com/hashicorp/golang-lru",
     "github.com/jessevdk/go-flags",
     "github.com/opentracing/opentracing-go",
-    "github.com/pilosa/go-pilosa",
     "github.com/sirupsen/logrus",
     "github.com/stretchr/testify/require",
     "github.com/uber/jaeger-client-go/config",
@@ -745,7 +732,6 @@
     "gopkg.in/src-d/go-mysql-server.v0/sql/expression",
     "gopkg.in/src-d/go-mysql-server.v0/sql/expression/function",
     "gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa",
-    "gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosalib",
     "gopkg.in/src-d/go-mysql-server.v0/sql/parse",
     "gopkg.in/src-d/go-mysql-server.v0/sql/plan",
     "gopkg.in/src-d/go-vitess.v0/mysql",
