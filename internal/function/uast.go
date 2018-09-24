@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
 	bblfsh "gopkg.in/bblfsh/client-go.v2"
@@ -53,6 +54,7 @@ type uastFunc struct {
 	XPath sql.Expression
 
 	h hash.Hash
+	m sync.Mutex
 }
 
 // IsNullable implements the Expression interface.
@@ -113,11 +115,13 @@ func (u *uastFunc) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error)
 		}
 	}
 
-	tu := *u
-	tu.Mode = mode
-	tu.Blob = blob
-	tu.Lang = lang
-	tu.XPath = xpath
+	tu := uastFunc{
+		Mode:  mode,
+		Blob:  blob,
+		Lang:  lang,
+		XPath: xpath,
+		h:     sha1.New(),
+	}
 
 	return fn(&tu)
 }
@@ -195,7 +199,10 @@ func (u *uastFunc) getUAST(
 	lang, xpath string,
 	mode bblfsh.Mode,
 ) (interface{}, error) {
+	u.m.Lock()
 	key, err := computeKey(u.h, mode.String(), lang, blob)
+	u.m.Unlock()
+
 	if err != nil {
 		return nil, err
 	}
