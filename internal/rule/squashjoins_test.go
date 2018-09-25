@@ -23,7 +23,7 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 		WithParallelism(2).
 		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
 		Build()
-	a.Batches = a.Batches[:len(a.Batches)-1] // remove the track_process rule
+	a.Batches[len(a.Batches)-1].Rules = a.Batches[len(a.Batches)-1].Rules[1:]
 	a.CurrentDatabase = "foo"
 	ctx := sql.NewEmptyContext()
 
@@ -33,14 +33,14 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	result, err := a.Analyze(ctx, node)
 	require.NoError(err)
 
-	project, ok := result.(*plan.Project)
-	require.True(ok)
-
-	exchange, ok := project.Child.(*plan.Exchange)
+	exchange, ok := result.(*plan.Exchange)
 	require.True(ok)
 	require.Equal(2, exchange.Parallelism)
 
-	rt, ok := exchange.Child.(*plan.ResolvedTable)
+	project, ok := exchange.Child.(*plan.Project)
+	require.True(ok)
+
+	rt, ok := project.Child.(*plan.ResolvedTable)
 	require.True(ok)
 
 	_, ok = rt.Table.(*gitbase.SquashedTable)
