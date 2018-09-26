@@ -190,7 +190,9 @@ func (i *commitIter) Close() error {
 		i.iter.Close()
 	}
 
-	i.repo.Close()
+	if i.repo != nil {
+		i.repo.Close()
+	}
 
 	return nil
 }
@@ -274,6 +276,10 @@ func (i *commitsByHashIter) ForEach(f func(*object.Commit) error) error {
 func (i *commitsByHashIter) Close() {
 	if i.commitIter != nil {
 		i.commitIter.Close()
+	}
+
+	if i.repo != nil {
+		i.repo.Close()
 	}
 }
 
@@ -374,6 +380,15 @@ func (i *commitsKeyValueIter) Close() error {
 	if i.commits != nil {
 		i.commits.Close()
 	}
+
+	if i.idx != nil {
+		i.idx.Close()
+	}
+
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	return nil
 }
 

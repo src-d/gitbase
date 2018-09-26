@@ -301,6 +301,10 @@ func (i *commitFilesRowIter) Close() error {
 		i.files.Close()
 	}
 
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	if i.index != nil {
 		return i.index.Close()
 	}
@@ -486,6 +490,14 @@ func (i *commitFilesKeyValueIter) Close() error {
 
 	if i.files != nil {
 		i.files.Close()
+	}
+
+	if i.idx != nil {
+		i.idx.Close()
+	}
+
+	if i.repo != nil {
+		i.repo.Close()
 	}
 
 	return nil

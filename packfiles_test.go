@@ -14,7 +14,11 @@ var testSivaFilePath = filepath.Join("_testdata", "fff7062de8474d10a67d417ccea87
 func TestRepositoryPackfiles(t *testing.T) {
 	require := require.New(t)
 
-	fs, packfiles, err := repositoryPackfiles(sivaRepo("siva", testSivaFilePath, cache.NewObjectLRUDefault()))
+	repo := sivaRepo("siva", testSivaFilePath, cache.NewObjectLRUDefault())
+	f, err := repo.FS()
+	require.NoError(err)
+
+	fs, packfiles, err := repositoryPackfiles(f)
 
 	require.NoError(err)
 	require.Equal([]plumbing.Hash{

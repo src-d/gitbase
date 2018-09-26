@@ -405,6 +405,15 @@ func (i *treeEntriesKeyValueIter) Close() error {
 	if i.trees != nil {
 		i.trees.Close()
 	}
+
+	if i.idx != nil {
+		i.idx.Close()
+	}
+
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	return nil
 }
 

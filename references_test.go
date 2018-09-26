@@ -131,3 +131,11 @@ func TestRefRowKeyMapper(t *testing.T) {
 
 	require.Equal(row, row2)
 }
+
+func TestReferencesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(referencesTable))
+}
+
+func TestReferencesIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(referencesTable))
+}

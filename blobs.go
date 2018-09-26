@@ -396,6 +396,15 @@ func (i *blobsKeyValueIter) Close() error {
 	if i.blobs != nil {
 		i.blobs.Close()
 	}
+
+	if i.idx != nil {
+		i.idx.Close()
+	}
+
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	return nil
 }
 

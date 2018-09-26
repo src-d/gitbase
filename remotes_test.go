@@ -145,3 +145,11 @@ func TestEncodeRemoteIndexKey(t *testing.T) {
 	require.NoError(k2.decode(data))
 	require.Equal(k, k2)
 }
+
+func TestRemotesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(remotesTable))
+}
+
+func TestRemotesIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(remotesTable))
+}

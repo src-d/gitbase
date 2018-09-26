@@ -683,3 +683,11 @@ func TestEncodeTreeEntriesIndexKey(t *testing.T) {
 
 	require.Equal(k, k3)
 }
+
+func TestTreeEntriesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(treeEntriesTable))
+}
+
+func TestTreeEntriesIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(treeEntriesTable))
+}

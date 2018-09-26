@@ -11,6 +11,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit"
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 
+	"gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/idxfile"
@@ -22,13 +23,8 @@ type packRepository struct {
 	packs map[plumbing.Hash]idxfile.Index
 }
 
-func repositoryPackfiles(repo repository) (*dotgit.DotGit, []plumbing.Hash, error) {
-	fs, err := repo.FS()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	fs, err = findDotGit(fs)
+func repositoryPackfiles(fs billy.Filesystem) (*dotgit.DotGit, []plumbing.Hash, error) {
+	fs, err := findDotGit(fs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -48,17 +44,28 @@ type packfileIndex struct {
 }
 
 type repositoryIndex struct {
-	dir     *dotgit.DotGit
-	indexes []*packfileIndex
+	dir       *dotgit.DotGit
+	indexes   []*packfileIndex
+	closeFunc func()
 }
 
 func newRepositoryIndex(repo repository) (*repositoryIndex, error) {
-	dot, packfiles, err := repositoryPackfiles(repo)
+	fs, err := repo.FS()
 	if err != nil {
 		return nil, err
 	}
 
-	ri := &repositoryIndex{dir: dot}
+	var closeFunc func()
+	if s, ok := fs.(sivafs.SivaSync); ok {
+		closeFunc = func() { s.Sync() }
+	}
+
+	dot, packfiles, err := repositoryPackfiles(fs)
+	if err != nil {
+		return nil, err
+	}
+
+	ri := &repositoryIndex{dir: dot, closeFunc: closeFunc}
 	for _, p := range packfiles {
 		idx, err := openPackfileIndex(dot, p)
 		if err != nil {
@@ -129,6 +136,12 @@ func (i *repositoryIndex) isUnpacked(hash plumbing.Hash) (bool, error) {
 	return true, nil
 }
 
+func (i *repositoryIndex) Close() {
+	if i.closeFunc != nil {
+		i.closeFunc()
+	}
+}
+
 func findDotGit(fs billy.Filesystem) (billy.Filesystem, error) {
 	fi, err := fs.Stat(".git")
 	if err != nil && !os.IsNotExist(err) {
@@ -195,10 +208,11 @@ func getUnpackedObject(repo repository, hash plumbing.Hash) (o object.Object, er
 }
 
 type repoObjectDecoder struct {
-	repo     string
-	hash     plumbing.Hash
-	packfile *packfile.Packfile
-	storage  storer.EncodedObjectStorer
+	repo      string
+	hash      plumbing.Hash
+	packfile  *packfile.Packfile
+	storage   storer.EncodedObjectStorer
+	closeFunc func()
 }
 
 func newRepoObjectDecoder(
@@ -208,6 +222,11 @@ func newRepoObjectDecoder(
 	fs, err := repo.FS()
 	if err != nil {
 		return nil, err
+	}
+
+	var closeFunc func()
+	if f, ok := fs.(sivafs.SivaSync); ok {
+		closeFunc = func() { f.Sync() }
 	}
 
 	fs, err = findDotGit(fs)
@@ -235,10 +254,11 @@ func newRepoObjectDecoder(
 	}
 
 	return &repoObjectDecoder{
-		repo:     repo.ID(),
-		hash:     hash,
-		packfile: packfile,
-		storage:  storage,
+		repo:      repo.ID(),
+		hash:      hash,
+		packfile:  packfile,
+		storage:   storage,
+		closeFunc: closeFunc,
 	}, nil
 }
 
@@ -256,6 +276,10 @@ func (d *repoObjectDecoder) get(offset int64) (object.Object, error) {
 }
 
 func (d *repoObjectDecoder) Close() error {
+	if d.closeFunc != nil {
+		d.closeFunc()
+	}
+
 	return d.packfile.Close()
 }
 
@@ -299,5 +323,6 @@ func (d *objectDecoder) Close() error {
 	if d.decoder != nil {
 		return d.decoder.Close()
 	}
+
 	return nil
 }
