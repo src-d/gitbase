@@ -230,6 +230,18 @@ func TestIntegration(t *testing.T) {
 				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "some code in a branch\n", "php", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
 			},
 		},
+		{
+			`SELECT
+				file_path, array_length(uast_extract(uast(blob_content, language(file_path)), "@type"))
+			FROM
+				files
+			WHERE
+				language(file_path)="Go"
+			LIMIT 1`,
+			[]sql.Row{
+				{"go/example.go", int32(1)},
+			},
+		},
 	}
 
 	runTests := func(t *testing.T) {
