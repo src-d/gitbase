@@ -458,7 +458,7 @@ func (u *UASTExtract) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err 
 		return nil, nil
 	}
 
-	extracted := make([][]string, len(nodes))
+	extracted := make([]interface{}, len(nodes))
 	for i, n := range nodes {
 		extracted[i] = extractInfo(n, key)
 	}
