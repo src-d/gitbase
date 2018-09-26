@@ -126,38 +126,7 @@ func getUASTFromBblfsh(ctx *sql.Context,
 	return resp.UAST, nil
 }
 
-func marshalNodes(ctx *sql.Context, nodes []*uast.Node) (data interface{}, err error) {
-	session, ok := ctx.Session.(*gitbase.Session)
-	if !ok {
-		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	if session.OldUASTSerialization {
-		data, err = marshalAsListNodes(nodes)
-	} else {
-		data, err = marshalAsBlobNodes(nodes)
-	}
-
-	return data, err
-}
-
-func marshalAsListNodes(nodes []*uast.Node) ([]interface{}, error) {
-	m := make([]interface{}, 0, len(nodes))
-	for _, n := range nodes {
-		if n != nil {
-			data, err := n.Marshal()
-			if err != nil {
-				return nil, err
-			}
-
-			m = append(m, data)
-		}
-	}
-
-	return m, nil
-}
-
-func marshalAsBlobNodes(nodes []*uast.Node) (out []byte, err error) {
+func marshalNodes(nodes []*uast.Node) (out interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			out, err = nil, r.(error)
@@ -188,50 +157,7 @@ func marshalAsBlobNodes(nodes []*uast.Node) (out []byte, err error) {
 	return buf.Bytes(), nil
 }
 
-func getNodes(ctx *sql.Context, data interface{}) (nodes []*uast.Node, err error) {
-	session, ok := ctx.Session.(*gitbase.Session)
-	if !ok {
-		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
-	}
-
-	if session.OldUASTSerialization {
-		nodes, err = nodesFromBlobArray(data)
-	} else {
-		nodes, err = nodesFromBlob(data)
-	}
-
-	return nodes, err
-}
-
-func nodesFromBlobArray(data interface{}) ([]*uast.Node, error) {
-	if data == nil {
-		return nil, nil
-	}
-
-	data, err := sql.Array(sql.Blob).Convert(data)
-	if err != nil {
-		return nil, err
-	}
-
-	arr := data.([]interface{})
-	if len(arr) == 0 {
-		return nil, nil
-	}
-
-	var nodes = make([]*uast.Node, len(arr))
-	for i, n := range arr {
-		node := uast.NewNode()
-		if err := node.Unmarshal(n.([]byte)); err != nil {
-			return nil, err
-		}
-
-		nodes[i] = node
-	}
-
-	return nodes, nil
-}
-
-func nodesFromBlob(data interface{}) ([]*uast.Node, error) {
+func getNodes(data interface{}) (nodes []*uast.Node, err error) {
 	if data == nil {
 		return nil, nil
 	}

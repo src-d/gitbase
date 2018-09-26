@@ -39,35 +39,28 @@ func TestUASTMode(t *testing.T) {
 		expression.NewGetField(2, sql.Text, "", false),
 	)
 
-	oldSerialization := []bool{true, false}
-	for _, s := range oldSerialization {
-		session, ok := ctx.Session.(*gitbase.Session)
-		require.True(t, ok)
-
-		session.OldUASTSerialization = s
-
-		u, _ := bblfshFixtures(t, ctx)
-		testCases := []struct {
-			name     string
-			fn       sql.Expression
-			row      sql.Row
-			expected interface{}
-		}{
-			{"annotated", mode, sql.NewRow("annotated", []byte(testCode), "Python"), u["annotated"]},
-			{"semantic", mode, sql.NewRow("semantic", []byte(testCode), "Python"), u["semantic"]},
-			{"native", mode, sql.NewRow("native", []byte(testCode), "Python"), u["native"]},
-		}
-
-		for _, tt := range testCases {
-			t.Run(tt.name, func(t *testing.T) {
-				require := require.New(t)
-				result, err := tt.fn.Eval(ctx, tt.row)
-				require.NoError(err)
-
-				assertUASTBlobs(t, ctx, tt.expected, result)
-			})
-		}
+	u, _ := bblfshFixtures(t, ctx)
+	testCases := []struct {
+		name     string
+		fn       sql.Expression
+		row      sql.Row
+		expected interface{}
+	}{
+		{"annotated", mode, sql.NewRow("annotated", []byte(testCode), "Python"), u["annotated"]},
+		{"semantic", mode, sql.NewRow("semantic", []byte(testCode), "Python"), u["semantic"]},
+		{"native", mode, sql.NewRow("native", []byte(testCode), "Python"), u["native"]},
 	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			result, err := tt.fn.Eval(ctx, tt.row)
+			require.NoError(err)
+
+			assertUASTBlobs(t, ctx, tt.expected, result)
+		})
+	}
+
 }
 
 func TestUAST(t *testing.T) {
@@ -92,41 +85,33 @@ func TestUAST(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	oldSerialization := []bool{true, false}
-	for _, s := range oldSerialization {
-		session, ok := ctx.Session.(*gitbase.Session)
-		require.True(t, ok)
+	u, f := bblfshFixtures(t, ctx)
+	uast := u["semantic"]
+	filteredNodes := f["semantic"]
 
-		session.OldUASTSerialization = s
+	testCases := []struct {
+		name     string
+		fn       sql.Expression
+		row      sql.Row
+		expected interface{}
+	}{
+		{"blob is nil", fn3, sql.NewRow(nil, nil, nil), nil},
+		{"lang is nil", fn3, sql.NewRow([]byte{}, nil, nil), nil},
+		{"xpath is nil", fn3, sql.NewRow([]byte{}, "Ruby", nil), nil},
+		{"only blob, can't infer language", fn1, sql.NewRow([]byte(testCode)), nil},
+		{"blob with unsupported lang", fn2, sql.NewRow([]byte(testCode), "YAML"), nil},
+		{"blob with lang", fn2, sql.NewRow([]byte(testCode), "Python"), uast},
+		{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPathSemantic), filteredNodes},
+	}
 
-		u, f := bblfshFixtures(t, ctx)
-		uast := u["semantic"]
-		filteredNodes := f["semantic"]
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			result, err := tt.fn.Eval(ctx, tt.row)
+			require.NoError(err)
 
-		testCases := []struct {
-			name     string
-			fn       sql.Expression
-			row      sql.Row
-			expected interface{}
-		}{
-			{"blob is nil", fn3, sql.NewRow(nil, nil, nil), nil},
-			{"lang is nil", fn3, sql.NewRow([]byte{}, nil, nil), nil},
-			{"xpath is nil", fn3, sql.NewRow([]byte{}, "Ruby", nil), nil},
-			{"only blob, can't infer language", fn1, sql.NewRow([]byte(testCode)), nil},
-			{"blob with unsupported lang", fn2, sql.NewRow([]byte(testCode), "YAML"), nil},
-			{"blob with lang", fn2, sql.NewRow([]byte(testCode), "Python"), uast},
-			{"blob with lang and xpath", fn3, sql.NewRow([]byte(testCode), "Python", testXPathSemantic), filteredNodes},
-		}
-
-		for _, tt := range testCases {
-			t.Run(tt.name, func(t *testing.T) {
-				require := require.New(t)
-				result, err := tt.fn.Eval(ctx, tt.row)
-				require.NoError(err)
-
-				assertUASTBlobs(t, ctx, tt.expected, result)
-			})
-		}
+			assertUASTBlobs(t, ctx, tt.expected, result)
+		})
 	}
 }
 
@@ -139,36 +124,28 @@ func TestUASTXPath(t *testing.T) {
 		expression.NewGetField(1, sql.Text, "", false),
 	)
 
-	oldSerialization := []bool{true, false}
-	for _, s := range oldSerialization {
-		session, ok := ctx.Session.(*gitbase.Session)
-		require.True(t, ok)
+	u, f := bblfshFixtures(t, ctx)
 
-		session.OldUASTSerialization = s
+	testCases := []struct {
+		name     string
+		row      sql.Row
+		expected interface{}
+	}{
+		{"left is nil", sql.NewRow(nil, "foo"), nil},
+		{"right is nil", sql.NewRow(u["semantic"], nil), nil},
+		{"both given", sql.NewRow(u["semantic"], testXPathSemantic), f["semantic"]},
+		{"native", sql.NewRow(u["native"], testXPathNative), f["native"]},
+		{"annotated", sql.NewRow(u["annotated"], testXPathAnnotated), f["annotated"]},
+	}
 
-		u, f := bblfshFixtures(t, ctx)
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+			result, err := fn.Eval(ctx, tt.row)
+			require.NoError(err)
 
-		testCases := []struct {
-			name     string
-			row      sql.Row
-			expected interface{}
-		}{
-			{"left is nil", sql.NewRow(nil, "foo"), nil},
-			{"right is nil", sql.NewRow(u["semantic"], nil), nil},
-			{"both given", sql.NewRow(u["semantic"], testXPathSemantic), f["semantic"]},
-			{"native", sql.NewRow(u["native"], testXPathNative), f["native"]},
-			{"annotated", sql.NewRow(u["annotated"], testXPathAnnotated), f["annotated"]},
-		}
-
-		for _, tt := range testCases {
-			t.Run(tt.name, func(t *testing.T) {
-				require := require.New(t)
-				result, err := fn.Eval(ctx, tt.row)
-				require.NoError(err)
-
-				assertUASTBlobs(t, ctx, tt.expected, result)
-			})
-		}
+			assertUASTBlobs(t, ctx, tt.expected, result)
+		})
 	}
 }
 
@@ -271,37 +248,21 @@ func TestUASTExtract(t *testing.T) {
 		},
 	}
 
-	oldSerialization := []bool{true, false}
-	for _, s := range oldSerialization {
-		session, ok := ctx.Session.(*gitbase.Session)
-		require.True(t, ok)
+	_, filteredNodes := bblfshFixtures(t, ctx)
 
-		session.OldUASTSerialization = s
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			row := sql.NewRow(filteredNodes["annotated"], test.key)
 
-		var UASTType sql.Type
-		session.OldUASTSerialization = s
-		if s {
-			UASTType = sql.Array(sql.Blob)
-		} else {
-			UASTType = sql.Blob
-		}
+			fn := NewUASTExtract(
+				expression.NewGetField(0, sql.Blob, "", false),
+				expression.NewLiteral(test.key, sql.Text),
+			)
 
-		_, filteredNodes := bblfshFixtures(t, ctx)
-
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				row := sql.NewRow(filteredNodes["annotated"], test.key)
-
-				fn := NewUASTExtract(
-					expression.NewGetField(0, UASTType, "", false),
-					expression.NewLiteral(test.key, sql.Text),
-				)
-
-				foo, err := fn.Eval(ctx, row)
-				require.NoError(t, err)
-				require.ElementsMatch(t, test.expected, foo)
-			})
-		}
+			foo, err := fn.Eval(ctx, row)
+			require.NoError(t, err)
+			require.ElementsMatch(t, test.expected, foo)
+		})
 	}
 }
 
@@ -312,47 +273,33 @@ func TestUASTChildren(t *testing.T) {
 	defer cleanup()
 
 	modes := []string{"semantic", "annotated", "native"}
-	oldSerialization := []bool{true, false}
-	for _, s := range oldSerialization {
-		session, ok := ctx.Session.(*gitbase.Session)
+	uasts, _ := bblfshFixtures(t, ctx)
+	for _, mode := range modes {
+		root, ok := uasts[mode]
 		require.True(ok)
 
-		var UASTType sql.Type
-		session.OldUASTSerialization = s
-		if s {
-			UASTType = sql.Array(sql.Blob)
-		} else {
-			UASTType = sql.Blob
-		}
+		nodes, err := getNodes(root)
+		require.NoError(err)
+		require.Len(nodes, 1)
+		expected := nodes[0].Children
 
-		uasts, _ := bblfshFixtures(t, ctx)
-		for _, mode := range modes {
-			root, ok := uasts[mode]
-			require.True(ok)
+		row := sql.NewRow(root)
 
-			nodes, err := getNodes(ctx, root)
-			require.NoError(err)
-			require.Len(nodes, 1)
-			expected := nodes[0].Children
+		fn := NewUASTChildren(
+			expression.NewGetField(0, sql.Blob, "", false),
+		)
 
-			row := sql.NewRow(root)
+		children, err := fn.Eval(ctx, row)
+		require.NoError(err)
 
-			fn := NewUASTChildren(
-				expression.NewGetField(0, UASTType, "", false),
+		nodes, err = getNodes(children)
+		require.NoError(err)
+		require.Len(nodes, len(expected))
+		for i, n := range nodes {
+			require.Equal(
+				n.InternalType,
+				expected[i].InternalType,
 			)
-
-			children, err := fn.Eval(ctx, row)
-			require.NoError(err)
-
-			nodes, err = getNodes(ctx, children)
-			require.NoError(err)
-			require.Len(nodes, len(expected))
-			for i, n := range nodes {
-				require.Equal(
-					n.InternalType,
-					expected[i].InternalType,
-				)
-			}
 		}
 	}
 }
@@ -361,10 +308,10 @@ func assertUASTBlobs(t *testing.T, ctx *sql.Context, a, b interface{}) {
 	t.Helper()
 	var require = require.New(t)
 
-	expected, err := getNodes(ctx, a)
+	expected, err := getNodes(a)
 	require.NoError(err)
 
-	result, err := getNodes(ctx, b)
+	result, err := getNodes(b)
 	require.NoError(err)
 
 	require.Equal(expected, result)
@@ -406,11 +353,11 @@ func bblfshFixtures(
 		idents, err := tools.Filter(resp.UAST, mode.x)
 		require.NoError(t, err)
 
-		testUAST, err := marshalNodes(ctx, []*uast.Node{resp.UAST})
+		testUAST, err := marshalNodes([]*uast.Node{resp.UAST})
 		require.NoError(t, err)
 		uasts[mode.n] = testUAST
 
-		testIdents, err := marshalNodes(ctx, idents)
+		testIdents, err := marshalNodes(idents)
 		require.NoError(t, err)
 		filteredNodes[mode.n] = testIdents
 	}

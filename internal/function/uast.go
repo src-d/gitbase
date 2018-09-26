@@ -38,12 +38,6 @@ func init() {
 	}
 }
 
-var (
-	// UASTExpressionType represents the returned SQL type by
-	// the functions uast, uast_mode, uast_xpath and uast_children.
-	UASTExpressionType sql.Type = sql.Blob
-)
-
 // uastFunc shouldn't be used as an sql.Expression itself.
 // It's intended to be embedded in others UAST functions,
 // like UAST and UASTMode.
@@ -73,7 +67,7 @@ func (u *uastFunc) Resolved() bool {
 
 // Type implements the Expression interface.
 func (u *uastFunc) Type() sql.Type {
-	return UASTExpressionType
+	return sql.Blob
 }
 
 // Children implements the Expression interface.
@@ -236,7 +230,7 @@ func (u *uastFunc) getUAST(
 		}
 	}
 
-	return marshalNodes(ctx, nodes)
+	return marshalNodes(nodes)
 }
 
 // UAST returns an array of UAST nodes as blobs.
@@ -341,7 +335,7 @@ func NewUASTXPath(uast, xpath sql.Expression) sql.Expression {
 
 // Type implements the Expression interface.
 func (UASTXPath) Type() sql.Type {
-	return UASTExpressionType
+	return sql.Blob
 }
 
 // Eval implements the Expression interface.
@@ -360,7 +354,7 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 		return nil, err
 	}
 
-	nodes, err := getNodes(ctx, left)
+	nodes, err := getNodes(left)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +382,7 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 		filtered = append(filtered, ns...)
 	}
 
-	return marshalNodes(ctx, filtered)
+	return marshalNodes(filtered)
 }
 
 func (f UASTXPath) String() string {
@@ -446,7 +440,7 @@ func (u *UASTExtract) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err 
 		return nil, err
 	}
 
-	nodes, err := getNodes(ctx, left)
+	nodes, err := getNodes(left)
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +535,7 @@ func (u *UASTChildren) String() string {
 
 // Type implements the sql.Expression interface.
 func (u *UASTChildren) Type() sql.Type {
-	return UASTExpressionType
+	return sql.Blob
 }
 
 // TransformUp implements the sql.Expression interface.
@@ -570,7 +564,7 @@ func (u *UASTChildren) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err
 		return nil, err
 	}
 
-	nodes, err := getNodes(ctx, child)
+	nodes, err := getNodes(child)
 	if err != nil {
 		return nil, err
 	}
@@ -580,7 +574,7 @@ func (u *UASTChildren) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err
 	}
 
 	children := flattenChildren(nodes)
-	return marshalNodes(ctx, children)
+	return marshalNodes(children)
 }
 
 func flattenChildren(nodes []*uast.Node) []*uast.Node {
