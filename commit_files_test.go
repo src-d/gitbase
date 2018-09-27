@@ -98,3 +98,11 @@ func TestEncodeCommitFileIndexKey(t *testing.T) {
 
 	require.Equal(k, k2)
 }
+
+func TestCommitFilesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(commitFilesTable))
+}
+
+func TestCommitFilesIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(commitFilesTable))
+}

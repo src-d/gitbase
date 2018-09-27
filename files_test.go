@@ -841,3 +841,11 @@ func TestEncodeFileIndexKey(t *testing.T) {
 
 	require.Equal(k, k3)
 }
+
+func TestFilesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(filesTable))
+}
+
+func TestFilesIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(filesTable))
+}

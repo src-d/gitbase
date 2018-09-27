@@ -298,3 +298,11 @@ func TestCommitsIndex(t *testing.T) {
 		)},
 	)
 }
+
+func TestCommitsIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(commitsTable))
+}
+
+func TestCommitsIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(commitsTable))
+}

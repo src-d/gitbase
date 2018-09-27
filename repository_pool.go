@@ -20,30 +20,45 @@ var (
 	errInvalidRepoKind       = errors.NewKind("the repository is not: %s")
 	errRepoAlreadyRegistered = errors.NewKind("the repository is already registered: %s")
 	errRepoCannotOpen        = errors.NewKind("the repository could not be opened: %s")
+
+	gitStorerOptions = filesystem.Options{
+		ExclusiveAccess: true,
+		KeepDescriptors: true,
+	}
 )
 
 // Repository struct holds an initialized repository and its ID
 type Repository struct {
 	*git.Repository
 	ID string
+
+	// function used to close underlying file descriptors
+	closeFunc func()
 }
 
 // NewRepository creates and initializes a new Repository structure
-func NewRepository(id string, repo *git.Repository) *Repository {
+func NewRepository(id string, repo *git.Repository, closeFunc func()) *Repository {
 	return &Repository{
 		Repository: repo,
 		ID:         id,
+		closeFunc:  closeFunc,
 	}
 }
 
 // Close closes all opened files in the repository.
 func (r *Repository) Close() {
-	if r != nil && r.Repository != nil {
-		f, ok := r.Storer.(*filesystem.Storage)
-		if ok {
-			// The only type of error returned is "file already closed" and
-			// we don't want to do anything with it.
-			f.Close()
+	if r != nil {
+		if r.Repository != nil {
+			f, ok := r.Storer.(*filesystem.Storage)
+			if ok {
+				// The only type of error returned is "file already closed" and
+				// we don't want to do anything with it.
+				f.Close()
+			}
+		}
+
+		if r.closeFunc != nil {
+			r.closeFunc()
 		}
 	}
 }
@@ -51,11 +66,6 @@ func (r *Repository) Close() {
 // NewRepositoryFromPath creates and initializes a new Repository structure
 // and initializes a go-git repository
 func NewRepositoryFromPath(id, path string, cache cache.Object) (*Repository, error) {
-	op := filesystem.Options{
-		ExclusiveAccess: true,
-		KeepDescriptors: true,
-	}
-
 	var wt billy.Filesystem
 	fs := osfs.New(path)
 	f, err := fs.Stat(git.GitDirName)
@@ -71,13 +81,13 @@ func NewRepositoryFromPath(id, path string, cache cache.Object) (*Repository, er
 		}
 	}
 
-	sto := filesystem.NewStorageWithOptions(fs, cache, op)
+	sto := filesystem.NewStorageWithOptions(fs, cache, gitStorerOptions)
 	repo, err := git.Open(sto, wt)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewRepository(id, repo), nil
+	return NewRepository(id, repo, nil), nil
 }
 
 // NewSivaRepositoryFromPath creates and initializes a new Repository structure
@@ -97,19 +107,16 @@ func NewSivaRepositoryFromPath(id, path string, cache cache.Object) (*Repository
 		return nil, err
 	}
 
-	op := filesystem.Options{
-		ExclusiveAccess: true,
-		KeepDescriptors: true,
-	}
-
-	sto := filesystem.NewStorageWithOptions(fs, cache, op)
+	sto := filesystem.NewStorageWithOptions(fs, cache, gitStorerOptions)
 
 	repo, err := git.Open(sto, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewRepository(id, repo), nil
+	closeFunc := func() { fs.Sync() }
+
+	return NewRepository(id, repo, closeFunc), nil
 }
 
 type repository interface {
