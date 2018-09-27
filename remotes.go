@@ -144,7 +144,7 @@ func (i *remotesRowIter) Next() (sql.Row, error) {
 	remote := i.remotes[i.remotePos]
 	config := remote.Config()
 
-	if i.urlPos >= len(config.URLs) {
+	if i.urlPos >= len(config.URLs) || i.urlPos >= len(config.Fetch) {
 		i.remotePos++
 		if i.remotePos >= len(i.remotes) {
 			return nil, io.EOF
@@ -162,6 +162,10 @@ func (i *remotesRowIter) Next() (sql.Row, error) {
 }
 
 func (i *remotesRowIter) Close() error {
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	return nil
 }
 
@@ -268,6 +272,10 @@ func (i *remotesKeyValueIter) Next() ([]interface{}, []byte, error) {
 }
 
 func (i *remotesKeyValueIter) Close() error {
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	return nil
 }
 
@@ -296,4 +304,10 @@ func (i *remotesIndexIter) Next() (sql.Row, error) {
 	return remoteToRow(key.Repository, config, key.URLPos), nil
 }
 
-func (i *remotesIndexIter) Close() error { return i.index.Close() }
+func (i *remotesIndexIter) Close() error {
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
+	return i.index.Close()
+}

@@ -1,12 +1,14 @@
 package gitbase
 
 import (
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 func TestCommitBlobsTableRowIter(t *testing.T) {
@@ -201,4 +203,30 @@ func TestCommitBlobsRowKeyMapper(t *testing.T) {
 	require.NoError(err)
 
 	require.Equal(row, row2)
+}
+
+func TestCommitBlobsIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(commitBlobsTable))
+}
+
+// This one is not using testTableIterClosed as it takes too much time
+// to go through all the rows. Here we limit it to the first 100.
+func TestCommitBlobsIterClosed(t *testing.T) {
+	require := require.New(t)
+	ctx, closed := setupSivaCloseRepos(t, "_testdata")
+
+	table := new(commitBlobsTable)
+	iter, err := plan.NewResolvedTable(table).RowIter(ctx)
+	require.NoError(err)
+
+	for i := 0; i < 100; i++ {
+		_, err = iter.Next()
+		if err != nil {
+			require.Equal(io.EOF, err)
+			break
+		}
+	}
+
+	iter.Close()
+	require.True(closed.Check())
 }

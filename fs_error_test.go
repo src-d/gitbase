@@ -140,7 +140,7 @@ func (r *billyRepository) Repo() (*Repository, error) {
 		return nil, err
 	}
 
-	return NewRepository(r.id, repo), nil
+	return NewRepository(r.id, repo, nil), nil
 }
 
 func (r *billyRepository) FS() (billy.Filesystem, error) {

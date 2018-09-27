@@ -492,6 +492,14 @@ func (i *filesKeyValueIter) Close() error {
 		i.files.Close()
 	}
 
+	if i.idx != nil {
+		i.idx.Close()
+	}
+
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	return nil
 }
 

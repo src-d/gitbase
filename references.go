@@ -317,6 +317,8 @@ func (i *refRowIter) Close() error {
 		return i.index.Close()
 	}
 
+	i.repo.Close()
+
 	return nil
 }
 

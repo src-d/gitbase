@@ -236,3 +236,11 @@ func TestBlobsIndex(t *testing.T) {
 		)},
 	)
 }
+
+func TestBlobsIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(blobsTable))
+}
+
+func TestBlobsIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(blobsTable))
+}
