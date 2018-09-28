@@ -24,3 +24,13 @@ dependencies: bblfsh-client
 
 upgrade:
 	go run tools/rev-upgrade/main.go -p $(UPGRADE_PRJ) -r $(UPGRADE_REV)
+
+static-package:
+	PACKAGE_NAME=gitbase_$(VERSION)_static_linux_amd64 ; \
+	docker rm gitbase-temp ; \
+	docker create --rm --name gitbase-temp $(DOCKER_ORG)/gitbase:$(VERSION) && \
+	mkdir -p build/$${PACKAGE_NAME} && \
+	docker cp gitbase-temp:/bin/gitbase build/$${PACKAGE_NAME} && \
+	cd build && \
+	tar czvf $${PACKAGE_NAME}.tar.gz $${PACKAGE_NAME} && \
+	docker rm gitbase-temp
