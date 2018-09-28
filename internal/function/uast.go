@@ -421,7 +421,7 @@ func (u *UASTExtract) String() string {
 
 // Type implements the sql.Expression interface.
 func (u *UASTExtract) Type() sql.Type {
-	return sql.Array(sql.Array(sql.Text))
+	return sql.Array(sql.Text)
 }
 
 // Eval implements the sql.Expression interface.
@@ -458,9 +458,12 @@ func (u *UASTExtract) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err 
 		return nil, nil
 	}
 
-	extracted := make([]interface{}, len(nodes))
-	for i, n := range nodes {
-		extracted[i] = extractInfo(n, key)
+	extracted := []interface{}{}
+	for _, n := range nodes {
+		info := extractInfo(n, key)
+		if len(info) > 0 {
+			extracted = append(extracted, info...)
+		}
 	}
 
 	return extracted, nil
@@ -474,25 +477,34 @@ const (
 	keyEndPos   = "@endpos"
 )
 
-func extractInfo(n *uast.Node, key string) []string {
-
-	info := []string{}
+func extractInfo(n *uast.Node, key string) []interface{} {
+	var info []interface{}
 	switch key {
 	case keyType:
-		info = append(info, n.InternalType)
-	case keyToken:
-		info = append(info, n.Token)
-	case keyRoles:
-		roles := make([]string, len(n.Roles))
-		for i, rol := range n.Roles {
-			roles[i] = rol.String()
+		if n.InternalType != "" {
+			info = append(info, n.InternalType)
 		}
+	case keyToken:
+		if n.Token != "" {
+			info = append(info, n.Token)
+		}
+	case keyRoles:
+		if len(n.Roles) > 0 {
+			roles := make([]interface{}, len(n.Roles))
+			for i, rol := range n.Roles {
+				roles[i] = rol.String()
+			}
 
-		info = append(info, roles...)
+			info = append(info, roles...)
+		}
 	case keyStartPos:
-		info = append(info, n.StartPosition.String())
+		if n.StartPosition != nil {
+			info = append(info, n.StartPosition.String())
+		}
 	case keyEndPos:
-		info = append(info, n.EndPosition.String())
+		if n.StartPosition != nil {
+			info = append(info, n.EndPosition.String())
+		}
 	default:
 		v, ok := n.Properties[key]
 		if ok {
