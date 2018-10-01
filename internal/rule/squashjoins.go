@@ -221,7 +221,7 @@ func buildSquashedTable(
 	indexes map[string]sql.IndexLookup,
 ) (sql.Node, error) {
 	tableNames := orderedTableNames(tables)
-	allFilters := filters[:]
+	allFilters := filters
 
 	firstTable := tableNames[0]
 	var index sql.IndexLookup
