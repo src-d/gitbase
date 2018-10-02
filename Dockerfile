@@ -8,7 +8,10 @@ RUN apk add --update libxml2-dev git make bash gcc g++ curl oniguruma-dev
 RUN go get github.com/golang/dep/...
 RUN dep ensure
 RUN cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies
-RUN go install -v -tags oniguruma -ldflags "-linkmode external -extldflags '-static -lz'" github.com/src-d/gitbase/...
+RUN VERSION=$(git describe --exact-match --tags 2>/dev/null || \
+    echo dev-$(git rev-parse --short HEAD)$(test -n "`git status --porcelain`" && echo "-dirty" || true)); \
+    go install -v -tags oniguruma -ldflags "-linkmode external -extldflags '-static -lz' -X main.version=$VERSION" \
+    github.com/src-d/gitbase/...
 
 FROM alpine:3.8
 
