@@ -34,3 +34,10 @@ static-package:
 	cd build && \
 	tar czvf $${PACKAGE_NAME}.tar.gz $${PACKAGE_NAME} && \
 	docker rm gitbase-temp
+
+# target used in the Dockerfile to build the static binary
+static-build: VERSION = $(shell git describe --exact-match --tags 2>/dev/null || dev-$(git rev-parse --short HEAD)$(test -n "`git status --porcelain`" && echo "-dirty" || true))
+static-build: LD_FLAGS += -linkmode external -extldflags '-static -lz'
+static-build: GO_BUILD_ARGS += -tags oniguruma
+static-build:
+	go install -v $(GO_BUILD_ARGS) github.com/src-d/gitbase/...
