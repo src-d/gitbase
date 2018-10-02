@@ -331,11 +331,11 @@ func bblfshFixtures(
 		idents, err := tools.Filter(resp.UAST, mode.x)
 		require.NoError(t, err)
 
-		testUAST, err := marshalNodes([]*uast.Node{resp.UAST})
+		testUAST, err := MarshalUASTNodes([]*uast.Node{resp.UAST})
 		require.NoError(t, err)
 		uasts[mode.n] = testUAST
 
-		testIdents, err := marshalNodes(idents)
+		testIdents, err := MarshalUASTNodes(idents)
 		require.NoError(t, err)
 		filteredNodes[mode.n] = testIdents
 	}

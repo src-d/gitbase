@@ -230,7 +230,7 @@ func (u *uastFunc) getUAST(
 		}
 	}
 
-	return marshalNodes(nodes)
+	return MarshalUASTNodes(nodes)
 }
 
 // UAST returns an array of UAST nodes as blobs.
@@ -382,7 +382,7 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 		filtered = append(filtered, ns...)
 	}
 
-	return marshalNodes(filtered)
+	return MarshalUASTNodes(filtered)
 }
 
 func (f UASTXPath) String() string {
@@ -586,7 +586,7 @@ func (u *UASTChildren) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err
 	}
 
 	children := flattenChildren(nodes)
-	return marshalNodes(children)
+	return MarshalUASTNodes(children)
 }
 
 func flattenChildren(nodes []*uast.Node) []*uast.Node {
