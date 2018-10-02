@@ -27,6 +27,69 @@ var (
 	ErrMarshalUAST = errors.NewKind("error marshaling uast node: %s")
 )
 
+// MarshalUASTNodes takes in a list of UAST nodes and serializes it.
+func MarshalUASTNodes(nodes []*uast.Node) (out []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			out, err = nil, r.(error)
+		}
+	}()
+
+	buf := &bytes.Buffer{}
+	for _, n := range nodes {
+		if n != nil {
+			data, err := n.Marshal()
+			if err != nil {
+				return nil, err
+			}
+
+			if err := binary.Write(
+				buf, binary.BigEndian, int32(len(data)),
+			); err != nil {
+				return nil, err
+			}
+
+			n, _ := buf.Write(data)
+			if n != len(data) {
+				return nil, ErrMarshalUAST.New("couldn't write all the data")
+			}
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalUASTNodes takes in a sequence of bytes and deserializes it as a list of UAST nodes.
+func UnmarshalUASTNodes(data []byte) ([]*uast.Node, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	nodes := []*uast.Node{}
+	buf := bytes.NewBuffer(data)
+	for {
+		var nodeLen int32
+		if err := binary.Read(
+			buf, binary.BigEndian, &nodeLen,
+		); err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, ErrUnmarshalUAST.New(err)
+		}
+
+		node := uast.NewNode()
+		if err := node.Unmarshal(buf.Next(int(nodeLen))); err != nil {
+			return nil, ErrUnmarshalUAST.New(err)
+		}
+
+		nodes = append(nodes, node)
+	}
+
+	return nodes, nil
+}
+
 func exprToString(
 	ctx *sql.Context,
 	e sql.Expression,
@@ -126,37 +189,6 @@ func getUASTFromBblfsh(ctx *sql.Context,
 	return resp.UAST, nil
 }
 
-func marshalNodes(nodes []*uast.Node) (out interface{}, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			out, err = nil, r.(error)
-		}
-	}()
-
-	buf := &bytes.Buffer{}
-	for _, n := range nodes {
-		if n != nil {
-			data, err := n.Marshal()
-			if err != nil {
-				return nil, err
-			}
-
-			if err := binary.Write(
-				buf, binary.BigEndian, int32(len(data)),
-			); err != nil {
-				return nil, err
-			}
-
-			n, _ := buf.Write(data)
-			if n != len(data) {
-				return nil, ErrMarshalUAST.New("couldn't write all the data")
-			}
-		}
-	}
-
-	return buf.Bytes(), nil
-}
-
 func getNodes(data interface{}) (nodes []*uast.Node, err error) {
 	if data == nil {
 		return nil, nil
@@ -167,35 +199,5 @@ func getNodes(data interface{}) (nodes []*uast.Node, err error) {
 		return nil, ErrUnmarshalUAST.New("wrong underlying UAST format")
 	}
 
-	return unmarshalNodes(raw)
-}
-
-func unmarshalNodes(data []byte) ([]*uast.Node, error) {
-	if len(data) == 0 {
-		return nil, nil
-	}
-
-	nodes := []*uast.Node{}
-	buf := bytes.NewBuffer(data)
-	for {
-		var nodeLen int32
-		if err := binary.Read(
-			buf, binary.BigEndian, &nodeLen,
-		); err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			return nil, ErrUnmarshalUAST.New(err)
-		}
-
-		node := uast.NewNode()
-		if err := node.Unmarshal(buf.Next(int(nodeLen))); err != nil {
-			return nil, ErrUnmarshalUAST.New(err)
-		}
-
-		nodes = append(nodes, node)
-	}
-
-	return nodes, nil
+	return UnmarshalUASTNodes(raw)
 }
