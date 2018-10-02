@@ -27,3 +27,4 @@ main
 # CI
 .ci/
 build/
+.vscode/
