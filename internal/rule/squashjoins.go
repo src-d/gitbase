@@ -1,6 +1,9 @@
 package rule
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/src-d/gitbase"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -50,7 +53,7 @@ func SquashJoins(
 			return n, nil
 		}
 
-		return buildSquashedTable(t.tables, t.filters, t.columns, t.indexes)
+		return buildSquashedTable(a, t.tables, t.filters, t.columns, t.indexes)
 	})
 
 	if err != nil {
@@ -214,7 +217,13 @@ func rearrange(join *plan.InnerJoin, squashedTable *joinedTables) sql.Node {
 
 var errInvalidIteratorChain = errors.NewKind("invalid iterator to chain with %s: %T")
 
+type unsquashableTable struct {
+	table   sql.Table
+	filters []sql.Expression
+}
+
 func buildSquashedTable(
+	a *analyzer.Analyzer,
 	tables []sql.Table,
 	filters []sql.Expression,
 	columns []string,
@@ -229,9 +238,28 @@ func buildSquashedTable(
 		index = idx
 	}
 
+	tablesByName := make(map[string]sql.Table)
+	for _, t := range tables {
+		tablesByName[t.Name()] = t
+	}
+
+	var usedTables []string
+	var unsquashable []unsquashableTable
+	addUnsquashable := func(tableName string) {
+		var f []sql.Expression
+		f, filters = filtersForTables(filters, usedTables...)
+		unsquashable = append(unsquashable, unsquashableTable{
+			table:   tablesByName[tableName],
+			filters: f,
+		})
+	}
+
 	var iter gitbase.ChainableIter
+	var squashedTables []string
+
 	var err error
 	for _, t := range tableNames {
+		usedTables = append(usedTables, t)
 		switch t {
 		case gitbase.RepositoriesTableName:
 			switch iter.(type) {
@@ -245,6 +273,7 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
+
 				iter = gitbase.NewAllReposIter(f)
 			default:
 				return nil, errInvalidIteratorChain.New("repositories", iter)
@@ -274,9 +303,11 @@ func buildSquashedTable(
 				if err != nil {
 					return nil, err
 				}
+
 				iter = gitbase.NewAllRemotesIter(f)
 			default:
-				return nil, errInvalidIteratorChain.New("remotes", iter)
+				addUnsquashable(gitbase.RemotesTableName)
+				continue
 			}
 		case gitbase.ReferencesTableName:
 			switch it := iter.(type) {
@@ -323,7 +354,8 @@ func buildSquashedTable(
 					iter = gitbase.NewIndexRefsIter(f, index)
 				}
 			default:
-				return nil, errInvalidIteratorChain.New("refs", iter)
+				addUnsquashable(gitbase.ReferencesTableName)
+				continue
 			}
 		case gitbase.RefCommitsTableName:
 			switch it := iter.(type) {
@@ -375,7 +407,8 @@ func buildSquashedTable(
 					iter = gitbase.NewAllRefCommitsIter(f)
 				}
 			default:
-				return nil, errInvalidIteratorChain.New("ref_commits", iter)
+				addUnsquashable(gitbase.RefCommitsTableName)
+				continue
 			}
 		case gitbase.CommitsTableName:
 			switch it := iter.(type) {
@@ -435,7 +468,8 @@ func buildSquashedTable(
 					iter = gitbase.NewAllCommitsIter(f, false)
 				}
 			default:
-				return nil, errInvalidIteratorChain.New("commits", iter)
+				addUnsquashable(gitbase.CommitsTableName)
+				continue
 			}
 		case gitbase.CommitTreesTableName:
 			switch it := iter.(type) {
@@ -517,7 +551,8 @@ func buildSquashedTable(
 					iter = gitbase.NewAllCommitTreesIter(f)
 				}
 			default:
-				return nil, errInvalidIteratorChain.New("commit_trees", iter)
+				addUnsquashable(gitbase.CommitTreesTableName)
+				continue
 			}
 		case gitbase.CommitBlobsTableName:
 			switch it := iter.(type) {
@@ -580,7 +615,8 @@ func buildSquashedTable(
 					iter = gitbase.NewAllCommitBlobsIter(f)
 				}
 			default:
-				return nil, errInvalidIteratorChain.New("commit_blobs", iter)
+				addUnsquashable(gitbase.CommitBlobsTableName)
+				continue
 			}
 		case gitbase.TreeEntriesTableName:
 			switch it := iter.(type) {
@@ -641,7 +677,8 @@ func buildSquashedTable(
 					iter = gitbase.NewAllTreeEntriesIter(f)
 				}
 			default:
-				return nil, errInvalidIteratorChain.New("tree_entries", iter)
+				addUnsquashable(gitbase.TreeEntriesTableName)
+				continue
 			}
 		case gitbase.BlobsTableName:
 			readContent := stringInSlice(columns, "blob_content")
@@ -687,7 +724,8 @@ func buildSquashedTable(
 
 				iter = gitbase.NewTreeEntryBlobsIter(it, f, readContent)
 			default:
-				return nil, errInvalidIteratorChain.New("blobs", iter)
+				addUnsquashable(gitbase.BlobsTableName)
+				continue
 			}
 		case gitbase.CommitFilesTableName:
 			switch it := iter.(type) {
@@ -734,7 +772,8 @@ func buildSquashedTable(
 					iter = gitbase.NewAllCommitFilesIter(f)
 				}
 			default:
-				return nil, errInvalidIteratorChain.New("commit_files", iter)
+				addUnsquashable(gitbase.CommitFilesTableName)
+				continue
 			}
 		case gitbase.FilesTableName:
 			readContent := stringInSlice(columns, "blob_content")
@@ -754,9 +793,12 @@ func buildSquashedTable(
 
 				iter = gitbase.NewCommitFileFilesIter(it, f, readContent)
 			default:
-				return nil, errInvalidIteratorChain.New("files", iter)
+				addUnsquashable(gitbase.FilesTableName)
+				continue
 			}
 		}
+
+		squashedTables = append(squashedTables, t)
 	}
 
 	var originalSchema sql.Schema
@@ -771,17 +813,61 @@ func buildSquashedTable(
 		indexedTables = []string{firstTable}
 	}
 
+	var squashMapping = mapping
+	if len(unsquashable) > 0 {
+		squashMapping = nil
+	}
+
+	var nonSquashedFilters []sql.Expression
+	for _, t := range unsquashable {
+		nonSquashedFilters = append(nonSquashedFilters, t.filters...)
+	}
+	nonSquashedFilters = append(nonSquashedFilters, filters...)
+	squashedFilters := filterDiff(allFilters, nonSquashedFilters)
+
 	table := gitbase.NewSquashedTable(
 		iter,
-		mapping,
-		allFilters,
+		squashMapping,
+		squashedFilters,
 		indexedTables,
-		tableNames...,
+		squashedTables...,
 	)
 	var node sql.Node = plan.NewResolvedTable(table)
 
+	if len(unsquashable) > 0 {
+		for _, t := range unsquashable {
+			var table sql.Node = plan.NewResolvedTable(t.table)
+			if a.Parallelism > 1 {
+				table = plan.NewExchange(a.Parallelism, table)
+			}
+
+			if len(t.filters) > 0 {
+				f, err := fixFieldIndexes(
+					expression.JoinAnd(t.filters...),
+					append(t.table.Schema(), node.Schema()...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				node = plan.NewInnerJoin(
+					table,
+					node,
+					f,
+				)
+			} else {
+				node = plan.NewCrossJoin(table, node)
+			}
+		}
+
+		node, err = projectSchema(node, originalSchema)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if len(filters) > 0 {
-		f, err := fixFieldIndexes(expression.JoinAnd(filters...), iter.Schema())
+		f, err := fixFieldIndexes(expression.JoinAnd(filters...), originalSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -789,6 +875,39 @@ func buildSquashedTable(
 	}
 
 	return node, nil
+}
+
+var errUnsquashableFieldNotFound = errors.NewKind("unable to unsquash table, column %s.%s not found")
+
+// projectSchema wraps the node in a Project node that has the same schema as
+// the one provided.
+func projectSchema(node sql.Node, schema sql.Schema) (sql.Node, error) {
+	if node.Schema().Equals(schema) {
+		return node, nil
+	}
+
+	var columnIndexes = make(map[string]int)
+	for i, col := range node.Schema() {
+		columnIndexes[fmt.Sprintf("%s.%s", col.Source, col.Name)] = i + 1
+	}
+
+	var project = make([]sql.Expression, len(schema))
+	for i, col := range schema {
+		idx := columnIndexes[fmt.Sprintf("%s.%s", col.Source, col.Name)]
+		if idx <= 0 {
+			return nil, errUnsquashableFieldNotFound.New(col.Source, col.Name)
+		}
+
+		project[i] = expression.NewGetFieldWithTable(
+			idx-1,
+			col.Type,
+			col.Source,
+			col.Name,
+			col.Nullable,
+		)
+	}
+
+	return plan.NewProject(project, node), nil
 }
 
 // buildSchemaMapping returns a mapping to convert the actual schema into the
@@ -1408,4 +1527,24 @@ func fixFieldIndexes(e sql.Expression, schema sql.Schema) (sql.Expression, error
 
 		return nil, analyzer.ErrColumnTableNotFound.New(gf.Table(), gf.Name())
 	})
+}
+
+func filterDiff(a, b []sql.Expression) []sql.Expression {
+	var result []sql.Expression
+
+	for _, fa := range a {
+		var found bool
+		for _, fb := range b {
+			if reflect.DeepEqual(fa, fb) {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			result = append(result, fa)
+		}
+	}
+
+	return result
 }
