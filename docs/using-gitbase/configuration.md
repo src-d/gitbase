@@ -11,8 +11,9 @@
 | `GITBASE_INDEX_DIR`          | directory to save indexes, default `/var/lib/gitbase/index`                        |
 | `GITBASE_TRACE`              | enable jaeger tracing, default disabled                                            |
 | `GITBASE_READONLY`           | allow read queries only, disabling creating and deleting indexes, default disabled |
-| `GITBASE_LANGUAGE_CACHE_SIZE`           | size of the cache for the `language` UDF. The size is the maximum number of elements kept in the cache, 10000 by default |
-| `GITBASE_UAST_CACHE_SIZE`           | size of the cache for the `uast` and `uast_mode` UDFs. The size is the maximum number of elements kept in the cache, 10000 by default |
+| `GITBASE_LANGUAGE_CACHE_SIZE`| size of the cache for the `language` UDF. The size is the maximum number of elements kept in the cache, 10000 by default |
+| `GITBASE_UAST_CACHE_SIZE`    | size of the cache for the `uast` and `uast_mode` UDFs. The size is the maximum number of elements kept in the cache, 10000 by default |
+| `GITBASE_CACHESIZE_MB`       | size of the cache for git objects specified as MB                                  |
 
 ### Jaeger tracing variables
 
@@ -73,6 +74,8 @@ Help Options:
       -u, --user=        User name used for connection (default: root)
       -P, --password=    Password used for connection
       -i, --index=       Directory where the gitbase indexes information will be persisted. (default: /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
+          --cache=       Object cache size in megabytes (default: 512) [$GITBASE_CACHESIZE_MB]
+          --parallelism= Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled.
           --no-squash    Disables the table squashing.
           --trace        Enables jaeger tracing [$GITBASE_TRACE]
       -r, --readonly     Only allow read queries. This disables creating and deleting indexes as well. [$GITBASE_READONLY]
