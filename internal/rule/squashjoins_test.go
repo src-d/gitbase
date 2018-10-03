@@ -678,7 +678,7 @@ func TestBuildSquashedTable(t *testing.T) {
 		columns  []string
 		indexes  map[string]sql.IndexLookup
 		err      *errors.Kind
-		expected *gitbase.SquashedTable
+		expected sql.Node
 	}{
 		{
 			"repos with remotes",
@@ -692,7 +692,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRepoRemotesIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(repoRemotesFilter, remotesFilter),
@@ -707,7 +707,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RepositoriesTableName,
 				gitbase.RemotesTableName,
-			),
+			)),
 		},
 		{
 			"remotes with refs",
@@ -721,7 +721,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRemoteRefsIter(
 					gitbase.NewAllRemotesIter(
 						fixIdx(t, remotesFilter, gitbase.RemotesSchema),
@@ -741,7 +741,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RemotesTableName,
 				gitbase.ReferencesTableName,
-			),
+			)),
 		},
 		{
 			"repos with refs",
@@ -755,7 +755,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRepoRefsIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -774,7 +774,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RepositoriesTableName,
 				gitbase.ReferencesTableName,
-			),
+			)),
 		},
 		{
 			"refs with commits",
@@ -788,7 +788,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefHEADCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -810,16 +810,57 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.CommitsTableName,
-			),
+			)),
 		},
 		{
 			"remotes with commits",
 			[]sql.Table{remotes, commits},
+			[]sql.Expression{
+				eq(
+					col(0, gitbase.RemotesTableName, "repository_id"),
+					col(0, gitbase.CommitsTableName, "repository_id"),
+				),
+			},
 			nil,
 			nil,
 			nil,
-			errInvalidIteratorChain,
-			nil,
+			plan.NewProject(
+				[]sql.Expression{
+					colT(11, sql.Text, gitbase.RemotesTableName, "repository_id"),
+					colT(12, sql.Text, gitbase.RemotesTableName, "remote_name"),
+					colT(13, sql.Text, gitbase.RemotesTableName, "remote_push_url"),
+					colT(14, sql.Text, gitbase.RemotesTableName, "remote_fetch_url"),
+					colT(15, sql.Text, gitbase.RemotesTableName, "remote_push_refspec"),
+					colT(16, sql.Text, gitbase.RemotesTableName, "remote_fetch_refspec"),
+					colT(0, sql.Text, gitbase.CommitsTableName, "repository_id"),
+					colT(1, sql.Text, gitbase.CommitsTableName, "commit_hash"),
+					colT(2, sql.Text, gitbase.CommitsTableName, "commit_author_name"),
+					colT(3, sql.Text, gitbase.CommitsTableName, "commit_author_email"),
+					colT(4, sql.Timestamp, gitbase.CommitsTableName, "commit_author_when"),
+					colT(5, sql.Text, gitbase.CommitsTableName, "committer_name"),
+					colT(6, sql.Text, gitbase.CommitsTableName, "committer_email"),
+					colT(7, sql.Timestamp, gitbase.CommitsTableName, "committer_when"),
+					colT(8, sql.Text, gitbase.CommitsTableName, "commit_message"),
+					colT(9, sql.Text, gitbase.CommitsTableName, "tree_hash"),
+					colT(10, sql.Array(sql.Text), gitbase.CommitsTableName, "commit_parents"),
+				},
+				plan.NewInnerJoin(
+					plan.NewExchange(2,
+						plan.NewResolvedTable(commits),
+					),
+					plan.NewResolvedTable(gitbase.NewSquashedTable(
+						gitbase.NewAllRemotesIter(nil),
+						nil,
+						nil,
+						nil,
+						gitbase.RemotesTableName,
+					)),
+					eq(
+						col(11, gitbase.RemotesTableName, "repository_id"),
+						col(0, gitbase.CommitsTableName, "repository_id"),
+					),
+				),
+			),
 		},
 		{
 			"commits with tree entries",
@@ -833,7 +874,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewTreeTreeEntriesIter(
 					gitbase.NewCommitMainTreeIter(
 						gitbase.NewAllCommitsIter(
@@ -859,7 +900,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitsTableName,
 				gitbase.TreeEntriesTableName,
-			),
+			)),
 		},
 		{
 			"refs with commit trees",
@@ -873,7 +914,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewRefHEADCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -899,16 +940,51 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.CommitTreesTableName,
-			),
+			)),
 		},
 		{
 			"remotes with tree entries",
 			[]sql.Table{remotes, treeEntries},
+			[]sql.Expression{
+				eq(
+					col(0, gitbase.RemotesTableName, "repository_id"),
+					col(0, gitbase.TreeEntriesTableName, "repository_id"),
+				),
+			},
 			nil,
 			nil,
 			nil,
-			errInvalidIteratorChain,
-			nil,
+			plan.NewProject(
+				[]sql.Expression{
+					colT(5, sql.Text, gitbase.RemotesTableName, "repository_id"),
+					colT(6, sql.Text, gitbase.RemotesTableName, "remote_name"),
+					colT(7, sql.Text, gitbase.RemotesTableName, "remote_push_url"),
+					colT(8, sql.Text, gitbase.RemotesTableName, "remote_fetch_url"),
+					colT(9, sql.Text, gitbase.RemotesTableName, "remote_push_refspec"),
+					colT(10, sql.Text, gitbase.RemotesTableName, "remote_fetch_refspec"),
+					colT(0, sql.Text, gitbase.TreeEntriesTableName, "repository_id"),
+					colT(1, sql.Text, gitbase.TreeEntriesTableName, "tree_entry_name"),
+					colT(2, sql.Text, gitbase.TreeEntriesTableName, "blob_hash"),
+					colT(3, sql.Text, gitbase.TreeEntriesTableName, "tree_hash"),
+					colT(4, sql.Text, gitbase.TreeEntriesTableName, "tree_entry_mode"),
+				},
+				plan.NewInnerJoin(
+					plan.NewExchange(2,
+						plan.NewResolvedTable(treeEntries),
+					),
+					plan.NewResolvedTable(gitbase.NewSquashedTable(
+						gitbase.NewAllRemotesIter(nil),
+						nil,
+						nil,
+						nil,
+						gitbase.RemotesTableName,
+					)),
+					eq(
+						col(5, gitbase.RemotesTableName, "repository_id"),
+						col(0, gitbase.TreeEntriesTableName, "repository_id"),
+					),
+				),
+			),
 		},
 		{
 			"tree entries with blobs",
@@ -922,7 +998,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewTreeEntryBlobsIter(
 					gitbase.NewAllTreeEntriesIter(
 						fixIdx(t, treeEntryFilter, gitbase.TreeEntriesSchema),
@@ -943,34 +1019,138 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.TreeEntriesTableName,
 				gitbase.BlobsTableName,
-			),
+			)),
 		},
 		{
 			"remotes with blobs",
 			[]sql.Table{remotes, blobs},
+			[]sql.Expression{
+				eq(
+					col(0, gitbase.RemotesTableName, "repository_id"),
+					col(0, gitbase.BlobsTableName, "repository_id"),
+				),
+			},
 			nil,
 			nil,
 			nil,
-			errInvalidIteratorChain,
-			nil,
+			plan.NewProject(
+				[]sql.Expression{
+					colT(4, sql.Text, gitbase.RemotesTableName, "repository_id"),
+					colT(5, sql.Text, gitbase.RemotesTableName, "remote_name"),
+					colT(6, sql.Text, gitbase.RemotesTableName, "remote_push_url"),
+					colT(7, sql.Text, gitbase.RemotesTableName, "remote_fetch_url"),
+					colT(8, sql.Text, gitbase.RemotesTableName, "remote_push_refspec"),
+					colT(9, sql.Text, gitbase.RemotesTableName, "remote_fetch_refspec"),
+					colT(0, sql.Text, gitbase.BlobsTableName, "repository_id"),
+					colT(1, sql.Text, gitbase.BlobsTableName, "blob_hash"),
+					colT(2, sql.Int64, gitbase.BlobsTableName, "blob_size"),
+					colT(3, sql.Blob, gitbase.BlobsTableName, "blob_content"),
+				},
+				plan.NewInnerJoin(
+					plan.NewExchange(2,
+						plan.NewResolvedTable(blobs),
+					),
+					plan.NewResolvedTable(gitbase.NewSquashedTable(
+						gitbase.NewAllRemotesIter(nil),
+						nil,
+						nil,
+						nil,
+						gitbase.RemotesTableName,
+					)),
+					eq(
+						col(4, gitbase.RemotesTableName, "repository_id"),
+						col(0, gitbase.BlobsTableName, "repository_id"),
+					),
+				),
+			),
 		},
 		{
 			"refs with blobs",
 			[]sql.Table{refs, blobs},
-			[]sql.Expression{},
+			[]sql.Expression{
+				eq(
+					col(0, gitbase.ReferencesTableName, "repository_id"),
+					col(0, gitbase.BlobsTableName, "repository_id"),
+				),
+			},
 			nil,
 			nil,
-			errInvalidIteratorChain,
 			nil,
+			plan.NewProject(
+				[]sql.Expression{
+					colT(4, sql.Text, gitbase.ReferencesTableName, "repository_id"),
+					colT(5, sql.Text, gitbase.ReferencesTableName, "ref_name"),
+					colT(6, sql.Text, gitbase.ReferencesTableName, "commit_hash"),
+					colT(0, sql.Text, gitbase.BlobsTableName, "repository_id"),
+					colT(1, sql.Text, gitbase.BlobsTableName, "blob_hash"),
+					colT(2, sql.Int64, gitbase.BlobsTableName, "blob_size"),
+					colT(3, sql.Blob, gitbase.BlobsTableName, "blob_content"),
+				},
+				plan.NewInnerJoin(
+					plan.NewExchange(2,
+						plan.NewResolvedTable(blobs),
+					),
+					plan.NewResolvedTable(gitbase.NewSquashedTable(
+						gitbase.NewAllRefsIter(nil, false),
+						nil,
+						nil,
+						nil,
+						gitbase.ReferencesTableName,
+					)),
+					eq(
+						col(4, gitbase.ReferencesTableName, "repository_id"),
+						col(0, gitbase.BlobsTableName, "repository_id"),
+					),
+				),
+			),
 		},
 		{
 			"commits with blobs",
 			[]sql.Table{commits, blobs},
-			[]sql.Expression{},
+			[]sql.Expression{
+				eq(
+					col(0, gitbase.CommitsTableName, "repository_id"),
+					col(0, gitbase.BlobsTableName, "repository_id"),
+				),
+			},
 			nil,
 			nil,
-			errInvalidIteratorChain,
 			nil,
+			plan.NewProject(
+				[]sql.Expression{
+					colT(4, sql.Text, gitbase.CommitsTableName, "repository_id"),
+					colT(5, sql.Text, gitbase.CommitsTableName, "commit_hash"),
+					colT(6, sql.Text, gitbase.CommitsTableName, "commit_author_name"),
+					colT(7, sql.Text, gitbase.CommitsTableName, "commit_author_email"),
+					colT(8, sql.Timestamp, gitbase.CommitsTableName, "commit_author_when"),
+					colT(9, sql.Text, gitbase.CommitsTableName, "committer_name"),
+					colT(10, sql.Text, gitbase.CommitsTableName, "committer_email"),
+					colT(11, sql.Timestamp, gitbase.CommitsTableName, "committer_when"),
+					colT(12, sql.Text, gitbase.CommitsTableName, "commit_message"),
+					colT(13, sql.Text, gitbase.CommitsTableName, "tree_hash"),
+					colT(14, sql.Array(sql.Text), gitbase.CommitsTableName, "commit_parents"),
+					colT(0, sql.Text, gitbase.BlobsTableName, "repository_id"),
+					colT(1, sql.Text, gitbase.BlobsTableName, "blob_hash"),
+					colT(2, sql.Int64, gitbase.BlobsTableName, "blob_size"),
+					colT(3, sql.Blob, gitbase.BlobsTableName, "blob_content"),
+				},
+				plan.NewInnerJoin(
+					plan.NewExchange(2,
+						plan.NewResolvedTable(blobs),
+					),
+					plan.NewResolvedTable(gitbase.NewSquashedTable(
+						gitbase.NewAllCommitsIter(nil, false),
+						nil,
+						nil,
+						nil,
+						gitbase.CommitsTableName,
+					)),
+					eq(
+						col(4, gitbase.CommitsTableName, "repository_id"),
+						col(0, gitbase.BlobsTableName, "repository_id"),
+					),
+				),
+			),
 		},
 		{
 			"repos with commits",
@@ -984,7 +1164,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRepoCommitsIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -1002,7 +1182,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RepositoriesTableName,
 				gitbase.CommitsTableName,
-			),
+			)),
 		},
 		{
 			"refs with ref commits",
@@ -1016,7 +1196,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefRefCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -1037,7 +1217,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
-			),
+			)),
 		},
 		{
 			"refs with ref commits by commit hash",
@@ -1051,7 +1231,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefHeadRefCommitsIter(
 					gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -1072,7 +1252,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
-			),
+			)),
 		},
 		{
 			"refs commits with commits",
@@ -1086,7 +1266,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewAllRefCommitsIter(
 						fixIdx(t, refCommitsFilter, refCommitsCommitsSchema),
@@ -1107,7 +1287,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RefCommitsTableName,
 				gitbase.CommitsTableName,
-			),
+			)),
 		},
 		{
 			"repositories with tree entries",
@@ -1121,7 +1301,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRepoTreeEntriesIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -1139,7 +1319,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RepositoriesTableName,
 				gitbase.TreeEntriesTableName,
-			),
+			)),
 		},
 		{
 			"repositories with ref commits",
@@ -1153,7 +1333,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefRefCommitsIter(
 					gitbase.NewRepoRefsIter(
 						gitbase.NewAllReposIter(repoFilter),
@@ -1176,7 +1356,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RepositoriesTableName,
 				gitbase.RefCommitsTableName,
-			),
+			)),
 		},
 		{
 			"repositories and blobs",
@@ -1190,7 +1370,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			[]string{"blob_content"},
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRepoBlobsIter(
 					gitbase.NewAllReposIter(repoFilter),
 					and(
@@ -1209,7 +1389,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RepositoriesTableName,
 				gitbase.BlobsTableName,
-			),
+			)),
 		},
 		{
 			"refs with ref commits and commits",
@@ -1226,7 +1406,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewRefRefCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -1257,7 +1437,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
 				gitbase.CommitsTableName,
-			),
+			)),
 		},
 		{
 			"refs with ref commits and commits only head",
@@ -1274,7 +1454,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewRefHeadRefCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -1305,7 +1485,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
 				gitbase.CommitsTableName,
-			),
+			)),
 		},
 		{
 			"commit trees with tree entries",
@@ -1319,7 +1499,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewTreeTreeEntriesIter(
 					gitbase.NewAllCommitTreesIter(
 						fixIdx(t, commitTreesFilter, commitTreesTreeEntriesSchema),
@@ -1340,7 +1520,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitTreesTableName,
 				gitbase.TreeEntriesTableName,
-			),
+			)),
 		},
 		{
 			"commits with commit trees",
@@ -1354,7 +1534,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitsCommitTreesSchema),
@@ -1376,7 +1556,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitsTableName,
 				gitbase.CommitTreesTableName,
-			),
+			)),
 		},
 		{
 			"commits with commit trees by tree",
@@ -1390,7 +1570,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitMainTreeIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitsCommitTreesSchema),
@@ -1412,7 +1592,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitsTableName,
 				gitbase.CommitTreesTableName,
-			),
+			)),
 		},
 		{
 			"ref commits with commit trees",
@@ -1426,7 +1606,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewAllRefCommitsIter(
 						fixIdx(t, refCommitsFilter, refCommitsCommitTreesSchema),
@@ -1447,7 +1627,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RefCommitsTableName,
 				gitbase.CommitTreesTableName,
-			),
+			)),
 		},
 		{
 			"refs with commit blobs",
@@ -1461,7 +1641,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewRefHEADCommitsIter(
 						gitbase.NewAllRefsIter(
@@ -1486,7 +1666,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.CommitBlobsTableName,
-			),
+			)),
 		},
 		{
 			"ref commits with commit blobs",
@@ -1500,7 +1680,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewAllRefCommitsIter(
 						fixIdx(t, refCommitsFilter, refCommitsCommitBlobsSchema),
@@ -1520,7 +1700,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.RefCommitsTableName,
 				gitbase.CommitBlobsTableName,
-			),
+			)),
 		},
 		{
 			"commits with commit blobs",
@@ -1534,7 +1714,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobsIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, commitsCommitBlobsSchema),
@@ -1555,7 +1735,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitsTableName,
 				gitbase.CommitBlobsTableName,
-			),
+			)),
 		},
 		{
 			"commit blobs with blobs",
@@ -1569,7 +1749,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobBlobsIter(
 					gitbase.NewAllCommitBlobsIter(
 						fixIdx(t, commitBlobsFilter, commitBlobsBlobsSchema),
@@ -1590,7 +1770,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitBlobsTableName,
 				gitbase.BlobsTableName,
-			),
+			)),
 		},
 		{
 			"refs with indexes",
@@ -1604,7 +1784,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.RefCommitsTableName: idx2,
 			},
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefRefCommitsIter(
 					gitbase.NewIndexRefsIter(nil, idx1),
 					nil,
@@ -1616,7 +1796,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				[]string{gitbase.ReferencesTableName},
 				gitbase.ReferencesTableName,
 				gitbase.RefCommitsTableName,
-			),
+			)),
 		},
 		{
 			"ref commits with indexes",
@@ -1630,7 +1810,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.CommitsTableName:    idx2,
 			},
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewRefCommitCommitsIter(
 					gitbase.NewIndexRefCommitsIter(idx1, nil),
 					nil,
@@ -1642,7 +1822,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				[]string{gitbase.RefCommitsTableName},
 				gitbase.RefCommitsTableName,
 				gitbase.CommitsTableName,
-			),
+			)),
 		},
 		{
 			"commits with indexes",
@@ -1656,7 +1836,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.CommitTreesTableName: idx2,
 			},
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitTreesIter(
 					gitbase.NewIndexCommitsIter(idx1, nil),
 					nil,
@@ -1669,7 +1849,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				[]string{gitbase.CommitsTableName},
 				gitbase.CommitsTableName,
 				gitbase.CommitTreesTableName,
-			),
+			)),
 		},
 		{
 			"commit trees with indexes",
@@ -1683,7 +1863,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.TreeEntriesTableName: idx2,
 			},
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewTreeTreeEntriesIter(
 					gitbase.NewIndexCommitTreesIter(idx1, nil),
 					nil,
@@ -1696,7 +1876,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				[]string{gitbase.CommitTreesTableName},
 				gitbase.CommitTreesTableName,
 				gitbase.TreeEntriesTableName,
-			),
+			)),
 		},
 		{
 			"commit blobs with indexes",
@@ -1710,7 +1890,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.BlobsTableName:       idx2,
 			},
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitBlobBlobsIter(
 					gitbase.NewIndexCommitBlobsIter(idx1, nil),
 					nil,
@@ -1723,7 +1903,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				[]string{gitbase.CommitBlobsTableName},
 				gitbase.CommitBlobsTableName,
 				gitbase.BlobsTableName,
-			),
+			)),
 		},
 		{
 			"tree entries with indexes",
@@ -1737,7 +1917,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.BlobsTableName:       idx2,
 			},
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewTreeEntryBlobsIter(
 					gitbase.NewIndexTreeEntriesIter(idx1, nil),
 					nil,
@@ -1750,7 +1930,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				[]string{gitbase.TreeEntriesTableName},
 				gitbase.TreeEntriesTableName,
 				gitbase.BlobsTableName,
-			),
+			)),
 		},
 		{
 			"refs with commit_files",
@@ -1764,7 +1944,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitFilesIter(
 					gitbase.NewRefHEADCommitsIter(gitbase.NewAllRefsIter(
 						fixIdx(t, refFilter, gitbase.RefsSchema),
@@ -1785,7 +1965,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.ReferencesTableName,
 				gitbase.CommitFilesTableName,
-			),
+			)),
 		},
 		{
 			"commits with commit_files",
@@ -1799,7 +1979,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitFilesIter(
 					gitbase.NewAllCommitsIter(
 						fixIdx(t, commitFilter, gitbase.CommitsSchema),
@@ -1820,7 +2000,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitsTableName,
 				gitbase.CommitFilesTableName,
-			),
+			)),
 		},
 		{
 			"commit_files with files",
@@ -1836,7 +2016,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitFileFilesIter(
 					gitbase.NewAllCommitFilesIter(
 						fixIdx(t, commitFilesFilter, gitbase.CommitFilesSchema),
@@ -1859,7 +2039,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitFilesTableName,
 				gitbase.FilesTableName,
-			),
+			)),
 		},
 		{
 			"commit_files with indexes",
@@ -1875,7 +2055,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				gitbase.FilesTableName:       idx2,
 			},
 			nil,
-			gitbase.NewSquashedTable(
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
 				gitbase.NewCommitFileFilesIter(
 					gitbase.NewIndexCommitFilesIter(idx1, nil),
 					nil,
@@ -1890,7 +2070,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				[]string{gitbase.CommitFilesTableName},
 				gitbase.CommitFilesTableName,
 				gitbase.FilesTableName,
-			),
+			)),
 		},
 	}
 
@@ -1902,6 +2082,7 @@ func TestBuildSquashedTable(t *testing.T) {
 			}
 
 			result, err := buildSquashedTable(
+				analyzer.NewBuilder(nil).WithParallelism(2).Build(),
 				tt.tables,
 				tt.filters,
 				tt.columns,
@@ -1912,7 +2093,7 @@ func TestBuildSquashedTable(t *testing.T) {
 				require.True(tt.err.Is(err))
 			} else {
 				require.NoError(err)
-				require.Equal(plan.NewResolvedTable(tt.expected), result)
+				require.Equal(tt.expected, result)
 			}
 		})
 	}
@@ -2526,6 +2707,10 @@ func eq(left, right sql.Expression) sql.Expression {
 
 func col(idx int, table, name string) sql.Expression {
 	return expression.NewGetFieldWithTable(idx, sql.Int64, table, name, false)
+}
+
+func colT(idx int, typ sql.Type, table, name string) sql.Expression {
+	return expression.NewGetFieldWithTable(idx, typ, table, name, false)
 }
 
 func lit(v interface{}) sql.Expression {

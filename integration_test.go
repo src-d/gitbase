@@ -413,6 +413,15 @@ func TestSquashCorrectness(t *testing.T) {
 		) t
 		ORDER BY num_files DESC
 		LIMIT 10`,
+
+		// Squash with non-squashable joins
+		`SELECT * FROM refs NATURAL JOIN blobs`,
+		`SELECT * FROM remotes NATURAL JOIN commits`,
+		`SELECT *
+		FROM repositories
+		NATURAL JOIN refs
+		NATURAL JOIN blobs
+		NATURAL JOIN files`,
 	}
 
 	for _, q := range queries {
