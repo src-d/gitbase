@@ -4,9 +4,6 @@ go_import_path: github.com/src-d/gitbase
 
 matrix:
   fast_finish: true
-  allow_failures:
-    - go: tip
-
 addons:
   apt:
     sources:
@@ -30,7 +27,7 @@ script:
 
 jobs:
   include:
-    - go: 1.10.x
+    - go: 1.11.x
       os: linux
       sudo: required
       dist: trusty
@@ -51,9 +48,7 @@ jobs:
         on:
           tags: true
 
-    - {go: tip, os: linux, sudo: required, dist: trusty, services: [docker]}
-
-    - go: 1.10.x
+    - go: 1.11.x
       os: osx
       osx_image: xcode9.3
 
