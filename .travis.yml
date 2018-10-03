@@ -38,9 +38,9 @@ jobs:
 
       before_deploy:
         - make packages
-
-      after_deploy:
-        - DOCKER_PUSH_LATEST=1 make docker-push
+        - export DOCKER_PUSH_LATEST=$(echo ${TRAVIS_BRANCH} | grep -E '^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$') || true
+        - make docker-push
+        - make static-package
 
       deploy:
         provider: releases

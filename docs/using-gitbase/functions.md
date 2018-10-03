@@ -15,6 +15,21 @@ To make some common tasks easier for the user, there are some functions to inter
 |uast_extract(blob, key)| extracts information identified by the given key from the uast nodes                                                  |
 |uast_children(blob)| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given sequence                |
 
+
+## Note about uast and uast_mode functions
+
+The data returned by these functions are a list of UAST nodes serialized as explained below.
+
+Each node is serialized sequentially using [protobuf](https://developers.google.com/protocol-buffers/) and prefixed by an Int32 (in big endian byte order) specifying the length of the serialized node. The [bblfsh/sdk](https://github.com/bblfsh/sdk) contains the proto files and the tools to do it.
+
+It results in a byte stream following this structure:
+```
+BigEndianInt32(len(marhsal(node))+marshal(node)+
+BigEndianInt32(len(marhsal(node))+marshal(node)+
+BigEndianInt32(len(marhsal(node))+marshal(node)+
+...
+```
+
 ## Standard functions
 
-You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/95285948912f7edaf92e2e66e44fa6c6ad509942#custom-functions).
+You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/1fa8e98aab8f06ae1569c4d381ccc9d3051f761a#custom-functions).
