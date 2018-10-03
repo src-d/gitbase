@@ -223,7 +223,7 @@ func TestSelectors(t *testing.T) {
 	require.True(selectors.isValid("d"))
 	vals, err := selectors.textValues("d")
 	require.NoError(err)
-	require.Equal(([]string)(nil), vals)
+	require.Equal([]string(nil), vals)
 
 	require.True(selectors.isValid("b"))
 	vals, err = selectors.textValues("b")
@@ -238,7 +238,7 @@ func TestSelectors(t *testing.T) {
 	require.False(selectors.isValid("c"))
 	vals, err = selectors.textValues("c")
 	require.NoError(err)
-	require.Equal(([]string)(nil), vals)
+	require.Equal([]string(nil), vals)
 }
 
 func TestClassifyFilters(t *testing.T) {

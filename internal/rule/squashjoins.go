@@ -230,7 +230,7 @@ func buildSquashedTable(
 	indexes map[string]sql.IndexLookup,
 ) (sql.Node, error) {
 	tableNames := orderedTableNames(tables)
-	allFilters := filters[:]
+	allFilters := filters
 
 	firstTable := tableNames[0]
 	var index sql.IndexLookup
@@ -1304,7 +1304,7 @@ func removeRedundantCompoundFilters(
 // isRedundantFilter tells whether the given filter is redundant for joining
 // t1 with t2. t1 MUST be higher in the table hierarchy than t2.
 func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
-	switch true {
+	switch {
 	case t1 == gitbase.RepositoriesTableName && t2 == gitbase.RemotesTableName:
 		return isEq(
 			isCol(gitbase.RepositoriesTableName, "repository_id"),
