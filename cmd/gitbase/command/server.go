@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
@@ -46,6 +47,7 @@ type Server struct {
 	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
 	Password      string         `short:"P" long:"password" default:"" description:"Password used for connection"`
+	ConnTimeout   time.Duration  `short:"t" long:"timeout" env:"GITBASE_CONNECTION_TIMEOUT" description:"Timeout used for connections"`
 	IndexDir      string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
 	CacheSize     cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
 	Parallelism   uint           `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
@@ -148,10 +150,12 @@ func (c *Server) Execute(args []string) error {
 	hostString := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	s, err := server.NewServer(
 		server.Config{
-			Protocol: "tcp",
-			Address:  hostString,
-			Auth:     auth,
-			Tracer:   tracer,
+			Protocol:         "tcp",
+			Address:          hostString,
+			Auth:             auth,
+			Tracer:           tracer,
+			ConnReadTimeout:  c.ConnTimeout,
+			ConnWriteTimeout: c.ConnTimeout,
 		},
 		c.engine,
 		gitbase.NewSessionBuilder(c.pool,
