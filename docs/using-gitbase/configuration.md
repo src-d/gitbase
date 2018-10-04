@@ -14,7 +14,7 @@
 | `GITBASE_LANGUAGE_CACHE_SIZE`| size of the cache for the `language` UDF. The size is the maximum number of elements kept in the cache, 10000 by default |
 | `GITBASE_UAST_CACHE_SIZE`    | size of the cache for the `uast` and `uast_mode` UDFs. The size is the maximum number of elements kept in the cache, 10000 by default |
 | `GITBASE_CACHESIZE_MB`       | size of the cache for git objects specified as MB                                  |
-| `GITBASE_CONNECTION_TIMEOUT` | timeout used for client connections on write and reads. No timeout by default.     |
+| `GITBASE_CONNECTION_TIMEOUT` | timeout in seconds used for client connections on write and reads. No timeout by default.     |
 
 ### Jaeger tracing variables
 
@@ -75,7 +75,7 @@ Help Options:
       -p, --port=        Port where the server is going to listen (default: 3306)
       -u, --user=        User name used for connection (default: root)
       -P, --password=    Password used for connection
-      -t, --timeout=     Timeout used for connections [$GITBASE_CONNECTION_TIMEOUT]
+      -t, --timeout=     Timeout in seconds used for connections [$GITBASE_CONNECTION_TIMEOUT]
       -i, --index=       Directory where the gitbase indexes information will be persisted. (default:
                          /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
           --cache=       Object cache size in megabytes (default: 512) [$GITBASE_CACHESIZE_MB]
@@ -88,6 +88,5 @@ Help Options:
           --no-git       disable the load of git standard repositories.
           --no-siva      disable the load of siva files.
       -v                 Activates the verbose mode
-
 
 ```
