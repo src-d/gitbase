@@ -9,7 +9,7 @@ To make some common tasks easier for the user, there are some functions to inter
 |is_remote(reference_name)bool| check if the given reference name is from a remote one                                                          |
 |is_tag(reference_name)bool| check if the given reference name is a tag                                                                         |
 |language(path, [blob])text| gets the language of a file given its path and the optional content of the file                                    |
-|uast(blob, [lang, [xpath]]) blob| returns a sequence of serilazied UAST nodes in semantic mode                                                 |
+|uast(blob, [lang, [xpath]]) blob| returns a sequence of serialized UAST nodes in semantic mode                                                 |
 |uast_mode(mode, blob, lang) blob| returns a sequence of serialized UAST nodes specifying its language and mode (semantic, annotated or native) |
 |uast_xpath(blob, xpath)| performs an XPath query over the given UAST nodes                                                                     |
 |uast_extract(blob, key)| extracts information identified by the given key from the uast nodes                                                  |
