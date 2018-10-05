@@ -1,18 +1,6 @@
-FROM golang:1.11-alpine as builder
+FROM debian:stable-slim
 
-RUN mkdir -p /go/src/github.com/src-d/gitbase
-WORKDIR /go/src/github.com/src-d/gitbase
-COPY . .
-
-RUN apk add --update libxml2-dev git make bash gcc g++ curl oniguruma-dev
-RUN go get github.com/golang/dep/...
-RUN dep ensure
-RUN cd vendor/gopkg.in/bblfsh/client-go.v2 && make dependencies
-RUN make static-build
-
-FROM alpine:3.8
-
-COPY --from=builder /go/bin/gitbase /bin
+COPY build/bin/gitbase /bin
 RUN mkdir -p /opt/repos
 
 ENV GITBASE_USER=root
@@ -21,8 +9,14 @@ ENV GITBASE_REPOS=/opt/repos
 EXPOSE 3306
 
 ENV TINI_VERSION v0.17.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static /tini
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
+
+RUN apt-get update \
+  && apt-get -y install libxml2 git \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 
 ENTRYPOINT ["/tini", "--"]
 
