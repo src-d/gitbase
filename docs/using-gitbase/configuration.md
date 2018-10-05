@@ -14,6 +14,7 @@
 | `GITBASE_LANGUAGE_CACHE_SIZE`| size of the cache for the `language` UDF. The size is the maximum number of elements kept in the cache, 10000 by default |
 | `GITBASE_UAST_CACHE_SIZE`    | size of the cache for the `uast` and `uast_mode` UDFs. The size is the maximum number of elements kept in the cache, 10000 by default |
 | `GITBASE_CACHESIZE_MB`       | size of the cache for git objects specified as MB                                  |
+| `GITBASE_CONNECTION_TIMEOUT` | timeout in seconds used for client connections on write and reads. No timeout by default.     |
 
 ### Jaeger tracing variables
 
@@ -67,18 +68,23 @@ Help Options:
   -h, --help             Show this help message
 
 [server command options]
-      -d, --directories= Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs.
+      -d, --directories= Path where the git repositories are located (standard and siva), multiple directories can be
+                         defined. Accepts globs.
           --depth=       load repositories looking at less than <depth> nested subdirectories. (default: 1000)
           --host=        Host where the server is going to listen (default: localhost)
       -p, --port=        Port where the server is going to listen (default: 3306)
       -u, --user=        User name used for connection (default: root)
       -P, --password=    Password used for connection
-      -i, --index=       Directory where the gitbase indexes information will be persisted. (default: /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
+      -t, --timeout=     Timeout in seconds used for connections [$GITBASE_CONNECTION_TIMEOUT]
+      -i, --index=       Directory where the gitbase indexes information will be persisted. (default:
+                         /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
           --cache=       Object cache size in megabytes (default: 512) [$GITBASE_CACHESIZE_MB]
-          --parallelism= Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled.
+          --parallelism= Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0
+                         means default, 1 means disabled.
           --no-squash    Disables the table squashing.
           --trace        Enables jaeger tracing [$GITBASE_TRACE]
-      -r, --readonly     Only allow read queries. This disables creating and deleting indexes as well. [$GITBASE_READONLY]
+      -r, --readonly     Only allow read queries. This disables creating and deleting indexes as well.
+                         [$GITBASE_READONLY]
           --no-git       disable the load of git standard repositories.
           --no-siva      disable the load of siva files.
       -v                 Activates the verbose mode

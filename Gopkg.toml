@@ -1,6 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "120f7d7ae8720f843dca0ce8fbc8429a8952a25a"
+  revision = "679d33772845593ce5fdf17925f49f2335bc8356"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -75,3 +75,9 @@
 [[override]]
   name = "github.com/moovweb/rubex"
   branch = "go1"
+
+[prune]
+  [[prune.project]]
+    name = "gopkg.in/src-d/go-mysql-server.v0"
+    go-tests = true
+    non-go = true

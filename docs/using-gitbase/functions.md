@@ -32,4 +32,4 @@ BigEndianInt32(len(marhsal(node))+marshal(node)+
 
 ## Standard functions
 
-You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/120f7d7ae8720f843dca0ce8fbc8429a8952a25a#custom-functions).
+You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/679d33772845593ce5fdf17925f49f2335bc8356#custom-functions).
