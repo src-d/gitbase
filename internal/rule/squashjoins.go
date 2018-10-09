@@ -1009,10 +1009,14 @@ func isJoinCondSquashable(join *plan.InnerJoin) bool {
 	leftTables := findLeafTables(join.Left)
 	rightTables := findLeafTables(join.Right)
 
+	var squashedTables []string
 	if len(rightTables) == 1 {
+		squashedTables = findSquashedTables(join.Left)
 		leftTables, rightTables = rightTables, leftTables
 	} else if len(leftTables) != 1 {
 		return false
+	} else {
+		squashedTables = findSquashedTables(join.Right)
 	}
 
 	lt := leftTables[0]
@@ -1021,8 +1025,33 @@ func isJoinCondSquashable(join *plan.InnerJoin) bool {
 			continue
 		}
 
+		var cond = join.Cond
+		// if the right table is squashed, we might need to rewrite some column
+		// tables in order to find the condition, since natural joins deduplicate
+		// columns with the same name.
+		if stringInSlice(squashedTables, rt) {
+			c, err := join.Cond.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+				gf, ok := e.(*expression.GetField)
+				if ok && gf.Table() != rt && gf.Table() != lt {
+					if tableHasColumn(rt, gf.Name()) {
+						return expression.NewGetFieldWithTable(
+							gf.Index(),
+							gf.Type(),
+							rt,
+							gf.Name(),
+							gf.IsNullable(),
+						), nil
+					}
+				}
+				return e, nil
+			})
+			if err == nil {
+				cond = c
+			}
+		}
+
 		t1, t2 := orderedTablePair(lt, rt)
-		if hasChainableJoinCondition(join.Cond, t1, t2) {
+		if hasChainableJoinCondition(cond, t1, t2) {
 			return true
 		}
 	}
@@ -1056,6 +1085,20 @@ func findLeafTables(n sql.Node) []string {
 			return false
 		case *plan.ResolvedTable:
 			tables = []string{n.Name()}
+			return false
+		default:
+			return true
+		}
+	})
+	return tables
+}
+
+func findSquashedTables(n sql.Node) []string {
+	var tables []string
+	plan.Inspect(n, func(n sql.Node) bool {
+		switch n := n.(type) {
+		case *joinedTables:
+			tables = orderedTableNames(n.tables)
 			return false
 		default:
 			return true
@@ -1547,4 +1590,37 @@ func filterDiff(a, b []sql.Expression) []sql.Expression {
 	}
 
 	return result
+}
+
+func tableHasColumn(t, col string) bool {
+	return tableSchema(t).Contains(col, t)
+}
+
+func tableSchema(t string) sql.Schema {
+	switch t {
+	case gitbase.RepositoriesTableName:
+		return gitbase.RepositoriesSchema
+	case gitbase.ReferencesTableName:
+		return gitbase.RefsSchema
+	case gitbase.RemotesTableName:
+		return gitbase.RemotesSchema
+	case gitbase.RefCommitsTableName:
+		return gitbase.RefCommitsSchema
+	case gitbase.CommitsTableName:
+		return gitbase.CommitsSchema
+	case gitbase.CommitTreesTableName:
+		return gitbase.CommitTreesSchema
+	case gitbase.CommitBlobsTableName:
+		return gitbase.CommitBlobsSchema
+	case gitbase.CommitFilesTableName:
+		return gitbase.CommitFilesSchema
+	case gitbase.TreeEntriesTableName:
+		return gitbase.TreeEntriesSchema
+	case gitbase.BlobsTableName:
+		return gitbase.BlobsSchema
+	case gitbase.FilesTableName:
+		return gitbase.FilesSchema
+	default:
+		return nil
+	}
 }
