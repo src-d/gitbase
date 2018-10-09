@@ -47,6 +47,45 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	require.True(ok)
 }
 
+func TestAnalyzeSquashNaturalJoins(t *testing.T) {
+	require := require.New(t)
+
+	catalog := sql.NewCatalog()
+	catalog.AddDatabase(gitbase.NewDatabase("foo"))
+	a := analyzer.NewBuilder(catalog).
+		WithParallelism(2).
+		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
+		Build()
+	a.Batches[len(a.Batches)-1].Rules = a.Batches[len(a.Batches)-1].Rules[1:]
+	a.CurrentDatabase = "foo"
+	ctx := sql.NewEmptyContext()
+
+	node, err := parse.Parse(ctx, `SELECT * FROM refs
+	NATURAL JOIN commits
+	NATURAL JOIN commit_files
+	NATURAL JOIN files`)
+	require.NoError(err)
+
+	result, err := a.Analyze(ctx, node)
+	require.NoError(err)
+
+	exchange, ok := result.(*plan.Exchange)
+	require.True(ok)
+	require.Equal(2, exchange.Parallelism)
+
+	project, ok := exchange.Child.(*plan.Project)
+	require.True(ok)
+
+	filter, ok := project.Child.(*plan.Filter)
+	require.True(ok)
+
+	rt, ok := filter.Child.(*plan.ResolvedTable)
+	require.True(ok)
+
+	_, ok = rt.Table.(*gitbase.SquashedTable)
+	require.True(ok)
+}
+
 func TestSquashJoins(t *testing.T) {
 	require := require.New(t)
 
