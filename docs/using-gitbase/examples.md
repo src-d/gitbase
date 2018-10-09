@@ -181,13 +181,13 @@ or through a specific property:
 SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//FuncLit"), "internalRole") FROM files;
 ```
 
-As result, you will get an array of arrays showing a list of the retrieved information for each of the given nodes:
+As result, you will get an array showing a list of the retrieved information. Each element in the list matches a node in the given sequence of nodes having a value for that property. It means that the length of the properties list may not be equal to the length of the given sequence of nodes:
 
 ```sh
 +-------------------+------------------------------------------------------------------------------------------------+
 | file_path         | uast_extract(uast(files.blob_content, language(files.file_path), "//FuncLit"), "internalRole") |
 +-------------------+------------------------------------------------------------------------------------------------+
-| benchmark_test.go | [["Args"],["Args"],["Args"],["Args"],["Args"],["Args"],["Args"]]                               |
+| benchmark_test.go | ["Args","Args","Args","Args","Args","Args","Args"]                                             |
 +-------------------+------------------------------------------------------------------------------------------------+
 ```
 
