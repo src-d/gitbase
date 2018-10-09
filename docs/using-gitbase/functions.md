@@ -30,6 +30,79 @@ BigEndianInt32(len(marhsal(node))+marshal(node)+
 ...
 ```
 
+As an example of how to manage the serialized data programatically, checkout out the Go code below:
+```go
+import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"io"
+
+	"github.com/bblfsh/sdk/uast"
+)
+
+func marshalNodes(nodes []*uast.Node) (out []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			out, err = nil, r.(error)
+		}
+	}()
+
+	buf := &bytes.Buffer{}
+	for _, n := range nodes {
+		if n != nil {
+			data, err := n.Marshal()
+			if err != nil {
+				return nil, err
+			}
+
+			if err := binary.Write(
+				buf, binary.BigEndian, int32(len(data)),
+			); err != nil {
+				return nil, err
+			}
+
+			n, _ := buf.Write(data)
+			if n != len(data) {
+				return nil, errors.New("couldn't write all the data")
+			}
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+func unmarshalNodes(data []byte) ([]*uast.Node, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	nodes := []*uast.Node{}
+	buf := bytes.NewBuffer(data)
+	for {
+		var nodeLen int32
+		if err := binary.Read(
+			buf, binary.BigEndian, &nodeLen,
+		); err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return nil, err
+		}
+
+		node := uast.NewNode()
+		if err := node.Unmarshal(buf.Next(int(nodeLen))); err != nil {
+			return nil, err
+		}
+
+		nodes = append(nodes, node)
+	}
+
+	return nodes, nil
+}
+```
+
 ## How to formulate XPath queries when use uast and uast_xpath functions
 
 Have a look at the [bblfsh docs](https://docs.sourced.tech/babelfish/using-babelfish/uast-querying) to query UASTs with XPath.
