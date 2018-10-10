@@ -11,3 +11,4 @@
 * [Functions](using-gitbase/functions.md)
 * [Indexes](using-gitbase/indexes.md)
 * [Examples](using-gitbase/examples.md)
+* [Optimizing queries](using-gitbase/optimize-queries.md)
