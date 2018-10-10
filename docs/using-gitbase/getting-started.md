@@ -19,6 +19,12 @@ docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/git
 
 **Note:** remember to replace `/my/git/repos` with the local path where your repositories are stored in your computer.
 
+If you want to use [bblfsh](https://github.com/bblfsh/bblfshd) with running in Docker you can do so by linking the 2 containers.
+Fist you need to start following [the bblfsh quick start](https://github.com/bblfsh/bblfshd#quick-start). After that you can run gitbase using:
+```
+docker run --rm --name gitbase -p 3306:3306 --link bblfshd:bblfshd -e BBLFSH_ENDPOINT=bblfshd:9432 -v /my/git/repos/go:/opt/repos srcd/gitbase:latest
+```
+
 ### Download and use the binary
 
 Check the [Releases](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
