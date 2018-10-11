@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
-	bblfsh "gopkg.in/bblfsh/client-go.v2"
-	"gopkg.in/bblfsh/client-go.v2/tools"
-	"gopkg.in/bblfsh/sdk.v1/uast"
+	bblfsh "gopkg.in/bblfsh/client-go.v3"
+	"gopkg.in/bblfsh/sdk.v2/uast"
+	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -141,16 +141,9 @@ func (u *uastFunc) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err err
 		return nil, err
 	}
 
-	var mode bblfsh.Mode
-	switch m {
-	case "semantic":
-		mode = bblfsh.Semantic
-	case "annotated":
-		mode = bblfsh.Annotated
-	case "native":
-		mode = bblfsh.Native
-	default:
-		return nil, fmt.Errorf("invalid uast mode %s", m)
+	mode, err := bblfsh.ParseMode(m)
+	if err != nil {
+		return nil, err
 	}
 
 	blob, err := u.Blob.Eval(ctx, row)
@@ -201,10 +194,10 @@ func (u *uastFunc) getUAST(
 		return nil, err
 	}
 
-	var node *uast.Node
+	var node nodes.Node
 	value, ok := uastCache.Get(key)
 	if ok {
-		node = value.(*uast.Node)
+		node = value.(nodes.Node)
 	} else {
 		var err error
 		node, err = getUASTFromBblfsh(ctx, blob, lang, xpath, mode)
@@ -219,18 +212,18 @@ func (u *uastFunc) getUAST(
 		uastCache.Add(key, node)
 	}
 
-	var nodes []*uast.Node
+	var nodeArray nodes.Array
 	if xpath == "" {
-		nodes = []*uast.Node{node}
+		nodeArray = append(nodeArray, node)
 	} else {
 		var err error
-		nodes, err = tools.Filter(node, xpath)
+		nodeArray, err = applyXpath(node, xpath)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return marshalNodes(nodes)
+	return marshalNodes(nodeArray)
 }
 
 // UAST returns an array of UAST nodes as blobs.
@@ -349,20 +342,6 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 	span, ctx := ctx.Span("gitbase.UASTXPath")
 	defer span.Finish()
 
-	left, err := f.Left.Eval(ctx, row)
-	if err != nil {
-		return nil, err
-	}
-
-	nodes, err := getNodes(left)
-	if err != nil {
-		return nil, err
-	}
-
-	if nodes == nil {
-		return nil, nil
-	}
-
 	xpath, err := exprToString(ctx, f.Right, row)
 	if err != nil {
 		return nil, err
@@ -372,14 +351,28 @@ func (f *UASTXPath) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err er
 		return nil, nil
 	}
 
-	var filtered []*uast.Node
-	for _, n := range nodes {
-		ns, err := tools.Filter(n, xpath)
+	left, err := f.Left.Eval(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+
+	ns, err := getNodes(left)
+	if err != nil {
+		return nil, err
+	}
+
+	if ns == nil {
+		return nil, nil
+	}
+
+	var filtered nodes.Array
+	for _, n := range ns {
+		partial, err := applyXpath(n, xpath)
 		if err != nil {
 			return nil, err
 		}
 
-		filtered = append(filtered, ns...)
+		filtered = append(filtered, partial...)
 	}
 
 	return marshalNodes(filtered)
@@ -440,12 +433,12 @@ func (u *UASTExtract) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err 
 		return nil, err
 	}
 
-	nodes, err := getNodes(left)
+	ns, err := getNodes(left)
 	if err != nil {
 		return nil, err
 	}
 
-	if nodes == nil {
+	if ns == nil {
 		return nil, nil
 	}
 
@@ -459,60 +452,140 @@ func (u *UASTExtract) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err 
 	}
 
 	extracted := []interface{}{}
-	for _, n := range nodes {
-		info := extractInfo(n, key)
-		if len(info) > 0 {
-			extracted = append(extracted, info...)
+	for _, n := range ns {
+		props := extractProperties(n, key)
+		if len(props) > 0 {
+			extracted = append(extracted, props...)
 		}
 	}
 
 	return extracted, nil
 }
 
-const (
-	keyType     = "@type"
-	keyToken    = "@token"
-	keyRoles    = "@role"
-	keyStartPos = "@startpos"
-	keyEndPos   = "@endpos"
-)
+func extractProperties(n nodes.Node, key string) []interface{} {
+	node, ok := n.(nodes.Object)
+	if !ok {
+		return nil
+	}
 
-func extractInfo(n *uast.Node, key string) []interface{} {
-	var info []interface{}
+	var extracted []interface{}
+	if isCommonProp(key) {
+		extracted = extractCommonProp(node, key)
+	} else {
+		extracted = extractAnyProp(node, key)
+	}
+
+	return extracted
+}
+
+func isCommonProp(key string) bool {
+	return key == uast.KeyType || key == uast.KeyToken ||
+		key == uast.KeyRoles || key == uast.KeyPos
+}
+
+func extractCommonProp(node nodes.Object, key string) []interface{} {
+	var extracted []interface{}
 	switch key {
-	case keyType:
-		if n.InternalType != "" {
-			info = append(info, n.InternalType)
+	case uast.KeyType:
+		t := uast.TypeOf(node)
+		if t != "" {
+			extracted = append(extracted, t)
 		}
-	case keyToken:
-		if n.Token != "" {
-			info = append(info, n.Token)
+	case uast.KeyToken:
+		t := uast.TokenOf(node)
+		if t != "" {
+			extracted = append(extracted, t)
 		}
-	case keyRoles:
-		if len(n.Roles) > 0 {
-			roles := make([]interface{}, len(n.Roles))
-			for i, rol := range n.Roles {
-				roles[i] = rol.String()
+	case uast.KeyRoles:
+		r := uast.RolesOf(node)
+		if len(r) > 0 {
+			roles := make([]interface{}, len(r))
+			for i, role := range r {
+				roles[i] = role.String()
 			}
 
-			info = append(info, roles...)
+			extracted = append(extracted, roles...)
 		}
-	case keyStartPos:
-		if n.StartPosition != nil {
-			info = append(info, n.StartPosition.String())
-		}
-	case keyEndPos:
-		if n.StartPosition != nil {
-			info = append(info, n.EndPosition.String())
-		}
-	default:
-		v, ok := n.Properties[key]
-		if ok {
-			info = append(info, v)
+	case uast.KeyPos:
+		p := uast.PositionsOf(node)
+		if p != nil {
+			if s := posToString(p); s != "" {
+				extracted = append(extracted, s)
+			}
 		}
 	}
 
-	return info
+	return extracted
+}
+
+func posToString(pos uast.Positions) string {
+	var b strings.Builder
+
+	start := pos.Start()
+	end := pos.End()
+
+	if start != nil {
+		fmt.Fprintf(&b, "Start: [Offset:%d Line:%d Col:%d]",
+			start.Offset, start.Line, start.Col)
+	}
+
+	if pos.End() != nil {
+		if pos.Start() != nil {
+			fmt.Fprint(&b, ", ")
+		}
+
+		fmt.Fprintf(&b, "End: [Offset:%d Line:%d Col:%d]",
+			end.Offset, end.Line, end.Col)
+	}
+
+	return b.String()
+}
+
+func extractAnyProp(node nodes.Object, key string) []interface{} {
+	v, ok := node[key]
+	if !ok {
+		return nil
+	}
+
+	if v.Kind().In(nodes.KindsValues) {
+		value, err := valueToString(v.(nodes.Value))
+		if err != nil {
+			return nil
+		}
+
+		return []interface{}{value}
+	}
+
+	if v.Kind() == nodes.KindArray {
+		values, err := valuesFromNodeArray(v.(nodes.Array))
+		if err != nil {
+			return nil
+		}
+
+		return values
+	}
+
+	return nil
+}
+
+func valuesFromNodeArray(arr nodes.Array) ([]interface{}, error) {
+	var values []interface{}
+	for _, n := range arr {
+		if n.Kind().In(nodes.KindsValues) {
+			s, err := valueToString(n.(nodes.Value))
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, s)
+		}
+	}
+
+	return values, nil
+}
+
+func valueToString(n nodes.Value) (interface{}, error) {
+	return sql.Text.Convert(n.Native())
 }
 
 // TransformUp implements the sql.Expression interface.
@@ -589,11 +662,44 @@ func (u *UASTChildren) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err
 	return marshalNodes(children)
 }
 
-func flattenChildren(nodes []*uast.Node) []*uast.Node {
-	children := []*uast.Node{}
-	for _, n := range nodes {
-		if len(n.Children) > 0 {
-			children = append(children, n.Children...)
+func flattenChildren(arr nodes.Array) nodes.Array {
+	var children nodes.Array
+	for _, n := range arr {
+		o, ok := n.(nodes.Object)
+		if !ok {
+			continue
+		}
+
+		c := getChildren(o)
+		if len(c) > 0 {
+			children = append(children, c...)
+		}
+	}
+
+	return children
+}
+
+func getChildren(node nodes.Object) nodes.Array {
+	var children nodes.Array
+	for _, key := range node.Keys() {
+		if isCommonProp(key) {
+			continue
+		}
+
+		c, ok := node[key]
+		if !ok {
+			continue
+		}
+
+		switch c.Kind() {
+		case nodes.KindObject:
+			children = append(children, c)
+		case nodes.KindArray:
+			for _, n := range c.(nodes.Array) {
+				if n.Kind() == nodes.KindObject {
+					children = append(children, n)
+				}
+			}
 		}
 	}
 

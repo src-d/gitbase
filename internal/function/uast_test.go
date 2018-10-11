@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"gopkg.in/bblfsh/sdk.v2/uast"
+
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
-	bblfsh "gopkg.in/bblfsh/client-go.v2"
-	"gopkg.in/bblfsh/client-go.v2/tools"
-	"gopkg.in/bblfsh/sdk.v1/protocol"
-	"gopkg.in/bblfsh/sdk.v1/uast"
+	bblfsh "gopkg.in/bblfsh/client-go.v3"
+	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -25,8 +25,8 @@ def sum(a, b):
 print(sum(3, 5))
 `
 
-const testXPathAnnotated = "//*[@roleIdentifier]"
-const testXPathSemantic = "//Identifier"
+const testXPathAnnotated = "//*[@role='Identifier']"
+const testXPathSemantic = "//uast:Identifier"
 const testXPathNative = "//*[@ast_type='FunctionDef']"
 
 func TestUASTMode(t *testing.T) {
@@ -60,7 +60,6 @@ func TestUASTMode(t *testing.T) {
 			assertUASTBlobs(t, ctx, tt.expected, result)
 		})
 	}
-
 }
 
 func TestUAST(t *testing.T) {
@@ -143,7 +142,6 @@ func TestUASTXPath(t *testing.T) {
 			require := require.New(t)
 			result, err := fn.Eval(ctx, tt.row)
 			require.NoError(err)
-
 			assertUASTBlobs(t, ctx, tt.expected, result)
 		})
 	}
@@ -159,57 +157,39 @@ func TestUASTExtract(t *testing.T) {
 		expected []interface{}
 	}{
 		{
-			name: "key_" + keyType,
-			key:  keyType,
+			name: "key_" + uast.KeyType,
+			key:  uast.KeyType,
 			expected: []interface{}{
 				"FunctionDef", "Name", "Name", "Name", "Name",
 			},
 		},
 		{
-			name: "key_" + keyToken,
-			key:  keyToken,
+			name: "key_" + uast.KeyToken,
+			key:  uast.KeyToken,
 			expected: []interface{}{
-				"sum", "a", "b", "print", "sum",
+				"sum", "a", "b", "sum", "print",
 			},
 		},
 		{
-			name: "key_" + keyRoles,
-			key:  keyRoles,
+			name: "key_" + uast.KeyRoles,
+			key:  uast.KeyRoles,
 			expected: []interface{}{
-				"Unannotated", "Function", "Declaration", "Name", "Identifier",
-				"Unannotated", "Identifier", "Expression", "Binary", "Left",
-				"Unannotated", "Identifier", "Expression", "Binary", "Right",
-				"Unannotated", "Identifier", "Expression", "Call", "Callee",
-				"Unannotated", "Identifier", "Expression", "Call", "Callee",
+				"Function", "Declaration", "Name", "Identifier",
+				"Identifier", "Expression", "Binary", "Left",
+				"Identifier", "Expression", "Binary", "Right",
+				"Identifier", "Expression", "Call", "Callee",
+				"Identifier", "Expression", "Call", "Callee",
 			},
 		},
 		{
-			name: "key_" + keyStartPos,
-			key:  keyStartPos,
+			name: "key_" + uast.KeyPos,
+			key:  uast.KeyPos,
 			expected: []interface{}{
-				"Offset:28 Line:4 Col:5 ",
-				"Offset:47 Line:5 Col:9 ",
-				"Offset:51 Line:5 Col:13 ",
-				"Offset:54 Line:7 Col:1 ",
-				"Offset:60 Line:7 Col:7 ",
-			},
-		},
-		{
-			name: "key_" + keyEndPos,
-			key:  keyEndPos,
-			expected: []interface{}{
-				"Offset:31 Line:4 Col:8 ",
-				"Offset:48 Line:5 Col:10 ",
-				"Offset:52 Line:5 Col:14 ",
-				"Offset:59 Line:7 Col:6 ",
-				"Offset:63 Line:7 Col:10 ",
-			},
-		},
-		{
-			name: "key_internalRole",
-			key:  "internalRole",
-			expected: []interface{}{
-				"body", "left", "right", "func", "func",
+				"Start: [Offset:28 Line:4 Col:5], End: [Offset:31 Line:4 Col:8]",
+				"Start: [Offset:47 Line:5 Col:9], End: [Offset:48 Line:5 Col:10]",
+				"Start: [Offset:51 Line:5 Col:13], End: [Offset:52 Line:5 Col:14]",
+				"Start: [Offset:60 Line:7 Col:7], End: [Offset:63 Line:7 Col:10]",
+				"Start: [Offset:54 Line:7 Col:1], End: [Offset:59 Line:7 Col:6]",
 			},
 		},
 		{
@@ -250,35 +230,67 @@ func TestUASTChildren(t *testing.T) {
 	ctx, cleanup := setup(t)
 	defer cleanup()
 
-	modes := []string{"semantic", "annotated", "native"}
+	tests := []struct {
+		mode     string
+		key      string
+		expected []string
+	}{
+		{
+			mode:     "semantic",
+			key:      uast.KeyType,
+			expected: []string{"uast:FunctionGroup", "Expr"},
+		},
+		{
+			mode:     "annotated",
+			key:      uast.KeyType,
+			expected: []string{"FunctionDef", "Expr"},
+		},
+		{
+			mode:     "native",
+			key:      "ast_type",
+			expected: []string{"Module"},
+		},
+	}
+
 	uasts, _ := bblfshFixtures(t, ctx)
-	for _, mode := range modes {
-		root, ok := uasts[mode]
-		require.True(ok)
+	for _, test := range tests {
+		t.Run(test.mode, func(t *testing.T) {
+			root, ok := uasts[test.mode]
+			require.True(ok)
 
-		nodes, err := getNodes(root)
-		require.NoError(err)
-		require.Len(nodes, 1)
-		expected := nodes[0].Children
+			ns, err := getNodes(root)
+			require.NoError(err)
+			require.Equal(ns.Size(), 1)
 
-		row := sql.NewRow(root)
+			row := sql.NewRow(root)
 
-		fn := NewUASTChildren(
-			expression.NewGetField(0, sql.Blob, "", false),
-		)
-
-		children, err := fn.Eval(ctx, row)
-		require.NoError(err)
-
-		nodes, err = getNodes(children)
-		require.NoError(err)
-		require.Len(nodes, len(expected))
-		for i, n := range nodes {
-			require.Equal(
-				n.InternalType,
-				expected[i].InternalType,
+			fn := NewUASTChildren(
+				expression.NewGetField(0, sql.Blob, "", false),
 			)
-		}
+
+			children, err := fn.Eval(ctx, row)
+			require.NoError(err)
+
+			ns, err = getNodes(children)
+			require.NoError(err)
+			require.Len(ns, len(test.expected))
+
+			result := make([]string, len(ns))
+			for i, n := range ns {
+				o, ok := n.(nodes.Object)
+				require.True(ok)
+
+				v, ok := o[test.key]
+				require.True(ok)
+
+				s, ok := v.Native().(string)
+				require.True(ok)
+
+				result[i] = s
+			}
+
+			require.ElementsMatch(test.expected, result)
+		})
 	}
 }
 
@@ -318,7 +330,7 @@ func bblfshFixtures(
 	require.NoError(t, err)
 
 	for _, mode := range modes {
-		resp, err := client.ParseWithMode(
+		node, _, err := client.ParseWithMode(
 			context.Background(),
 			mode.t,
 			"python",
@@ -326,12 +338,11 @@ func bblfshFixtures(
 		)
 
 		require.NoError(t, err)
-		require.Equal(t, protocol.Ok, resp.Status, "errors: %v", resp.Errors)
 
-		idents, err := tools.Filter(resp.UAST, mode.x)
+		idents, err := applyXpath(node, mode.x)
 		require.NoError(t, err)
 
-		testUAST, err := marshalNodes([]*uast.Node{resp.UAST})
+		testUAST, err := marshalNodes(nodes.Array{node})
 		require.NoError(t, err)
 		uasts[mode.n] = testUAST
 
