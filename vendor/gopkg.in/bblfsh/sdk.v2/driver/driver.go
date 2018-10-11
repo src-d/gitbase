@@ -4,6 +4,7 @@ package driver
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"gopkg.in/bblfsh/sdk.v2/driver/manifest"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
@@ -19,6 +20,19 @@ const (
 )
 
 const ModeDefault = ModeSemantic
+
+// Parse mode parses a UAST mode string to an enum value.
+func ParseMode(mode string) (Mode, error) {
+	switch mode {
+	case "native":
+		return ModeNative, nil
+	case "annotated":
+		return ModeAnnotated, nil
+	case "semantic":
+		return ModeSemantic, nil
+	}
+	return 0, fmt.Errorf("unsupported mode: %q", mode)
+}
 
 // Module is an interface for a generic module instance.
 type Module interface {

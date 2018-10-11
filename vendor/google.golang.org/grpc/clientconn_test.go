@@ -19,6 +19,7 @@
 package grpc
 
 import (
+	"errors"
 	"math"
 	"net"
 	"sync/atomic"
@@ -31,6 +32,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/internal/backoff"
 	"google.golang.org/grpc/internal/leakcheck"
+	"google.golang.org/grpc/internal/transport"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/naming"
 	"google.golang.org/grpc/resolver"
@@ -443,6 +445,26 @@ func TestDialContextCancel(t *testing.T) {
 	}
 }
 
+type failFastError struct{}
+
+func (failFastError) Error() string   { return "failfast" }
+func (failFastError) Temporary() bool { return false }
+
+func TestDialContextFailFast(t *testing.T) {
+	defer leakcheck.Check(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	failErr := failFastError{}
+	dialer := func(string, time.Duration) (net.Conn, error) {
+		return nil, failErr
+	}
+
+	_, err := DialContext(ctx, "Non-Existent.Server:80", WithBlock(), WithInsecure(), WithDialer(dialer), FailOnNonTempDialError(true))
+	if terr, ok := err.(transport.ConnectionError); !ok || terr.Origin() != failErr {
+		t.Fatalf("DialContext() = _, %v, want _, %v", err, failErr)
+	}
+}
+
 // blockingBalancer mimics the behavior of balancers whose initialization takes a long time.
 // In this test, reading from blockingBalancer.Notify() blocks forever.
 type blockingBalancer struct {
@@ -699,5 +721,42 @@ func TestGetClientConnTarget(t *testing.T) {
 	defer cc.Close()
 	if cc.Target() != addr {
 		t.Fatalf("Target() = %s, want %s", cc.Target(), addr)
+	}
+}
+
+type backoffForever struct{}
+
+func (b backoffForever) Backoff(int) time.Duration { return time.Duration(math.MaxInt64) }
+
+func TestResetConnectBackoff(t *testing.T) {
+	defer leakcheck.Check(t)
+	dials := make(chan struct{})
+	dialer := func(string, time.Duration) (net.Conn, error) {
+		dials <- struct{}{}
+		return nil, errors.New("failed to fake dial")
+	}
+	cc, err := Dial("any", WithInsecure(), WithDialer(dialer), withBackoff(backoffForever{}))
+	if err != nil {
+		t.Fatalf("Dial() = _, %v; want _, nil", err)
+	}
+	defer cc.Close()
+	select {
+	case <-dials:
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Fatal("Failed to call dial within 10s")
+	}
+
+	select {
+	case <-dials:
+		t.Fatal("Dial called unexpectedly before resetting backoff")
+	case <-time.NewTimer(100 * time.Millisecond).C:
+	}
+
+	cc.ResetConnectBackoff()
+
+	select {
+	case <-dials:
+	case <-time.NewTimer(10 * time.Second).C:
+		t.Fatal("Failed to call dial within 10s after resetting backoff")
 	}
 }

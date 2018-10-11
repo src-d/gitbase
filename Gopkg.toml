@@ -53,12 +53,16 @@
   version = "1.6.5"
 
 [[constraint]]
-  name = "gopkg.in/bblfsh/client-go.v2"
-  version = "2.8.4"
+  name = "gopkg.in/bblfsh/client-go.v3"
+  version = "3.0.0"
 
-[[constraint]]
+[[override]]
   name = "gopkg.in/bblfsh/sdk.v1"
   version = "1.16.0"
+
+[[constraint]]
+  name = "gopkg.in/bblfsh/sdk.v2"
+  version = "2.3.0"
 
 [[constraint]]
   name = "github.com/uber/jaeger-client-go"

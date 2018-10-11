@@ -153,12 +153,20 @@ func NewValue(typ string) (reflect.Value, error) {
 }
 
 func TypeOf(o interface{}) string {
-	if o == nil {
+	switch obj := o.(type) {
+	case nil:
 		return ""
-	} else if obj, ok := o.(nodes.Object); ok {
+	case nodes.Object:
 		tp, _ := obj[KeyType].(nodes.String)
 		return string(tp)
-	} else if _, ok = o.(nodes.Node); ok {
+	case nodes.ExternalObject:
+		v, _ := obj.ValueAt(KeyType)
+		if v == nil {
+			return ""
+		}
+		tp, _ := v.Value().(nodes.String)
+		return string(tp)
+	case nodes.Node, nodes.External:
 		// other generic nodes cannot store type
 		return ""
 	}
@@ -202,17 +210,20 @@ func fieldName(f reflect.StructField) (string, bool, error) {
 }
 
 var (
-	reflString = reflect.TypeOf("")
-	reflAny    = reflect.TypeOf((*Any)(nil)).Elem()
-	reflNode   = reflect.TypeOf((*nodes.Node)(nil)).Elem()
+	reflString  = reflect.TypeOf("")
+	reflAny     = reflect.TypeOf((*Any)(nil)).Elem()
+	reflNode    = reflect.TypeOf((*nodes.Node)(nil)).Elem()
+	reflNodeExt = reflect.TypeOf((*nodes.External)(nil)).Elem()
 )
 
 // ToNode converts objects returned by schema-less encodings such as JSON to Node objects.
 // It also supports types from packages registered via RegisterPackage.
 func ToNode(o interface{}) (nodes.Node, error) {
-	return nodes.ToNode(o, func(o interface{}) (nodes.Node, error) {
-		return toNodeReflect(reflect.ValueOf(o))
-	})
+	return nodes.ToNode(o, toNodeFallback)
+}
+
+func toNodeFallback(o interface{}) (nodes.Node, error) {
+	return toNodeReflect(reflect.ValueOf(o))
 }
 
 func toNodeReflect(rv reflect.Value) (nodes.Node, error) {
@@ -226,6 +237,9 @@ func toNodeReflect(rv reflect.Value) (nodes.Node, error) {
 	}
 	if rt.ConvertibleTo(reflNode) {
 		return rv.Interface().(nodes.Node), nil
+	} else if rt.ConvertibleTo(reflNodeExt) {
+		n := rv.Interface().(nodes.External)
+		return nodes.ToNode(n, toNodeFallback)
 	}
 	switch rt.Kind() {
 	case reflect.Int, reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8:
@@ -318,7 +332,7 @@ func structToNode(obj nodes.Object, rv reflect.Value, rt reflect.Type) error {
 	return nil
 }
 
-func NodeAs(n nodes.Node, dst interface{}) error {
+func NodeAs(n nodes.External, dst interface{}) error {
 	var rv reflect.Value
 	if v, ok := dst.(reflect.Value); ok {
 		rv = v
@@ -328,7 +342,23 @@ func NodeAs(n nodes.Node, dst interface{}) error {
 	return nodeAs(n, rv)
 }
 
-func nodeAs(n nodes.Node, rv reflect.Value) error {
+func setAnyOrNode(dst reflect.Value, n nodes.External) (bool, error) {
+	rt := dst.Type()
+	if rt == reflAny || rt == reflNodeExt {
+		dst.Set(reflect.ValueOf(n))
+		return true, nil
+	} else if rt == reflNode {
+		nd, err := nodes.ToNode(n, nil)
+		if err != nil {
+			return false, err
+		}
+		dst.Set(reflect.ValueOf(nd))
+		return true, nil
+	}
+	return false, nil
+}
+
+func nodeAs(n nodes.External, rv reflect.Value) error {
 	orv := rv
 	if rv.Kind() == reflect.Ptr {
 		if rv.CanSet() && rv.IsNil() {
@@ -342,15 +372,23 @@ func nodeAs(n nodes.Node, rv reflect.Value) error {
 		}
 		return fmt.Errorf("argument should be a pointer: %v", rv.Type())
 	}
-	switch n := n.(type) {
-	case nil:
+	if n == nil {
 		return nil
-	case nodes.Object:
-		rt := rv.Type()
-		if rt == reflAny || rt == reflNode {
-			rv.Set(reflect.ValueOf(n))
+	}
+	switch kind := n.Kind(); kind {
+	case nodes.KindNil:
+		return nil
+	case nodes.KindObject:
+		obj, ok := n.(nodes.ExternalObject)
+		if !ok {
+			return fmt.Errorf("external node has an object kind, but does not implement an interface: %T", n)
+		}
+		if ok, err := setAnyOrNode(rv, n); err != nil {
+			return err
+		} else if ok {
 			return nil
 		}
+		rt := rv.Type()
 		switch kind := rt.Kind(); kind {
 		case reflect.Struct, reflect.Map:
 			name := typeOf(rt)
@@ -359,17 +397,18 @@ func nodeAs(n nodes.Node, rv reflect.Value) error {
 				return ErrIncorrectType.New(typ, etyp)
 			}
 			if kind == reflect.Struct {
-				if err := nodeToStruct(rv, rt, n); err != nil {
+				if err := nodeToStruct(rv, rt, obj); err != nil {
 					return err
 				}
 			} else {
 				if rv.IsNil() {
-					rv.Set(reflect.MakeMapWithSize(rt, len(n)-1))
+					rv.Set(reflect.MakeMapWithSize(rt, obj.Size()-1))
 				}
-				for k, v := range n {
+				for _, k := range obj.Keys() {
 					if k == KeyType {
 						continue
 					}
+					v, _ := obj.ValueAt(k)
 					nv := reflect.New(rt.Elem()).Elem()
 					if err := nodeAs(v, nv); err != nil {
 						return err
@@ -389,42 +428,48 @@ func nodeAs(n nodes.Node, rv reflect.Value) error {
 			return fmt.Errorf("object: expected struct, map or interface as a field type, got %v", rt)
 		}
 		return nil
-	case nodes.Array:
-		rt := rv.Type()
-		if rt == reflAny || rt == reflNode {
-			rv.Set(reflect.ValueOf(n))
+	case nodes.KindArray:
+		arr, ok := n.(nodes.ExternalArray)
+		if !ok {
+			return fmt.Errorf("external node has an array kind, but does not implement an interface: %T", n)
+		}
+		if ok, err := setAnyOrNode(rv, n); err != nil {
+			return err
+		} else if ok {
 			return nil
 		}
+		rt := rv.Type()
 		if rt.Kind() != reflect.Slice {
 			return fmt.Errorf("expected slice, got %v", rt)
 		}
-		if rv.Cap() < len(n) {
-			rv.Set(reflect.MakeSlice(rt, len(n), len(n)))
+		sz := arr.Size()
+		if rv.Cap() < sz {
+			rv.Set(reflect.MakeSlice(rt, sz, sz))
 		} else {
-			rv = rv.Slice(0, len(n))
+			rv = rv.Slice(0, sz)
 		}
-		for i, v := range n {
+		for i := 0; i < sz; i++ {
+			v := arr.ValueAt(i)
 			if err := nodeAs(v, rv.Index(i)); err != nil {
 				return err
 			}
 		}
 		return nil
-	case nodes.String, nodes.Int, nodes.Uint, nodes.Float, nodes.Bool:
+	default:
 		rt := rv.Type()
 		if rt == reflAny {
 			return fmt.Errorf("expected UAST node, got: %T", n)
 		}
-		nv := reflect.ValueOf(n)
+		nv := reflect.ValueOf(n.Value())
 		if !nv.Type().ConvertibleTo(rt) {
 			return fmt.Errorf("cannot convert %T to %v", n, rt)
 		}
 		rv.Set(nv.Convert(rt))
 		return nil
 	}
-	return fmt.Errorf("unexpected type: %T", n)
 }
 
-func nodeToStruct(rv reflect.Value, rt reflect.Type, obj nodes.Object) error {
+func nodeToStruct(rv reflect.Value, rt reflect.Type, obj nodes.ExternalObject) error {
 	for i := 0; i < rt.NumField(); i++ {
 		f := rv.Field(i)
 		if !f.CanInterface() {
@@ -441,7 +486,7 @@ func nodeToStruct(rv reflect.Value, rt reflect.Type, obj nodes.Object) error {
 		if err != nil {
 			return fmt.Errorf("type %s: %v", rt.Name(), err)
 		}
-		v, ok := obj[name]
+		v, ok := obj.ValueAt(name)
 		if !ok {
 			continue
 		}

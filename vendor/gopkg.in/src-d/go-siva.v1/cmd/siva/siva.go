@@ -70,6 +70,7 @@ func (c *cmd) buildWriter(append bool) (err error) {
 
 	c.fi, err = c.f.Stat()
 	if err != nil {
+		_ = c.f.Close()
 		return err
 	}
 
@@ -85,12 +86,18 @@ func (c *cmd) println(a ...interface{}) {
 	fmt.Println(a...)
 }
 
-func (c *cmd) close() error {
+func (c *cmd) close() (err error) {
+	defer func() {
+		if errC := c.f.Close(); errC != nil && err == nil {
+			err = errC
+		}
+	}()
+
 	if c.w != nil {
-		if err := c.w.Close(); err != nil {
-			return err
+		if err = c.w.Close(); err != nil {
+			return
 		}
 	}
 
-	return c.f.Close()
+	return
 }

@@ -252,6 +252,9 @@ func (s *Suite) testFixturesUAST(t *testing.T, mode driver.Mode, suf string, bla
 					if typ == "" {
 						return true
 					}
+					if tr.Namespace != "" && strings.HasPrefix(typ, tr.Namespace+":") {
+						typ = strings.TrimPrefix(typ, tr.Namespace+":")
+					}
 					if cnt, ok := foundBlack[typ]; ok {
 						foundBlack[typ] = cnt + 1
 					}

@@ -7,9 +7,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type ListSuite struct {
-	folder string
-}
+type ListSuite struct{}
 
 var _ = Suite(&ListSuite{})
 

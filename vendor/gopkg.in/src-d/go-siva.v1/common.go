@@ -19,6 +19,14 @@ const (
 
 // Header contains the meta information from a file
 type Header struct {
+	// Name is an arbitrary UTF-8 string identifying a file in the archive. Note
+	// that this might or might not be a POSIX-compliant path.
+	//
+	// Security note: Users should be careful when using name as a file path
+	// (e.g. to extract an archive) since it can contain relative paths and be
+	// vulnerable to Zip Slip (https://snyk.io/research/zip-slip-vulnerability)
+	// or other potentially dangerous values such as absolute paths, network
+	// drive addresses, etc.
 	Name    string
 	ModTime time.Time
 	Mode    os.FileMode

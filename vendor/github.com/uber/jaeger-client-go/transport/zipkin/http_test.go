@@ -26,8 +26,10 @@ package zipkin
 // https://github.com/openzipkin/zipkin-go-opentracing/
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -41,11 +43,15 @@ import (
 	"github.com/uber/jaeger-client-go/thrift-gen/zipkincore"
 )
 
+const spanPath = "/api/v1/spans"
+
 func TestHttpTransport(t *testing.T) {
 	server := newHTTPServer(t)
+	defer server.Close()
+
 	httpUsername := "Aphex"
 	httpPassword := "Twin"
-	sender, err := NewHTTPTransport("http://localhost:10000/api/v1/spans", HTTPBasicAuth(httpUsername, httpPassword))
+	sender, err := NewHTTPTransport(server.SpanURL(), HTTPBasicAuth(httpUsername, httpPassword))
 	require.NoError(t, err)
 
 	tracer, closer := jaeger.NewTracer(
@@ -84,12 +90,16 @@ func TestHttpTransport(t *testing.T) {
 }
 
 func TestHTTPOptions(t *testing.T) {
+	roundTripper := &http.Transport{
+		MaxIdleConns: 80000,
+	}
 	sender, err := NewHTTPTransport(
 		"some url",
 		HTTPLogger(log.StdLogger),
 		HTTPBatchSize(123),
 		HTTPTimeout(123*time.Millisecond),
 		HTTPBasicAuth("urundai", "kuzhambu"),
+		HTTPRoundTripper(roundTripper),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, log.StdLogger, sender.logger)
@@ -97,6 +107,65 @@ func TestHTTPOptions(t *testing.T) {
 	assert.Equal(t, 123*time.Millisecond, sender.client.Timeout)
 	assert.Equal(t, "urundai", sender.httpCredentials.username)
 	assert.Equal(t, "kuzhambu", sender.httpCredentials.password)
+	assert.Equal(t, roundTripper, sender.client.Transport)
+}
+
+type recordingLogger struct {
+	errors []string
+}
+
+func (r *recordingLogger) Error(msg string) {
+	r.errors = append(r.errors, msg)
+}
+
+func (r *recordingLogger) Infof(msg string, args ...interface{}) {}
+
+func TestHTTPErrorLogging(t *testing.T) {
+	type testCase struct {
+		URL                   string
+		expectErrorSubstrings []string
+	}
+
+	s := newHTTPServer(t)
+	defer s.Close()
+
+	tcs := []testCase{
+		{ // good case
+			URL: s.SpanURL(),
+		},
+		{ // bad URL path
+			URL: s.httpServer.URL + "/bad_suffix",
+			expectErrorSubstrings: []string{"error from collector: code=404"},
+		},
+		{ // bad URL scheme
+			URL: "badscheme://localhost:10001",
+			expectErrorSubstrings: []string{"error when flushing the buffer"},
+		},
+	}
+
+	for _, tc := range tcs {
+		logger := new(recordingLogger)
+
+		sender, err := NewHTTPTransport(tc.URL)
+		require.NoError(t, err)
+		tracer, closer := jaeger.NewTracer(
+			"test",
+			jaeger.NewConstSampler(true),
+			jaeger.NewRemoteReporter(sender, jaeger.ReporterOptions.Logger(logger)),
+		)
+
+		span := tracer.StartSpan("root")
+		span.Finish()
+
+		closer.Close()
+
+		expectedNumErrors := len(tc.expectErrorSubstrings)
+		require.Len(t, logger.errors, expectedNumErrors, fmt.Sprintf("the number of errors is not equal to %d", expectedNumErrors))
+
+		for i, subStr := range tc.expectErrorSubstrings {
+			assert.Contains(t, logger.errors[i], subStr)
+		}
+	}
 }
 
 type httpServer struct {
@@ -104,6 +173,15 @@ type httpServer struct {
 	zipkinSpans     []*zipkincore.Span
 	authCredentials []*HTTPBasicAuthCredentials
 	mutex           sync.RWMutex
+	httpServer      *httptest.Server
+}
+
+func (s *httpServer) SpanURL() string {
+	return s.httpServer.URL + spanPath
+}
+
+func (s *httpServer) Close() {
+	s.httpServer.Close()
 }
 
 func (s *httpServer) spans() []*zipkincore.Span {
@@ -125,7 +203,12 @@ func newHTTPServer(t *testing.T) *httpServer {
 		authCredentials: make([]*HTTPBasicAuthCredentials, 0),
 		mutex:           sync.RWMutex{},
 	}
-	http.HandleFunc("/api/v1/spans", func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != spanPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
 		contextType := r.Header.Get("Content-Type")
 		if contextType != "application/x-thrift" {
 			t.Errorf(
@@ -169,10 +252,7 @@ func newHTTPServer(t *testing.T) *httpServer {
 		u, p, _ := r.BasicAuth()
 		server.authCredentials = append(server.authCredentials, &HTTPBasicAuthCredentials{username: u, password: p})
 	})
-
-	go func() {
-		http.ListenAndServe(":10000", nil)
-	}()
+	server.httpServer = httptest.NewServer(handler)
 
 	return server
 }

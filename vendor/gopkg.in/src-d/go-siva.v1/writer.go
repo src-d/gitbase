@@ -21,6 +21,7 @@ type Writer interface {
 type writer struct {
 	w        *hashedWriter
 	index    Index
+	oIndex   OrderedIndex
 	current  *IndexEntry
 	position uint64
 	closed   bool
@@ -49,6 +50,8 @@ func (w *writer) WriteHeader(h *Header) error {
 	}
 
 	w.index = append(w.index, w.current)
+	w.oIndex = w.oIndex.Update(w.current)
+
 	return nil
 }
 

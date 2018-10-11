@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -647,6 +648,18 @@ func getSamplingStrategyResponse(strategyType sampling.SamplingStrategyType, val
 		}
 	}
 	return nil
+}
+
+func TestRemotelyControlledSampler_printErrorForBrokenUpstream(t *testing.T) {
+	logger := &log.BytesBufferLogger{}
+	sampler := NewRemotelyControlledSampler(
+		"client app",
+		SamplerOptions.Logger(logger),
+	)
+	sampler.Close() // stop timer-based updates, we want to call them manually
+	sampler.updateSampler()
+
+	assert.True(t, strings.Contains(logger.String(), "Unable to query sampling strategy:"))
 }
 
 func TestAdaptiveSampler_lockRaceCondition(t *testing.T) {

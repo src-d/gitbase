@@ -10,6 +10,8 @@ type External interface {
 	Kind() Kind
 	// Value returns a primitive value of the node or nil if node is not a value.
 	Value() Value
+	// SameAs check if the node is exactly the same node as n2. This usually means checking node pointers.
+	SameAs(n2 External) bool
 }
 
 // ExternalArray is an analog of Array type.

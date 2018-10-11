@@ -20,11 +20,7 @@ func (c *CmdList) Execute(args []string) error {
 	}
 
 	defer c.close()
-	if err := c.listVolume(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.listVolume()
 }
 
 func (c *CmdList) listVolume() error {

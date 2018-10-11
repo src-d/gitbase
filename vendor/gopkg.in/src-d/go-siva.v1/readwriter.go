@@ -26,12 +26,17 @@ func NewReaderWriter(rw io.ReadWriteSeeker) (*ReadWriter, error) {
 	}
 
 	w := newWriter(rw)
+	w.oIndex = OrderedIndex(i.filter())
+	w.oIndex.Sort()
+
 	getIndexFunc := func() (Index, error) {
 		for _, e := range w.index {
 			e.absStart = uint64(end) + e.Start
 		}
-		return append(i, w.index...), nil
+
+		return Index(w.oIndex), nil
 	}
+
 	r := newReaderWithIndex(rw, getIndexFunc)
 	return &ReadWriter{r, w}, nil
 }

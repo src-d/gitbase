@@ -24,6 +24,10 @@ var (
 	ErrWriteOnlyFile            = errors.New("file is write-only")
 )
 
+const sivaCapabilities = billy.ReadCapability |
+	billy.WriteCapability |
+	billy.SeekCapability
+
 type SivaSync interface {
 	// Sync closes any open files, this method should be called at the end of
 	// program to ensure that all the files are properly closed, otherwise the
@@ -249,9 +253,7 @@ func (fs *sivaFS) Sync() error {
 
 // Capability implements billy.Capable interface.
 func (fs *sivaFS) Capabilities() billy.Capability {
-	return billy.ReadCapability |
-		billy.WriteCapability |
-		billy.SeekCapability
+	return sivaCapabilities
 }
 
 func (fs *sivaFS) ensureOpen() error {
@@ -359,7 +361,8 @@ func (fs *sivaFS) getIndex() (siva.Index, error) {
 		return nil, err
 	}
 
-	fs.index = index.Filter()
+	fs.index = index.ToSafePaths()
+	fs.index = fs.index.Filter()
 
 	return fs.index, nil
 }
@@ -476,6 +479,11 @@ type temp struct {
 	SivaSync
 
 	defaultDir string
+}
+
+// Capability implements billy.Capable interface.
+func (h *temp) Capabilities() billy.Capability {
+	return sivaCapabilities
 }
 
 func (h *temp) TempFile(dir, prefix string) (billy.File, error) {

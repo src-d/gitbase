@@ -9,6 +9,11 @@ package role
 //go:generate stringer -type=Role
 type Role int16
 
+// Valid checks if this role was defined. As an exception, it returns false for an Invalid role.
+func (i Role) Valid() bool {
+	return i > 0 && i < Role(len(_Role_index)-1)
+}
+
 // Roles is an ordered list of roles.
 type Roles []Role
 

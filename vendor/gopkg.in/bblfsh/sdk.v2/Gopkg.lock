@@ -30,6 +30,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/antchfx/xpath"
+  packages = ["."]
+  revision = "3de91f3991a1af6e495d49c9218318b5544b20e3"
+
+[[projects]]
+  branch = "master"
   name = "github.com/containerd/continuity"
   packages = ["pathdriver"]
   revision = "0377f7d767206f3a9e8881d0f02267b0d89c7a62"
@@ -330,6 +336,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5bd56601ccd387dea31185a8f58f887945ecfe7f0818c499a4ded18f9e648ffa"
+  inputs-digest = "ca31e7da904c3376a4e905523bd4865967d02e2525a2cde8206049038fc607cb"
   solver-name = "gps-cdcl"
   solver-version = 1

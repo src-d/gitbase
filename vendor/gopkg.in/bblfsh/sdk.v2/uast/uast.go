@@ -16,6 +16,7 @@ package uast
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
@@ -85,21 +86,66 @@ type Position struct {
 	Col uint32 `json:"col"`
 }
 
+func (p Position) HasOffset() bool {
+	return p.Offset != 0 || (p.Line == 1 && p.Col == 1)
+}
+
+func (p Position) HasLineCol() bool {
+	return p.Line != 0 && p.Col != 0
+}
+
+func (p Position) Valid() bool {
+	return p != (Position{})
+}
+
+func (p Position) Less(p2 Position) bool {
+	if !p.Valid() {
+		return false
+	} else if !p2.Valid() {
+		return true
+	}
+	if p.HasOffset() && p2.HasOffset() {
+		return p.Offset < p2.Offset
+	}
+	if p.Line != p2.Line {
+		if p.Line != 0 && p2.Line != 0 {
+			return p.Line < p2.Line
+		}
+		return p.Line != 0
+	}
+	return p.Col != 0 && p.Col < p2.Col
+}
+
 // Positions is a container object that stores all positional information for a node.
 type Positions map[string]Position
 
+// Keys returns a sorted slice of position names.
+func (p Positions) Keys() []string {
+	arr := make([]string, 0, len(p))
+	for k := range p {
+		arr = append(arr, k)
+	}
+	sort.Strings(arr)
+	return arr
+}
+
+// Start returns a start position of the node.
 func (p Positions) Start() *Position {
 	if p, ok := p[KeyStart]; ok {
 		return &p
 	}
 	return nil
 }
+
+// End returns an end position of the node.
 func (p Positions) End() *Position {
 	if p, ok := p[KeyEnd]; ok {
 		return &p
 	}
 	return nil
 }
+
+// ToObject converts positions to a generic object.
 func (p Positions) ToObject() nodes.Object {
 	n, err := toNodeReflect(reflect.ValueOf(p))
 	if err != nil {
@@ -198,6 +244,15 @@ func Tokens(n nodes.Node) []string {
 		return true
 	})
 	return tokens
+}
+
+// HashNoPos hashes the node, but skips positional information.
+func HashNoPos(n nodes.External) nodes.Hash {
+	h := nodes.NewHasher()
+	h.KeyFilter = func(key string) bool {
+		return key != KeyPos
+	}
+	return h.HashOf(n)
 }
 
 // Any is an alias type for any UAST node.

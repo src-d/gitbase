@@ -67,7 +67,15 @@ func (s *ReadWriterSuite) testWriteRead(c *C, f *os.File, iter int) {
 
 		index, err := rw.Index()
 		c.Assert(err, IsNil)
-		c.Assert(len(index), Equals, iters*iter + i+1)
+
+		// index after the first iteration will contain the total amount
+		// of files
+		num := i + 1
+		if iter > 0 {
+			num = iters
+		}
+
+		c.Assert(len(index), Equals, num)
 
 		e := index.Find(curName)
 		c.Assert(e, NotNil)
@@ -128,7 +136,7 @@ func (s *ReadWriterSuite) TestOverwriteExisting(c *C) {
 	c.Assert(err, IsNil)
 	written, err := ioutil.ReadAll(sr)
 	c.Assert(err, IsNil)
-	c.Assert(string(written), DeepEquals, "foo")
+	c.Assert(string(written), Equals, "foo")
 
 	err = rw.WriteHeader(&siva.Header{
 		Name: "foo",
@@ -148,7 +156,7 @@ func (s *ReadWriterSuite) TestOverwriteExisting(c *C) {
 	c.Assert(err, IsNil)
 	written, err = ioutil.ReadAll(sr)
 	c.Assert(err, IsNil)
-	c.Assert(string(written), DeepEquals, "bar")
+	c.Assert(string(written), Equals, "bar")
 	c.Assert(rw.Close(), IsNil)
 }
 
@@ -171,4 +179,58 @@ func (_ dummyReadWriterSeeker) Write(p []byte) (n int, err error) {
 
 func (_ dummyReadWriterSeeker) Seek(offset int64, whence int) (n int64, err error) {
 	return
+}
+
+func (s *ReadWriterSuite) TestDelete(c *C) {
+	data := "data"
+
+	path := filepath.Join(s.tmpDir, c.TestName())
+	tmpFile, err := os.Create(path)
+	c.Assert(err, IsNil)
+	c.Assert(tmpFile, NotNil)
+
+	rw, err := siva.NewReaderWriter(tmpFile)
+	c.Assert(err, IsNil)
+
+	testSteps := []struct {
+		name  string
+		del   bool
+		files []string
+	}{
+		{"one", false, []string{"one"}},
+		{"two", false, []string{"one", "two"}},
+		{"three", false, []string{"one", "three", "two"}},
+		{"two", true, []string{"one", "three"}},
+		{"two", false, []string{"one", "three", "two"}},
+		{"four", true, []string{"one", "three", "two"}},
+		{"three", true, []string{"one", "two"}},
+	}
+
+	for _, t := range testSteps {
+		var flags siva.Flag
+		if t.del {
+			flags = siva.FlagDeleted
+		}
+
+		err := rw.WriteHeader(&siva.Header{
+			Name:  t.name,
+			Flags: flags,
+		})
+		c.Assert(err, IsNil)
+
+		written, err := rw.Write([]byte(data))
+		c.Assert(err, IsNil)
+		c.Assert(written, Equals, len(data))
+
+		err = rw.Flush()
+		c.Assert(err, IsNil)
+
+		index, err := rw.Index()
+		c.Assert(err, IsNil)
+
+		c.Assert(len(index), Equals, len(t.files))
+		for i, name := range t.files {
+			c.Assert(index[i].Name, Equals, name)
+		}
+	}
 }

@@ -9,6 +9,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func (s *EnryTestSuite) TestIsAuxiliaryLanguage() {
+	type testType struct {
+		name     string
+		lang     string
+		expected bool
+	}
+
+	tests := []testType{
+		{name: "TestIsAuxiliaryLanguage_Invalid", lang: "invalid", expected: false},
+	}
+	for k := range auxiliaryLanguages {
+		t := testType{
+			name:     fmt.Sprintf("TestIsAuxiliaryLanguage_%s", k),
+			lang:     k,
+			expected: true,
+		}
+		tests = append(tests, t)
+	}
+
+	for _, test := range tests {
+		is := IsAuxiliaryLanguage(test.lang)
+		assert.Equal(s.T(), is, test.expected, fmt.Sprintf("%v: is = %v, expected: %v", test.name, is, test.expected))
+	}
+}
+
 func (s *EnryTestSuite) TestIsVendor() {
 	tests := []struct {
 		name     string
@@ -44,6 +69,43 @@ func (s *EnryTestSuite) TestIsDocumentation() {
 
 	for _, test := range tests {
 		is := IsDocumentation(test.path)
+		assert.Equal(s.T(), is, test.expected, fmt.Sprintf("%v: is = %v, expected: %v", test.name, is, test.expected))
+	}
+}
+
+func (s *EnryTestSuite) TestIsImage() {
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{name: "TestIsImage_1", path: "invalid.txt", expected: false},
+		{name: "TestIsImage_2", path: "image.png", expected: true},
+		{name: "TestIsImage_3", path: "image.jpg", expected: true},
+		{name: "TestIsImage_4", path: "image.jpeg", expected: true},
+		{name: "TestIsImage_5", path: "image.gif", expected: true},
+	}
+
+	for _, test := range tests {
+		is := IsImage(test.path)
+		assert.Equal(s.T(), is, test.expected, fmt.Sprintf("%v: is = %v, expected: %v", test.name, is, test.expected))
+	}
+}
+
+func (s *EnryTestSuite) TestGetMimeType() {
+	tests := []struct {
+		name     string
+		path     string
+		lang     string
+		expected string
+	}{
+		{name: "TestGetMimeType_1", path: "text.txt", lang: "", expected: "text/plain"},
+		{name: "TestGetMimeType_2", path: "file.go", lang: "Go", expected: "text/x-go"},
+		{name: "TestGetMimeType_3", path: "image.png", lang: "", expected: "image/png"},
+	}
+
+	for _, test := range tests {
+		is := GetMimeType(test.path, test.lang)
 		assert.Equal(s.T(), is, test.expected, fmt.Sprintf("%v: is = %v, expected: %v", test.name, is, test.expected))
 	}
 }
