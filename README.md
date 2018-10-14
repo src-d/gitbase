@@ -24,7 +24,7 @@ gitbase was born to ease the analysis of git repositories and their source code.
 
 Also, making it MySQL compatible, we provide the maximum compatibility between languages and existing tools.
 
-It comes as a single self-contained binary and it can be used as a standalone service. The service is able to process local repositories and integrates with existing tools and frameworks to simplify source code analysis at large scale.
+It comes as a single self-contained binary and it can be used as a standalone service. The service is able to process local repositories and integrates with existing tools and frameworks to simplify source code analysis on a large scale.
 The integration with Apache Spark is planned and is currently under active development.
 
 ## Further reading
