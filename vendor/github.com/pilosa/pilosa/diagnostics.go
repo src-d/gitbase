@@ -174,6 +174,11 @@ func (d *diagnosticsCollector) logErr(err error) bool {
 	return false
 }
 
+// EnrichWithCPUInfo adds CPU information to the diagnostics payload.
+func (d *diagnosticsCollector) EnrichWithCPUInfo() {
+	d.Set("CPUArch", d.server.systemInfo.CPUArch())
+}
+
 // EnrichWithOSInfo adds OS information to the diagnostics payload.
 func (d *diagnosticsCollector) EnrichWithOSInfo() {
 	uptime, err := d.server.systemInfo.Uptime()
@@ -223,7 +228,7 @@ func (d *diagnosticsCollector) EnrichWithSchemaProperties() {
 	timeQuantumEnabled := false
 
 	for _, index := range d.server.holder.Indexes() {
-		numShards += index.maxShard() + 1
+		numShards += index.AvailableShards().Count()
 		numIndexes += 1
 		for _, field := range index.Fields() {
 			numFields += 1
@@ -265,6 +270,7 @@ type SystemInfo interface {
 	MemFree() (uint64, error)
 	MemTotal() (uint64, error)
 	MemUsed() (uint64, error)
+	CPUArch() string
 }
 
 // newNopSystemInfo creates a no-op implementation of SystemInfo.
@@ -314,4 +320,9 @@ func (n *nopSystemInfo) MemTotal() (uint64, error) {
 // MemUsed is a no-op implementation of SystemInfo.MemUsed.
 func (n *nopSystemInfo) MemUsed() (uint64, error) {
 	return 0, nil
+}
+
+// CPUArch returns the CPU architecture, such as amd64
+func (n *nopSystemInfo) CPUArch() string {
+	return ""
 }

@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pilosa/pilosa/roaring"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 )
@@ -37,6 +38,9 @@ const (
 
 	// fileLimit is the maximum open file limit (ulimit -n) to automatically set.
 	fileLimit = 262144 // (512^2)
+
+	// existenceFieldName is the name of the internal field used to store existence values.
+	existenceFieldName = "exists"
 )
 
 // Holder represents a container for indexes.
@@ -97,6 +101,9 @@ func NewHolder() *Holder {
 
 // Open initializes the root data directory for the holder.
 func (h *Holder) Open() error {
+	// Reset closing in case Holder is being reopened.
+	h.closing = make(chan struct{})
+
 	h.setFileLimit()
 
 	h.Logger.Printf("open holder path: %s", h.Path)
@@ -174,6 +181,9 @@ func (h *Holder) Close() error {
 		}
 	}
 
+	// Reset opened in case Holder needs to be reopened.
+	h.opened = make(chan struct{})
+
 	return nil
 }
 
@@ -213,13 +223,13 @@ func (h *Holder) HasData() (bool, error) {
 	return false, nil
 }
 
-// maxShards returns MaxShard map for all indexes.
-func (h *Holder) maxShards() map[string]uint64 {
-	a := make(map[string]uint64)
+// availableShardsByIndex returns a bitmap of all shards by indexes.
+func (h *Holder) availableShardsByIndex() map[string]*roaring.Bitmap {
+	m := make(map[string]*roaring.Bitmap)
 	for _, index := range h.Indexes() {
-		a[index.Name()] = index.maxShard()
+		m[index.Name()] = index.AvailableShards()
 	}
-	return a
+	return m
 }
 
 // Schema returns schema information for all indexes, fields, and views.
@@ -353,6 +363,7 @@ func (h *Holder) createIndex(name string, opt IndexOptions) (*Index, error) {
 	}
 
 	index.keys = opt.Keys
+	index.trackExistence = opt.TrackExistence
 
 	if err := index.Open(); err != nil {
 		return nil, errors.Wrap(err, "opening")
@@ -647,7 +658,9 @@ func (s *holderSyncer) SyncHolder() error {
 					return nil
 				}
 
-				for shard := uint64(0); shard <= s.Holder.Index(di.Name).maxShard(); shard++ {
+				itr := s.Holder.Index(di.Name).AvailableShards().Iterator()
+				itr.Seek(0)
+				for shard, eof := itr.Next(); !eof; shard, eof = itr.Next() {
 					// Ignore shards that this host doesn't own.
 					if !s.Cluster.ownsShard(s.Node.ID, di.Name, shard) {
 						continue
@@ -828,7 +841,7 @@ func (c *holderCleaner) CleanHolder() error {
 		}
 
 		// Get the fragments that node is responsible for (based on hash(index, node)).
-		containedShards := c.Cluster.containsShards(index.Name(), index.maxShard(), c.Node)
+		containedShards := c.Cluster.containsShards(index.Name(), index.AvailableShards(), c.Node)
 
 		// Get the fragments registered in memory.
 		for _, field := range index.Fields() {

@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pilosa/pilosa/roaring"
 	"github.com/pkg/errors"
-
 	"golang.org/x/sync/errgroup"
 )
 
@@ -234,6 +234,13 @@ func OptServerClusterHasher(h Hasher) ServerOption {
 	}
 }
 
+func OptServerTranslateFileMapSize(mapSize int) ServerOption {
+	return func(s *Server) error {
+		s.holder.translateFile = NewTranslateFile(OptTranslateFileMapSize(mapSize))
+		return nil
+	}
+}
+
 // NewServer returns a new instance of Server.
 func NewServer(opts ...ServerOption) (*Server, error) {
 	s := &Server{
@@ -330,20 +337,20 @@ func (s *Server) Open() error {
 
 	// Initialize id-key storage.
 	if err := s.holder.translateFile.Open(); err != nil {
-		return err
+		return errors.Wrap(err, "opening TranslateFile")
 	}
 
 	// Open Cluster management.
 	if err := s.cluster.waitForStarted(); err != nil {
-		return fmt.Errorf("opening Cluster: %v", err)
+		return errors.Wrap(err, "opening Cluster")
 	}
 
 	// Open holder.
 	if err := s.holder.Open(); err != nil {
-		return fmt.Errorf("opening Holder: %v", err)
+		return errors.Wrap(err, "opening Holder")
 	}
 	if err := s.cluster.setNodeState(nodeStateReady); err != nil {
-		return fmt.Errorf("setting nodeState: %v", err)
+		return errors.Wrap(err, "setting nodeState")
 	}
 
 	// Listen for joining nodes.
@@ -470,11 +477,13 @@ func (s *Server) monitorAntiEntropy() {
 func (s *Server) receiveMessage(m Message) error {
 	switch obj := m.(type) {
 	case *CreateShardMessage:
-		idx := s.holder.Index(obj.Index)
-		if idx == nil {
-			return fmt.Errorf("Local Index not found: %s", obj.Index)
+		f := s.holder.Field(obj.Index, obj.Field)
+		if f == nil {
+			return fmt.Errorf("Local field not found: %s/%s", obj.Index, obj.Field)
 		}
-		idx.setRemoteMaxShard(obj.Shard)
+		if err := f.addRemoteAvailableShards(roaring.NewBitmap(obj.Shard)); err != nil {
+			return errors.Wrap(err, "adding remote available shards")
+		}
 	case *CreateIndexMessage:
 		opt := obj.Meta
 		_, err := s.holder.CreateIndex(obj.Index, *opt)
@@ -628,19 +637,20 @@ func (s *Server) mergeRemoteStatus(ns *NodeStatus) error {
 		return errors.Wrap(err, "applying schema")
 	}
 
-	// Sync maxShards.
-	oldmaxshards := s.holder.maxShards()
-	for index, newMax := range ns.MaxShards {
-		localIndex := s.holder.Index(index)
-		// if we don't know about an index locally, log an error because
-		// indexes should be created and synced prior to shard creation
-		if localIndex == nil {
-			s.logger.Printf("Local Index not found: %s", index)
-			continue
-		}
-		if newMax > oldmaxshards[index] {
-			oldmaxshards[index] = newMax
-			localIndex.setRemoteMaxShard(newMax)
+	// Sync available shards.
+	for _, is := range ns.Indexes {
+		for _, fs := range is.Fields {
+			f := s.holder.Field(is.Name, fs.Name)
+
+			// if we don't know about a field locally, log an error because
+			// fields should be created and synced prior to shard creation
+			if f == nil {
+				s.logger.Printf("Local Field not found: %s/%s", is.Name, fs.Name)
+				continue
+			}
+			if err := f.addRemoteAvailableShards(fs.AvailableShards); err != nil {
+				return errors.Wrap(err, "adding remote available shards")
+			}
 		}
 	}
 
@@ -665,6 +675,7 @@ func (s *Server) monitorDiagnostics() {
 	s.diagnostics.Set("NumCPU", runtime.NumCPU())
 	s.diagnostics.Set("NodeID", s.nodeID)
 	s.diagnostics.Set("ClusterID", s.cluster.id)
+	s.diagnostics.EnrichWithCPUInfo()
 	s.diagnostics.EnrichWithOSInfo()
 
 	// Flush the diagnostics metrics at startup, then on each tick interval

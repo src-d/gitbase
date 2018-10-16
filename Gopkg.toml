@@ -1,6 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "679d33772845593ce5fdf17925f49f2335bc8356"
+  revision = "cdc6c8ccdc69f57858562755254641a4a4edb67a"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -66,7 +66,7 @@
 
 [[override]]
   name = "github.com/pilosa/pilosa"
-  version = "1.1.0"
+  revision = "f62dbc00b96f596a1f2ef8b4e87ba8ec847eda37"
 
 [[override]]
   name = "github.com/pilosa/go-pilosa"
