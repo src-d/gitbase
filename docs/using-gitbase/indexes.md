@@ -10,4 +10,4 @@ Note that you can create an index either **on one or more columns** or **on a si
 
 You can find some more examples in the [examples](./examples.md#create-an-index-for-columns-on-a-table) section.
 
-See [go-mysql-server](https://github.com/src-d/go-mysql-server/tree/679d33772845593ce5fdf17925f49f2335bc8356#indexes) documentation for more details
+See [go-mysql-server](https://github.com/src-d/go-mysql-server/tree/cdc6c8ccdc69f57858562755254641a4a4edb67a#indexes) documentation for more details
