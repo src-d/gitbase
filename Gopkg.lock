@@ -204,7 +204,7 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:2ce848409e7c67a285dc4bf04611ea37d22526af6d2b03db845b1942e6024b91"
+  digest = "1:4609595bf31d5611bc5d85cc1a427c23f10ec45030ffd3bc65c78b6892da0e84"
   name = "github.com/pilosa/pilosa"
   packages = [
     ".",
@@ -214,8 +214,7 @@
     "roaring",
   ]
   pruneopts = ""
-  revision = "b22780ccf149c564f8ca271f66965aca1beb3dfa"
-  version = "v1.1.0"
+  revision = "f62dbc00b96f596a1f2ef8b4e87ba8ec847eda37"
 
 [[projects]]
   digest = "1:7365acd48986e205ccb8652cc746f09c8b7876030d53710ea6ef7d0bd0dcd7ca"

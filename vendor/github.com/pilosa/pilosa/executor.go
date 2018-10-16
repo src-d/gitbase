@@ -79,20 +79,21 @@ func newExecutor(opts ...executorOption) *executor {
 }
 
 // Execute executes a PQL query.
-func (e *executor) Execute(ctx context.Context, index string, q *pql.Query, shards []uint64, opt *execOptions) ([]interface{}, error) {
+func (e *executor) Execute(ctx context.Context, index string, q *pql.Query, shards []uint64, opt *execOptions) (QueryResponse, error) {
+	resp := QueryResponse{}
 	// Verify that an index is set.
 	if index == "" {
-		return nil, ErrIndexRequired
+		return resp, ErrIndexRequired
 	}
 
 	idx := e.Holder.Index(index)
 	if idx == nil {
-		return nil, ErrIndexNotFound
+		return resp, ErrIndexNotFound
 	}
 
 	// Verify that the number of writes do not exceed the maximum.
 	if e.MaxWritesPerRequest > 0 && q.WriteCallN() > e.MaxWritesPerRequest {
-		return nil, ErrTooManyWrites
+		return resp, ErrTooManyWrites
 	}
 
 	// Default options.
@@ -105,14 +106,48 @@ func (e *executor) Execute(ctx context.Context, index string, q *pql.Query, shar
 	if !opt.Remote {
 		for i := range q.Calls {
 			if err := e.translateCall(index, idx, q.Calls[i]); err != nil {
-				return nil, err
+				return resp, err
 			}
 		}
 	}
 
 	results, err := e.execute(ctx, index, q, shards, opt)
 	if err != nil {
-		return nil, err
+		return resp, err
+	}
+
+	resp.Results = results
+
+	// Fill column attributes if requested.
+	if opt.ColumnAttrs {
+		// Consolidate all column ids across all calls.
+		var columnIDs []uint64
+		for _, result := range results {
+			bm, ok := result.(*Row)
+			if !ok {
+				continue
+			}
+			columnIDs = uint64Slice(columnIDs).merge(bm.Columns())
+		}
+
+		// Retrieve column attributes across all calls.
+		columnAttrSets, err := e.readColumnAttrSets(e.Holder.Index(index), columnIDs)
+		if err != nil {
+			return resp, errors.Wrap(err, "reading column attrs")
+		}
+
+		// Translate column attributes, if necessary.
+		if idx.Keys() {
+			for _, col := range columnAttrSets {
+				v, err := e.Holder.translateFile.TranslateColumnToString(index, col.ID)
+				if err != nil {
+					return resp, err
+				}
+				col.Key, col.ID = v, 0
+			}
+		}
+
+		resp.ColumnAttrSets = columnAttrSets
 	}
 
 	// Translate response objects from ids to keys, if necessary.
@@ -121,11 +156,35 @@ func (e *executor) Execute(ctx context.Context, index string, q *pql.Query, shar
 		for i := range results {
 			results[i], err = e.translateResult(index, idx, q.Calls[i], results[i])
 			if err != nil {
-				return nil, err
+				return resp, err
 			}
 		}
 	}
-	return results, nil
+
+	return resp, nil
+}
+
+// readColumnAttrSets returns a list of column attribute objects by id.
+func (e *executor) readColumnAttrSets(index *Index, ids []uint64) ([]*ColumnAttrSet, error) {
+	if index == nil {
+		return nil, nil
+	}
+
+	ax := make([]*ColumnAttrSet, 0, len(ids))
+	for _, id := range ids {
+		// Read attributes for column. Skip column if empty.
+		attrs, err := index.ColumnAttrStore().Attrs(id)
+		if err != nil {
+			return nil, errors.Wrap(err, "getting attrs")
+		} else if len(attrs) == 0 {
+			continue
+		}
+
+		// Append column with attributes.
+		ax = append(ax, &ColumnAttrSet{ID: id, Attrs: attrs})
+	}
+
+	return ax, nil
 }
 
 func (e *executor) execute(ctx context.Context, index string, q *pql.Query, shards []uint64, opt *execOptions) ([]interface{}, error) {
@@ -140,12 +199,9 @@ func (e *executor) execute(ctx context.Context, index string, q *pql.Query, shar
 		if idx == nil {
 			return nil, ErrIndexNotFound
 		}
-		maxShard := idx.maxShard()
-
-		// Generate a slice of all shards.
-		shards = make([]uint64, maxShard+1)
-		for i := range shards {
-			shards[i] = uint64(i)
+		shards = idx.AvailableShards().Slice()
+		if len(shards) == 0 {
+			shards = []uint64{0}
 		}
 	}
 
@@ -185,6 +241,10 @@ func (e *executor) executeCall(ctx context.Context, index string, c *pql.Call, s
 		return e.executeMax(ctx, index, c, shards, opt)
 	case "Clear":
 		return e.executeClearBit(ctx, index, c, opt)
+	case "ClearRow":
+		return e.executeClearRow(ctx, index, c, shards, opt)
+	case "Store":
+		return e.executeSetRow(ctx, index, c, shards, opt)
 	case "Count":
 		e.Holder.Stats.CountWithCustomTags(c.Name, 1, 1.0, []string{indexTag})
 		return e.executeCount(ctx, index, c, shards, opt)
@@ -197,6 +257,8 @@ func (e *executor) executeCall(ctx context.Context, index string, c *pql.Call, s
 	case "TopN":
 		e.Holder.Stats.CountWithCustomTags(c.Name, 1, 1.0, []string{indexTag})
 		return e.executeTopN(ctx, index, c, shards, opt)
+	case "Options":
+		return e.executeOptionsCall(ctx, index, c, shards, opt)
 	default:
 		e.Holder.Stats.CountWithCustomTags(c.Name, 1, 1.0, []string{indexTag})
 		return e.executeBitmapCall(ctx, index, c, shards, opt)
@@ -220,6 +282,48 @@ func (e *executor) validateCallArgs(c *pql.Call) error {
 		}
 	}
 	return nil
+}
+
+func (e *executor) executeOptionsCall(ctx context.Context, index string, c *pql.Call, shards []uint64, opt *execOptions) (interface{}, error) {
+	optCopy := &execOptions{}
+	*optCopy = *opt
+	if arg, ok := c.Args["columnAttrs"]; ok {
+		if value, ok := arg.(bool); ok {
+			opt.ColumnAttrs = value
+		} else {
+			return nil, errors.New("Query(): columnAttrs must be a bool")
+		}
+	}
+	if arg, ok := c.Args["excludeRowAttrs"]; ok {
+		if value, ok := arg.(bool); ok {
+			optCopy.ExcludeRowAttrs = value
+		} else {
+			return nil, errors.New("Query(): excludeRowAttrs must be a bool")
+		}
+	}
+	if arg, ok := c.Args["excludeColumns"]; ok {
+		if value, ok := arg.(bool); ok {
+			optCopy.ExcludeColumns = value
+		} else {
+			return nil, errors.New("Query(): excludeColumns must be a bool")
+		}
+	}
+	if arg, ok := c.Args["shards"]; ok {
+		if optShards, ok := arg.([]interface{}); ok {
+			shards = []uint64{}
+			for _, s := range optShards {
+				if shard, ok := s.(int64); ok {
+					shards = append(shards, uint64(shard))
+				} else {
+					return nil, errors.New("Query(): shards must be a list of unsigned integers")
+				}
+
+			}
+		} else {
+			return nil, errors.New("Query(): shards must be a list of unsigned integers")
+		}
+	}
+	return e.executeCall(ctx, index, c.Children[0], shards, optCopy)
 }
 
 // executeSum executes a Sum() call.
@@ -402,6 +506,8 @@ func (e *executor) executeBitmapCallShard(ctx context.Context, index string, c *
 		return e.executeUnionShard(ctx, index, c, shard)
 	case "Xor":
 		return e.executeXorShard(ctx, index, c, shard)
+	case "Not":
+		return e.executeNotShard(ctx, index, c, shard)
 	default:
 		return nil, fmt.Errorf("unknown call: %s", c.Name)
 	}
@@ -691,8 +797,7 @@ func (e *executor) executeBitmapShard(_ context.Context, index string, c *pql.Ca
 	rowID, rowOK, rowErr := c.UintArg(fieldName)
 	if rowErr != nil {
 		return nil, fmt.Errorf("Row() error with arg for row: %v", rowErr)
-	}
-	if !rowOK {
+	} else if !rowOK {
 		return nil, fmt.Errorf("Row() must specify %v", rowLabel)
 	}
 
@@ -966,6 +1071,38 @@ func (e *executor) executeXorShard(ctx context.Context, index string, c *pql.Cal
 	return other, nil
 }
 
+// executeNotShard executes a not() call for a local shard.
+func (e *executor) executeNotShard(ctx context.Context, index string, c *pql.Call, shard uint64) (*Row, error) {
+	if len(c.Children) == 0 {
+		return nil, errors.New("Not() requires an input row")
+	} else if len(c.Children) > 1 {
+		return nil, errors.New("Not() only accepts a single row input")
+	}
+
+	// Make sure the index supports existence tracking.
+	idx := e.Holder.Index(index)
+	if idx == nil {
+		return nil, ErrIndexNotFound
+	} else if idx.existenceField() == nil {
+		return nil, errors.Errorf("index does not support existence tracking: %s", index)
+	}
+
+	var existenceRow *Row
+	existenceFrag := e.Holder.fragment(index, existenceFieldName, viewStandard, shard)
+	if existenceFrag == nil {
+		existenceRow = NewRow()
+	} else {
+		existenceRow = existenceFrag.row(0)
+	}
+
+	row, err := e.executeBitmapCallShard(ctx, index, c.Children[0], shard)
+	if err != nil {
+		return nil, err
+	}
+
+	return existenceRow.Difference(row), nil
+}
+
 // executeCount executes a count() call.
 func (e *executor) executeCount(ctx context.Context, index string, c *pql.Call, shards []uint64, opt *execOptions) (uint64, error) {
 	if len(c.Children) == 0 {
@@ -1033,7 +1170,7 @@ func (e *executor) executeClearBit(ctx context.Context, index string, c *pql.Cal
 	return e.executeClearBitField(ctx, index, c, f, colID, rowID, opt)
 }
 
-// executeClearBitField executes a Clear() call for a single view.
+// executeClearBitField executes a Clear() call for a field.
 func (e *executor) executeClearBitField(ctx context.Context, index string, c *pql.Call, f *Field, colID, rowID uint64, opt *execOptions) (bool, error) {
 	shard := colID / ShardWidth
 	ret := false
@@ -1063,9 +1200,170 @@ func (e *executor) executeClearBitField(ctx context.Context, index string, c *pq
 	return ret, nil
 }
 
+// executeClearRow executes a ClearRow() call.
+func (e *executor) executeClearRow(ctx context.Context, index string, c *pql.Call, shards []uint64, opt *execOptions) (bool, error) {
+	// Ensure the field type supports ClearRow().
+	fieldName, err := c.FieldArg()
+	if err != nil {
+		return false, errors.New("ClearRow() argument required: field")
+	}
+	field := e.Holder.Field(index, fieldName)
+	if field == nil {
+		return false, ErrFieldNotFound
+	}
+
+	switch field.Type() {
+	case FieldTypeSet, FieldTypeTime, FieldTypeMutex, FieldTypeBool:
+		// These field types support ClearRow().
+	default:
+		return false, fmt.Errorf("ClearRow() is not supported on %s field types", field.Type())
+	}
+
+	// Execute calls in bulk on each remote node and merge.
+	mapFn := func(shard uint64) (interface{}, error) {
+		return e.executeClearRowShard(ctx, index, c, shard)
+	}
+
+	// Merge returned results at coordinating node.
+	reduceFn := func(prev, v interface{}) interface{} {
+		val := v.(bool)
+		if prev == nil {
+			return val
+		}
+		return val || prev.(bool)
+	}
+
+	result, err := e.mapReduce(ctx, index, shards, c, opt, mapFn, reduceFn)
+	return result.(bool), err
+}
+
+// executeClearRowShard executes a ClearRow() call for a single shard.
+func (e *executor) executeClearRowShard(_ context.Context, index string, c *pql.Call, shard uint64) (bool, error) {
+	fieldName, err := c.FieldArg()
+	if err != nil {
+		return false, errors.New("ClearRow() argument required: field")
+	}
+
+	// Read fields using labels.
+	rowID, ok, err := c.UintArg(fieldName)
+	if err != nil {
+		return false, fmt.Errorf("reading ClearRow() row: %v", err)
+	} else if !ok {
+		return false, fmt.Errorf("ClearRow() row argument '%v' required", rowLabel)
+	}
+
+	field := e.Holder.Field(index, fieldName)
+	if field == nil {
+		return false, ErrFieldNotFound
+	}
+
+	// Remove the row from all views.
+	changed := false
+	for _, view := range field.views() {
+		fragment := e.Holder.fragment(index, fieldName, view.name, shard)
+		if fragment == nil {
+			continue
+		}
+		cleared, err := fragment.clearRow(rowID)
+		if err != nil {
+			return false, errors.Wrapf(err, "clearing row %d on view %s shard %d", rowID, view.name, shard)
+		}
+		changed = changed || cleared
+	}
+
+	return changed, nil
+}
+
+// executeSetRow executes a SetRow() call.
+func (e *executor) executeSetRow(ctx context.Context, index string, c *pql.Call, shards []uint64, opt *execOptions) (bool, error) {
+	// Ensure the field type supports SetRow().
+	fieldName, err := c.FieldArg()
+	if err != nil {
+		return false, errors.New("SetRow() argument required: field")
+	}
+	field := e.Holder.Field(index, fieldName)
+	if field == nil {
+		return false, ErrFieldNotFound
+	}
+	if field.Type() != FieldTypeSet {
+		return false, fmt.Errorf("SetRow() is not supported on %s field types", field.Type())
+	}
+
+	// Execute calls in bulk on each remote node and merge.
+	mapFn := func(shard uint64) (interface{}, error) {
+		return e.executeSetRowShard(ctx, index, c, shard)
+	}
+
+	// Merge returned results at coordinating node.
+	reduceFn := func(prev, v interface{}) interface{} {
+		val := v.(bool)
+		if prev == nil {
+			return val
+		}
+		return val || prev.(bool)
+	}
+
+	result, err := e.mapReduce(ctx, index, shards, c, opt, mapFn, reduceFn)
+	return result.(bool), err
+}
+
+// executeSetRowShard executes a SetRow() call for a single shard.
+func (e *executor) executeSetRowShard(ctx context.Context, index string, c *pql.Call, shard uint64) (bool, error) {
+	fieldName, err := c.FieldArg()
+	if err != nil {
+		return false, errors.New("SetRow() argument required: field")
+	}
+
+	// Read fields using labels.
+	rowID, ok, err := c.UintArg(fieldName)
+	if err != nil {
+		return false, fmt.Errorf("reading SetRow() row: %v", err)
+	} else if !ok {
+		return false, fmt.Errorf("SetRow() row argument '%v' required", rowLabel)
+	}
+
+	field := e.Holder.Field(index, fieldName)
+	if field == nil {
+		return false, ErrFieldNotFound
+	}
+
+	// Retrieve source row.
+	var src *Row
+	if len(c.Children) == 1 {
+		row, err := e.executeBitmapCallShard(ctx, index, c.Children[0], shard)
+		if err != nil {
+			return false, errors.Wrap(err, "getting source row")
+		}
+		src = row
+	} else {
+		return false, errors.New("SetRow() requires a source row")
+	}
+
+	// Set the row on the standard view.
+	changed := false
+	fragment := e.Holder.fragment(index, fieldName, viewStandard, shard)
+	if fragment == nil {
+		// Since the destination fragment doesn't exist, create one.
+		view, err := field.createViewIfNotExists(viewStandard)
+		if err != nil {
+			return false, errors.Wrap(err, "creating view")
+		}
+		fragment, err = view.createFragmentIfNotExists(shard)
+		if err != nil {
+			return false, errors.Wrapf(err, "creating fragment: %d", shard)
+		}
+	}
+	set, err := fragment.setRow(src, rowID)
+	if err != nil {
+		return false, errors.Wrapf(err, "setting row %d on view %s shard %d", rowID, viewStandard, shard)
+	}
+	changed = changed || set
+
+	return changed, nil
+}
+
 // executeSet executes a Set() call.
 func (e *executor) executeSet(ctx context.Context, index string, c *pql.Call, opt *execOptions) (bool, error) {
-
 	// Read colID.
 	colID, ok, err := c.UintArg("_" + columnLabel)
 	if err != nil {
@@ -1090,8 +1388,16 @@ func (e *executor) executeSet(ctx context.Context, index string, c *pql.Call, op
 		return false, ErrFieldNotFound
 	}
 
+	// Set column on existence field.
+	if ef := idx.existenceField(); ef != nil {
+		if _, err := ef.SetBit(0, colID, nil); err != nil {
+			return false, errors.Wrap(err, "setting existence column")
+		}
+	}
+
+	// Int field.
 	if f.Type() == FieldTypeInt {
-		// Read remaining fields using labels.
+		// Read row value.
 		rowVal, ok, err := c.IntArg(fieldName)
 		if err != nil {
 			return false, fmt.Errorf("reading Set() row: %v", err)
@@ -1100,27 +1406,27 @@ func (e *executor) executeSet(ctx context.Context, index string, c *pql.Call, op
 		}
 
 		return e.executeSetValueField(ctx, index, c, f, colID, rowVal, opt)
-	} else {
-		// Read remaining fields using labels.
-		rowID, ok, err := c.UintArg(fieldName)
-		if err != nil {
-			return false, fmt.Errorf("reading Set() row: %v", err)
-		} else if !ok {
-			return false, fmt.Errorf("Set() row argument '%v' required", rowLabel)
-		}
-
-		var timestamp *time.Time
-		sTimestamp, ok := c.Args["_timestamp"].(string)
-		if ok {
-			t, err := time.Parse(TimeFormat, sTimestamp)
-			if err != nil {
-				return false, fmt.Errorf("invalid date: %s", sTimestamp)
-			}
-			timestamp = &t
-		}
-
-		return e.executeSetBitField(ctx, index, c, f, colID, rowID, timestamp, opt)
 	}
+
+	// Read row ID.
+	rowID, ok, err := c.UintArg(fieldName)
+	if err != nil {
+		return false, fmt.Errorf("reading Set() row: %v", err)
+	} else if !ok {
+		return false, fmt.Errorf("Set() row argument '%v' required", rowLabel)
+	}
+
+	var timestamp *time.Time
+	sTimestamp, ok := c.Args["_timestamp"].(string)
+	if ok {
+		t, err := time.Parse(TimeFormat, sTimestamp)
+		if err != nil {
+			return false, fmt.Errorf("invalid date: %s", sTimestamp)
+		}
+		timestamp = &t
+	}
+
+	return e.executeSetBitField(ctx, index, c, f, colID, rowID, timestamp, opt)
 }
 
 // executeSetBitField executes a Set() call for a specific field.
@@ -1443,7 +1749,7 @@ func (e *executor) mapReduce(ctx context.Context, index string, shards []uint64,
 
 	// Iterate over all map responses and reduce.
 	var result interface{}
-	var maxShard int
+	var shardN int
 	for {
 		select {
 		case <-ctx.Done():
@@ -1469,8 +1775,8 @@ func (e *executor) mapReduce(ctx context.Context, index string, shards []uint64,
 			result = reduceFn(result, resp.result)
 
 			// If all shards have been processed then return.
-			maxShard += len(resp.shards)
-			if maxShard >= len(shards) {
+			shardN += len(resp.shards)
+			if shardN >= len(shards) {
 				return result, nil
 			}
 		}
@@ -1551,16 +1857,17 @@ func (e *executor) mapperLocal(ctx context.Context, shards []uint64, mapFn mapFu
 
 func (e *executor) translateCall(index string, idx *Index, c *pql.Call) error {
 	var colKey, rowKey, fieldName string
-	if c.Name == "Set" || c.Name == "Clear" || c.Name == "Row" {
+	switch c.Name {
+	case "Set", "Clear", "Row", "Range", "SetColumnAttrs":
 		// Positional args in new PQL syntax require special handling here.
 		colKey = "_" + columnLabel
 		fieldName, _ = c.FieldArg()
 		rowKey = fieldName
-	} else if c.Name == "SetRowAttrs" {
+	case "SetRowAttrs":
 		// Positional args in new PQL syntax require special handling here.
 		rowKey = "_" + rowLabel
 		fieldName = callArgString(c, "_field")
-	} else {
+	default:
 		colKey = "col"
 		fieldName = callArgString(c, "field")
 		rowKey = "row"
@@ -1593,7 +1900,21 @@ func (e *executor) translateCall(index string, idx *Index, c *pql.Call) error {
 			// will raise an error downstream when it's used.
 			return nil
 		}
-		if field.keys() {
+
+		// Bool field keys do not use the translator because there
+		// are only two possible values. Instead, they are handled
+		// directly.
+		if field.Type() == FieldTypeBool {
+			boolVal, err := callArgBool(c, rowKey)
+			if err != nil {
+				return errors.Wrap(err, "getting bool key")
+			}
+			rowID := falseRowID
+			if boolVal {
+				rowID = trueRowID
+			}
+			c.Args[rowKey] = rowID
+		} else if field.keys() {
 			if c.Args[rowKey] != nil && !isString(c.Args[rowKey]) {
 				return errors.New("row value must be a string when field 'keys' option enabled")
 			}
@@ -1680,6 +2001,7 @@ type execOptions struct {
 	Remote          bool
 	ExcludeRowAttrs bool
 	ExcludeColumns  bool
+	ColumnAttrs     bool
 }
 
 // hasOnlySetRowAttrs returns true if calls only contains SetRowAttrs() calls.
@@ -1747,6 +2069,18 @@ func (vc *ValCount) larger(other ValCount) ValCount {
 		Val:   vc.Val,
 		Count: vc.Count,
 	}
+}
+
+func callArgBool(call *pql.Call, key string) (bool, error) {
+	value, ok := call.Args[key]
+	if !ok {
+		return false, errors.New("missing bool argument")
+	}
+	b, ok := value.(bool)
+	if !ok {
+		return false, fmt.Errorf("invalid bool argument type: %T", value)
+	}
+	return b, nil
 }
 
 func callArgString(call *pql.Call, key string) string {
