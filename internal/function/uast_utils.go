@@ -140,8 +140,8 @@ func marshalNodes(arr nodes.Array) (interface{}, error) {
 		return nil, nil
 	}
 
-	buf := &bytes.Buffer{}
-	if err := nodesproto.WriteTo(buf, arr); err != nil {
+	var buf bytes.Buffer
+	if err := nodesproto.WriteTo(&buf, arr); err != nil {
 		return nil, err
 	}
 

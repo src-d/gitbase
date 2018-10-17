@@ -238,7 +238,7 @@ func TestUASTChildren(t *testing.T) {
 		{
 			mode:     "semantic",
 			key:      uast.KeyType,
-			expected: []string{"uast:FunctionGroup", "Expr"},
+			expected: []string{"uast:FunctionGroup", "python:Expr"},
 		},
 		{
 			mode:     "annotated",
