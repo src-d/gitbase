@@ -133,4 +133,4 @@ Also, if you want to retrieve values from a non common property, you can pass it
 
 ## Standard functions
 
-You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/cdc6c8ccdc69f57858562755254641a4a4edb67a#custom-functions).
+You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/v0.1.0#custom-functions).
