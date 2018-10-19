@@ -8,7 +8,7 @@
 
 ## Installing gitbase
 
-The easiest way to run the gitbase server is using Docker, however you have the options of using the binary or installing from source.
+The easiest way to run the gitbase server is using Docker; However, you have the options of using the binary or installing from source.
 
 ### Running with Docker
 
