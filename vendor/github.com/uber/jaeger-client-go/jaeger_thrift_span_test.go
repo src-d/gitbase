@@ -17,6 +17,7 @@ package jaeger
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -284,7 +285,7 @@ func TestBuildTags(t *testing.T) {
 	}
 	for i, test := range tests {
 		testName := fmt.Sprintf("test-%02d", i)
-		actual := buildTags([]Tag{test.tag})
+		actual := buildTags([]Tag{test.tag}, DefaultMaxTagValueLength)
 		assert.Len(t, actual, 1)
 		compareTags(t, test.expected, actual[0], testName)
 	}
@@ -326,6 +327,39 @@ func TestJaegerSpanBaggageLogs(t *testing.T) {
 	assertJaegerTag(t, fields, "event", "baggage")
 	assertJaegerTag(t, fields, "key", "auth.token")
 	assertJaegerTag(t, fields, "value", "token")
+}
+
+func TestJaegerMaxTagValueLength(t *testing.T) {
+	value := make([]byte, 512)
+	tests := []struct {
+		tagValueLength int
+		value          []byte
+		expected       []byte
+	}{
+		{256, value, value[:256]},
+		{512, value, value},
+	}
+
+	for _, test := range tests {
+		t.Run(strconv.Itoa(test.tagValueLength), func(t *testing.T) {
+			tracer, closer := NewTracer("DOOP",
+				NewConstSampler(true),
+				NewNullReporter(),
+				TracerOptions.MaxTagValueLength(test.tagValueLength))
+			defer closer.Close()
+			sp := tracer.StartSpan("s1").(*Span)
+			sp.SetTag("tag.string", string(test.value))
+			sp.SetTag("tag.bytes", test.value)
+			sp.Finish()
+			thriftSpan := BuildJaegerThrift(sp)
+			stringTag := findTag(thriftSpan, "tag.string")
+			assert.Equal(t, j.TagType_STRING, stringTag.VType)
+			assert.Equal(t, string(test.expected), *stringTag.VStr)
+			bytesTag := findTag(thriftSpan, "tag.bytes")
+			assert.Equal(t, j.TagType_BINARY, bytesTag.VType)
+			assert.Equal(t, test.expected, bytesTag.VBinary)
+		})
+	}
 }
 
 func assertJaegerTag(t *testing.T, tags []*j.Tag, key string, value string) {

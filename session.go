@@ -8,8 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
-	bblfsh "gopkg.in/bblfsh/client-go.v2"
-	"gopkg.in/bblfsh/sdk.v1/protocol"
+	bblfsh "gopkg.in/bblfsh/client-go.v3"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -118,14 +117,15 @@ func (c *BblfshClient) IsLanguageSupported(ctx context.Context, lang string) (bo
 // server this client is connected to.
 func (c *BblfshClient) SupportedLanguages(ctx context.Context) ([]string, error) {
 	if len(c.supportedLanguages) == 0 {
-		resp, err := c.Client.NewSupportedLanguagesRequest().
-			DoWithContext(ctx)
+		driverManifests, err := c.Client.
+			NewSupportedLanguagesRequest().
+			Context(ctx).Do()
 		if err != nil {
 			return nil, err
 		}
 
-		for _, lang := range resp.Languages {
-			c.supportedLanguages = append(c.supportedLanguages, lang.Language)
+		for _, dm := range driverManifests {
+			c.supportedLanguages = append(c.supportedLanguages, dm.Language)
 		}
 	}
 
@@ -137,11 +137,12 @@ func (c *BblfshClient) Parse(
 	ctx context.Context,
 	lang string,
 	content []byte,
-) (*protocol.ParseResponse, error) {
+) (bblfsh.Node, string, error) {
 	return c.NewParseRequest().
 		Language(lang).
 		Content(string(content)).
-		DoWithContext(ctx)
+		Context(ctx).
+		UAST()
 }
 
 // ParseWithMode the given content with the given language.
@@ -150,12 +151,13 @@ func (c *BblfshClient) ParseWithMode(
 	mode bblfsh.Mode,
 	lang string,
 	content []byte,
-) (*protocol.ParseResponse, error) {
+) (bblfsh.Node, string, error) {
 	return c.NewParseRequest().
 		Mode(mode).
 		Language(lang).
 		Content(string(content)).
-		DoWithContext(ctx)
+		Context(ctx).
+		UAST()
 }
 
 // BblfshClient returns a BblfshClient.

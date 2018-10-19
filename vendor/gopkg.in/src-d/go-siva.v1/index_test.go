@@ -2,9 +2,12 @@ package siva
 
 import (
 	"bytes"
+	"runtime"
 	"sort"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	. "gopkg.in/check.v1"
 )
 
@@ -41,7 +44,9 @@ func (s *IndexSuite) TestIndexFooterIdempotent(c *C) {
 	footer := &IndexFooter{}
 	err = footer.ReadFrom(buf)
 	c.Assert(err, IsNil)
-	c.Assert(footer, DeepEquals, expected)
+	if diff := cmp.Diff(expected, footer, cmpopts.IgnoreUnexported(IndexFooter{})); diff != "" {
+		c.Fatalf("IndexFooter differs:\n%s", diff)
+	}
 }
 
 func (s *IndexSuite) TestIndexEntryIdempotent(c *C) {
@@ -61,7 +66,9 @@ func (s *IndexSuite) TestIndexEntryIdempotent(c *C) {
 	entry := &IndexEntry{}
 	err = entry.ReadFrom(buf)
 	c.Assert(err, IsNil)
-	c.Assert(entry, DeepEquals, expected)
+	if diff := cmp.Diff(expected, entry, cmpopts.IgnoreUnexported(IndexEntry{})); diff != "" {
+		c.Fatalf("IndexEntry differs:\n%s", diff)
+	}
 }
 
 func (s *IndexSuite) TestFilter(c *C) {
@@ -97,4 +104,52 @@ func (s *IndexSuite) TestFind(c *C) {
 	e := i.Find("bar")
 	c.Assert(e, NotNil)
 	c.Assert(e.Start, Equals, uint64(2))
+}
+
+func (s *IndexSuite) TestToSafePathsWindows(c *C) {
+	if runtime.GOOS != "windows" {
+		c.Skip("windows only")
+	}
+
+	i := Index{
+		{Header: Header{Name: `C:\foo\bar`}, Start: 1},
+		{Header: Header{Name: `\\network\share\foo\bar`}, Start: 2},
+		{Header: Header{Name: `/foo/bar`}, Start: 3},
+		{Header: Header{Name: `../bar`}, Start: 4},
+		{Header: Header{Name: `foo/bar/../../baz`}, Start: 5},
+	}
+
+	f := i.ToSafePaths()
+	expected := Index{
+		{Header: Header{Name: `foo/bar`}, Start: 1},
+		{Header: Header{Name: `foo/bar`}, Start: 2},
+		{Header: Header{Name: `foo/bar`}, Start: 3},
+		{Header: Header{Name: `bar`}, Start: 4},
+		{Header: Header{Name: `baz`}, Start: 5},
+	}
+	c.Assert(f, DeepEquals, expected)
+}
+
+func (s *IndexSuite) TestToSafePathsNotWindows(c *C) {
+	if runtime.GOOS == "windows" {
+		c.Skip("posix only")
+	}
+
+	i := Index{
+		{Header: Header{Name: `C:\foo\bar`}, Start: 1},
+		{Header: Header{Name: `\\network\share\foo\bar`}, Start: 2},
+		{Header: Header{Name: `/foo/bar`}, Start: 3},
+		{Header: Header{Name: `../bar`}, Start: 4},
+		{Header: Header{Name: `foo/bar/../../baz`}, Start: 5},
+	}
+
+	f := i.ToSafePaths()
+	expected := Index{
+		{Header: Header{Name: `C:\foo\bar`}, Start: 1},
+		{Header: Header{Name: `\\network\share\foo\bar`}, Start: 2},
+		{Header: Header{Name: `foo/bar`}, Start: 3},
+		{Header: Header{Name: `bar`}, Start: 4},
+		{Header: Header{Name: `baz`}, Start: 5},
+	}
+	c.Assert(f, DeepEquals, expected)
 }

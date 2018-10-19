@@ -17,6 +17,7 @@ package jaeger
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -308,6 +309,35 @@ func TestBaggageLogs(t *testing.T) {
 
 	thriftSpan := BuildZipkinThrift(sp)
 	assert.NotNil(t, findAnnotation(thriftSpan, `{"event":"baggage","key":"auth.token","value":"token"}`))
+}
+
+func TestMaxTagValueLength(t *testing.T) {
+	value := make([]byte, 512)
+	tests := []struct {
+		tagValueLength int
+		value          []byte
+		expected       []byte
+	}{
+		{256, value, value[:256]},
+		{512, value, value},
+	}
+
+	for _, test := range tests {
+		t.Run(strconv.Itoa(test.tagValueLength), func(t *testing.T) {
+			tracer, closer := NewTracer("DOOP",
+				NewConstSampler(true),
+				NewNullReporter(),
+				TracerOptions.MaxTagValueLength(test.tagValueLength))
+			defer closer.Close()
+			sp := tracer.StartSpan("s1").(*Span)
+			sp.SetTag("tag.string", string(test.value))
+			sp.SetTag("tag.bytes", test.value)
+			sp.Finish()
+			thriftSpan := BuildZipkinThrift(sp)
+			assert.Equal(t, test.expected, findBinaryAnnotation(thriftSpan, "tag.string").Value)
+			assert.Equal(t, test.expected, findBinaryAnnotation(thriftSpan, "tag.bytes").Value)
+		})
+	}
 }
 
 func findAnnotation(span *zipkincore.Span, name string) *zipkincore.Annotation {

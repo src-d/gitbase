@@ -80,13 +80,18 @@ func TestHTTPTransport(t *testing.T) {
 }
 
 func TestHTTPOptions(t *testing.T) {
+	roundTripper := &http.Transport{
+		MaxIdleConns: 80000,
+	}
 	sender := NewHTTPTransport(
 		"some url",
 		HTTPBatchSize(123),
 		HTTPTimeout(123*time.Millisecond),
+		HTTPRoundTripper(roundTripper),
 	)
 	assert.Equal(t, 123, sender.batchSize)
 	assert.Equal(t, 123*time.Millisecond, sender.client.Timeout)
+	assert.Equal(t, roundTripper, sender.client.Transport)
 }
 
 type httpServer struct {

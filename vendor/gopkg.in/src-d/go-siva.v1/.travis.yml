@@ -3,17 +3,12 @@ language: go
 go_import_path: gopkg.in/src-d/go-siva.v1
 
 go:
-  - 1.8
-  - tip
-
-matrix:
-  fast_finish: true
-  allow_failures:
-    - go: tip
+  - 1.10.x
+  - 1.11.x
 
 install:
   - make dependencies
-    
+
 script:
   - make test-coverage
 
@@ -22,7 +17,7 @@ before_deploy:
 
 deploy:
   provider: releases
-  api_key: $GITHUB_TOKEN 
+  api_key: $GITHUB_TOKEN
   file_glob: true
   file: build/*.tar.gz
   skip_cleanup: true

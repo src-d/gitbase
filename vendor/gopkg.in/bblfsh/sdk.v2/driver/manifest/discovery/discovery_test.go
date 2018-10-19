@@ -25,6 +25,9 @@ func TestOfficialDrivers(t *testing.T) {
 		t.SkipNow()
 	}
 	drivers, err := OfficialDrivers(context.Background(), nil)
+	if isRateLimit(err) {
+		t.Skip(err)
+	}
 	require.NoError(t, err)
 	require.True(t, len(drivers) >= 15, "drivers: %d", len(drivers))
 

@@ -51,7 +51,7 @@ func main() {
 	}
 
 	if fileInfo.Mode().IsRegular() {
-		err = printFileAnalysis(root, limit)
+		err = printFileAnalysis(root, limit, *jsonFlag)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -259,7 +259,7 @@ func byteCountValues(files []string) (float64, filelistError) {
 	return t, filesErr
 }
 
-func printFileAnalysis(file string, limit int64) error {
+func printFileAnalysis(file string, limit int64, isJSON bool) error {
 	data, err := readFile(file, limit)
 	if err != nil {
 		return err
@@ -279,6 +279,17 @@ func printFileAnalysis(file string, limit int64) error {
 	fileType := getFileType(file, data)
 	language := enry.GetLanguage(file, data)
 	mimeType := enry.GetMimeType(file, language)
+
+	if isJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
+			"filename":    filepath.Base(file),
+			"lines":       nonBlank,
+			"total_lines": totalLines,
+			"type":        fileType,
+			"mime":        mimeType,
+			"language":    language,
+		})
+	}
 
 	fmt.Printf(
 		`%s: %d lines (%d sloc)

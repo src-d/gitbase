@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	. "gopkg.in/check.v1"
 )
@@ -16,7 +17,7 @@ var _ = Suite(&UnpackSuite{})
 
 func (s *UnpackSuite) SetUpTest(c *C) {
 	var err error
-	s.folder, err = ioutil.TempDir("/tmp/", "siva-cmd-unpack")
+	s.folder, err = ioutil.TempDir("", "siva-cmd-unpack")
 	c.Assert(err, IsNil)
 }
 
@@ -28,7 +29,7 @@ func (s *UnpackSuite) TearDownTest(c *C) {
 func (s *UnpackSuite) TestBasic(c *C) {
 	cmd := &CmdUnpack{}
 	cmd.Output.Path = filepath.Join(s.folder, "files")
-	cmd.Args.File = "../../fixtures/perms.siva"
+	cmd.Args.File = filepath.Join("..", "..", "fixtures", "perms.siva")
 	cmd.Overwrite = true
 
 	err := cmd.Execute(nil)
@@ -39,6 +40,10 @@ func (s *UnpackSuite) TestBasic(c *C) {
 	c.Assert(dir, HasLen, 3)
 
 	perms := []string{"-rwxr-xr-x", "-rw-------", "-rw-r--r--"}
+	if runtime.GOOS == "windows" {
+		perms = []string{"-rw-rw-rw-", "-rw-rw-rw-", "-rw-rw-rw-"}
+	}
+
 	for i, f := range dir {
 		c.Assert(f.Name(), Equals, files[i].Name)
 
@@ -52,7 +57,7 @@ func (s *UnpackSuite) TestBasic(c *C) {
 func (s *UnpackSuite) TestIgnorePerms(c *C) {
 	cmd := &CmdUnpack{}
 	cmd.Output.Path = filepath.Join(s.folder, "files")
-	cmd.Args.File = "../../fixtures/perms.siva"
+	cmd.Args.File = filepath.Join("..", "..", "fixtures", "perms.siva")
 	cmd.IgnorePerms = true
 
 	err := cmd.Execute(nil)
@@ -70,7 +75,7 @@ func (s *UnpackSuite) TestIgnorePerms(c *C) {
 func (s *UnpackSuite) TestMatch(c *C) {
 	cmd := &CmdUnpack{}
 	cmd.Output.Path = filepath.Join(s.folder, "files")
-	cmd.Args.File = "../../fixtures/basic.siva"
+	cmd.Args.File = filepath.Join("..", "..", "fixtures", "basic.siva")
 	cmd.Match = "gopher(.*)"
 
 	err := cmd.Execute(nil)
@@ -85,7 +90,7 @@ func (s *UnpackSuite) TestMatch(c *C) {
 func (s *UnpackSuite) TestOverwrite(c *C) {
 	cmd := &CmdUnpack{}
 	cmd.Output.Path = filepath.Join(s.folder, "files")
-	cmd.Args.File = "../../fixtures/duplicate.siva"
+	cmd.Args.File = filepath.Join("..", "..", "fixtures", "duplicate.siva")
 	cmd.Overwrite = true
 
 	err := cmd.Execute(nil)
@@ -94,4 +99,17 @@ func (s *UnpackSuite) TestOverwrite(c *C) {
 	dir, err := ioutil.ReadDir(cmd.Output.Path)
 	c.Assert(err, IsNil)
 	c.Assert(dir, HasLen, 3)
+}
+
+func (s *UnpackSuite) TestZipSlip(c *C) {
+	cmd := &CmdUnpack{}
+	cmd.Output.Path = filepath.Join(s.folder, "files/inside")
+	cmd.Args.File = filepath.Join("..", "..", "fixtures", "zipslip.siva")
+
+	err := cmd.Execute(nil)
+	c.Assert(err, NotNil)
+
+	_, err = os.Stat(filepath.Join(s.folder, "files"))
+	c.Assert(err, NotNil)
+	c.Assert(os.IsNotExist(err), Equals, true)
 }

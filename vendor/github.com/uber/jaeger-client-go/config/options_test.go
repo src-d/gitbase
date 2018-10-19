@@ -38,6 +38,7 @@ func TestApplyOptions(t *testing.T) {
 		ContribObserver(contribObserver),
 		Gen128Bit(true),
 		ZipkinSharedRPCSpan(true),
+		MaxTagValueLength(1024),
 	)
 	assert.Equal(t, jaeger.StdLogger, opts.logger)
 	assert.Equal(t, sampler, opts.sampler)
@@ -46,6 +47,7 @@ func TestApplyOptions(t *testing.T) {
 	assert.Equal(t, []jaeger.ContribObserver{contribObserver}, opts.contribObservers)
 	assert.True(t, opts.gen128Bit)
 	assert.True(t, opts.zipkinSharedRPCSpan)
+	assert.Equal(t, 1024, opts.maxTagValueLength)
 }
 
 func TestTraceTagOption(t *testing.T) {

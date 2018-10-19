@@ -27,7 +27,7 @@ The content of each file is concatenated without any delimiter. After the last
 file content, there is an index of the block.
 
 It is possible to have a block with no file contents at all. That is the case
-for a block that deletes a file. In any case, the index must be present. 
+for a block that deletes a file. In any case, the index must be present.
 
 ### Index
 
@@ -42,7 +42,7 @@ version
 [index footer]
 ```
 
-The `signature` field is a sequence of 3 bytes with the value `IBA`. If the
+The `signature` field is a sequence of 3 bytes (Go implementation use uint8 for this. Go byte is an alias for uint8 type) with the value `IBA`. If the
 signature does not match this sequence, it is considered an error.
 
 The `version` field is an uint8 with the value `1`. If the version contains an
@@ -53,11 +53,11 @@ Each index entry has the following fields:
 
 * Byte length of the entry name (uint32).
 * Entry name (UTF-8 string).
-* UNIX mode (uint32).
+* UNIX mode (uint32) (see Go implementation [issue](https://github.com/src-d/go-siva/issues/11)).
 * Modification time as UNIX time in nanoseconds (int64).
 * Offset of the file content, relative to the beginning of the block (uint64).
 * Size of the file content (uint64).
-* CRC32 (uint32).
+* CRC32 (uint32) (Integrity of the file content this entry point to).
 * Flags (uint32), supported flags: 0x0 (no flags), 0x1 (deleted).
 
 The index footer consists of:
@@ -65,7 +65,7 @@ The index footer consists of:
 * Number of entries in the block (uint32).
 * Index size in bytes (uint64).
 * Block sie in bytes (uint64).
-* CRC32 (uint32).
+* CRC32 (uint32) (Integrity of: Signature + Version + Entries).
 
 All integers are encoded as big endian.
 
@@ -81,4 +81,3 @@ The following limits apply to the format as of version 1:
 * Block size: 2<sup>64</sup>-1 bytes.
 * File entry size: 2<sup>64</sup>-1 bytes.
 * Archive file size: no limit.
-

@@ -112,7 +112,7 @@ func (s *ReaderSuite) testIndexGlob(c *C, pattern string, expected []string) {
 	for _, match := range matches {
 		matchNames = append(matchNames, match.Name)
 	}
-	sort.Sort(sort.StringSlice(matchNames))
+	sort.Strings(matchNames)
 
 	c.Assert(matchNames, DeepEquals, expected)
 

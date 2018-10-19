@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/log"
+	"github.com/uber/jaeger-client-go/transport"
 )
 
 func TestNewSamplerConst(t *testing.T) {
@@ -147,6 +148,8 @@ func TestReporterConfigFromEnv(t *testing.T) {
 	os.Setenv(envReporterLogSpans, "true")
 	os.Setenv(envAgentHost, "nonlocalhost")
 	os.Setenv(envAgentPort, "6832")
+	os.Setenv(envUser, "user")
+	os.Setenv(envPassword, "password")
 
 	// test
 	cfg, err := FromEnv()
@@ -158,12 +161,25 @@ func TestReporterConfigFromEnv(t *testing.T) {
 	assert.Equal(t, true, cfg.Reporter.LogSpans)
 	assert.Equal(t, "nonlocalhost:6832", cfg.Reporter.LocalAgentHostPort)
 
+	// Test HTTP transport
+	os.Unsetenv(envAgentHost)
+	os.Unsetenv(envAgentPort)
+	os.Setenv(envEndpoint, "http://1.2.3.4:5678/api/traces")
+
+	// test
+	cfg, err = FromEnv()
+	assert.NoError(t, err)
+
+	// verify
+	assert.Equal(t, "http://1.2.3.4:5678/api/traces", cfg.Reporter.CollectorEndpoint)
+
 	// cleanup
 	os.Unsetenv(envReporterMaxQueueSize)
 	os.Unsetenv(envReporterFlushInterval)
 	os.Unsetenv(envReporterLogSpans)
-	os.Unsetenv(envAgentHost)
-	os.Unsetenv(envAgentPort)
+	os.Unsetenv(envEndpoint)
+	os.Unsetenv(envUser)
+	os.Unsetenv(envPassword)
 }
 
 func TestParsingErrorsFromEnv(t *testing.T) {
@@ -209,16 +225,78 @@ func TestParsingErrorsFromEnv(t *testing.T) {
 			envVar: envAgentPort,
 			value:  "NOT_AN_INT",
 		},
+		{
+			envVar: envEndpoint,
+			value:  "NOT_A_URL",
+		},
 	}
 
 	for _, test := range tests {
 		os.Setenv(test.envVar, test.value)
+		if test.envVar == envEndpoint {
+			os.Unsetenv(envAgentHost)
+			os.Unsetenv(envAgentPort)
+		}
 		_, err := FromEnv()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), fmt.Sprintf("cannot parse env var %s=%s", test.envVar, test.value))
 		os.Unsetenv(test.envVar)
 	}
 
+}
+
+func TestParsingUserPasswordErrorEnv(t *testing.T) {
+	tests := []struct {
+		envVar string
+		value  string
+	}{
+		{
+			envVar: envUser,
+			value:  "user",
+		},
+		{
+			envVar: envPassword,
+			value:  "password",
+		},
+	}
+
+	for _, test := range tests {
+		os.Setenv(test.envVar, test.value)
+		_, err := FromEnv()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), fmt.Sprintf("you must set %s and %s env vars together", envUser,
+			envPassword))
+		os.Unsetenv(test.envVar)
+	}
+}
+
+func TestHostPortEndpointEnvError(t *testing.T) {
+	tests := []struct {
+		envVar string
+		value  string
+		err    string
+	}{
+		{
+			envVar: envAgentHost,
+			value:  "user",
+			err:    fmt.Sprintf("cannot set env vars %s and %s together", envAgentHost, envEndpoint),
+		},
+		{
+			envVar: envAgentPort,
+			value:  "password",
+			err:    fmt.Sprintf("cannot set env vars %s and %s together", envAgentPort, envEndpoint),
+		},
+	}
+
+	os.Setenv(envEndpoint, "http://1.2.3.4:5678/api/traces")
+	for _, test := range tests {
+		os.Setenv(test.envVar, test.value)
+		_, err := FromEnv()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), test.err)
+		os.Unsetenv(test.envVar)
+	}
+	os.Unsetenv(envEndpoint)
 }
 
 func TestInvalidSamplerType(t *testing.T) {
@@ -228,6 +306,22 @@ func TestInvalidSamplerType(t *testing.T) {
 	rcs, ok := s.(*jaeger.RemotelyControlledSampler)
 	require.True(t, ok, "converted to RemotelyControlledSampler")
 	rcs.Close()
+}
+
+func TestUDPTransportType(t *testing.T) {
+	rc := &ReporterConfig{LocalAgentHostPort: "localhost:1234"}
+	expect, _ := jaeger.NewUDPTransport(rc.LocalAgentHostPort, 0)
+	sender, err := rc.newTransport()
+	require.NoError(t, err)
+	require.IsType(t, expect, sender)
+}
+
+func TestHTTPTransportType(t *testing.T) {
+	rc := &ReporterConfig{CollectorEndpoint: "http://1.2.3.4:5678/api/traces"}
+	expect := transport.NewHTTPTransport(rc.CollectorEndpoint)
+	sender, err := rc.newTransport()
+	require.NoError(t, err)
+	require.IsType(t, expect, sender)
 }
 
 func TestDefaultConfig(t *testing.T) {

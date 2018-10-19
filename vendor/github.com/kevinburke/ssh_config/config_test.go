@@ -362,3 +362,19 @@ func TestDosLinesEndingsDecode(t *testing.T) {
 		t.Errorf("expected HostName to be %q, got %q", "8.8.8.8", host)
 	}
 }
+
+func TestNoTrailingNewline(t *testing.T) {
+	us := &UserSettings{
+		userConfigFinder:   testConfigFinder("testdata/config-no-ending-newline"),
+		systemConfigFinder: nullConfigFinder,
+	}
+
+	port, err := us.GetStrict("example", "Port")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if port != "4242" {
+		t.Errorf("wrong port: got %q want 4242", port)
+	}
+}

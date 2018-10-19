@@ -2,16 +2,16 @@ package function
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"hash"
-	"io"
-	"strings"
+
+	"gopkg.in/bblfsh/client-go.v3/tools"
+	"gopkg.in/bblfsh/sdk.v2/uast/nodes/nodesproto"
 
 	"github.com/sirupsen/logrus"
 	"github.com/src-d/gitbase"
-	bblfsh "gopkg.in/bblfsh/client-go.v2"
-	"gopkg.in/bblfsh/sdk.v1/uast"
+	bblfsh "gopkg.in/bblfsh/client-go.v3"
+	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 	errors "gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
@@ -86,7 +86,7 @@ func getUASTFromBblfsh(ctx *sql.Context,
 	blob []byte,
 	lang, xpath string,
 	mode bblfsh.Mode,
-) (*uast.Node, error) {
+) (nodes.Node, error) {
 	session, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
@@ -106,58 +106,49 @@ func getUASTFromBblfsh(ctx *sql.Context,
 		}
 
 		if !ok {
-			return nil, nil
+			return nil, ErrParseBlob.New(
+				fmt.Errorf("unsupported language %q", lang))
 		}
 	}
 
-	resp, err := client.ParseWithMode(ctx, mode, lang, blob)
+	node, _, err := client.ParseWithMode(ctx, mode, lang, blob)
 	if err != nil {
 		err := ErrParseBlob.New(err)
 		logrus.Warn(err)
 		return nil, err
 	}
 
-	if len(resp.Errors) > 0 {
-		err := ErrParseBlob.New(strings.Join(resp.Errors, "\n"))
-		logrus.Warn(err)
+	return node, nil
+}
+
+func applyXpath(n nodes.Node, query string) (nodes.Array, error) {
+	var filtered nodes.Array
+	it, err := tools.Filter(n, query)
+	if err != nil {
 		return nil, err
 	}
 
-	return resp.UAST, nil
+	for n := range tools.Iterate(it) {
+		filtered = append(filtered, n)
+	}
+
+	return filtered, nil
 }
 
-func marshalNodes(nodes []*uast.Node) (out interface{}, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			out, err = nil, r.(error)
-		}
-	}()
+func marshalNodes(arr nodes.Array) (interface{}, error) {
+	if len(arr) == 0 {
+		return nil, nil
+	}
 
 	buf := &bytes.Buffer{}
-	for _, n := range nodes {
-		if n != nil {
-			data, err := n.Marshal()
-			if err != nil {
-				return nil, err
-			}
-
-			if err := binary.Write(
-				buf, binary.BigEndian, int32(len(data)),
-			); err != nil {
-				return nil, err
-			}
-
-			n, _ := buf.Write(data)
-			if n != len(data) {
-				return nil, ErrMarshalUAST.New("couldn't write all the data")
-			}
-		}
+	if err := nodesproto.WriteTo(buf, arr); err != nil {
+		return nil, err
 	}
 
 	return buf.Bytes(), nil
 }
 
-func getNodes(data interface{}) (nodes []*uast.Node, err error) {
+func getNodes(data interface{}) (nodes.Array, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -170,32 +161,21 @@ func getNodes(data interface{}) (nodes []*uast.Node, err error) {
 	return unmarshalNodes(raw)
 }
 
-func unmarshalNodes(data []byte) ([]*uast.Node, error) {
+func unmarshalNodes(data []byte) (nodes.Array, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
 
-	nodes := []*uast.Node{}
-	buf := bytes.NewBuffer(data)
-	for {
-		var nodeLen int32
-		if err := binary.Read(
-			buf, binary.BigEndian, &nodeLen,
-		); err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			return nil, ErrUnmarshalUAST.New(err)
-		}
-
-		node := uast.NewNode()
-		if err := node.Unmarshal(buf.Next(int(nodeLen))); err != nil {
-			return nil, ErrUnmarshalUAST.New(err)
-		}
-
-		nodes = append(nodes, node)
+	buf := bytes.NewReader(data)
+	n, err := nodesproto.ReadTree(buf)
+	if err != nil {
+		return nil, err
 	}
 
-	return nodes, nil
+	if n.Kind() != nodes.KindArray {
+		return nil, fmt.Errorf("unmarshal: wrong kind of node found %q, expected %q",
+			n.Kind(), nodes.KindArray.String())
+	}
+
+	return n.(nodes.Array), nil
 }

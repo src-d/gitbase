@@ -142,7 +142,7 @@ SELECT file_path, uast(blob_content, language(file_path)) FROM files;
 This function allows you to directly filter the retrieved UAST by performing a XPATH query on it:
 
 ```sql
-SELECT file_path, uast(blob_content, language(file_path), "//FuncLit") FROM files;
+SELECT file_path, uast(blob_content, language(file_path), "//uast:FunctionGroup") FROM files;
 ```
 
 This UDF will give you `semantic` UASTs by default. To get some other type see the UDF [`uast_mode`](#retrieving-different-kinds-of-uasts-using-uast_mode).
@@ -162,33 +162,33 @@ SELECT file_path, uast_mode("native", blob_content, language(file_path)) FROM fi
 ## Filtering UASTs by XPath queries
 
 ```sql
-SELECT file_path, uast_xpath(uast(blob_content, language(file_path)), "//FieldList") FROM files;
+SELECT file_path, uast_xpath(uast(blob_content, language(file_path)), "//uast:Identifier") FROM files;
 
-SELECT file_path, uast_xpath(uast_mode("annotated", blob_content, language(file_path)), "//*[@roleFunction]") FROM files;
+SELECT file_path, uast_xpath(uast_mode("annotated", blob_content, language(file_path)), "//*[@role='Function']") FROM files;
 ```
 
 ## Extracting information from UAST nodes
 
-You can retrieve information from the UAST nodes either through the special selectors `@type`, `@token`, `@role`, `@startpos`, `@endpos`:
+You can retrieve information from the UAST nodes either through the special selectors `@type`, `@token`, `@role`, `@pos`:
 
 ```sql
-SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//FuncLit"), "@startpos") FROM files;
+SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//uast:Block"), "@pos") FROM files;
 ```
 
 or through a specific property:
 
 ```sql
-SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//FuncLit"), "internalRole") FROM files;
+SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//uast:Identifier"), "Name") FROM files;
 ```
 
 As result, you will get an array showing a list of the retrieved information. Each element in the list matches a node in the given sequence of nodes having a value for that property. It means that the length of the properties list may not be equal to the length of the given sequence of nodes:
 
 ```sh
-+-------------------+------------------------------------------------------------------------------------------------+
-| file_path         | uast_extract(uast(files.blob_content, language(files.file_path), "//FuncLit"), "internalRole") |
-+-------------------+------------------------------------------------------------------------------------------------+
-| benchmark_test.go | ["Args","Args","Args","Args","Args","Args","Args"]                                             |
-+-------------------+------------------------------------------------------------------------------------------------+
++-------------------------------------------------------------------------------------------------------------------+
+| file_path        | uast_extract(uast(files.blob_content, language(files.file_path), "//uast:Identifier"), "Name") |
++-------------------+-----------------------------------------------------------------------------------------------+
+| _example/main.go | ["main","driver","NewDefault","sqle","createTestDatabase","AddDatabase","driver","auth"]       |
++-------------------+-----------------------------------------------------------------------------------------------+
 ```
 
 ## Getting the children of a list of nodes
@@ -196,5 +196,5 @@ As result, you will get an array showing a list of the retrieved information. Ea
 The UDF `uast_children` will return a flattened array of the children nodes from all the nodes in the given array.
 
 ```sql
-SELECT file_path, uast_children(uast(blob_content, language(file_path), "//FuncLit")) FROM files;
+SELECT file_path, uast_children(uast(blob_content, language(file_path), "//uast:Alias")) FROM files;
 ```

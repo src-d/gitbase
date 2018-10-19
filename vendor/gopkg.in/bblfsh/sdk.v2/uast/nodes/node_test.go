@@ -74,9 +74,10 @@ func TestApply(t *testing.T) {
 }
 
 var casesEqual = []struct {
-	name   string
-	n1, n2 Node
-	exp    bool
+	name    string
+	n1, n2  Node
+	exp     bool
+	negHash bool // expHash == !exp
 }{
 	{
 		name: "nil object vs empty object",
@@ -112,6 +113,16 @@ var casesEqual = []struct {
 		name: "int vs float",
 		n1:   Int(0), n2: Float(0),
 		exp: false,
+	},
+	{
+		name: "same array",
+		n1:   sampleArr, n2: sampleArr,
+		exp: true,
+	},
+	{
+		name: "same object",
+		n1:   sampleObj, n2: sampleObj,
+		exp: true,
 	},
 	{
 		name: "nested object",
@@ -212,7 +223,7 @@ var casesEqual = []struct {
 	{
 		name: "int and uint equal",
 		n1:   Int(42), n2: Uint(42),
-		exp: true,
+		exp: true, negHash: true,
 	},
 	{
 		name: "int and uint overflow",
@@ -222,7 +233,7 @@ var casesEqual = []struct {
 	{
 		name: "uint and int equal",
 		n1:   Uint(42), n2: Int(42),
-		exp: true,
+		exp: true, negHash: true,
 	},
 	{
 		name: "uint and int overflow",
@@ -239,6 +250,153 @@ func TestNodeEqual(t *testing.T) {
 				n2 = n1
 			}
 			require.Equal(t, c.exp, Equal(n1, n2))
+			expHash := c.exp
+			if c.negHash {
+				expHash = !expHash
+			}
+			require.Equal(t, expHash, HashOf(n1) == HashOf(n2))
+		})
+	}
+}
+
+var (
+	emptyArr  = Array{}
+	emptyObj  = Object{}
+	sampleArr = Array{Int(1), Int(2)}
+	sampleObj = Object{"k": sampleArr}
+)
+
+var casesSame = []struct {
+	name   string
+	n1, n2 Node
+	exp    bool
+}{
+	{
+		name: "nil object vs empty object",
+		n1:   Object{}, n2: (Object)(nil),
+		exp: false,
+	},
+	{
+		name: "nil array vs empty array",
+		n1:   Array{}, n2: (Array)(nil),
+		exp: false,
+	},
+	{
+		name: "nil vs nil object",
+		n1:   nil, n2: (Object)(nil),
+		exp: false,
+	},
+	{
+		name: "nil vs nil array",
+		n1:   nil, n2: (Array)(nil),
+		exp: false,
+	},
+	{
+		name: "nil vs empty object",
+		n1:   nil, n2: Object{},
+		exp: false,
+	},
+	{
+		name: "nil vs empty array",
+		n1:   nil, n2: Array{},
+		exp: false,
+	},
+	{
+		name: "nil object vs nil object",
+		n1:   (Object)(nil), n2: (Object)(nil),
+		exp: true,
+	},
+	{
+		name: "nil array vs nil array",
+		n1:   (Array)(nil), n2: (Array)(nil),
+		exp: true,
+	},
+	{
+		name: "empty object vs empty object",
+		n1:   Object{}, n2: Object{},
+		exp: false,
+	},
+	{
+		name: "empty array vs empty array",
+		n1:   Array{}, n2: Array{},
+		exp: true, // TODO: unfortunately there is no way to distinguish them
+	},
+	{
+		name: "empty object vs empty array",
+		n1:   Object{}, n2: Array{},
+		exp: false,
+	},
+	{
+		name: "same empty array",
+		n1:   emptyArr, n2: emptyArr,
+		exp: true,
+	},
+	{
+		name: "same empty object",
+		n1:   emptyObj, n2: emptyObj,
+		exp: true,
+	},
+	{
+		name: "same array",
+		n1:   sampleArr, n2: sampleArr,
+		exp: true,
+	},
+	{
+		name: "same object",
+		n1:   sampleObj, n2: sampleObj,
+		exp: true,
+	},
+	{
+		name: "nil object vs nil array",
+		n1:   (Object)(nil), n2: (Array)(nil),
+		exp: false,
+	},
+	{
+		name: "int vs float",
+		n1:   Int(0), n2: Float(0),
+		exp: false,
+	},
+	{
+		name: "int and uint",
+		n1:   Int(42), n2: Uint(42),
+		exp: false,
+	},
+	{
+		name: "int and uint overflow",
+		n1:   Int(-1), n2: Uint(math.MaxUint64),
+		exp: false,
+	},
+	{
+		name: "uint and int",
+		n1:   Uint(42), n2: Int(42),
+		exp: false,
+	},
+	{
+		name: "uint and int overflow",
+		n1:   Uint(math.MaxUint64), n2: Int(-1),
+		exp: false,
+	},
+	{
+		name: "arrays",
+		n1:   Array{Int(1)}, n2: Array{Int(1)},
+		exp: false,
+	},
+	{
+		name: "objects",
+		n1:   Object{"k": Int(1)}, n2: Object{"k": Int(1)},
+		exp: false,
+	},
+}
+
+func TestNodeSame(t *testing.T) {
+	for _, c := range casesSame {
+		t.Run(c.name, func(t *testing.T) {
+			n1, n2 := c.n1, c.n2
+			if n2 == nil {
+				n2 = n1
+			}
+			require.Equal(t, c.exp, Same(n1, n2))
+			require.Equal(t, c.exp, UniqueKey(n1) == UniqueKey(n2))
 		})
 	}
 }

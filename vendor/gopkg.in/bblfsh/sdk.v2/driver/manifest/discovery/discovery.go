@@ -4,6 +4,7 @@ package discovery
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -194,6 +195,13 @@ type Options struct {
 	Organization  string // Github organization name
 	NamesOnly     bool   // driver manifest will only have Language field populated
 	NoMaintainers bool   // do not load maintainers list
+	NoStatic      bool   // do not use a static manifest - discover drivers
+}
+
+// isRateLimit checks if error is due to rate limiting.
+func isRateLimit(err error) bool {
+	_, ok := err.(*github.RateLimitError)
+	return ok
 }
 
 // getDriversForOrg lists all repositories for an organization and filters ones that contains topics of the driver.
@@ -229,6 +237,31 @@ func getDriversForOrg(ctx context.Context, org string) ([]Driver, error) {
 	return out, nil
 }
 
+const staticDriversURL = `https://raw.githubusercontent.com/` + GithubOrg + `/documentation/master/languages.json`
+
+// getStaticDrivers downloads a static drivers list hosted by Babelfish org.
+func getStaticDrivers(ctx context.Context) ([]Driver, error) {
+	req, err := http.NewRequest("GET", staticDriversURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("cannot download static driver list: status: %v", resp.Status)
+	}
+	var drivers []Driver
+	err = json.NewDecoder(resp.Body).Decode(&drivers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode static driver list: %v", err)
+	}
+	return drivers, nil
+}
+
 // OfficialDrivers lists all available language drivers for Babelfish.
 func OfficialDrivers(ctx context.Context, opt *Options) ([]Driver, error) {
 	if opt == nil {
@@ -238,7 +271,9 @@ func OfficialDrivers(ctx context.Context, opt *Options) ([]Driver, error) {
 		opt.Organization = GithubOrg
 	}
 	out, err := getDriversForOrg(ctx, opt.Organization)
-	if err != nil {
+	if isRateLimit(err) && opt.Organization == GithubOrg && !opt.NoStatic {
+		return getStaticDrivers(ctx)
+	} else if err != nil {
 		return out, err
 	}
 	if opt.NamesOnly {
