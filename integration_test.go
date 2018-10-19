@@ -268,7 +268,6 @@ func TestIntegration(t *testing.T) {
 		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
 		Build()
 
-	a.CurrentDatabase = engine.Analyzer.CurrentDatabase
 	engine.Analyzer = a
 	t.Run("with squash", runTests)
 }
@@ -862,13 +861,12 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 
 func newSquashEngine() *sqle.Engine {
 	engine := newBaseEngine()
-	dbname := engine.Analyzer.CurrentDatabase
 
 	engine.Catalog.RegisterFunctions(sqlfunction.Defaults)
 	engine.Analyzer = analyzer.NewBuilder(engine.Catalog).
 		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
 		Build()
-	engine.Analyzer.CurrentDatabase = dbname
+
 	return engine
 }
 

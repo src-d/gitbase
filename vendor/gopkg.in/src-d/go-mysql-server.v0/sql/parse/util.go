@@ -10,6 +10,8 @@ import (
 	"unicode"
 
 	errors "gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"gopkg.in/src-d/go-vitess.v1/vt/sqlparser"
 )
 
 var (
@@ -18,6 +20,17 @@ var (
 )
 
 type parseFunc func(*bufio.Reader) error
+
+type parseFuncs []parseFunc
+
+func (f parseFuncs) exec(r *bufio.Reader) error {
+	for _, fn := range f {
+		if err := fn(r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func expectRune(expected rune) parseFunc {
 	return func(rd *bufio.Reader) error {
@@ -103,6 +116,13 @@ func readLetter(r *bufio.Reader, buf *bytes.Buffer) error {
 		return err
 	}
 
+	if !unicode.IsLetter(ru) {
+		if err := r.UnreadRune(); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	buf.WriteRune(ru)
 	return nil
 }
@@ -122,6 +142,11 @@ func readValidIdentRune(r *bufio.Reader, buf *bytes.Buffer) error {
 
 	buf.WriteRune(ru)
 	return nil
+}
+
+func unreadString(r *bufio.Reader, str string) {
+	nr := *r
+	r.Reset(io.MultiReader(strings.NewReader(str), &nr))
 }
 
 func readIdent(ident *string) parseFunc {
@@ -174,4 +199,27 @@ func readRemaining(val *string) parseFunc {
 		*val = string(bytes)
 		return nil
 	}
+}
+
+func parseExpr(str string) (sql.Expression, error) {
+	stmt, err := sqlparser.Parse("SELECT " + str)
+	if err != nil {
+		return nil, err
+	}
+
+	selectStmt, ok := stmt.(*sqlparser.Select)
+	if !ok {
+		return nil, errInvalidIndexExpression.New(str)
+	}
+
+	if len(selectStmt.SelectExprs) != 1 {
+		return nil, errInvalidIndexExpression.New(str)
+	}
+
+	selectExpr, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
+	if !ok {
+		return nil, errInvalidIndexExpression.New(str)
+	}
+
+	return exprToExpression(selectExpr.Expr)
 }

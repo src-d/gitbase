@@ -184,6 +184,14 @@
   revision = "b3d9ff6ad7d9b14f94a91c8271cd9ad9e77132e5"
 
 [[projects]]
+  branch = "master"
+  digest = "1:563cb49ec2d3da93eb4a0f49ba5d0aca4d3edd09e668d23d0f6f71df73a7e534"
+  name = "github.com/oliveagle/jsonpath"
+  packages = ["."]
+  pruneopts = ""
+  revision = "2e52cf6e685269ed8aefec6390f3cac3ef74e730"
+
+[[projects]]
   digest = "1:78fb99d6011c2ae6c72f3293a83951311147b12b06a5ffa43abf750c4fab6ac5"
   name = "github.com/opentracing/opentracing-go"
   packages = [
@@ -619,7 +627,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:96f372344a3b356db47dd1aaa448abe5dd48d22c2f44a7af2ae585b3339ca345"
+  digest = "1:f73b01c897f16bee5a75f17c29c985e6ea29bded6ca4ab13b52d925e40d16884"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -637,7 +645,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "v0.1.0"
+  revision = "b1203b4cd0f4734da7552435f10b65a311226a35"
 
 [[projects]]
   digest = "1:952e82e2343990fa2bb01e42f13da314e6968b734e87b7b1a76892fab2029fda"
