@@ -10,14 +10,13 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-vitess.v1/vt/sqlparser"
 )
 
 func parseShowIndex(s string) (sql.Node, error) {
 	r := bufio.NewReader(strings.NewReader(s))
 
 	var table string
-	steps := []parseFunc{
+	err := parseFuncs{
 		expect("show"),
 		skipSpaces,
 		oneOf("index", "indexes", "keys"),
@@ -27,16 +26,14 @@ func parseShowIndex(s string) (sql.Node, error) {
 		readIdent(&table),
 		skipSpaces,
 		checkEOF,
-	}
+	}.exec(r)
 
-	for _, step := range steps {
-		if err := step(r); err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	return plan.NewShowIndexes(
-		&sql.UnresolvedDatabase{},
+		sql.UnresolvedDatabase(""),
 		table,
 		nil,
 	), nil
@@ -48,7 +45,7 @@ func parseCreateIndex(s string) (sql.Node, error) {
 	var name, table, driver string
 	var exprs []string
 	var config = make(map[string]string)
-	steps := []parseFunc{
+	err := parseFuncs{
 		expect("create"),
 		skipSpaces,
 		expect("index"),
@@ -72,18 +69,16 @@ func parseCreateIndex(s string) (sql.Node, error) {
 			skipSpaces,
 		),
 		checkEOF,
-	}
+	}.exec(r)
 
-	for _, step := range steps {
-		if err := step(r); err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	var indexExprs = make([]sql.Expression, len(exprs))
 	for i, e := range exprs {
 		var err error
-		indexExprs[i], err = parseIndexExpr(e)
+		indexExprs[i], err = parseExpr(e)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +86,7 @@ func parseCreateIndex(s string) (sql.Node, error) {
 
 	return plan.NewCreateIndex(
 		name,
-		plan.NewUnresolvedTable(table),
+		plan.NewUnresolvedTable(table, ""),
 		indexExprs,
 		driver,
 		config,
@@ -111,7 +106,7 @@ func readKeyValue(kv map[string]string) parseFunc {
 
 		for {
 			var key, value string
-			steps := []parseFunc{
+			err := parseFuncs{
 				skipSpaces,
 				readIdent(&key),
 				skipSpaces,
@@ -119,12 +114,10 @@ func readKeyValue(kv map[string]string) parseFunc {
 				skipSpaces,
 				readValue(&value),
 				skipSpaces,
-			}
+			}.exec(rd)
 
-			for _, step := range steps {
-				if err := step(rd); err != nil {
-					return err
-				}
+			if err != nil {
+				return err
 			}
 
 			r, _, err := rd.ReadRune()
@@ -202,7 +195,7 @@ func parseDropIndex(str string) (sql.Node, error) {
 	r := bufio.NewReader(strings.NewReader(str))
 
 	var name, table string
-	steps := []parseFunc{
+	err := parseFuncs{
 		expect("drop"),
 		skipSpaces,
 		expect("index"),
@@ -214,41 +207,16 @@ func parseDropIndex(str string) (sql.Node, error) {
 		readIdent(&table),
 		skipSpaces,
 		checkEOF,
-	}
+	}.exec(r)
 
-	for _, step := range steps {
-		if err := step(r); err != nil {
-			return nil, err
-		}
-	}
-
-	return plan.NewDropIndex(
-		name,
-		plan.NewUnresolvedTable(table),
-	), nil
-}
-
-func parseIndexExpr(str string) (sql.Expression, error) {
-	stmt, err := sqlparser.Parse("SELECT " + str)
 	if err != nil {
 		return nil, err
 	}
 
-	selectStmt, ok := stmt.(*sqlparser.Select)
-	if !ok {
-		return nil, errInvalidIndexExpression.New(str)
-	}
-
-	if len(selectStmt.SelectExprs) != 1 {
-		return nil, errInvalidIndexExpression.New(str)
-	}
-
-	selectExpr, ok := selectStmt.SelectExprs[0].(*sqlparser.AliasedExpr)
-	if !ok {
-		return nil, errInvalidIndexExpression.New(str)
-	}
-
-	return exprToExpression(selectExpr.Expr)
+	return plan.NewDropIndex(
+		name,
+		plan.NewUnresolvedTable(table, ""),
+	), nil
 }
 
 func readExprs(exprs *[]string) parseFunc {

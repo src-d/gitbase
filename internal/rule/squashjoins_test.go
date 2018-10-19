@@ -24,7 +24,6 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
 		Build()
 	a.Batches[len(a.Batches)-1].Rules = a.Batches[len(a.Batches)-1].Rules[1:]
-	a.CurrentDatabase = "foo"
 	ctx := sql.NewEmptyContext()
 
 	node, err := parse.Parse(ctx, `SELECT * FROM ref_commits NATURAL JOIN commits`)
@@ -57,7 +56,6 @@ func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
 		Build()
 	a.Batches[len(a.Batches)-1].Rules = a.Batches[len(a.Batches)-1].Rules[1:]
-	a.CurrentDatabase = "foo"
 	ctx := sql.NewEmptyContext()
 
 	node, err := parse.Parse(ctx, `SELECT * FROM refs
