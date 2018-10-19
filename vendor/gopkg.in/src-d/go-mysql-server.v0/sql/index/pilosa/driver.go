@@ -69,8 +69,7 @@ type (
 
 	// Driver implements sql.IndexDriver interface.
 	Driver struct {
-		root   string
-		holder *pilosa.Holder
+		root string
 	}
 )
 
@@ -78,8 +77,7 @@ type (
 // which satisfies sql.IndexDriver interface
 func NewDriver(root string) *Driver {
 	return &Driver{
-		root:   root,
-		holder: pilosa.NewHolder(),
+		root: root,
 	}
 }
 
@@ -114,17 +112,12 @@ func (d *Driver) Create(
 		return nil, err
 	}
 
-	d.holder.Path = d.pilosaDirPath(db, table)
-	idx, err := d.holder.CreateIndexIfNotExists(
-		indexName(db, table),
-		pilosa.IndexOptions{},
-	)
+	idx, err := d.newPilosaIndex(db, table)
 	if err != nil {
 		return nil, err
 	}
 
 	mapping := newMapping(d.mappingFilePath(db, table, id))
-
 	processingFile := d.processingFilePath(db, table, id)
 	if err := index.WriteProcessingFile(
 		processingFile,
@@ -143,20 +136,6 @@ func (d *Driver) LoadAll(db, table string) ([]sql.Index, error) {
 		errors  []string
 		root    = filepath.Join(d.root, db, table)
 	)
-
-	d.holder.Path = d.pilosaDirPath(db, table)
-	if _, err := os.Stat(d.holder.Path); err != nil {
-		if os.IsNotExist(err) {
-			return indexes, nil
-		}
-		return nil, err
-	}
-
-	err := d.holder.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer d.holder.Close()
 
 	dirs, err := ioutil.ReadDir(root)
 	if err != nil {
@@ -186,11 +165,14 @@ func (d *Driver) LoadAll(db, table string) ([]sql.Index, error) {
 }
 
 func (d *Driver) loadIndex(db, table, id string) (*pilosaIndex, error) {
-	name := indexName(db, table)
-	idx := d.holder.Index(name)
-	if idx == nil {
-		return nil, errLoadingIndex.New(name)
+	idx, err := d.newPilosaIndex(db, table)
+	if err != nil {
+		return nil, err
 	}
+	if err := idx.Open(); err != nil {
+		return nil, err
+	}
+	defer idx.Close()
 
 	dir := filepath.Join(d.root, db, table, id)
 	config := d.configFilePath(db, table, id)
@@ -341,6 +323,12 @@ func (d *Driver) Save(
 	if !ok {
 		return errInvalidIndexType.New(i)
 	}
+
+	if err := idx.index.Open(); err != nil {
+		return err
+	}
+	defer idx.index.Close()
+
 	idx.wg.Add(1)
 	defer idx.wg.Done()
 
@@ -359,11 +347,6 @@ func (d *Driver) Save(
 	}
 
 	pilosaIndex := idx.index
-	if err = pilosaIndex.Open(); err != nil {
-		return err
-	}
-	defer pilosaIndex.Close()
-
 	var rows uint64
 	for {
 		p, kviter, err := iter.Next()
@@ -404,15 +387,14 @@ func (d *Driver) Delete(i sql.Index, partitions sql.PartitionIter) error {
 		idx.wg.Wait()
 	}
 
-	if err := os.RemoveAll(filepath.Join(d.root, i.Database(), i.Table(), i.ID())); err != nil {
-		return err
-	}
-
-	err := idx.index.Open()
-	if err != nil {
+	if err := idx.index.Open(); err != nil {
 		return err
 	}
 	defer idx.index.Close()
+
+	if err := os.RemoveAll(filepath.Join(d.root, i.Database(), i.Table(), i.ID())); err != nil {
+		return err
+	}
 
 	for {
 		p, err := partitions.Next()
@@ -547,10 +529,6 @@ func mkdir(elem ...string) (string, error) {
 	return path, os.MkdirAll(path, 0750)
 }
 
-func (d *Driver) pilosaDirPath(db, table string) string {
-	return filepath.Join(d.root, db, table, "."+DriverID)
-}
-
 func (d *Driver) configFilePath(db, table, id string) string {
 	return filepath.Join(d.root, db, table, id, ConfigFileName)
 }
@@ -561,4 +539,14 @@ func (d *Driver) processingFilePath(db, table, id string) string {
 
 func (d *Driver) mappingFilePath(db, table, id string) string {
 	return filepath.Join(d.root, db, table, id, MappingFileName)
+}
+
+func (d *Driver) newPilosaIndex(db, table string) (*pilosa.Index, error) {
+	name := indexName(db, table)
+	path := filepath.Join(d.root, "."+DriverID, name)
+	idx, err := pilosa.NewIndex(path, name)
+	if err != nil {
+		return nil, err
+	}
+	return idx, nil
 }
