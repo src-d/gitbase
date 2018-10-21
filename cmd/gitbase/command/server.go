@@ -273,6 +273,17 @@ func (c *Server) addMatch(match string) error {
 		return err
 	}
 
+	rooti, err := os.Lstat(root)
+	if err != nil {
+		return err
+	}
+	if rooti.Mode()&os.ModeSymlink != 0 {
+		root, err = os.Readlink(root)
+		if err != nil {
+			return err
+		}
+	}
+
 	initDepth := strings.Count(root, string(os.PathSeparator))
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
