@@ -278,8 +278,7 @@ func (c *Server) addMatch(match string) error {
 		return err
 	}
 	if rooti.Mode()&os.ModeSymlink != 0 {
-		root, err = os.Readlink(root)
-		if err != nil {
+		if root, err = os.Readlink(root); err != nil {
 			return err
 		}
 	}
