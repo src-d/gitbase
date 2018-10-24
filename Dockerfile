@@ -13,7 +13,7 @@ ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
 RUN apt-get update \
-  && apt-get -y install libxml2 git \
+  && apt-get -y --no-install-recommends install libxml2 git \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
