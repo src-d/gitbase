@@ -38,8 +38,8 @@ const (
 type Server struct {
 	engine *sqle.Engine
 	pool   *gitbase.RepositoryPool
-	name   string
 
+	Name          string         `long:"db" default:"gitbase" description:"Database name"`
 	Version       string         // Version of the application.
 	Directories   []string       `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
 	Depth         int            `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
@@ -187,8 +187,8 @@ func (c *Server) buildDatabase() error {
 		return err
 	}
 
-	c.engine.AddDatabase(gitbase.NewDatabase(c.name))
-	logrus.WithField("db", c.name).Debug("registered database to catalog")
+	c.engine.AddDatabase(gitbase.NewDatabase(c.Name))
+	logrus.WithField("db", c.Name).Debug("registered database to catalog")
 
 	c.engine.Catalog.RegisterFunctions(function.Functions)
 	logrus.Debug("registered all available functions in catalog")
