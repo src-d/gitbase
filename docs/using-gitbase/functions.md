@@ -66,7 +66,7 @@ func unmarshalNodes(data []byte) (nodes.Array, error) {
 
 ```
 
-## How to formulate XPath queries when use uast and uast_xpath functions
+## How to formulate XPath queries when using uast and uast_xpath functions
 
 Have a look at the [bblfsh docs](https://docs.sourced.tech/babelfish/using-babelfish/uast-querying) to query UASTs with XPath.
 
