@@ -2,6 +2,7 @@ package sql
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"sync"
@@ -32,15 +33,22 @@ type Session interface {
 	GetAll() map[string]TypedValue
 	// ID returns the unique ID of the connection.
 	ID() uint32
+	// Warn stores the warning in the session.
+	Warn(warn *Warning)
+	// Warnings returns a copy of session warnings (from the most recent)
+	Warnings() []*Warning
+	// ClearWarnings cleans up session warnings
+	ClearWarnings()
 }
 
 // BaseSession is the basic session type.
 type BaseSession struct {
-	id     uint32
-	addr   string
-	user   string
-	mu     sync.RWMutex
-	config map[string]TypedValue
+	id       uint32
+	addr     string
+	user     string
+	mu       sync.RWMutex
+	config   map[string]TypedValue
+	warnings []*Warning
 }
 
 // User returns the current user of the session.
@@ -83,11 +91,51 @@ func (s *BaseSession) GetAll() map[string]TypedValue {
 // ID implements the Session interface.
 func (s *BaseSession) ID() uint32 { return s.id }
 
-// TypedValue is a value along with its type.
-type TypedValue struct {
-	Typ   Type
-	Value interface{}
+// Warn stores the warning in the session.
+func (s *BaseSession) Warn(warn *Warning) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.warnings = append(s.warnings, warn)
 }
+
+// Warnings returns a copy of session warnings (from the most recent - the last one)
+// The function implements sql.Session interface
+func (s *BaseSession) Warnings() []*Warning {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	n := len(s.warnings)
+	warns := make([]*Warning, n)
+	for i := 0; i < n; i++ {
+		warns[i] = s.warnings[n-i-1]
+	}
+
+	return warns
+}
+
+// ClearWarnings cleans up session warnings
+func (s *BaseSession) ClearWarnings() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.warnings != nil {
+		s.warnings = s.warnings[:0]
+	}
+}
+
+type (
+	// TypedValue is a value along with its type.
+	TypedValue struct {
+		Typ   Type
+		Value interface{}
+	}
+
+	// Warning stands for mySQL warning record.
+	Warning struct {
+		Level   string
+		Message string
+		Code    int
+	}
+)
 
 func defaultSessionConfig() map[string]TypedValue {
 	return map[string]TypedValue{
@@ -97,7 +145,7 @@ func defaultSessionConfig() map[string]TypedValue {
 		"max_allowed_packet":       TypedValue{Int32, math.MaxInt32},
 		"sql_mode":                 TypedValue{Text, ""},
 		"gtid_mode":                TypedValue{Int32, int32(0)},
-		"ndbinfo_version":          TypedValue{Text, ""},
+		"collation_database":       TypedValue{Text, "utf8_bin"},
 	}
 }
 
@@ -189,6 +237,24 @@ func (c *Context) Span(
 // WithContext returns a new context with the given underlying context.
 func (c *Context) WithContext(ctx context.Context) *Context {
 	return &Context{ctx, c.Session, c.Pid(), c.tracer}
+}
+
+// Error adds an error as warning to the session.
+func (c *Context) Error(code int, msg string, args ...interface{}) {
+	c.Session.Warn(&Warning{
+		Level:   "Error",
+		Code:    code,
+		Message: fmt.Sprintf(msg, args...),
+	})
+}
+
+// Warn adds a warning to the session.
+func (c *Context) Warn(code int, msg string, args ...interface{}) {
+	c.Session.Warn(&Warning{
+		Level:   "Warning",
+		Code:    code,
+		Message: fmt.Sprintf(msg, args...),
+	})
 }
 
 // NewSpanIter creates a RowIter executed in the given span.

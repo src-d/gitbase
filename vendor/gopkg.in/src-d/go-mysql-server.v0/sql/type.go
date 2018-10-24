@@ -71,8 +71,10 @@ func (s Schema) Contains(column string, source string) bool {
 // IndexOf returns the index of the given column in the schema or -1 if it's
 // not present.
 func (s Schema) IndexOf(column, source string) int {
+	column = strings.ToLower(column)
+	source = strings.ToLower(source)
 	for i, col := range s {
-		if col.Name == column && col.Source == source {
+		if strings.ToLower(col.Name) == column && strings.ToLower(col.Source) == source {
 			return i
 		}
 	}
@@ -367,6 +369,18 @@ func (t timestampT) Type() query.Type {
 // using the format of Go "time" package.
 const TimestampLayout = "2006-01-02 15:04:05"
 
+// TimestampLayouts hold extra timestamps allowed for parsing. It does
+// not have all the layouts supported by mysql. Missing are two digit year
+// versions of common cases and dates that use non common separators.
+//
+// https://github.com/MariaDB/server/blob/mysql-5.5.36/sql-common/my_time.c#L124
+var TimestampLayouts = []string{
+	"2006-01-02",
+	time.RFC3339,
+	"20060102150405",
+	"20060102",
+}
+
 // SQL implements Type interface.
 func (t timestampT) SQL(v interface{}) sqltypes.Value {
 	time := MustConvert(t, v).(time.Time)
@@ -384,7 +398,18 @@ func (t timestampT) Convert(v interface{}) (interface{}, error) {
 	case string:
 		t, err := time.Parse(TimestampLayout, value)
 		if err != nil {
-			return nil, ErrConvertingToTime.Wrap(err, v)
+			failed := true
+			for _, fmt := range TimestampLayouts {
+				if t2, err2 := time.Parse(fmt, value); err2 == nil {
+					t = t2
+					failed = false
+					break
+				}
+			}
+
+			if failed {
+				return nil, ErrConvertingToTime.Wrap(err, v)
+			}
 		}
 		return t.UTC(), nil
 	default:
