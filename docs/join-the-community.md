@@ -10,7 +10,7 @@ You can start contributing in many ways:
 
 * [Report bugs](/docs/join-the-community.md#reporting-bugs)
 * [Request a feature](https://github.com/src-d/gitbase/issues)
-* Improve the [documentation](https://github.com/src-d/gitbase/docs)
+* Improve the [documentation](https://github.com/src-d/gitbase/tree/master/docs)
 * Contribute code to [gitbase](https://github.com/src-d/gitbase)
 
 ## Reporting bugs
