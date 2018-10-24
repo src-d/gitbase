@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -40,10 +39,12 @@ var (
 	showIndexRegex       = regexp.MustCompile(`^show\s+(index|indexes|keys)\s+(from|in)\s+\S+\s*`)
 	showCreateRegex      = regexp.MustCompile(`^show create\s+\S+\s*`)
 	showVariablesRegex   = regexp.MustCompile(`^show\s+(.*)?variables\s*`)
+	showWarningsRegex    = regexp.MustCompile(`^show\s+warnings\s*`)
 	describeRegex        = regexp.MustCompile(`^(describe|desc|explain)\s+(.*)\s+`)
 	fullProcessListRegex = regexp.MustCompile(`^show\s+(full\s+)?processlist$`)
 	unlockTablesRegex    = regexp.MustCompile(`^unlock\s+tables$`)
 	lockTablesRegex      = regexp.MustCompile(`^lock\s+tables\s`)
+	setRegex             = regexp.MustCompile(`^set\s+`)
 )
 
 // Parse parses the given SQL sentence and returns the corresponding node.
@@ -57,12 +58,12 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 	}
 
 	if s == "" {
-		logrus.WithField("query", query).
-			Infof("query became empty, so it will be ignored")
+		ctx.Warn(0, "query was empty after trimming comments, so it will be ignored")
 		return plan.Nothing, nil
 	}
 
 	lowerQuery := strings.ToLower(s)
+
 	switch true {
 	case describeTablesRegex.MatchString(lowerQuery):
 		return parseDescribeTables(lowerQuery)
@@ -76,6 +77,8 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 		return parseShowCreate(s)
 	case showVariablesRegex.MatchString(lowerQuery):
 		return parseShowVariables(ctx, s)
+	case showWarningsRegex.MatchString(lowerQuery):
+		return parseShowWarnings(ctx, s)
 	case describeRegex.MatchString(lowerQuery):
 		return parseDescribeQuery(ctx, s)
 	case fullProcessListRegex.MatchString(lowerQuery):
@@ -84,6 +87,8 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 		return plan.NewUnlockTables(), nil
 	case lockTablesRegex.MatchString(lowerQuery):
 		return parseLockTables(ctx, s)
+	case setRegex.MatchString(lowerQuery):
+		s = fixSetQuery(s)
 	}
 
 	stmt, err := sqlparser.Parse(s)
@@ -748,6 +753,8 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 
 	case *sqlparser.BinaryExpr:
 		return binaryExprToExpression(v)
+	case *sqlparser.UnaryExpr:
+		return unaryExprToExpression(v)
 	}
 }
 
@@ -890,6 +897,21 @@ func selectExprToExpression(se sqlparser.SelectExpr) (sql.Expression, error) {
 
 		// TODO: Handle case-sensitiveness when needed.
 		return expression.NewAlias(expr, e.As.Lowered()), nil
+	}
+}
+
+func unaryExprToExpression(e *sqlparser.UnaryExpr) (sql.Expression, error) {
+	switch e.Operator {
+	case sqlparser.MinusStr:
+		expr, err := exprToExpression(e.Expr)
+		if err != nil {
+			return nil, err
+		}
+
+		return expression.NewUnaryMinus(expr), nil
+
+	default:
+		return nil, ErrUnsupportedFeature.New("unary operator: " + e.Operator)
 	}
 }
 
@@ -1051,7 +1073,7 @@ func parseShowTableStatus(query string) (sql.Node, error) {
 	switch strings.ToUpper(clause) {
 	case "FROM", "IN":
 		var db string
-		if err := readIdent(&db)(buf); err != nil {
+		if err := readQuotableIdent(&db)(buf); err != nil {
 			return nil, err
 		}
 
@@ -1084,4 +1106,13 @@ func parseShowTableStatus(query string) (sql.Node, error) {
 	default:
 		return nil, errUnexpectedSyntax.New("one of: FROM, IN, LIKE or WHERE", clause)
 	}
+}
+
+var fixSessionRegex = regexp.MustCompile(`(,\s*|(set|SET)\s+)(SESSION|session)\s+([a-zA-Z0-9_]+)\s*=`)
+var fixGlobalRegex = regexp.MustCompile(`(,\s*|(set|SET)\s+)(GLOBAL|global)\s+([a-zA-Z0-9_]+)\s*=`)
+
+func fixSetQuery(s string) string {
+	s = fixSessionRegex.ReplaceAllString(s, `$1@@session.$4 =`)
+	s = fixGlobalRegex.ReplaceAllString(s, `$1@@global.$4 =`)
+	return s
 }

@@ -187,6 +187,7 @@ func (c *Server) buildDatabase() error {
 		return err
 	}
 
+	c.engine.AddDatabase(sql.NewInformationSchemaDB())
 	c.engine.AddDatabase(gitbase.NewDatabase(c.Name))
 	logrus.WithField("db", c.Name).Debug("registered database to catalog")
 
