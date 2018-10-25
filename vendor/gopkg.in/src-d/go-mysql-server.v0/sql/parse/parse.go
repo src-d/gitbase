@@ -33,7 +33,7 @@ var (
 )
 
 var (
-	describeTablesRegex  = regexp.MustCompile(`^describe\s+table\s+(.*)`)
+	describeTablesRegex  = regexp.MustCompile(`^(describe|desc)\s+table\s+(.*)`)
 	createIndexRegex     = regexp.MustCompile(`^create\s+index\s+`)
 	dropIndexRegex       = regexp.MustCompile(`^drop\s+index\s+`)
 	showIndexRegex       = regexp.MustCompile(`^show\s+(index|indexes|keys)\s+(from|in)\s+\S+\s*`)
@@ -101,8 +101,8 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 
 func parseDescribeTables(s string) (sql.Node, error) {
 	t := describeTablesRegex.FindStringSubmatch(s)
-	if len(t) == 2 && t[1] != "" {
-		parts := strings.Split(t[1], ".")
+	if len(t) == 3 && t[2] != "" {
+		parts := strings.Split(t[2], ".")
 		var table, db string
 		switch len(parts) {
 		case 1:
@@ -161,6 +161,10 @@ func convertSet(ctx *sql.Context, n *sqlparser.Set) (sql.Node, error) {
 
 		name := strings.TrimSpace(e.Name.Lowered())
 		if expr, err = expr.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+			if _, ok := e.(*expression.DefaultColumn); ok {
+				return e, nil
+			}
+
 			if !e.Resolved() || e.Type() != sql.Text {
 				return e, nil
 			}
@@ -176,13 +180,13 @@ func convertSet(ctx *sql.Context, n *sqlparser.Set) (sql.Node, error) {
 			}
 
 			switch strings.ToLower(val) {
-			case "on":
+			case sqlparser.KeywordString(sqlparser.ON):
 				return expression.NewLiteral(int64(1), sql.Int64), nil
-			case "true":
+			case sqlparser.KeywordString(sqlparser.TRUE):
 				return expression.NewLiteral(true, sql.Boolean), nil
-			case "off":
+			case sqlparser.KeywordString(sqlparser.OFF):
 				return expression.NewLiteral(int64(0), sql.Int64), nil
-			case "false":
+			case sqlparser.KeywordString(sqlparser.FALSE):
 				return expression.NewLiteral(false, sql.Boolean), nil
 			}
 
@@ -632,6 +636,8 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 	switch v := e.(type) {
 	default:
 		return nil, ErrUnsupportedSyntax.New(e)
+	case *sqlparser.Default:
+		return expression.NewDefaultColumn(v.ColName), nil
 	case *sqlparser.SubstrExpr:
 		name, err := exprToExpression(v.Name)
 		if err != nil {
