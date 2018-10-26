@@ -645,7 +645,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:4f049f4a51e48bc952fa24ec96e7ec4511436b55d4cfa5d53e7daa72192a5658"
+  digest = "1:399c1e81e4f628fab4f5d2249ba399312070401b28c637096d7ade9bf2848979"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -664,7 +664,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "33657588d2ed14ade95deed511444b3def865b2b"
+  revision = "7cdd4325a65caf5fcef6c4482b4345045da172d1"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
@@ -767,6 +767,7 @@
     "gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit",
     "gopkg.in/src-d/go-git.v4/utils/ioutil",
     "gopkg.in/src-d/go-mysql-server.v0",
+    "gopkg.in/src-d/go-mysql-server.v0/auth",
     "gopkg.in/src-d/go-mysql-server.v0/server",
     "gopkg.in/src-d/go-mysql-server.v0/sql",
     "gopkg.in/src-d/go-mysql-server.v0/sql/analyzer",
