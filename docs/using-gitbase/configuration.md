@@ -15,6 +15,7 @@
 | `GITBASE_UAST_CACHE_SIZE`    | size of the cache for the `uast` and `uast_mode` UDFs. The size is the maximum number of elements kept in the cache, 10000 by default |
 | `GITBASE_CACHESIZE_MB`       | size of the cache for git objects specified as MB                                  |
 | `GITBASE_CONNECTION_TIMEOUT` | timeout in seconds used for client connections on write and reads. No timeout by default.     |
+| `GITBASE_USER_FILE`          | JSON file with user credentials                                                    |
 
 ### Jaeger tracing variables
 
@@ -75,6 +76,7 @@ Help Options:
       -p, --port=        Port where the server is going to listen (default: 3306)
       -u, --user=        User name used for connection (default: root)
       -P, --password=    Password used for connection
+      -U, --user-file=   JSON file with credentials list [$GITBASE_USER_FILE]
       -t, --timeout=     Timeout in seconds used for connections [$GITBASE_CONNECTION_TIMEOUT]
       -i, --index=       Directory where the gitbase indexes information will be persisted. (default:
                          /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
@@ -83,10 +85,48 @@ Help Options:
                          means default, 1 means disabled.
           --no-squash    Disables the table squashing.
           --trace        Enables jaeger tracing [$GITBASE_TRACE]
-      -r, --readonly     Only allow read queries. This disables creating and deleting indexes as well.
-                         [$GITBASE_READONLY]
+      -r, --readonly     Only allow read queries. This disables creating and deleting indexes as well. Cannot be used
+                         with --user-file. [$GITBASE_READONLY]
           --no-git       disable the load of git standard repositories.
           --no-siva      disable the load of siva files.
       -v                 Activates the verbose mode
 
 ```
+## User credentials
+
+User credentials can be specified in the command line or using a user file. For single user this can be done with parameters `--user` and `--password`:
+
+```
+gitbase server --user root --password r00tp4ssword! -d /my/repositories/path
+```
+
+If you want to have more than one user or do not have the password in plain text you can use a user file with this format:
+
+```json
+[
+  {
+    "name": "root",
+    "password": "*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19",
+    "permissions": ["read", "write"]
+  },
+  {
+    "name": "user",
+    "password": "plain_passw0rd!"
+  }
+]
+```
+
+You can either specify a plain text password or hashed. Hashed version uses the same format as MySQL 5.x passwords. You can generate the native password with this command, remember to prefix the hash with `*`:
+
+```
+echo -n password | openssl sha1 -binary | openssl sha1 | tr '[:lower:]' '[:upper:]'
+```
+
+There are two permissions you can set to users, `read` and `write`. `read` only allows to execute queries. `write` is needed to create and delete indexes or lock tables. If no permissions are set for a user the default permission is `read`.
+
+Then you can specify which user file to use with parameter `--user-file`:
+
+```
+gitbase server --user-file /path/to/user-file.json -d /my/repositories/path
+```
+

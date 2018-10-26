@@ -645,10 +645,11 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:d384cafdf8662178cd2e1131e58c4db726169f49ce94ed063878bfc7a53f0b34"
+  digest = "1:4f049f4a51e48bc952fa24ec96e7ec4511436b55d4cfa5d53e7daa72192a5658"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
+    "auth",
     "internal/regex",
     "mem",
     "server",
@@ -663,7 +664,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "a9eddbfbf43f3b79fb6012fec948354222a9f2da"
+  revision = "33657588d2ed14ade95deed511444b3def865b2b"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
