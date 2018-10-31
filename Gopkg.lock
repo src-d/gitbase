@@ -645,7 +645,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:399c1e81e4f628fab4f5d2249ba399312070401b28c637096d7ade9bf2848979"
+  digest = "1:e0b9f7a923a82234e3358cf54c43bd9a501d017c6864a9ce950331ccf92e5eb0"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -664,7 +664,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "7cdd4325a65caf5fcef6c4482b4345045da172d1"
+  revision = "4a751c09d9fd0d59f790ad8edd28a9799fe669f8"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
@@ -675,7 +675,7 @@
   version = "v1.3.0"
 
 [[projects]]
-  digest = "1:54c1228534d1537aec4c2cf03a223f4d93d0fd13ff4fe981a33e5e37f67805f8"
+  digest = "1:5241ff1b46d540212369b0f7d51900e1494bd4d31962de91f1cd657a58c2ea8e"
   name = "gopkg.in/src-d/go-vitess.v1"
   packages = [
     "bucketpool",
@@ -703,8 +703,8 @@
     "vt/vttls",
   ]
   pruneopts = ""
-  revision = "d16c95d2bddd8625fd29ba3d264b36082f76f83c"
-  version = "v1.2.0"
+  revision = "f4a943d4403d9822d460888cf87edd8831e21a1e"
+  version = "v1.3.0"
 
 [[projects]]
   digest = "1:83aacdc3b7d95550b004ce34f9fe68dc50628aa3d2f4e99b5970876b8bb2b1f0"

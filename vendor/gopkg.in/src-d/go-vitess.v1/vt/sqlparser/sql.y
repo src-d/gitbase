@@ -41,11 +41,11 @@ func decNesting(yylex interface{}) {
   yylex.(*Tokenizer).nesting--
 }
 
-// forceEOF forces the lexer to end prematurely. Not all SQL statements
-// are supported by the Parser, thus calling forceEOF will make the lexer
+// skipToEnd forces the lexer to end prematurely. Not all SQL statements
+// are supported by the Parser, thus calling skipToEnd will make the lexer
 // return EOF early.
-func forceEOF(yylex interface{}) {
-  yylex.(*Tokenizer).ForceEOF = true
+func skipToEnd(yylex interface{}) {
+  yylex.(*Tokenizer).SkipToEnd = true
 }
 
 %}
@@ -156,13 +156,13 @@ func forceEOF(yylex interface{}) {
 %token <empty> JSON_EXTRACT_OP JSON_UNQUOTE_EXTRACT_OP
 
 // DDL Tokens
-%token <bytes> CREATE ALTER DROP RENAME ANALYZE ADD
+%token <bytes> CREATE ALTER DROP RENAME ANALYZE ADD FLUSH
 %token <bytes> SCHEMA TABLE INDEX VIEW TO IGNORE IF UNIQUE PRIMARY COLUMN  SPATIAL FULLTEXT KEY_BLOCK_SIZE
 %token <bytes> ACTION CASCADE CONSTRAINT FOREIGN NO REFERENCES RESTRICT
 %token <bytes> SHOW DESCRIBE EXPLAIN DATE ESCAPE REPAIR OPTIMIZE TRUNCATE
 %token <bytes> MAXVALUE PARTITION REORGANIZE LESS THAN PROCEDURE TRIGGER
 %token <bytes> VINDEX VINDEXES
-%token <bytes> STATUS VARIABLES
+%token <bytes> STATUS VARIABLES WARNINGS
 
 // Transaction Tokens
 %token <bytes> BEGIN START TRANSACTION COMMIT ROLLBACK
@@ -203,7 +203,7 @@ func forceEOF(yylex interface{}) {
 %type <statement> command
 %type <selStmt> select_statement base_select union_lhs union_rhs
 %type <statement> stream_statement insert_statement update_statement delete_statement set_statement
-%type <statement> create_statement alter_statement rename_statement drop_statement truncate_statement
+%type <statement> create_statement alter_statement rename_statement drop_statement truncate_statement flush_statement
 %type <ddl> create_table_prefix
 %type <statement> analyze_statement show_statement use_statement other_statement
 %type <statement> begin_statement commit_statement rollback_statement
@@ -267,7 +267,7 @@ func forceEOF(yylex interface{}) {
 %type <expr> charset_value
 %type <tableIdent> table_id reserved_table_id table_alias as_opt_id
 %type <empty> as_opt
-%type <empty> force_eof ddl_force_eof
+%type <empty> skip_to_end ddl_skip_to_end
 %type <str> charset
 %type <str> set_session_or_global show_session_or_global
 %type <convertType> convert_type
@@ -340,6 +340,7 @@ command:
 | commit_statement
 | rollback_statement
 | other_statement
+| flush_statement
 | /*empty*/
 {
   setParseTree(yylex, nil)
@@ -432,9 +433,9 @@ insert_or_replace:
   }
 
 update_statement:
-  UPDATE comment_opt table_references SET update_list where_expression_opt order_by_opt limit_opt
+  UPDATE comment_opt ignore_opt table_references SET update_list where_expression_opt order_by_opt limit_opt
   {
-    $$ = &Update{Comments: Comments($2), TableExprs: $3, Exprs: $5, Where: NewWhere(WhereStr, $6), OrderBy: $7, Limit: $8}
+    $$ = &Update{Comments: Comments($2), Ignore: $3, TableExprs: $4, Exprs: $6, Where: NewWhere(WhereStr, $7), OrderBy: $8, Limit: $9}
   }
 
 delete_statement:
@@ -556,16 +557,16 @@ create_statement:
     $1.OptLike = $2
     $$ = $1
   }
-| CREATE constraint_opt INDEX ID using_opt ON table_name ddl_force_eof
+| CREATE constraint_opt INDEX ID using_opt ON table_name ddl_skip_to_end
   {
     // Change this to an alter statement
     $$ = &DDL{Action: AlterStr, Table: $7, NewName:$7}
   }
-| CREATE VIEW table_name ddl_force_eof
+| CREATE VIEW table_name ddl_skip_to_end
   {
     $$ = &DDL{Action: CreateStr, NewName: $3.ToViewName()}
   }
-| CREATE OR REPLACE VIEW table_name ddl_force_eof
+| CREATE OR REPLACE VIEW table_name ddl_skip_to_end
   {
     $$ = &DDL{Action: CreateStr, NewName: $5.ToViewName()}
   }
@@ -577,11 +578,11 @@ create_statement:
         Params: $5,
     }}
   }
-| CREATE DATABASE not_exists_opt ID ddl_force_eof
+| CREATE DATABASE not_exists_opt ID ddl_skip_to_end
   {
     $$ = &DBDDL{Action: CreateStr, DBName: string($4)}
   }
-| CREATE SCHEMA not_exists_opt ID ddl_force_eof
+| CREATE SCHEMA not_exists_opt ID ddl_skip_to_end
   {
     $$ = &DBDDL{Action: CreateStr, DBName: string($4)}
   }
@@ -1287,15 +1288,15 @@ table_opt_value:
   }
 
 alter_statement:
-  ALTER ignore_opt TABLE table_name non_add_drop_or_rename_operation force_eof
+  ALTER ignore_opt TABLE table_name non_add_drop_or_rename_operation skip_to_end
   {
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}
   }
-| ALTER ignore_opt TABLE table_name ADD alter_object_type force_eof
+| ALTER ignore_opt TABLE table_name ADD alter_object_type skip_to_end
   {
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}
   }
-| ALTER ignore_opt TABLE table_name DROP alter_object_type force_eof
+| ALTER ignore_opt TABLE table_name DROP alter_object_type skip_to_end
   {
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}
   }
@@ -1327,12 +1328,12 @@ alter_statement:
     // Change this to a rename statement
     $$ = &DDL{Action: RenameStr, Table: $4, NewName: $7}
   }
-| ALTER ignore_opt TABLE table_name RENAME index_opt force_eof
+| ALTER ignore_opt TABLE table_name RENAME index_opt skip_to_end
   {
     // Rename an index can just be an alter
     $$ = &DDL{Action: AlterStr, Table: $4, NewName: $4}
   }
-| ALTER VIEW table_name ddl_force_eof
+| ALTER VIEW table_name ddl_skip_to_end
   {
     $$ = &DDL{Action: AlterStr, Table: $3.ToViewName(), NewName: $3.ToViewName()}
   }
@@ -1395,12 +1396,12 @@ drop_statement:
     }
     $$ = &DDL{Action: DropStr, Table: $4, IfExists: exists}
   }
-| DROP INDEX ID ON table_name ddl_force_eof
+| DROP INDEX ID ON table_name ddl_skip_to_end
   {
     // Change this to an alter statement
     $$ = &DDL{Action: AlterStr, Table: $5, NewName: $5}
   }
-| DROP VIEW exists_opt table_name ddl_force_eof
+| DROP VIEW exists_opt table_name ddl_skip_to_end
   {
     var exists bool
         if $3 != 0 {
@@ -1433,60 +1434,60 @@ analyze_statement:
   }
 
 show_statement:
-  SHOW BINARY ID ddl_force_eof /* SHOW BINARY LOGS */
+  SHOW BINARY ID ddl_skip_to_end /* SHOW BINARY LOGS */
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW CHARACTER SET ddl_force_eof
+| SHOW CHARACTER SET ddl_skip_to_end
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW CREATE DATABASE ddl_force_eof
+| SHOW CREATE DATABASE ddl_skip_to_end
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
 /* Rule to handle SHOW CREATE EVENT, SHOW CREATE FUNCTION, etc. */
-| SHOW CREATE ID ddl_force_eof
+| SHOW CREATE ID ddl_skip_to_end
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW CREATE PROCEDURE ddl_force_eof
+| SHOW CREATE PROCEDURE ddl_skip_to_end
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW CREATE TABLE ddl_force_eof
+| SHOW CREATE TABLE ddl_skip_to_end
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW CREATE TRIGGER ddl_force_eof
+| SHOW CREATE TRIGGER ddl_skip_to_end
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW CREATE VIEW ddl_force_eof
+| SHOW CREATE VIEW ddl_skip_to_end
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW DATABASES ddl_force_eof
+| SHOW DATABASES ddl_skip_to_end
   {
     $$ = &Show{Type: string($2)}
   }
-| SHOW INDEX ddl_force_eof
+| SHOW INDEX ddl_skip_to_end
   {
     $$ = &Show{Type: string($2)}
   }
-| SHOW KEYS ddl_force_eof
+| SHOW KEYS ddl_skip_to_end
   {
     $$ = &Show{Type: string($2)}
   }
-| SHOW PROCEDURE ddl_force_eof
+| SHOW PROCEDURE ddl_skip_to_end
   {
     $$ = &Show{Type: string($2)}
   }
-| SHOW show_session_or_global STATUS ddl_force_eof
+| SHOW show_session_or_global STATUS ddl_skip_to_end
   {
     $$ = &Show{Scope: $2, Type: string($3)}
   }
-| SHOW TABLE ddl_force_eof
+| SHOW TABLE ddl_skip_to_end
   {
     $$ = &Show{Type: string($2)}
   }
@@ -1505,7 +1506,7 @@ show_statement:
       $$ = &Show{Type: $3, ShowTablesOpt: showTablesOpt}
     }
   }
-| SHOW show_session_or_global VARIABLES ddl_force_eof
+| SHOW show_session_or_global VARIABLES ddl_skip_to_end
   {
     $$ = &Show{Scope: $2, Type: string($3)}
   }
@@ -1547,13 +1548,17 @@ show_statement:
   {
     $$ = &Show{Type: string($2)}
   }
+| SHOW WARNINGS
+  {
+    $$ = &Show{Type: string($2)}
+  }
 /*
  * Catch-all for show statements without vitess keywords:
  *
  *  SHOW BINARY LOGS
  *  SHOW INVALID
  */
-| SHOW ID ddl_force_eof
+| SHOW ID ddl_skip_to_end
   {
     $$ = &Show{Type: string($2)}
   }
@@ -1663,35 +1668,40 @@ rollback_statement:
   }
 
 other_statement:
-  DESC force_eof
+  DESC skip_to_end
   {
     $$ = &OtherRead{}
   }
-| DESCRIBE force_eof
+| DESCRIBE skip_to_end
   {
     $$ = &OtherRead{}
   }
-| EXPLAIN force_eof
+| EXPLAIN skip_to_end
   {
     $$ = &OtherRead{}
   }
-| REPAIR force_eof
+| REPAIR skip_to_end
   {
     $$ = &OtherAdmin{}
   }
-| OPTIMIZE force_eof
+| OPTIMIZE skip_to_end
   {
     $$ = &OtherAdmin{}
   }
-| LOCK TABLES force_eof
+| LOCK TABLES skip_to_end
   {
     $$ = &OtherAdmin{}
   }
-| UNLOCK TABLES force_eof
+| UNLOCK TABLES skip_to_end
   {
     $$ = &OtherAdmin{}
   }
 
+flush_statement:
+  FLUSH skip_to_end
+  {
+    $$ = &DDL{Action: FlushStr}
+  }
 comment_opt:
   {
     setAllowComments(yylex, true)
@@ -3163,7 +3173,6 @@ reserved_keyword:
 | SHOW
 | STRAIGHT_JOIN
 | TABLE
-| TABLES
 | THEN
 | TO
 | TRUE
@@ -3213,6 +3222,7 @@ non_reserved_keyword:
 | EXPANSION
 | FLOAT_TYPE
 | FIELDS
+| FLUSH
 | FOREIGN
 | FULLTEXT
 | GEOMETRY
@@ -3267,6 +3277,7 @@ non_reserved_keyword:
 | SPATIAL
 | START
 | STATUS
+| TABLES
 | TEXT
 | THAN
 | TIME
@@ -3291,6 +3302,7 @@ non_reserved_keyword:
 | VITESS_TABLETS
 | VSCHEMA_TABLES
 | VITESS_TARGET
+| WARNINGS
 | WITH
 | WRITE
 | YEAR
@@ -3311,20 +3323,20 @@ closeb:
     decNesting(yylex)
   }
 
-force_eof:
+skip_to_end:
 {
-  forceEOF(yylex)
+  skipToEnd(yylex)
 }
 
-ddl_force_eof:
+ddl_skip_to_end:
   {
-    forceEOF(yylex)
+    skipToEnd(yylex)
   }
 | openb
   {
-    forceEOF(yylex)
+    skipToEnd(yylex)
   }
 | reserved_sql_id
   {
-    forceEOF(yylex)
+    skipToEnd(yylex)
   }

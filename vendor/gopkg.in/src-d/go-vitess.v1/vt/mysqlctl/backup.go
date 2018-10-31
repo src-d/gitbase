@@ -30,9 +30,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/klauspost/pgzip"
 	"golang.org/x/net/context"
 
-	"gopkg.in/src-d/go-vitess.v1/cgzip"
 	"gopkg.in/src-d/go-vitess.v1/mysql"
 	"gopkg.in/src-d/go-vitess.v1/sqlescape"
 	"gopkg.in/src-d/go-vitess.v1/sync2"
@@ -78,6 +78,14 @@ var (
 	// on the backups. Usually would be set if a hook is used, and
 	// the hook compresses the data.
 	backupStorageCompress = flag.Bool("backup_storage_compress", true, "if set, the backup files will be compressed (default is true). Set to false for instance if a backup_storage_hook is specified and it compresses the data.")
+
+	// backupCompressBlockSize is the splitting size for each
+	// compressed block
+	backupCompressBlockSize = flag.Int("backup_storage_block_size", 250000, "if backup_storage_compress is true, backup_storage_block_size sets the byte size for each block while compressing (default is 250000).")
+
+	// backupCompressBlocks is the number of blocks that are processed
+	// once before the writer blocks
+	backupCompressBlocks = flag.Int("backup_storage_number_blocks", 2, "if backup_storage_compress is true, backup_storage_number_blocks sets the number of blocks that can be processed, at once, before the writer blocks, during compression (default is 2). It should be equal to the number of CPUs available for compression")
 )
 
 // FileEntry is one file to backup
@@ -165,6 +173,16 @@ func isDbDir(p string) bool {
 		if strings.HasSuffix(fi.Name(), ".frm") {
 			return true
 		}
+
+		// .frm files were removed in MySQL 8, so we need to check for two other file types
+		// https://dev.mysql.com/doc/refman/8.0/en/data-dictionary-file-removal.html
+		if strings.HasSuffix(fi.Name(), ".ibd") {
+			return true
+		}
+		// https://dev.mysql.com/doc/refman/8.0/en/serialized-dictionary-information.html
+		if strings.HasSuffix(fi.Name(), ".sdi") {
+			return true
+		}
 	}
 
 	return false
@@ -186,6 +204,26 @@ func addDirectory(fes []FileEntry, base string, baseDir string, subDir string) (
 	return fes, nil
 }
 
+// addMySQL8DataDictionary checks to see if the new data dictionary introduced in MySQL 8 exists
+// and adds it to the backup manifest if it does
+// https://dev.mysql.com/doc/refman/8.0/en/data-dictionary-transactional-storage.html
+func addMySQL8DataDictionary(fes []FileEntry, base string, baseDir string) ([]FileEntry, error) {
+	const dataDictionaryFile = "mysql.ibd"
+	filePath := path.Join(baseDir, dataDictionaryFile)
+
+	// no-op if this file doesn't exist
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fes, nil
+	}
+
+	fes = append(fes, FileEntry{
+		Base: base,
+		Name: dataDictionaryFile,
+	})
+
+	return fes, nil
+}
+
 func findFilesToBackup(cnf *Mycnf) ([]FileEntry, error) {
 	var err error
 	var result []FileEntry
@@ -196,6 +234,12 @@ func findFilesToBackup(cnf *Mycnf) ([]FileEntry, error) {
 		return nil, err
 	}
 	result, err = addDirectory(result, backupInnodbLogGroupHomeDir, cnf.InnodbLogGroupHomeDir, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// then add the transactional data dictionary if it exists
+	result, err = addMySQL8DataDictionary(result, backupData, cnf.DataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -475,12 +519,13 @@ func backupFile(ctx context.Context, cnf *Mycnf, mysqld MysqlDaemon, logger logu
 	}
 
 	// Create the gzip compression pipe, if necessary.
-	var gzip *cgzip.Writer
+	var gzip *pgzip.Writer
 	if *backupStorageCompress {
-		gzip, err = cgzip.NewWriterLevel(writer, cgzip.Z_BEST_SPEED)
+		gzip, err = pgzip.NewWriterLevel(writer, pgzip.BestSpeed)
 		if err != nil {
 			return fmt.Errorf("cannot create gziper: %v", err)
 		}
+		gzip.SetConcurrency(*backupCompressBlockSize, *backupCompressBlocks)
 		writer = gzip
 	}
 
@@ -632,7 +677,7 @@ func restoreFile(ctx context.Context, cnf *Mycnf, bh backupstorage.BackupHandle,
 
 	// Create the uncompresser if needed.
 	if compress {
-		gz, err := cgzip.NewReader(reader)
+		gz, err := pgzip.NewReader(reader)
 		if err != nil {
 			return err
 		}

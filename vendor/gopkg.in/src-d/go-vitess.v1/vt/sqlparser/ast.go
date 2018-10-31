@@ -89,6 +89,9 @@ func Parse(sql string) (Statement, error) {
 	tokenizer := NewStringTokenizer(sql)
 	if yyParsePooled(tokenizer) != 0 {
 		if tokenizer.partialDDL != nil {
+			if typ, val := tokenizer.Scan(); typ != 0 {
+				return nil, fmt.Errorf("extra characters encountered after end of DDL: '%s'", string(val))
+			}
 			log.Warningf("ignoring error parsing DDL '%s': %v", sql, tokenizer.LastError)
 			tokenizer.ParseTree = tokenizer.partialDDL
 			return tokenizer.ParseTree, nil
@@ -112,6 +115,12 @@ func ParseStrictDDL(sql string) (Statement, error) {
 		return nil, ErrEmpty
 	}
 	return tokenizer.ParseTree, nil
+}
+
+// ParseTokenizer is a raw interface to parse from the given tokenizer.
+// This does not used pooled parsers, and should not be used in general.
+func ParseTokenizer(tokenizer *Tokenizer) int {
+	return yyParse(tokenizer)
 }
 
 // ParseNext parses a single SQL statement from the tokenizer
@@ -581,6 +590,7 @@ func (*ParenSelect) iInsertRows() {}
 // If you add fields here, consider adding them to calls to validateSubquerySamePlan.
 type Update struct {
 	Comments   Comments
+	Ignore     string
 	TableExprs TableExprs
 	Exprs      UpdateExprs
 	Where      *Where
@@ -590,8 +600,8 @@ type Update struct {
 
 // Format formats the node.
 func (node *Update) Format(buf *TrackedBuffer) {
-	buf.Myprintf("update %v%v set %v%v%v%v",
-		node.Comments, node.TableExprs,
+	buf.Myprintf("update %v%s%v set %v%v%v%v",
+		node.Comments, node.Ignore, node.TableExprs,
 		node.Exprs, node.Where, node.OrderBy, node.Limit)
 }
 
@@ -732,6 +742,7 @@ const (
 	DropStr          = "drop"
 	RenameStr        = "rename"
 	TruncateStr      = "truncate"
+	FlushStr         = "flush"
 	CreateVindexStr  = "create vindex"
 	AddColVindexStr  = "add vindex"
 	DropColVindexStr = "drop vindex"
@@ -765,6 +776,8 @@ func (node *DDL) Format(buf *TrackedBuffer) {
 		} else {
 			buf.Myprintf("%s table %v", node.Action, node.Table)
 		}
+	case FlushStr:
+		buf.Myprintf("%s", node.Action)
 	case CreateVindexStr:
 		buf.Myprintf("%s %v %v", node.Action, node.VindexSpec.Name, node.VindexSpec)
 	case AddColVindexStr:

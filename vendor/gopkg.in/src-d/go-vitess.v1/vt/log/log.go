@@ -1,54 +1,78 @@
-// You can modify this file to hook up a different logging library instead of glog.
+// You can modify this file to hook up a different logging library instead of logrus.
 // If you adapt to a different logging framework, you may need to use that
 // framework's equivalent of *Depth() functions so the file and line number printed
 // point to the real caller instead of your adapter function.
 
 package log
 
-import "github.com/golang/glog"
+import "github.com/sirupsen/logrus"
 
 // Level is used with V() to test log verbosity.
-type Level = glog.Level
+type Level = logrus.Level
 
 var (
 	// V quickly checks if the logging verbosity meets a threshold.
-	V = glog.V
+	V = func(level int) bool {
+		lvl := logrus.GetLevel()
+		switch level {
+		case 0:
+			return lvl == logrus.InfoLevel
+		case 1:
+			return lvl == logrus.WarnLevel
+		case 2:
+			return lvl == logrus.ErrorLevel
+		case 3:
+			return lvl == logrus.FatalLevel
+		default:
+			return false
+		}
+	}
 
 	// Flush ensures any pending I/O is written.
-	Flush = glog.Flush
+	Flush = func() {}
 
 	// Info formats arguments like fmt.Print.
-	Info = glog.Info
+	Info = logrus.Info
 	// Infof formats arguments like fmt.Printf.
-	Infof = glog.Infof
+	Infof = logrus.Infof
 	// InfoDepth formats arguments like fmt.Print and uses depth to choose which call frame to log.
-	InfoDepth = glog.InfoDepth
+	InfoDepth = func(_ int, args ...interface{}) {
+		logrus.Info(args...)
+	}
 
 	// Warning formats arguments like fmt.Print.
-	Warning = glog.Warning
+	Warning = logrus.Warning
 	// Warningf formats arguments like fmt.Printf.
-	Warningf = glog.Warningf
+	Warningf = logrus.Warningf
 	// WarningDepth formats arguments like fmt.Print and uses depth to choose which call frame to log.
-	WarningDepth = glog.WarningDepth
+	WarningDepth = func(depth int, args ...interface{}) {
+		logrus.Warning(args...)
+	}
 
 	// Error formats arguments like fmt.Print.
-	Error = glog.Error
+	Error = logrus.Error
 	// Errorf formats arguments like fmt.Printf.
-	Errorf = glog.Errorf
+	Errorf = logrus.Errorf
 	// ErrorDepth formats arguments like fmt.Print and uses depth to choose which call frame to log.
-	ErrorDepth = glog.ErrorDepth
+	ErrorDepth = func(_ int, args ...interface{}) {
+		logrus.Error(args...)
+	}
 
 	// Exit formats arguments like fmt.Print.
-	Exit = glog.Exit
+	Exit = logrus.Panic
 	// Exitf formats arguments like fmt.Printf.
-	Exitf = glog.Exitf
+	Exitf = logrus.Panicf
 	// ExitDepth formats arguments like fmt.Print and uses depth to choose which call frame to log.
-	ExitDepth = glog.ExitDepth
+	ExitDepth = func(_ int, args ...interface{}) {
+		logrus.Panic(args...)
+	}
 
 	// Fatal formats arguments like fmt.Print.
-	Fatal = glog.Fatal
+	Fatal = logrus.Fatal
 	// Fatalf formats arguments like fmt.Printf
-	Fatalf = glog.Fatalf
+	Fatalf = logrus.Fatalf
 	// FatalDepth formats arguments like fmt.Print and uses depth to choose which call frame to log.
-	FatalDepth = glog.FatalDepth
+	FatalDepth = func(_ int, args ...interface{}) {
+		logrus.Fatal(args...)
+	}
 )

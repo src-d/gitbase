@@ -28,6 +28,7 @@ import (
 	"gopkg.in/src-d/go-vitess.v1/mysql/fakesqldb"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/stats"
+	"gopkg.in/src-d/go-vitess.v1/sync2"
 	"gopkg.in/src-d/go-vitess.v1/vt/dbconnpool"
 	"gopkg.in/src-d/go-vitess.v1/vt/mysqlctl"
 	"gopkg.in/src-d/go-vitess.v1/vt/mysqlctl/tmutils"
@@ -125,7 +126,7 @@ type FakeMysqlDaemon struct {
 	FetchSuperQueryMap map[string]*sqltypes.Result
 
 	// BinlogPlayerEnabled is used by {Enable,Disable}BinlogPlayer
-	BinlogPlayerEnabled bool
+	BinlogPlayerEnabled sync2.AtomicBool
 
 	// SemiSyncMasterEnabled represents the state of rpl_semi_sync_master_enabled.
 	SemiSyncMasterEnabled bool
@@ -345,13 +346,13 @@ func (fmd *FakeMysqlDaemon) FetchSuperQuery(ctx context.Context, query string) (
 
 // EnableBinlogPlayback is part of the MysqlDaemon interface
 func (fmd *FakeMysqlDaemon) EnableBinlogPlayback() error {
-	fmd.BinlogPlayerEnabled = true
+	fmd.BinlogPlayerEnabled.Set(true)
 	return nil
 }
 
 // DisableBinlogPlayback disable playback of binlog events
 func (fmd *FakeMysqlDaemon) DisableBinlogPlayback() error {
-	fmd.BinlogPlayerEnabled = false
+	fmd.BinlogPlayerEnabled.Set(false)
 	return nil
 }
 
