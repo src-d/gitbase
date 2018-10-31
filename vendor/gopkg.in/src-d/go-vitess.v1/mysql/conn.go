@@ -18,13 +18,18 @@ package mysql
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/src-d/go-vitess.v1/bucketpool"
+	"gopkg.in/src-d/go-vitess.v1/sqltypes"
+	"gopkg.in/src-d/go-vitess.v1/sync2"
+	"gopkg.in/src-d/go-vitess.v1/vt/log"
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
 )
 
@@ -41,24 +46,11 @@ const (
 	// read or write a packet while one is already used.
 	ephemeralUnused = iota
 
-	// ephemeralWriteSingleBuffer means a single buffer was
-	// allocated to write a packet.  It is in
-	// c.currentEphemeralWriteBuffer. The first four bytes contain size
-	// and sequence.
-	ephemeralWriteSingleBuffer
+	// ephemeralWrite means we currently in process of writing from  currentEphemeralBuffer
+	ephemeralWrite
 
-	// ephemeralWriteBigBuffer means a big buffer was allocated to
-	// write a packet, and will need to be split when sending.
-	// The allocated buffer is in c.currentEphemeralWriteBuffer.
-	ephemeralWriteBigBuffer
-
-	// ephemeralReadSingleBuffer means we are using a pool of buffers
-	// for reading.
-	ephemeralReadSingleBuffer
-
-	// ephemeralReadBigBuffer means we allocated a very big buffer
-	// and we can't reuse it at all.
-	ephemeralReadBigBuffer
+	// ephemeralRead means we currently in process of reading into currentEphemeralBuffer
+	ephemeralRead
 )
 
 // A Getter has a Get()
@@ -78,14 +70,17 @@ type Conn struct {
 	// If there are any ongoing reads or writes, they may get interrupted.
 	conn net.Conn
 
+	// For server-side connections, listener points to the server object.
+	listener *Listener
+
 	// ConnectionID is set:
 	// - at Connect() time for clients, with the value returned by
 	// the server.
 	// - at accept time for the server.
 	ConnectionID uint32
 
-	// Closed is set to true when Close() is called on the connection.
-	Closed bool
+	// closed is set to true when Close() is called on the connection.
+	closed sync2.AtomicBool
 
 	// Capabilities is the current set of features this connection
 	// is using.  It is the features that are both supported by
@@ -154,11 +149,9 @@ type Conn struct {
 	// - startEphemeralPacket / writeEphemeralPacket methods for writes.
 	// - readEphemeralPacket / recycleReadPacket methods for reads.
 	currentEphemeralPolicy int
-	// TODO (danieltahara): Ultimately get rid of this delineation.
-	// currentEphemeralWriteBuffer and currentEphemeralReadBuffer used for tracking
-	// allocated temporary buffers for writes and reads respectively.
-	currentEphemeralWriteBuffer *[]byte
-	currentEphemeralReadBuffer  *[]byte
+	// currentEphemeralBuffer for tracking allocated temporary buffer for writes and reads respectively.
+	// It can be allocated from bufPool or heap and should be recycled in the same manner.
+	currentEphemeralBuffer *[]byte
 }
 
 // bufPool is used to allocate and free buffers in an efficient way.
@@ -172,19 +165,24 @@ var writersPool = sync.Pool{New: func() interface{} { return bufio.NewWriterSize
 func newConn(conn net.Conn) *Conn {
 	return &Conn{
 		conn:           conn,
+		closed:         sync2.NewAtomicBool(false),
 		bufferedReader: bufio.NewReaderSize(conn, connBufferSize),
 	}
 }
 
 // newServerConn should be used to create server connections.
-// The only difference from "client" newConn is ability to control buffer size
-// for reads.
-func newServerConn(conn net.Conn, connReadBufferSize int) *Conn {
+//
+// It stashes a reference to the listener to be able to determine if
+// the server is shutting down, and has the ability to control buffer
+// size for reads.
+func newServerConn(conn net.Conn, listener *Listener) *Conn {
 	c := &Conn{
-		conn: conn,
+		conn:     conn,
+		listener: listener,
+		closed:   sync2.NewAtomicBool(false),
 	}
-	if connReadBufferSize > 0 {
-		c.bufferedReader = bufio.NewReaderSize(conn, connReadBufferSize)
+	if listener.connReadBufferSize > 0 {
+		c.bufferedReader = bufio.NewReaderSize(conn, listener.connReadBufferSize)
 	}
 	return c
 }
@@ -287,20 +285,19 @@ func (c *Conn) readEphemeralPacket() ([]byte, error) {
 		return nil, nil
 	}
 
+	c.currentEphemeralPolicy = ephemeralRead
 	// Use the bufPool.
 	if length < MaxPacketSize {
-		c.currentEphemeralPolicy = ephemeralReadSingleBuffer
-		c.currentEphemeralReadBuffer = bufPool.Get(length)
-		if _, err := io.ReadFull(r, *c.currentEphemeralReadBuffer); err != nil {
+		c.currentEphemeralBuffer = bufPool.Get(length)
+		if _, err := io.ReadFull(r, *c.currentEphemeralBuffer); err != nil {
 			return nil, fmt.Errorf("io.ReadFull(packet body of length %v) failed: %v", length, err)
 		}
-		return *c.currentEphemeralReadBuffer, nil
+		return *c.currentEphemeralBuffer, nil
 	}
 
 	// Much slower path, revert to allocating everything from scratch.
 	// We're going to concatenate a lot of data anyway, can't really
 	// optimize this code path easily.
-	c.currentEphemeralPolicy = ephemeralReadBigBuffer
 	data := make([]byte, length)
 	if _, err := io.ReadFull(r, data); err != nil {
 		return nil, fmt.Errorf("io.ReadFull(packet body of length %v) failed: %v", length, err)
@@ -348,13 +345,13 @@ func (c *Conn) readEphemeralPacketDirect() ([]byte, error) {
 		return nil, nil
 	}
 
+	c.currentEphemeralPolicy = ephemeralRead
 	if length < MaxPacketSize {
-		c.currentEphemeralPolicy = ephemeralReadSingleBuffer
-		c.currentEphemeralReadBuffer = bufPool.Get(length)
-		if _, err := io.ReadFull(r, *c.currentEphemeralReadBuffer); err != nil {
+		c.currentEphemeralBuffer = bufPool.Get(length)
+		if _, err := io.ReadFull(r, *c.currentEphemeralBuffer); err != nil {
 			return nil, fmt.Errorf("io.ReadFull(packet body of length %v) failed: %v", length, err)
 		}
-		return *c.currentEphemeralReadBuffer, nil
+		return *c.currentEphemeralBuffer, nil
 	}
 
 	return nil, fmt.Errorf("readEphemeralPacketDirect doesn't support more than one packet")
@@ -363,18 +360,14 @@ func (c *Conn) readEphemeralPacketDirect() ([]byte, error) {
 // recycleReadPacket recycles the read packet. It needs to be called
 // after readEphemeralPacket was called.
 func (c *Conn) recycleReadPacket() {
-	switch c.currentEphemeralPolicy {
-	case ephemeralReadSingleBuffer:
-		// We are using the pool, put the buffer back in.
-		bufPool.Put(c.currentEphemeralReadBuffer)
-		c.currentEphemeralReadBuffer = nil
-	case ephemeralReadBigBuffer:
-		// We allocated a one-time buffer we can't re-use.
-		// Nothing to do. Nil out for safety.
-		c.currentEphemeralReadBuffer = nil
-	case ephemeralUnused, ephemeralWriteSingleBuffer, ephemeralWriteBigBuffer:
+	if c.currentEphemeralPolicy != ephemeralRead {
 		// Programming error.
 		panic(fmt.Errorf("trying to call recycleReadPacket while currentEphemeralPolicy is %d", c.currentEphemeralPolicy))
+	}
+	if c.currentEphemeralBuffer != nil {
+		// We are using the pool, put the buffer back in.
+		bufPool.Put(c.currentEphemeralBuffer)
+		c.currentEphemeralBuffer = nil
 	}
 	c.currentEphemeralPolicy = ephemeralUnused
 }
@@ -515,24 +508,10 @@ func (c *Conn) startEphemeralPacket(length int) []byte {
 		panic("startEphemeralPacket cannot be used while a packet is already started.")
 	}
 
-	// get buffer from pool
-	if length < MaxPacketSize {
-		c.currentEphemeralPolicy = ephemeralWriteSingleBuffer
-
-		c.currentEphemeralWriteBuffer = bufPool.Get(length + 4)
-		(*c.currentEphemeralWriteBuffer)[0] = byte(length)
-		(*c.currentEphemeralWriteBuffer)[1] = byte(length >> 8)
-		(*c.currentEphemeralWriteBuffer)[2] = byte(length >> 16)
-		(*c.currentEphemeralWriteBuffer)[3] = c.sequence
-		c.sequence++
-		return (*c.currentEphemeralWriteBuffer)[4:]
-	}
-
-	// Even slower path: create a full size buffer and return it.
-	c.currentEphemeralPolicy = ephemeralWriteBigBuffer
-	data := make([]byte, length)
-	c.currentEphemeralWriteBuffer = &data
-	return *c.currentEphemeralWriteBuffer
+	c.currentEphemeralPolicy = ephemeralWrite
+	// get buffer from pool or it'll be allocated if length is too big
+	c.currentEphemeralBuffer = bufPool.Get(length)
+	return *c.currentEphemeralBuffer
 }
 
 // writeEphemeralPacket writes the packet that was allocated by
@@ -541,20 +520,11 @@ func (c *Conn) writeEphemeralPacket() error {
 	defer c.recycleWritePacket()
 
 	switch c.currentEphemeralPolicy {
-	case ephemeralWriteSingleBuffer:
-		// Write the allocated buffer as a single buffer.
-		// It has both header and data.
-		if n, err := c.getWriter().Write(*c.currentEphemeralWriteBuffer); err != nil {
-			return fmt.Errorf("Conn %v: Write(*c.currentEphemeralWriteBuffer) failed: %v", c.ID(), err)
-		} else if n != len(*c.currentEphemeralWriteBuffer) {
-			return fmt.Errorf("Conn %v: Write(*c.currentEphemeralWriteBuffer) returned a short write: %v < %v", c.ID(), n, len(*c.currentEphemeralWriteBuffer))
-		}
-	case ephemeralWriteBigBuffer:
-		// This is the slower path for big data.
-		if err := c.writePacket(*c.currentEphemeralWriteBuffer); err != nil {
+	case ephemeralWrite:
+		if err := c.writePacket(*c.currentEphemeralBuffer); err != nil {
 			return fmt.Errorf("Conn %v: %v", c.ID(), err)
 		}
-	case ephemeralUnused, ephemeralReadSingleBuffer, ephemeralReadBigBuffer:
+	case ephemeralUnused, ephemeralRead:
 		// Programming error.
 		panic(fmt.Errorf("Conn %v: trying to call writeEphemeralPacket while currentEphemeralPolicy is %v", c.ID(), c.currentEphemeralPolicy))
 	}
@@ -565,20 +535,13 @@ func (c *Conn) writeEphemeralPacket() error {
 // recycleWritePacket recycles the write packet. It needs to be called
 // after writeEphemeralPacket was called.
 func (c *Conn) recycleWritePacket() {
-	switch c.currentEphemeralPolicy {
-	case ephemeralWriteSingleBuffer:
-		// Release our reference so the buffer can be gced
-		bufPool.Put(c.currentEphemeralWriteBuffer)
-		c.currentEphemeralWriteBuffer = nil
-	case ephemeralWriteBigBuffer:
-		// We allocated a one-time buffer we can't re-use.
-		// N.B. Unlike the read packet, we actually assign the big buffer to currentEphemeralReadBuffer,
-		// so we should remove our reference to it.
-		c.currentEphemeralWriteBuffer = nil
-	case ephemeralUnused, ephemeralReadSingleBuffer, ephemeralReadBigBuffer:
+	if c.currentEphemeralPolicy != ephemeralWrite {
 		// Programming error.
 		panic(fmt.Errorf("trying to call recycleWritePacket while currentEphemeralPolicy is %d", c.currentEphemeralPolicy))
 	}
+	// Release our reference so the buffer can be gced
+	bufPool.Put(c.currentEphemeralBuffer)
+	c.currentEphemeralBuffer = nil
 	c.currentEphemeralPolicy = ephemeralUnused
 }
 
@@ -616,15 +579,16 @@ func (c *Conn) String() string {
 // Close closes the connection. It can be called from a different go
 // routine to interrupt the current connection.
 func (c *Conn) Close() {
-	c.Closed = true
-	c.conn.Close()
+	if c.closed.CompareAndSwap(false, true) {
+		c.conn.Close()
+	}
 }
 
 // IsClosed returns true if this connection was ever closed by the
 // Close() method.  Note if the other side closes the connection, but
 // Close() wasn't called, this will return false.
 func (c *Conn) IsClosed() bool {
-	return c.Closed
+	return c.closed.Get()
 }
 
 //
@@ -719,6 +683,166 @@ func (c *Conn) writeEOFPacket(flags uint16, warnings uint16) error {
 	return c.writeEphemeralPacket()
 }
 
+// handleNextCommand is called in the server loop to process
+// incoming packets.
+func (c *Conn) handleNextCommand(handler Handler) error {
+	c.sequence = 0
+	data, err := c.readEphemeralPacket()
+	if err != nil {
+		// Don't log EOF errors. They cause too much spam.
+		// Note the EOF detection is not 100%
+		// guaranteed, in the case where the client
+		// connection is already closed before we call
+		// 'readEphemeralPacket'.  This is a corner
+		// case though, and very unlikely to happen,
+		// and the only downside is we log a bit more then.
+		if err != io.EOF {
+			log.Errorf("Error reading packet from %s: %v", c, err)
+		}
+		return err
+	}
+
+	switch data[0] {
+	case ComQuit:
+		c.recycleReadPacket()
+		return errors.New("ComQuit")
+	case ComInitDB:
+		db := c.parseComInitDB(data)
+		c.recycleReadPacket()
+		c.SchemaName = db
+		if err := c.writeOKPacket(0, 0, c.StatusFlags, 0); err != nil {
+			log.Errorf("Error writing ComInitDB result to %s: %v", c, err)
+			return err
+		}
+	case ComQuery:
+		// flush is called at the end of this block.
+		// We cannot encapsulate it with a defer inside a func because
+		// we have to return from this func if it fails.
+		c.startWriterBuffering()
+
+		queryStart := time.Now()
+		query := c.parseComQuery(data)
+		c.recycleReadPacket()
+		fieldSent := false
+		// sendFinished is set if the response should just be an OK packet.
+		sendFinished := false
+
+		err := handler.ComQuery(c, query, func(qr *sqltypes.Result) error {
+			if sendFinished {
+				// Failsafe: Unreachable if server is well-behaved.
+				return io.EOF
+			}
+
+			if !fieldSent {
+				fieldSent = true
+
+				if len(qr.Fields) == 0 {
+					sendFinished = true
+
+					// A successful callback with no fields means that this was a
+					// DML or other write-only operation.
+					//
+					// We should not send any more packets after this, but make sure
+					// to extract the affected rows and last insert id from the result
+					// struct here since clients expect it.
+					return c.writeOKPacket(qr.RowsAffected, qr.InsertID, c.StatusFlags, handler.WarningCount(c))
+				}
+				if err := c.writeFields(qr); err != nil {
+					return err
+				}
+			}
+
+			return c.writeRows(qr)
+		})
+
+		// If no field was sent, we expect an error.
+		if !fieldSent {
+			// This is just a failsafe. Should never happen.
+			if err == nil || err == io.EOF {
+				err = NewSQLErrorFromError(errors.New("unexpected: query ended without no results and no error"))
+			}
+			if werr := c.writeErrorPacketFromError(err); werr != nil {
+				// If we can't even write the error, we're done.
+				log.Errorf("Error writing query error to %s: %v", c, werr)
+				return werr
+			}
+		} else {
+			if err != nil {
+				// We can't send an error in the middle of a stream.
+				// All we can do is abort the send, which will cause a 2013.
+				log.Errorf("Error in the middle of a stream to %s: %v", c, err)
+				return err
+			}
+
+			// Send the end packet only sendFinished is false (results were streamed).
+			// In this case the affectedRows and lastInsertID are always 0 since it
+			// was a read operation.
+			if !sendFinished {
+				if err := c.writeEndResult(false, 0, 0, handler.WarningCount(c)); err != nil {
+					log.Errorf("Error writing result to %s: %v", c, err)
+					return err
+				}
+			}
+		}
+
+		timings.Record(queryTimingKey, queryStart)
+
+		if err := c.flush(); err != nil {
+			log.Errorf("Conn %v: Flush() failed: %v", c.ID(), err)
+			return err
+		}
+
+	case ComPing:
+		c.recycleReadPacket()
+		// Return error if listener was shut down and OK otherwise
+		if c.listener.isShutdown() {
+			if err := c.writeErrorPacket(ERServerShutdown, SSServerShutdown, "Server shutdown in progress"); err != nil {
+				log.Errorf("Error writing ComPing error to %s: %v", c, err)
+				return err
+			}
+		} else {
+			if err := c.writeOKPacket(0, 0, c.StatusFlags, 0); err != nil {
+				log.Errorf("Error writing ComPing result to %s: %v", c, err)
+				return err
+			}
+		}
+	case ComSetOption:
+		if operation, ok := c.parseComSetOption(data); ok {
+			switch operation {
+			case 0:
+				c.Capabilities |= CapabilityClientMultiStatements
+			case 1:
+				c.Capabilities &^= CapabilityClientMultiStatements
+			default:
+				log.Errorf("Got unhandled packet from client %v, returning error: %v", c.ConnectionID, data)
+				if err := c.writeErrorPacket(ERUnknownComError, SSUnknownComError, "error handling packet: %v", data); err != nil {
+					log.Errorf("Error writing error packet to client: %v", err)
+					return err
+				}
+			}
+			if err := c.writeEndResult(false, 0, 0, 0); err != nil {
+				log.Errorf("Error writeEndResult error %v ", err)
+				return err
+			}
+		} else {
+			log.Errorf("Got unhandled packet from client %v, returning error: %v", c.ConnectionID, data)
+			if err := c.writeErrorPacket(ERUnknownComError, SSUnknownComError, "error handling packet: %v", data); err != nil {
+				log.Errorf("Error writing error packet to client: %v", err)
+				return err
+			}
+		}
+	default:
+		log.Errorf("Got unhandled packet from %s, returning error: %v", c, data)
+		c.recycleReadPacket()
+		if err := c.writeErrorPacket(ERUnknownComError, SSUnknownComError, "command handling not implemented yet: %v", data[0]); err != nil {
+			log.Errorf("Error writing error packet to %s: %s", c, err)
+			return err
+		}
+	}
+
+	return nil
+}
+
 //
 // Packet parsing methods, for generic packets.
 //
@@ -743,14 +867,21 @@ func isEOFPacket(data []byte) bool {
 	return data[0] == EOFPacket && len(data) < 9
 }
 
-// parseEOFPacket returns true if there are more results to receive.
-func parseEOFPacket(data []byte) (bool, error) {
+// parseEOFPacket returns the warning count and a boolean to indicate if there
+// are more results to receive.
+//
+// Note: This is only valid on actual EOF packets and not on OK packets with the EOF
+// type code set, i.e. should not be used if ClientDeprecateEOF is set.
+func parseEOFPacket(data []byte) (warnings uint16, more bool, err error) {
+	// The warning count is in position 2 & 3
+	warnings, _, ok := readUint16(data, 1)
+
 	// The status flag is in position 4 & 5
 	statusFlags, _, ok := readUint16(data, 3)
 	if !ok {
-		return false, fmt.Errorf("invalid EOF packet statusFlags: %v", data)
+		return 0, false, fmt.Errorf("invalid EOF packet statusFlags: %v", data)
 	}
-	return (statusFlags & ServerMoreResultsExists) != 0, nil
+	return warnings, (statusFlags & ServerMoreResultsExists) != 0, nil
 }
 
 func parseOKPacket(data []byte) (uint64, uint64, uint16, uint16, error) {

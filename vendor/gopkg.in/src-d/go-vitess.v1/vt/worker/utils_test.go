@@ -25,6 +25,7 @@ import (
 	"gopkg.in/src-d/go-vitess.v1/mysql/fakesqldb"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/faketmclient"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/tmclient"
 	"gopkg.in/src-d/go-vitess.v1/vt/wrangler"
@@ -43,15 +44,15 @@ func runCommand(t *testing.T, wi *Instance, wr *wrangler.Wrangler, args []string
 
 	worker, done, err := wi.RunCommand(ctx, args, wr, false /* runFromCli */)
 	if err != nil {
-		return fmt.Errorf("Worker creation failed: %v", err)
+		return vterrors.Wrap(err, "Worker creation failed")
 	}
 	if err := wi.WaitForCommand(worker, done); err != nil {
-		return fmt.Errorf("Worker failed: %v", err)
+		return vterrors.Wrap(err, "Worker failed")
 	}
 
 	t.Logf("Got status: %v", worker.StatusAsText())
 	if worker.State() != WorkerStateDone {
-		return fmt.Errorf("Worker finished but not successfully: %v", err)
+		return vterrors.Wrap(err, "Worker finished but not successfully")
 	}
 	return nil
 }

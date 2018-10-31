@@ -21,6 +21,8 @@ import (
 	"regexp"
 	"time"
 
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
+
 	"golang.org/x/net/context"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/hook"
@@ -81,7 +83,7 @@ func (agent *ActionAgent) ChangeType(ctx context.Context, tabletType topodatapb.
 
 	// Let's see if we need to fix semi-sync acking.
 	if err := agent.fixSemiSyncAndReplication(agent.Tablet().Type); err != nil {
-		return fmt.Errorf("fixSemiSyncAndReplication failed, may not ack correctly: %v", err)
+		return vterrors.Wrap(err, "fixSemiSyncAndReplication failed, may not ack correctly")
 	}
 
 	// and re-run health check

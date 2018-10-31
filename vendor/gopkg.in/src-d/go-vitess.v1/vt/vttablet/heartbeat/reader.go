@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
+
 	"golang.org/x/net/context"
 
 	"gopkg.in/src-d/go-vitess.v1/hack"
@@ -153,12 +155,12 @@ func (r *Reader) readHeartbeat() {
 
 	res, err := r.fetchMostRecentHeartbeat(ctx)
 	if err != nil {
-		r.recordError(fmt.Errorf("Failed to read most recent heartbeat: %v", err))
+		r.recordError(vterrors.Wrap(err, "Failed to read most recent heartbeat"))
 		return
 	}
 	ts, err := parseHeartbeatResult(res)
 	if err != nil {
-		r.recordError(fmt.Errorf("Failed to parse heartbeat result: %v", err))
+		r.recordError(vterrors.Wrap(err, "Failed to parse heartbeat result"))
 		return
 	}
 
