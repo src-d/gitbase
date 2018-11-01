@@ -1,4 +1,4 @@
-FROM debian:stable-slim
+FROM alpine:3.8
 
 COPY build/bin/gitbase /bin
 RUN mkdir -p /opt/repos
@@ -8,15 +8,13 @@ ENV GITBASE_PASSWORD=""
 ENV GITBASE_REPOS=/opt/repos
 EXPOSE 3306
 
-ENV TINI_VERSION v0.17.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+ENV TINI_VERSION v0.18.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static-amd64 /tini
 RUN chmod +x /tini
 
-RUN apt-get update \
-  && apt-get -y --no-install-recommends install libxml2 git \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
+RUN echo 'http://dl-cdn.alpinelinux.org/alpine/v3.1/main' >> /etc/apk/repositories && \ 
+	apk --no-cache add 'libxml2==2.9.2-r2' git oniguruma libc6-compat &&  \
+	apk clean
 
 ENTRYPOINT ["/tini", "--"]
 
