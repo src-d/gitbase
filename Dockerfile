@@ -12,9 +12,7 @@ ENV TINI_VERSION v0.18.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-static-amd64 /tini
 RUN chmod +x /tini
 
-RUN echo 'http://dl-cdn.alpinelinux.org/alpine/v3.1/main' >> /etc/apk/repositories && \ 
-	apk --no-cache add 'libxml2==2.9.2-r2' git oniguruma libc6-compat &&  \
-	apk clean
+RUN apk --no-cache add libxml2 git oniguruma libc6-compat
 
 ENTRYPOINT ["/tini", "--"]
 
