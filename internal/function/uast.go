@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/sirupsen/logrus"
 	bblfsh "gopkg.in/bblfsh/client-go.v3"
 	"gopkg.in/bblfsh/sdk.v2/uast"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
@@ -206,7 +207,8 @@ func (u *uastFunc) getUAST(
 				return nil, nil
 			}
 
-			return nil, err
+			logrus.WithField("err", err).Error("unable to get UAST from bblfsh")
+			return nil, nil
 		}
 
 		uastCache.Add(key, node)
@@ -219,11 +221,20 @@ func (u *uastFunc) getUAST(
 		var err error
 		nodeArray, err = applyXpath(node, xpath)
 		if err != nil {
-			return nil, err
+			logrus.WithField("err", err).
+				Errorf("unable to filter node using xpath: %s", xpath)
+			return nil, nil
 		}
 	}
 
-	return marshalNodes(nodeArray)
+	result, err := marshalNodes(nodeArray)
+	if err != nil {
+		logrus.WithField("err", err).
+			Error("unable to marshal UAST nodes")
+		return nil, nil
+	}
+
+	return result, nil
 }
 
 // UAST returns an array of UAST nodes as blobs.
