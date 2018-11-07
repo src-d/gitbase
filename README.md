@@ -2,6 +2,10 @@
 
 **gitbase**, is a SQL database interface to Git repositories.
 
+This project is now part of [source{d} Engine](https://sourced.tech/engine),
+which provides the simplest way to get started with a single command.
+Visit [sourced.tech/engine](https://sourced.tech/engine) for more information.
+
 It can be used to perform SQL queries about the Git history and
 about the [Universal AST](https://doc.bblf.sh/) of the code itself. gitbase is being built to work on top of any number of git repositories.
 
