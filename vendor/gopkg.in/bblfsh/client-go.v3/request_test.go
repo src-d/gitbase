@@ -13,9 +13,9 @@ func TestParseRequest_Configuration(t *testing.T) {
 	req := ParseRequest{}
 	req.Filename("file.py").Language("python").Content("a=b+c")
 
-	require.Equal(t, "file.py", req.internal.Filename)
-	require.Equal(t, "python", req.internal.Language)
-	require.Equal(t, "a=b+c", req.internal.Content)
+	require.Equal(t, "file.py", req.options.Filename)
+	require.Equal(t, "python", req.options.Language)
+	require.Equal(t, "a=b+c", req.content)
 }
 
 func TestParseRequest_ReadFile(t *testing.T) {
@@ -24,8 +24,8 @@ func TestParseRequest_ReadFile(t *testing.T) {
 	req := &ParseRequest{}
 	req = req.ReadFile(tmpfile.Name())
 
-	require.Equal(t, filepath.Base(tmpfile.Name()), req.internal.Filename)
-	require.Equal(t, "foo", req.internal.Content)
+	require.Equal(t, filepath.Base(tmpfile.Name()), req.options.Filename)
+	require.Equal(t, "foo", req.content)
 }
 
 func TestParseRequest_ReadFileError(t *testing.T) {

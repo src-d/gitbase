@@ -1,13 +1,13 @@
 # {{.Manifest.Name}} driver for [Babelfish](https://github.com/bblfsh/bblfshd) ![Driver Status](https://img.shields.io/badge/status-{{.Manifest.Status | escape_shield}}-{{template "color-status" .}}.svg) [![Build Status](https://travis-ci.org/bblfsh/{{.Manifest.Language}}-driver.svg?branch=master)](https://travis-ci.org/bblfsh/{{.Manifest.Language | escape_shield }}-driver) ![Native Version](https://img.shields.io/badge/{{.Manifest.Language}}%20version-{{.Manifest.Runtime.NativeVersion | escape_shield}}-aa93ea.svg) ![Go Version](https://img.shields.io/badge/go%20version-{{.Manifest.Runtime.GoVersion | escape_shield}}-63afbf.svg)
 
-{{.Manifest.Documentation.Description}}
+{{if .Manifest.Documentation}}{{.Manifest.Documentation.Description}}
 
 {{if .Manifest.Documentation.Caveats -}}
 Caveats
 -------
 
 {{.Manifest.Documentation.Caveats}}
-{{end -}}
+{{end -}}{{end -}}
 
 
 Development Environment

@@ -12,6 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/sirupsen/logrus"
 	bblfsh "gopkg.in/bblfsh/client-go.v3"
+	derrors "gopkg.in/bblfsh/sdk.v2/driver/errors"
 	"gopkg.in/bblfsh/sdk.v2/uast"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 
@@ -203,12 +204,11 @@ func (u *uastFunc) getUAST(
 		var err error
 		node, err = getUASTFromBblfsh(ctx, blob, lang, xpath, mode)
 		if err != nil {
-			if ErrParseBlob.Is(err) {
+			if ErrParseBlob.Is(err) || derrors.ErrSyntax.Is(err) {
 				return nil, nil
 			}
 
-			logrus.WithField("err", err).Error("unable to get UAST from bblfsh")
-			return nil, nil
+			return nil, err
 		}
 
 		uastCache.Add(key, node)

@@ -14,65 +14,114 @@ go get -u gopkg.in/bblfsh/client-go.v3/...
 ```
 
 ## Example
+### CLI
 
+Allthough *clinet-go* is a library, this codebase also includes an example of `bblfsh-cli` application at [`./cmd/bblfsh-cli`](/cmd/bblfsh-cli). When [installed](#Installation), it allows to parse a single file, query it with XPath and print the resulting UAST structure immediatly. 
+See `$ bblfsh-cli -h` for list of all available CLI options.
+
+### Code
 This small example illustrates how to retrieve the [UAST](https://doc.bblf.sh/uast/specification.html) from a small Python script.
 
 If you don't have a bblfsh server installed, please read the [getting started](https://doc.bblf.sh/using-babelfish/getting-started.html) guide, to learn more about how to use and deploy a bblfsh server. 
 
-Go to the[quick start](https://github.com/bblfsh/bblfshd#quick-start) to discover how to run Babelfish with Docker.
+Go to the [quick start](https://github.com/bblfsh/bblfshd#quick-start) to discover how to run Babelfish with Docker.
 
 ```go
-client, err := bblfsh.NewClient("0.0.0.0:9432")
-if err != nil {
-    panic(err)
-}
+package main
 
-python := "import foo"
+import (
+	"fmt"
 
-res, _, err := client.NewParseRequest().Language("python").Content(python).UAST()
-if err != nil {
-    panic(err)
-}
+	"gopkg.in/bblfsh/client-go.v3"
+	"gopkg.in/bblfsh/client-go.v3/tools"
 
-query := "//*[@role='Import']"
-nodes, _ := tools.Filter(res.UAST, query)
-for _, n := range nodes {
-    fmt.Println(n)
+	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
+	"gopkg.in/bblfsh/sdk.v2/uast/yaml"
+)
+
+func main() {
+	client, err := bblfsh.NewClient("0.0.0.0:9432")
+	if err != nil {
+		panic(err)
+	}
+
+	python := "import foo"
+	res, _, err := client.NewParseRequest().Language("python").Content(python).UAST()
+	if err != nil {
+		panic(err)
+	}
+
+	query := "//*[@role='Import']"
+	it, _ := tools.Filter(res, query)
+	var nodeAr nodes.Array
+	for it.Next() {
+		nodeAr = append(nodeAr, it.Node().(nodes.Node))
+	}
+
+	//alternative: encode UAST nodes to JSON (instead of YAML example below)
+	//data, err := json.MarshalIndent(nodeAr, "", "  ")
+	data, err := uastyml.Marshal(nodeAr)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(data))
 }
 ```
 
+produces
+
+```[
+   { '@type': "Import",
+      '@token': "import",
+      '@role': [Declaration, Import, Statement],
+      '@pos': { '@type': "uast:Positions",
+         start: { '@type': "uast:Position",
+            offset: 0,
+            line: 1,
+            col: 1,
+         },
+      },
+      names: { '@type': "ImportFrom.names",
+         '@role': [Identifier, Import, Incomplete, Pathname],
+         'name_list': [
+            { '@type': "uast:RuntimeImport",
+               All: false,
+               Names: ~,
+               Path: { '@type': "uast:Alias",
+                  '@pos': { '@type': "uast:Positions",
+                  },
+                  Name: { '@type': "uast:Identifier",
+                     Name: "foo",
+                  },
+                  Node: {},
+               },
+               Target: ~,
+            },
+         ],
+      },
+   },
+   { '@type': "ImportFrom.names",
+      '@role': [Identifier, Import, Incomplete, Pathname],
+      'name_list': [
+         { '@type': "uast:RuntimeImport",
+            All: false,
+            Names: ~,
+            Path: { '@type': "uast:Alias",
+               '@pos': { '@type': "uast:Positions",
+               },
+               Name: { '@type': "uast:Identifier",
+                  Name: "foo",
+               },
+               Node: {},
+            },
+            Target: ~,
+         },
+      ],
+   },
+]
 ```
-Import {
-.  Roles: Import,Declaration,Statement
-.  StartPosition: {
-.  .  Offset: 0
-.  .  Line: 1
-.  .  Col: 1
-.  }
-.  Properties: {
-.  .  internalRole: body
-.  }
-.  Children: {
-.  .  0: alias {
-.  .  .  Roles: Import,Pathname,Identifier
-.  .  .  TOKEN "foo"
-.  .  .  Properties: {
-.  .  .  .  asname: <nil>
-.  .  .  .  internalRole: names
-.  .  .  }
-.  .  }
-.  }
-}
 
-alias {
-.  Roles: Import,Pathname,Identifier
-.  TOKEN "foo"
-.  Properties: {
-.  .  asname: <nil>
-.  .  internalRole: names
-.  }
-}
-
+```go
 iter, err := tools.NewIterator(res.UAST)
 if err != nil {
     panic(err)

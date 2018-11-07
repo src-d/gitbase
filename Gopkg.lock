@@ -87,14 +87,6 @@
   version = "v1.1.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:107b233e45174dbab5b1324201d092ea9448e58243ab9f039e4c0f332e121e3a"
-  name = "github.com/golang/glog"
-  packages = ["."]
-  pruneopts = ""
-  revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
-
-[[projects]]
   digest = "1:3dd078fda7500c341bc26cfbc6c6a34614f295a2457149fc1045cab767cbcf18"
   name = "github.com/golang/protobuf"
   packages = [
@@ -493,15 +485,15 @@
   version = "v1.15.0"
 
 [[projects]]
-  digest = "1:2f0e6ad6e6c3c7eff4e8b0806a12c0810cdf8233c053f685b7cd3030e0d0df12"
+  digest = "1:f2732ac0e1c6a432498f34046ed7ac8e8dc42134245e46ffafb635a0498be93e"
   name = "gopkg.in/bblfsh/client-go.v3"
   packages = [
     ".",
     "tools",
   ]
   pruneopts = ""
-  revision = "1169333c454a21a989546a2c4b9e49aacecabc3c"
-  version = "v3.0.0"
+  revision = "675e9da023b6645dcfd9dd39393d1e20541052df"
+  version = "v3.1.0"
 
 [[projects]]
   digest = "1:e4d06d096b60a4ada8cad171c97127038aff58ddff86285781becae862c409e6"
@@ -516,10 +508,11 @@
   version = "v1.16.1"
 
 [[projects]]
-  digest = "1:a0a46c2eb3dc78bd0d4eebc1859cfbc001f54608014135b80d4184b8a1c5301b"
+  digest = "1:07ed9ffc87294fa5937c45a8daef2e8309df0f9e931fc351e50291e97eaa3fb0"
   name = "gopkg.in/bblfsh/sdk.v2"
   packages = [
     "driver",
+    "driver/errors",
     "driver/manifest",
     "protocol",
     "uast",
@@ -532,8 +525,8 @@
     "uast/transformer",
   ]
   pruneopts = ""
-  revision = "73dccf5b138866d38733c4b371fcd597e4240516"
-  version = "v2.3.0"
+  revision = "d932d3391d5e12c1d6af03e39e0e75f0d2d44107"
+  version = "v2.7.0"
 
 [[projects]]
   branch = "v1"
@@ -744,6 +737,7 @@
     "google.golang.org/grpc/connectivity",
     "gopkg.in/bblfsh/client-go.v3",
     "gopkg.in/bblfsh/client-go.v3/tools",
+    "gopkg.in/bblfsh/sdk.v2/driver/errors",
     "gopkg.in/bblfsh/sdk.v2/uast",
     "gopkg.in/bblfsh/sdk.v2/uast/nodes",
     "gopkg.in/bblfsh/sdk.v2/uast/nodes/nodesproto",

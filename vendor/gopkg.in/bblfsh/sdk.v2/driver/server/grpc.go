@@ -107,7 +107,11 @@ func (s service) parse(mode driver.Mode, req *protocol1.ParseRequest) (nodes.Nod
 		ctx, cancel = context.WithTimeout(ctx, req.Timeout)
 		defer cancel()
 	}
-	ast, err := s.d.Parse(ctx, mode, req.Content)
+	ast, err := s.d.Parse(ctx, req.Content, &driver.ParseOptions{
+		Mode:     mode,
+		Language: req.Language,
+		Filename: req.Filename,
+	})
 	dt := time.Since(start)
 	var r protocol1.Response
 	if err != nil {
