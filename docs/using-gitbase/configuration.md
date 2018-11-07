@@ -16,6 +16,7 @@
 | `GITBASE_CACHESIZE_MB`       | size of the cache for git objects specified as MB                                  |
 | `GITBASE_CONNECTION_TIMEOUT` | timeout in seconds used for client connections on write and reads. No timeout by default.     |
 | `GITBASE_USER_FILE`          | JSON file with user credentials                                                    |
+| `GITBASE_MAX_UAST_BLOB_SIZE`          | Max size of blobs to send to be parsed by bblfsh. Default: 5242880 (5MB)                                                    |
 
 ### Jaeger tracing variables
 

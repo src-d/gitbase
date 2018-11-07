@@ -20,14 +20,18 @@ import (
 )
 
 const (
-	uastCacheSize        = "GITBASE_UAST_CACHE_SIZE"
+	uastCacheSizeKey     = "GITBASE_UAST_CACHE_SIZE"
 	defaultUASTCacheSize = 10000
+
+	uastMaxBlobSizeKey     = "GITBASE_MAX_UAST_BLOB_SIZE"
+	defaultUASTMaxBlobSize = 5 * 1024 * 1024 // 5MB
 )
 
 var uastCache *lru.Cache
+var uastMaxBlobSize int
 
 func init() {
-	s := os.Getenv(uastCacheSize)
+	s := os.Getenv(uastCacheSizeKey)
 	size, err := strconv.Atoi(s)
 	if err != nil || size <= 0 {
 		size = defaultUASTCacheSize
@@ -36,6 +40,11 @@ func init() {
 	uastCache, err = lru.New(size)
 	if err != nil {
 		panic(fmt.Errorf("cannot initialize UAST cache: %s", err))
+	}
+
+	uastMaxBlobSize, err = strconv.Atoi(os.Getenv(uastMaxBlobSizeKey))
+	if err != nil {
+		uastMaxBlobSize = defaultUASTMaxBlobSize
 	}
 }
 
@@ -163,6 +172,18 @@ func (u *uastFunc) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err err
 
 	bytes := blob.([]byte)
 	if len(bytes) == 0 {
+		return nil, nil
+	}
+
+	if uastMaxBlobSize >= 0 && len(bytes) > uastMaxBlobSize {
+		logrus.WithFields(logrus.Fields{
+			"max":  uastMaxBlobSize,
+			"size": len(bytes),
+		}).Warnf(
+			"uast will be skipped, file is too big to send to bblfsh."+
+				"This can be configured using %s environment variable",
+			uastMaxBlobSizeKey,
+		)
 		return nil, nil
 	}
 
