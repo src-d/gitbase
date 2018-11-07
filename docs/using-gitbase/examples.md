@@ -202,3 +202,41 @@ The UDF `uast_children` will return a flattened array of the children nodes from
 ```sql
 SELECT file_path, uast_children(uast(blob_content, language(file_path), "//uast:Alias")) FROM files;
 ```
+
+## Monitor the progress of a query
+
+You can monitor the progress of a gitbase query (either a regular query or an index creation query using `SHOW PROCESSLIST`).
+
+Let's say we do the following query over a huge repository:
+
+```sql
+SELECT language(file_path, blob_content) FROM files
+```
+
+With this query we can monitor its progress:
+
+```sql
+SHOW PROCESSLIST
+```
+
+We'll get the following output:
+
+```
++------+------+----------------+---------+---------+------+------------+-----------------------------------------------------+
+| Id   | User | Host           | db      | Command | Time | State      | Info                                                |
++------+------+----------------+---------+---------+------+------------+-----------------------------------------------------+
+|    2 | root | 127.0.0.1:3306 | gitbase | query   |   36 | files(1/3) | select language(file_path, blob_content) from files |
+|   12 | root | 127.0.0.1:3306 | gitbase | query   |    0 | running    | show processlist                                    |
++------+------+----------------+---------+---------+------+------------+-----------------------------------------------------+
+2 rows in set (0,00 sec)
+```
+
+From this output, we can obtain some information about our query:
+- It's been running for 36 seconds.
+- It's only querying files table and has processed 1 out of 3 partitions.
+
+To kill a query that's currently running you can use the value in `Id`. If we were to kill the previous query, we would need to use the following query:
+
+```sql
+KILL QUERY 2
+```
