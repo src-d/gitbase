@@ -19,12 +19,20 @@ const (
 	QueryKey key = iota
 )
 
+// Client holds session user information.
+type Client struct {
+	// User of the session.
+	User string
+	// Address of the client.
+	Address string
+}
+
 // Session holds the session data.
 type Session interface {
 	// Address of the server.
 	Address() string
 	// User of the session.
-	User() string
+	Client() Client
 	// Set session configuration.
 	Set(key string, typ Type, value interface{})
 	// Get session configuration.
@@ -35,9 +43,9 @@ type Session interface {
 	ID() uint32
 	// Warn stores the warning in the session.
 	Warn(warn *Warning)
-	// Warnings returns a copy of session warnings (from the most recent)
+	// Warnings returns a copy of session warnings (from the most recent).
 	Warnings() []*Warning
-	// ClearWarnings cleans up session warnings
+	// ClearWarnings cleans up session warnings.
 	ClearWarnings()
 	// WarningCount returns a number of session warnings
 	WarningCount() uint16
@@ -47,17 +55,17 @@ type Session interface {
 type BaseSession struct {
 	id       uint32
 	addr     string
-	user     string
+	client   Client
 	mu       sync.RWMutex
 	config   map[string]TypedValue
 	warnings []*Warning
 }
 
-// User returns the current user of the session.
-func (s *BaseSession) User() string { return s.user }
-
 // Address returns the server address.
 func (s *BaseSession) Address() string { return s.addr }
+
+// User returns session's client information.
+func (s *BaseSession) Client() Client { return s.client }
 
 // Set implements the Session interface.
 func (s *BaseSession) Set(key string, typ Type, value interface{}) {
@@ -171,11 +179,14 @@ func HasDefaultValue(s Session, key string) (bool, interface{}) {
 }
 
 // NewSession creates a new session with data.
-func NewSession(address string, user string, id uint32) Session {
+func NewSession(server, client, user string, id uint32) Session {
 	return &BaseSession{
-		id:     id,
-		addr:   address,
-		user:   user,
+		id:   id,
+		addr: server,
+		client: Client{
+			Address: client,
+			User:    user,
+		},
 		config: DefaultSessionConfig(),
 	}
 }
@@ -190,6 +201,7 @@ type Context struct {
 	context.Context
 	Session
 	pid    uint64
+	query  string
 	tracer opentracing.Tracer
 }
 
@@ -217,6 +229,13 @@ func WithPid(pid uint64) ContextOption {
 	}
 }
 
+// WithQuery add the given query to the context.
+func WithQuery(q string) ContextOption {
+	return func(ctx *Context) {
+		ctx.query = q
+	}
+}
+
 // NewContext creates a new query context. Options can be passed to configure
 // the context. If some aspect of the context is not configure, the default
 // value will be used.
@@ -225,7 +244,7 @@ func NewContext(
 	ctx context.Context,
 	opts ...ContextOption,
 ) *Context {
-	c := &Context{ctx, NewBaseSession(), 0, opentracing.NoopTracer{}}
+	c := &Context{ctx, NewBaseSession(), 0, "", opentracing.NoopTracer{}}
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -237,6 +256,9 @@ func NewEmptyContext() *Context { return NewContext(context.TODO()) }
 
 // Pid returns the process id associated with this context.
 func (c *Context) Pid() uint64 { return c.pid }
+
+// Query returns the query string associated with this context.
+func (c *Context) Query() string { return c.query }
 
 // Span creates a new tracing span with the given context.
 // It will return the span and a new context that should be passed to all
@@ -252,12 +274,12 @@ func (c *Context) Span(
 	span := c.tracer.StartSpan(opName, opts...)
 	ctx := opentracing.ContextWithSpan(c.Context, span)
 
-	return span, &Context{ctx, c.Session, c.Pid(), c.tracer}
+	return span, &Context{ctx, c.Session, c.Pid(), c.Query(), c.tracer}
 }
 
 // WithContext returns a new context with the given underlying context.
 func (c *Context) WithContext(ctx context.Context) *Context {
-	return &Context{ctx, c.Session, c.Pid(), c.tracer}
+	return &Context{ctx, c.Session, c.Pid(), c.Query(), c.tracer}
 }
 
 // Error adds an error as warning to the session.

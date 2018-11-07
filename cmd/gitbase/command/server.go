@@ -79,7 +79,7 @@ func NewDatabaseEngine(
 	squash bool,
 ) *sqle.Engine {
 	catalog := sql.NewCatalog()
-	ab := analyzer.NewBuilder(catalog).WithAuth(userAuth)
+	ab := analyzer.NewBuilder(catalog)
 
 	if parallelism == 0 {
 		parallelism = runtime.NumCPU()
@@ -96,6 +96,7 @@ func NewDatabaseEngine(
 	a := ab.Build()
 	engine := sqle.New(catalog, a, &sqle.Config{
 		VersionPostfix: version,
+		Auth:           userAuth,
 	})
 
 	return engine
@@ -126,6 +127,7 @@ func (c *Server) Execute(args []string) error {
 		c.userAuth = auth.NewNativeSingle(c.User, c.Password, permissions)
 	}
 
+	c.userAuth = auth.NewAudit(c.userAuth, auth.NewAuditLog(logrus.New()))
 	if err := c.buildDatabase(); err != nil {
 		logrus.WithField("error", err).Fatal("unable to initialize database engine")
 		return err
