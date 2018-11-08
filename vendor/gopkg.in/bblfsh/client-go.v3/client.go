@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"gopkg.in/bblfsh/sdk.v2/driver"
+
 	"google.golang.org/grpc"
 	protocol1 "gopkg.in/bblfsh/sdk.v1/protocol"
 	protocol2 "gopkg.in/bblfsh/sdk.v2/protocol"
@@ -14,6 +16,7 @@ type Client struct {
 	*grpc.ClientConn
 	service1 protocol1.ProtocolServiceClient
 	service2 protocol2.DriverClient
+	driver2  driver.Driver
 }
 
 // NewClientContext returns a new bblfsh client given a bblfshd endpoint.
@@ -44,6 +47,7 @@ func NewClientWithConnection(conn *grpc.ClientConn) (*Client, error) {
 		ClientConn: conn,
 		service1:   protocol1.NewProtocolServiceClient(conn),
 		service2:   protocol2.NewDriverClient(conn),
+		driver2:    protocol2.AsDriver(conn),
 	}, nil
 }
 

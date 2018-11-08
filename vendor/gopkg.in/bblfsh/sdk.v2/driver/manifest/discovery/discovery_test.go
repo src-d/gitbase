@@ -2,23 +2,11 @@ package discovery
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/bblfsh/sdk.v2/driver/manifest"
 )
-
-func TestParseMaintainers(t *testing.T) {
-	m := parseMaintainers(strings.NewReader(`
-John Doe <john@domain.com> (@john_at_github)
-Bob <bob@domain.com>
-`))
-	require.Equal(t, []Maintainer{
-		{Name: "John Doe", Email: "john@domain.com", Github: "john_at_github"},
-		{Name: "Bob", Email: "bob@domain.com"},
-	}, m)
-}
 
 func TestOfficialDrivers(t *testing.T) {
 	if testing.Short() {

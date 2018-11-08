@@ -1,12 +1,13 @@
 package native
 
 import (
+	"context"
 	"sync"
 	"testing"
 
-	"context"
-
 	"github.com/stretchr/testify/require"
+
+	derrors "gopkg.in/bblfsh/sdk.v2/driver/errors"
 )
 
 func TestEncoding(t *testing.T) {
@@ -103,6 +104,7 @@ func TestNativeDriverNativeParse_Malfunctioning(t *testing.T) {
 
 	_, err = d.Parse(context.Background(), "foo")
 	require.NotNil(err)
+	require.True(derrors.ErrDriverFailure.Is(err))
 }
 
 func TestNativeDriverNativeParse_Malformed(t *testing.T) {
@@ -115,4 +117,5 @@ func TestNativeDriverNativeParse_Malformed(t *testing.T) {
 
 	_, err = d.Parse(context.Background(), "foo")
 	require.NotNil(err)
+	require.True(derrors.ErrDriverFailure.Is(err))
 }
