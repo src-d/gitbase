@@ -95,4 +95,4 @@ Also, if you want to retrieve values from a non common property, you can pass it
 
 ## Standard functions
 
-You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/4a751c09d9fd0d59f790ad8edd28a9799fe669f8#custom-functions).
+You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/8cb8028a413e4edf66c4b57bc3eb570950d7bcfb#custom-functions).
