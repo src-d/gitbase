@@ -11,6 +11,7 @@ import (
 	protocol1 "gopkg.in/bblfsh/sdk.v1/protocol"
 	protocol2 "gopkg.in/bblfsh/sdk.v2/protocol"
 
+	derrors "gopkg.in/bblfsh/sdk.v2/driver/errors"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 	"gopkg.in/bblfsh/sdk.v2/uast/yaml"
 )
@@ -123,11 +124,13 @@ func (c *FixturesCommand) getUast(source, filename string, mode protocol2.Mode) 
 	}
 
 	ast, err := res.Nodes()
-	if err != nil {
+	if derrors.ErrSyntax.Is(err) {
 		if !c.Quiet {
 			fmt.Println("Warning: parsing native AST for ", filename, "returned errors:")
 			fmt.Println(err)
 		}
+	} else if err != nil {
+		return nil, err
 	}
 
 	return ast, nil

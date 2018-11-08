@@ -43,12 +43,28 @@ func (d *driverImpl) Close() error {
 // Parse process a protocol.ParseRequest, calling to the native driver. It a
 // parser request is done to the internal native driver and the the returned
 // native AST is transform to UAST.
-func (d *driverImpl) Parse(ctx context.Context, mode Mode, src string) (nodes.Node, error) {
+func (d *driverImpl) Parse(ctx context.Context, src string, opts *ParseOptions) (nodes.Node, error) {
+	if opts == nil {
+		opts = &ParseOptions{}
+	}
 	ast, err := d.d.Parse(ctx, src)
 	if err != nil {
-		return nil, err
+		if !ErrDriverFailure.Is(err) {
+			// all other errors are considered syntax errors
+			err = ErrSyntax.Wrap(err)
+		} else {
+			ast = nil
+		}
+		return ast, err
 	}
-	return d.t.Do(mode, src, ast)
+	if opts.Language == "" {
+		opts.Language = d.m.Language
+	}
+	ast, err = d.t.Do(opts.Mode, src, ast)
+	if err != nil {
+		err = ErrTransformFailure.Wrap(err)
+	}
+	return ast, err
 }
 
 // Manifest returns a driver manifest.

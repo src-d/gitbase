@@ -7,9 +7,9 @@ services:
   - docker
 
 env:
-  - BBLFSHD_VERSION=v2.6.1
+  - BBLFSHD_VERSION=v2.9.1
 
-before_script:
+install:
   - curl -L https://github.com/golang/dep/releases/download/v0.4.1/dep-linux-amd64 > $GOPATH/bin/dep
   - chmod +x $GOPATH/bin/dep
   - dep ensure --vendor-only

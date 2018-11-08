@@ -19,19 +19,20 @@ import (
 
 const (
 	tplExtension = ".tpl"
-	manifestTpl  = "manifest.toml.tpl"
+	manifestName = "manifest.toml"
+	manifestTpl  = manifestName + ".tpl"
 )
 
 var overwriteManagedFiles = os.Getenv("BABELFISH_OVERWRITE_MANAGED") == "true"
 
 // managedFiles are files that always are overwritten
 var managedFiles = map[string]bool{
-	".travis.yml":                     true,
-	"Makefile":                        true,
-	"README.md.tpl":                   true,
-	"LICENSE":                         true,
-	"driver/main.go.tpl":              true,
-	"driver/normalizer/transforms.go": true,
+	".travis.yml":                         true,
+	"Makefile":                            true,
+	"README.md.tpl":                       true,
+	"LICENSE":                             true,
+	"driver/main.go.tpl":                  true,
+	"driver/normalizer/transforms.go.tpl": true,
 }
 
 const UpdateCommandDescription = "updates an already initialized driver"

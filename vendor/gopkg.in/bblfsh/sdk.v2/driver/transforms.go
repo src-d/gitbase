@@ -26,6 +26,9 @@ type Transforms struct {
 
 // Do applies AST transformation pipeline for specified nodes.
 func (t Transforms) Do(mode Mode, code string, nd nodes.Node) (nodes.Node, error) {
+	if mode > ModeSemantic {
+		return nil, ErrModeNotSupported.New()
+	}
 	if mode == 0 {
 		mode = ModeDefault
 	}

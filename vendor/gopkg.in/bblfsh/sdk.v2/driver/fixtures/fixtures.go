@@ -23,8 +23,9 @@ import (
 const Dir = "fixtures"
 
 const (
-	maxParseErrors = 3
-	parseTimeout   = time.Minute / 30
+	syntaxErrTestName = "_syntax_error"
+	maxParseErrors    = 3
+	parseTimeout      = time.Minute / 30
 )
 
 type SemanticConfig struct {
@@ -157,6 +158,10 @@ func (s *Suite) testFixturesNative(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), parseTimeout)
 			resp, err := dr.Parse(ctx, string(code))
 			cancel()
+			if strings.Contains(name, syntaxErrTestName) {
+				require.True(t, err != nil && !driver.ErrDriverFailure.Is(err), "unexpected error: %v", err)
+				return
+			}
 			if err != nil {
 				atomic.AddUint32(&parseErrors, 1)
 			}
@@ -226,6 +231,10 @@ func (s *Suite) testFixturesUAST(t *testing.T, mode driver.Mode, suf string, bla
 			cancel()
 			if err != nil {
 				atomic.AddUint32(&parseErrors, 1)
+			}
+			if strings.Contains(name, syntaxErrTestName) {
+				require.True(t, err != nil && !driver.ErrDriverFailure.Is(err), "unexpected error: %v", err)
+				return
 			}
 			require.NoError(t, err)
 

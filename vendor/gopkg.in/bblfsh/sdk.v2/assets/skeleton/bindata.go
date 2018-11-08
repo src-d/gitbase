@@ -11,7 +11,7 @@
 // etc/skeleton/driver/main.go.tpl
 // etc/skeleton/driver/normalizer/annotation.go
 // etc/skeleton/driver/normalizer/normalizer.go
-// etc/skeleton/driver/normalizer/transforms.go
+// etc/skeleton/driver/normalizer/transforms.go.tpl
 // etc/skeleton/git/hooks/pre-commit
 // etc/skeleton/manifest.toml.tpl
 // etc/skeleton/native/README.md.tpl
@@ -87,9 +87,9 @@ services:
   - docker
 
 env:
-  - BBLFSHD_VERSION=v2.6.1
+  - BBLFSHD_VERSION=v2.9.1
 
-before_script:
+install:
   - curl -L https://github.com/golang/dep/releases/download/v0.4.1/dep-linux-amd64 > $GOPATH/bin/dep
   - chmod +x $GOPATH/bin/dep
   - dep ensure --vendor-only
@@ -116,7 +116,7 @@ func TravisYml() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: ".travis.yml", size: 585, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: ".travis.yml", size: 579, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -845,14 +845,14 @@ func license() (*asset, error) {
 
 var _readmeMdTpl = []byte(`# {{.Manifest.Name}} driver for [Babelfish](https://github.com/bblfsh/bblfshd) ![Driver Status](https://img.shields.io/badge/status-{{.Manifest.Status | escape_shield}}-{{template "color-status" .}}.svg) [![Build Status](https://travis-ci.org/bblfsh/{{.Manifest.Language}}-driver.svg?branch=master)](https://travis-ci.org/bblfsh/{{.Manifest.Language | escape_shield }}-driver) ![Native Version](https://img.shields.io/badge/{{.Manifest.Language}}%20version-{{.Manifest.Runtime.NativeVersion | escape_shield}}-aa93ea.svg) ![Go Version](https://img.shields.io/badge/go%20version-{{.Manifest.Runtime.GoVersion | escape_shield}}-63afbf.svg)
 
-{{.Manifest.Documentation.Description}}
+{{if .Manifest.Documentation}}{{.Manifest.Documentation.Description}}
 
 {{if .Manifest.Documentation.Caveats -}}
 Caveats
 -------
 
 {{.Manifest.Documentation.Caveats}}
-{{end -}}
+{{end -}}{{end -}}
 
 
 Development Environment
@@ -906,7 +906,7 @@ func readmeMdTpl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "README.md.tpl", size: 1892, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "README.md.tpl", size: 1931, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -1165,11 +1165,12 @@ func driverNormalizerNormalizerGo() (*asset, error) {
 	return a, nil
 }
 
-var _driverNormalizerTransformsGo = []byte(`package normalizer
+var _driverNormalizerTransformsGoTpl = []byte(`package normalizer
 
 import "gopkg.in/bblfsh/sdk.v2/driver"
 
 var Transforms = driver.Transforms{
+	Namespace:   "{{.Manifest.Language}}",
 	Preprocess:  Preprocess,
 	Normalize:   Normalize,
 	Annotations: Native,
@@ -1177,17 +1178,17 @@ var Transforms = driver.Transforms{
 }
 `)
 
-func driverNormalizerTransformsGoBytes() ([]byte, error) {
-	return _driverNormalizerTransformsGo, nil
+func driverNormalizerTransformsGoTplBytes() ([]byte, error) {
+	return _driverNormalizerTransformsGoTpl, nil
 }
 
-func driverNormalizerTransformsGo() (*asset, error) {
-	bytes, err := driverNormalizerTransformsGoBytes()
+func driverNormalizerTransformsGoTpl() (*asset, error) {
+	bytes, err := driverNormalizerTransformsGoTplBytes()
 	if err != nil {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "driver/normalizer/transforms.go", size: 191, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "driver/normalizer/transforms.go.tpl", size: 231, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -1371,7 +1372,7 @@ var _bindata = map[string]func() (*asset, error){
 	"driver/main.go.tpl":                   driverMainGoTpl,
 	"driver/normalizer/annotation.go":      driverNormalizerAnnotationGo,
 	"driver/normalizer/normalizer.go":      driverNormalizerNormalizerGo,
-	"driver/normalizer/transforms.go":      driverNormalizerTransformsGo,
+	"driver/normalizer/transforms.go.tpl":  driverNormalizerTransformsGoTpl,
 	"git/hooks/pre-commit":                 gitHooksPreCommit,
 	"manifest.toml.tpl":                    manifestTomlTpl,
 	"native/README.md.tpl":                 nativeReadmeMdTpl,
@@ -1434,9 +1435,9 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		}},
 		"main.go.tpl": &bintree{driverMainGoTpl, map[string]*bintree{}},
 		"normalizer": &bintree{nil, map[string]*bintree{
-			"annotation.go": &bintree{driverNormalizerAnnotationGo, map[string]*bintree{}},
-			"normalizer.go": &bintree{driverNormalizerNormalizerGo, map[string]*bintree{}},
-			"transforms.go": &bintree{driverNormalizerTransformsGo, map[string]*bintree{}},
+			"annotation.go":     &bintree{driverNormalizerAnnotationGo, map[string]*bintree{}},
+			"normalizer.go":     &bintree{driverNormalizerNormalizerGo, map[string]*bintree{}},
+			"transforms.go.tpl": &bintree{driverNormalizerTransformsGoTpl, map[string]*bintree{}},
 		}},
 	}},
 	"git": &bintree{nil, map[string]*bintree{

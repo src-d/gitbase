@@ -2,13 +2,11 @@
 package discovery
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -29,8 +27,7 @@ var topics = []string{
 // Driver is an object describing language driver and it's repository-related information.
 type Driver struct {
 	manifest.Manifest
-	repo        *github.Repository
-	Maintainers []Maintainer `json:",omitempty"`
+	repo *github.Repository
 }
 
 type byStatusAndName []Driver
@@ -60,39 +57,9 @@ func (arr byStatusAndName) Swap(i, j int) {
 }
 
 // Maintainer is an information about project maintainer.
-type Maintainer struct {
-	Name   string `json:",omitempty"`
-	Email  string `json:",omitempty"`
-	Github string `json:",omitempty"` // github handle
-}
-
-// GithubURL returns github profile URL.
-func (m Maintainer) GithubURL() string {
-	if m.Github != "" {
-		return `https://github.com/` + m.Github
-	}
-	return ""
-}
-
-// URL returns a contact of the maintainer (either Github profile or email link).
-func (m Maintainer) URL() string {
-	if m.Github != "" {
-		return m.GithubURL()
-	} else if m.Email != "" {
-		return `mailto:` + m.Email
-	}
-	return ""
-}
-
-// InDevelopment indicates that driver is incomplete and should only be used for development purposes.
-func (d Driver) InDevelopment() bool {
-	return d.Status.Rank() < manifest.Alpha.Rank()
-}
-
-// IsRecommended indicates that driver is stable enough to be used in production.
-func (d Driver) IsRecommended() bool {
-	return d.Status.Rank() >= manifest.Beta.Rank()
-}
+//
+// Deprecated: use manifest.Maintainer
+type Maintainer = manifest.Maintainer
 
 // RepositoryURL returns Github repository URL for browsers (not git).
 func (d Driver) RepositoryURL() string {
@@ -146,47 +113,43 @@ func (d *Driver) loadManifest(ctx context.Context) error {
 	return nil
 }
 
-// reMaintainer is a regexp for one line of MAINTAINERS file (Github handle is optional):
-//
-//		John Doe <john@domain.com> (@john_at_github)
-var reMaintainer = regexp.MustCompile(`^([^<(]+)\s<([^>]+)>(\s\(@([^\s]+)\))?`)
+// fetchFromGithub returns a manifest.OpenFunc that is bound to context and fetches files directly from Github.
+func (d Driver) fetchFromGithub(ctx context.Context) manifest.OpenFunc {
+	return func(path string) (io.ReadCloser, error) {
+		req := newReq(ctx, d.repositoryFileURL(path))
 
-// parseMaintainers parses the MAINTAINERS file.
-//
-// Each line in a file should follow the format defined by reMaintainer regexp.
-func parseMaintainers(r io.Reader) []Maintainer {
-	var out []Maintainer
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		sub := reMaintainer.FindStringSubmatch(line)
-		if len(sub) == 0 {
-			continue
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
 		}
-		m := Maintainer{Name: sub[1], Email: sub[2]}
-		if len(sub) >= 5 {
-			m.Github = sub[4]
+		if resp.StatusCode == http.StatusNotFound {
+			resp.Body.Close()
+			return nil, nil
+		} else if resp.StatusCode/100 != 2 {
+			resp.Body.Close()
+			return nil, fmt.Errorf("status: %v", resp.Status)
 		}
-		out = append(out, m)
+		return resp.Body, nil
 	}
-	return out
 }
 
 // loadMaintainers reads MAINTAINERS file from repository and decodes it into object.
 func (d *Driver) loadMaintainers(ctx context.Context) error {
-	req := newReq(ctx, d.repositoryFileURL("MAINTAINERS"))
-
-	resp, err := http.DefaultClient.Do(req)
+	list, err := manifest.Maintainers(d.fetchFromGithub(ctx))
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return nil
-	} else if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("status: %v", resp.Status)
+	d.Maintainers = list
+	return nil
+}
+
+// loadSDKVersion reads SDK version from repository and decodes it into object.
+func (d *Driver) loadSDKVersion(ctx context.Context) error {
+	vers, err := manifest.SDKVersion(d.fetchFromGithub(ctx))
+	if err != nil {
+		return err
 	}
-	d.Maintainers = parseMaintainers(resp.Body)
+	d.SDKVersion = vers
 	return nil
 }
 
@@ -195,6 +158,7 @@ type Options struct {
 	Organization  string // Github organization name
 	NamesOnly     bool   // driver manifest will only have Language field populated
 	NoMaintainers bool   // do not load maintainers list
+	NoSDKVersion  bool   // do not check SDK version
 	NoStatic      bool   // do not use a static manifest - discover drivers
 }
 
@@ -307,6 +271,11 @@ func OfficialDrivers(ctx context.Context, opt *Options) ([]Driver, error) {
 			}()
 			if err := d.loadManifest(ctx); err != nil {
 				setErr(err)
+			}
+			if !opt.NoSDKVersion {
+				if err := d.loadSDKVersion(ctx); err != nil {
+					setErr(err)
+				}
 			}
 			if !opt.NoMaintainers {
 				if err := d.loadMaintainers(ctx); err != nil {

@@ -29,35 +29,41 @@ func Main(d driver.Native) {
 	}
 }
 
+func errToStrings(err error) []string {
+	if e, ok := err.(*driver.ErrMulti); ok {
+		str := make([]string, 0, len(e.Errors))
+		for _, e := range e.Errors {
+			str = append(str, e.Error())
+		}
+		return str
+	}
+	return []string{err.Error()}
+}
+
 type nativeServer struct {
 	d driver.Native
-}
-
-func errResp(err error) *parseResponse {
-	if e, ok := err.(*driver.ErrPartialParse); ok {
-		return &parseResponse{
-			Status: statusError,
-			AST:    e.AST, Errors: e.Errors,
-		}
-	}
-	return &parseResponse{
-		Status: statusFatal,
-		Errors: []string{err.Error()},
-	}
-}
-
-func errRespf(format string, args ...interface{}) *parseResponse {
-	return errResp(fmt.Errorf(format, args...))
 }
 
 func (s *nativeServer) parse(ctx context.Context, req *parseRequest) *parseResponse {
 	src, err := req.Encoding.Decode(req.Content)
 	if err != nil {
-		return errResp(err)
+		return &parseResponse{
+			Status: statusFatal,
+			Errors: errToStrings(err),
+		}
 	}
 	ast, err := s.d.Parse(ctx, src)
+	if driver.ErrDriverFailure.Is(err) {
+		return &parseResponse{
+			Status: statusFatal,
+			Errors: errToStrings(err),
+		}
+	}
 	if err != nil {
-		return errResp(err)
+		return &parseResponse{
+			Status: statusError,
+			AST:    ast, Errors: errToStrings(err),
+		}
 	}
 	return &parseResponse{Status: statusOK, AST: ast}
 }
@@ -72,7 +78,11 @@ func (s *nativeServer) Serve(c io.ReadWriter) error {
 		if err == io.EOF {
 			return nil
 		} else if err != nil {
-			if err = enc.Encode(errRespf("failed to decode request: %v", err)); err != nil {
+			resp := &parseResponse{
+				Status: statusFatal,
+				Errors: []string{fmt.Sprintf("failed to decode request: %v", err)},
+			}
+			if err = enc.Encode(resp); err != nil {
 				return err
 			}
 			continue
