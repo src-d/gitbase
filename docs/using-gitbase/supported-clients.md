@@ -1,3 +1,3 @@
 ## Supported clients
 
-To see the supported MySQL clients and examples about how tho use them, take a look [here](https://github.com/src-d/go-mysql-server/blob/b1203b4cd0f4734da7552435f10b65a311226a35/SUPPORTED_CLIENTS.md).
+To see the supported MySQL clients and examples about how to use them, take a look [here](https://github.com/src-d/go-mysql-server/blob/8cb8028a413e4edf66c4b57bc3eb570950d7bcfb/SUPPORTED_CLIENTS.md).

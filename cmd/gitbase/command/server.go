@@ -1,6 +1,7 @@
 package command
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"github.com/uber/jaeger-client-go/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	sqle "gopkg.in/src-d/go-mysql-server.v0"
+	"gopkg.in/src-d/go-mysql-server.v0/auth"
 	"gopkg.in/src-d/go-mysql-server.v0/server"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
@@ -36,10 +38,11 @@ const (
 
 // Server represents the `server` command of gitbase cli tool.
 type Server struct {
-	engine *sqle.Engine
-	pool   *gitbase.RepositoryPool
-	name   string
+	engine   *sqle.Engine
+	pool     *gitbase.RepositoryPool
+	userAuth auth.Auth
 
+	Name          string         `long:"db" default:"gitbase" description:"Database name"`
 	Version       string         // Version of the application.
 	Directories   []string       `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
 	Depth         int            `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
@@ -47,13 +50,14 @@ type Server struct {
 	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
 	Password      string         `short:"P" long:"password" default:"" description:"Password used for connection"`
+	UserFile      string         `short:"U" long:"user-file" env:"GITBASE_USER_FILE" default:"" description:"JSON file with credentials list"`
 	ConnTimeout   int            `short:"t" long:"timeout" env:"GITBASE_CONNECTION_TIMEOUT" description:"Timeout in seconds used for connections"`
 	IndexDir      string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
 	CacheSize     cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
 	Parallelism   uint           `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
 	DisableSquash bool           `long:"no-squash" description:"Disables the table squashing."`
 	TraceEnabled  bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
-	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well." env:"GITBASE_READONLY"`
+	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
 	SkipGitErrors bool           // SkipGitErrors disables failing when Git errors are found.
 	DisableGit    bool           `long:"no-git" description:"disable the load of git standard repositories."`
 	DisableSiva   bool           `long:"no-siva" description:"disable the load of siva files."`
@@ -69,16 +73,13 @@ func (l *jaegerLogrus) Error(s string) {
 }
 
 func NewDatabaseEngine(
-	readonly bool,
+	userAuth auth.Auth,
 	version string,
 	parallelism int,
 	squash bool,
 ) *sqle.Engine {
 	catalog := sql.NewCatalog()
 	ab := analyzer.NewBuilder(catalog)
-	if readonly {
-		ab = ab.ReadOnly()
-	}
 
 	if parallelism == 0 {
 		parallelism = runtime.NumCPU()
@@ -95,6 +96,7 @@ func NewDatabaseEngine(
 	a := ab.Build()
 	engine := sqle.New(catalog, a, &sqle.Config{
 		VersionPostfix: version,
+		Auth:           userAuth,
 	})
 
 	return engine
@@ -107,6 +109,25 @@ func (c *Server) Execute(args []string) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	var err error
+	if c.UserFile != "" {
+		if c.ReadOnly {
+			return fmt.Errorf("cannot use both --user-file and --readonly")
+		}
+
+		c.userAuth, err = auth.NewNativeFile(c.UserFile)
+		if err != nil {
+			return err
+		}
+	} else {
+		permissions := auth.AllPermissions
+		if c.ReadOnly {
+			permissions = auth.ReadPerm
+		}
+		c.userAuth = auth.NewNativeSingle(c.User, c.Password, permissions)
+	}
+
+	c.userAuth = auth.NewAudit(c.userAuth, auth.NewAuditLog(logrus.New()))
 	if err := c.buildDatabase(); err != nil {
 		logrus.WithField("error", err).Fatal("unable to initialize database engine")
 		return err
@@ -153,7 +174,7 @@ func (c *Server) Execute(args []string) error {
 		server.Config{
 			Protocol:         "tcp",
 			Address:          hostString,
-			Auth:             auth,
+			Auth:             c.userAuth,
 			Tracer:           tracer,
 			ConnReadTimeout:  timeout,
 			ConnWriteTimeout: timeout,
@@ -174,7 +195,7 @@ func (c *Server) Execute(args []string) error {
 func (c *Server) buildDatabase() error {
 	if c.engine == nil {
 		c.engine = NewDatabaseEngine(
-			c.ReadOnly,
+			c.userAuth,
 			c.Version,
 			int(c.Parallelism),
 			!c.DisableSquash,
@@ -187,8 +208,10 @@ func (c *Server) buildDatabase() error {
 		return err
 	}
 
-	c.engine.AddDatabase(gitbase.NewDatabase(c.name))
-	logrus.WithField("db", c.name).Debug("registered database to catalog")
+	c.engine.AddDatabase(gitbase.NewDatabase(c.Name))
+	c.engine.AddDatabase(sql.NewInformationSchemaDatabase(c.engine.Catalog))
+	c.engine.Catalog.SetCurrentDatabase(c.Name)
+	logrus.WithField("db", c.Name).Debug("registered database to catalog")
 
 	c.engine.Catalog.RegisterFunctions(function.Functions)
 	logrus.Debug("registered all available functions in catalog")

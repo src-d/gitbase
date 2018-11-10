@@ -32,6 +32,7 @@ var OnceBeforeDefault = []Rule{
 // OnceAfterDefault contains the rules to be applied just once after the
 // DefaultRules.
 var OnceAfterDefault = []Rule{
+	{"remove_unnecessary_converts", removeUnnecessaryConverts},
 	{"assign_catalog", assignCatalog},
 	{"pushdown", pushdown},
 	{"erase_projection", eraseProjection},
@@ -42,6 +43,7 @@ var OnceAfterDefault = []Rule{
 var OnceAfterAll = []Rule{
 	{"track_process", trackProcess},
 	{"parallelize", parallelize},
+	{"clear_warnings", clearWarnings},
 }
 
 var (

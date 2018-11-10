@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
+
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/key"
@@ -80,7 +82,7 @@ func (r *v2Resolver) keyspaceID(row []sqltypes.Value) ([]byte, error) {
 	case topodatapb.KeyspaceIdType_UINT64:
 		i, err := sqltypes.ToUint64(v)
 		if err != nil {
-			return nil, fmt.Errorf("Non numerical value: %v", err)
+			return nil, vterrors.Wrap(err, "Non numerical value")
 		}
 		return key.Uint64Key(i).Bytes(), nil
 	default:

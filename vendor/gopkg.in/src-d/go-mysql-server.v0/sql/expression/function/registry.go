@@ -1,6 +1,8 @@
 package function
 
 import (
+	"math"
+
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression/function/aggregation"
 )
@@ -27,13 +29,16 @@ var Defaults = sql.Functions{
 	"year":          sql.Function1(NewYear),
 	"month":         sql.Function1(NewMonth),
 	"day":           sql.Function1(NewDay),
+	"weekday":       sql.Function1(NewWeekday),
 	"hour":          sql.Function1(NewHour),
 	"minute":        sql.Function1(NewMinute),
 	"second":        sql.Function1(NewSecond),
+	"dayofweek":     sql.Function1(NewDayOfWeek),
 	"dayofyear":     sql.Function1(NewDayOfYear),
 	"array_length":  sql.Function1(NewArrayLength),
 	"split":         sql.Function2(NewSplit),
 	"concat":        sql.FunctionN(NewConcat),
+	"concat_ws":     sql.FunctionN(NewConcatWithSeparator),
 	"lower":         sql.Function1(NewLower),
 	"upper":         sql.Function1(NewUpper),
 	"ceiling":       sql.Function1(NewCeil),
@@ -43,4 +48,14 @@ var Defaults = sql.Functions{
 	"coalesce":      sql.FunctionN(NewCoalesce),
 	"json_extract":  sql.FunctionN(NewJSONExtract),
 	"connection_id": sql.Function0(NewConnectionID),
+	"soundex":       sql.Function1(NewSoundex),
+	"ln":            sql.Function1(NewLogBaseFunc(float64(math.E))),
+	"log2":          sql.Function1(NewLogBaseFunc(float64(2))),
+	"log10":         sql.Function1(NewLogBaseFunc(float64(10))),
+	"log":           sql.FunctionN(NewLog),
+	"rpad":          sql.FunctionN(NewPadFunc(rPadType)),
+	"lpad":          sql.FunctionN(NewPadFunc(lPadType)),
+	"sqrt":          sql.Function1(NewSqrt),
+	"pow":           sql.Function2(NewPower),
+	"power":         sql.Function2(NewPower),
 }

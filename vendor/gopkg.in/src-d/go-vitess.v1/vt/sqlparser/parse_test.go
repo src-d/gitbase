@@ -574,6 +574,9 @@ var (
 	}, {
 		input: "select /* dual */ 1 from dual",
 	}, {
+		input:  "select * from (select 'tables') tables",
+		output: "select * from (select 'tables' from dual) as `tables`",
+	}, {
 		input: "insert /* simple */ into a values (1)",
 	}, {
 		input: "insert /* a.b */ into a.b values (1)",
@@ -663,6 +666,8 @@ var (
 	}, {
 		input:  "update foo f join bar b on f.name = b.name set f.id = b.id where b.name = 'test'",
 		output: "update foo as f join bar as b on f.name = b.name set f.id = b.id where b.name = 'test'",
+	}, {
+		input: "update /* ignore */ ignore a set b = 3",
 	}, {
 		input: "delete /* simple */ from a",
 	}, {
@@ -993,6 +998,12 @@ var (
 		input:  "analyze table a",
 		output: "alter table a",
 	}, {
+		input:  "flush tables",
+		output: "flush",
+	}, {
+		input:  "flush tables with read lock",
+		output: "flush",
+	}, {
 		input:  "show binary logs",
 		output: "show binary logs",
 	}, {
@@ -1185,6 +1196,9 @@ var (
 	}, {
 		input:  "show warnings",
 		output: "show warnings",
+	}, {
+		input:  "select warnings from t",
+		output: "select `warnings` from t",
 	}, {
 		input:  "show foobar",
 		output: "show foobar",
@@ -2222,6 +2236,40 @@ var (
 
 func TestErrors(t *testing.T) {
 	for _, tcase := range invalidSQL {
+		_, err := Parse(tcase.input)
+		if err == nil || err.Error() != tcase.output {
+			t.Errorf("%s: %v, want %s", tcase.input, err, tcase.output)
+		}
+	}
+}
+
+// TestSkipToEnd tests that the skip to end functionality
+// does not skip past a ';'. If any tokens exist after that, Parse
+// should return an error.
+func TestSkipToEnd(t *testing.T) {
+	testcases := []struct {
+		input  string
+		output string
+	}{{
+		// This is the case where the partial ddl will be reset
+		// because of a premature ';'.
+		input:  "create table a(id; select * from t",
+		output: "syntax error at position 19",
+	}, {
+		// Partial DDL should get reset for valid DDLs also.
+		input:  "create table a(id int); select * from t",
+		output: "syntax error at position 31 near 'select'",
+	}, {
+		// Partial DDL does not get reset here. But we allow the
+		// DDL only if there are no new tokens after skipping to end.
+		input:  "create table a bb cc; select * from t",
+		output: "extra characters encountered after end of DDL: 'select'",
+	}, {
+		// Test that we don't step at ';' inside strings.
+		input:  "create table a bb 'a;'; select * from t",
+		output: "extra characters encountered after end of DDL: 'select'",
+	}}
+	for _, tcase := range testcases {
 		_, err := Parse(tcase.input)
 		if err == nil || err.Error() != tcase.output {
 			t.Errorf("%s: %v, want %s", tcase.input, err, tcase.output)

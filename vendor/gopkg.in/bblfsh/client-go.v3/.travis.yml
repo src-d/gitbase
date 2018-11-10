@@ -2,7 +2,7 @@ language: go
 go_import_path: gopkg.in/bblfsh/client-go.v3
 
 env:
-  - BBLFSHD_VERSION=v2.6.1 BBLFSH_PYTHON_VERSION=v2.2.1
+  - BBLFSHD_VERSION=v2.9.1 BBLFSH_PYTHON_VERSION=v2.3.0
 install:
   - |
     if [[ $TRAVIS_OS_NAME = linux ]]; then
@@ -21,7 +21,7 @@ script:
 
 jobs:
   include:
-    - {go: 1.9.x,  os: linux, sudo: required, dist: trusty, services: [docker]}
-    - {go: 1.10.x, os: linux, sudo: required, dist: trusty, services: [docker]}
-    - {go: 1.9.x,  os: osx, osx_image: xcode9.3}
-    - {go: 1.10.x, os: osx, osx_image: xcode9.3}
+    - {go: 1.10.x,  os: linux, sudo: required, dist: trusty, services: [docker]}
+    - {go: 1.11.x, os: linux, sudo: required, dist: trusty, services: [docker]}
+    - {go: 1.10.x,  os: osx, osx_image: xcode9.3}
+    - {go: 1.11.x, os: osx, osx_image: xcode9.3}

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -34,16 +33,18 @@ var (
 )
 
 var (
-	describeTablesRegex  = regexp.MustCompile(`^describe\s+table\s+(.*)`)
+	describeTablesRegex  = regexp.MustCompile(`^(describe|desc)\s+table\s+(.*)`)
 	createIndexRegex     = regexp.MustCompile(`^create\s+index\s+`)
 	dropIndexRegex       = regexp.MustCompile(`^drop\s+index\s+`)
 	showIndexRegex       = regexp.MustCompile(`^show\s+(index|indexes|keys)\s+(from|in)\s+\S+\s*`)
 	showCreateRegex      = regexp.MustCompile(`^show create\s+\S+\s*`)
 	showVariablesRegex   = regexp.MustCompile(`^show\s+(.*)?variables\s*`)
+	showWarningsRegex    = regexp.MustCompile(`^show\s+warnings\s*`)
 	describeRegex        = regexp.MustCompile(`^(describe|desc|explain)\s+(.*)\s+`)
 	fullProcessListRegex = regexp.MustCompile(`^show\s+(full\s+)?processlist$`)
 	unlockTablesRegex    = regexp.MustCompile(`^unlock\s+tables$`)
 	lockTablesRegex      = regexp.MustCompile(`^lock\s+tables\s`)
+	setRegex             = regexp.MustCompile(`^set\s+`)
 )
 
 // Parse parses the given SQL sentence and returns the corresponding node.
@@ -57,12 +58,12 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 	}
 
 	if s == "" {
-		logrus.WithField("query", query).
-			Infof("query became empty, so it will be ignored")
+		ctx.Warn(0, "query was empty after trimming comments, so it will be ignored")
 		return plan.Nothing, nil
 	}
 
 	lowerQuery := strings.ToLower(s)
+
 	switch true {
 	case describeTablesRegex.MatchString(lowerQuery):
 		return parseDescribeTables(lowerQuery)
@@ -76,6 +77,8 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 		return parseShowCreate(s)
 	case showVariablesRegex.MatchString(lowerQuery):
 		return parseShowVariables(ctx, s)
+	case showWarningsRegex.MatchString(lowerQuery):
+		return parseShowWarnings(ctx, s)
 	case describeRegex.MatchString(lowerQuery):
 		return parseDescribeQuery(ctx, s)
 	case fullProcessListRegex.MatchString(lowerQuery):
@@ -84,6 +87,8 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 		return plan.NewUnlockTables(), nil
 	case lockTablesRegex.MatchString(lowerQuery):
 		return parseLockTables(ctx, s)
+	case setRegex.MatchString(lowerQuery):
+		s = fixSetQuery(s)
 	}
 
 	stmt, err := sqlparser.Parse(s)
@@ -96,8 +101,8 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 
 func parseDescribeTables(s string) (sql.Node, error) {
 	t := describeTablesRegex.FindStringSubmatch(s)
-	if len(t) == 2 && t[1] != "" {
-		parts := strings.Split(t[1], ".")
+	if len(t) == 3 && t[2] != "" {
+		parts := strings.Split(t[2], ".")
 		var table, db string
 		switch len(parts) {
 		case 1:
@@ -156,6 +161,10 @@ func convertSet(ctx *sql.Context, n *sqlparser.Set) (sql.Node, error) {
 
 		name := strings.TrimSpace(e.Name.Lowered())
 		if expr, err = expr.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+			if _, ok := e.(*expression.DefaultColumn); ok {
+				return e, nil
+			}
+
 			if !e.Resolved() || e.Type() != sql.Text {
 				return e, nil
 			}
@@ -171,13 +180,13 @@ func convertSet(ctx *sql.Context, n *sqlparser.Set) (sql.Node, error) {
 			}
 
 			switch strings.ToLower(val) {
-			case "on":
+			case sqlparser.KeywordString(sqlparser.ON):
 				return expression.NewLiteral(int64(1), sql.Int64), nil
-			case "true":
+			case sqlparser.KeywordString(sqlparser.TRUE):
 				return expression.NewLiteral(true, sql.Boolean), nil
-			case "off":
+			case sqlparser.KeywordString(sqlparser.OFF):
 				return expression.NewLiteral(int64(0), sql.Int64), nil
-			case "false":
+			case sqlparser.KeywordString(sqlparser.FALSE):
 				return expression.NewLiteral(false, sql.Boolean), nil
 			}
 
@@ -278,6 +287,9 @@ func convertSelect(ctx *sql.Context, s *sqlparser.Select) (sql.Node, error) {
 		if err != nil {
 			return nil, err
 		}
+	} else if ok, val := sql.HasDefaultValue(ctx.Session, "sql_select_limit"); !ok {
+		limit := val.(int64)
+		node = plan.NewLimit(int64(limit), node)
 	}
 
 	if s.Limit != nil && s.Limit.Offset != nil {
@@ -603,6 +615,20 @@ func selectToProjectOrGroupBy(se sqlparser.SelectExprs, g sqlparser.GroupBy, chi
 			return nil, err
 		}
 
+		agglen := int64(len(selectExprs))
+		for i, ge := range groupingExprs {
+			// if GROUP BY index
+			if l, ok := ge.(*expression.Literal); ok && sql.IsNumber(l.Type()) {
+				if idx, ok := l.Value().(int64); ok && idx > 0 && idx <= agglen {
+					aggexpr := selectExprs[idx-1]
+					if alias, ok := aggexpr.(*expression.Alias); ok {
+						aggexpr = expression.NewUnresolvedColumn(alias.Name())
+					}
+					groupingExprs[i] = aggexpr
+				}
+			}
+		}
+
 		return plan.NewGroupBy(selectExprs, groupingExprs, child), nil
 	}
 
@@ -627,6 +653,8 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 	switch v := e.(type) {
 	default:
 		return nil, ErrUnsupportedSyntax.New(e)
+	case *sqlparser.Default:
+		return expression.NewDefaultColumn(v.ColName), nil
 	case *sqlparser.SubstrExpr:
 		name, err := exprToExpression(v.Name)
 		if err != nil {
@@ -748,6 +776,8 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 
 	case *sqlparser.BinaryExpr:
 		return binaryExprToExpression(v)
+	case *sqlparser.UnaryExpr:
+		return unaryExprToExpression(v)
 	}
 }
 
@@ -890,6 +920,21 @@ func selectExprToExpression(se sqlparser.SelectExpr) (sql.Expression, error) {
 
 		// TODO: Handle case-sensitiveness when needed.
 		return expression.NewAlias(expr, e.As.Lowered()), nil
+	}
+}
+
+func unaryExprToExpression(e *sqlparser.UnaryExpr) (sql.Expression, error) {
+	switch e.Operator {
+	case sqlparser.MinusStr:
+		expr, err := exprToExpression(e.Expr)
+		if err != nil {
+			return nil, err
+		}
+
+		return expression.NewUnaryMinus(expr), nil
+
+	default:
+		return nil, ErrUnsupportedFeature.New("unary operator: " + e.Operator)
 	}
 }
 
@@ -1039,6 +1084,10 @@ func parseShowTableStatus(query string) (sql.Node, error) {
 		return nil, err
 	}
 
+	if _, err = buf.Peek(1); err == io.EOF {
+		return plan.NewShowTableStatus(), nil
+	}
+
 	var clause string
 	if err := readIdent(&clause)(buf); err != nil {
 		return nil, err
@@ -1051,7 +1100,7 @@ func parseShowTableStatus(query string) (sql.Node, error) {
 	switch strings.ToUpper(clause) {
 	case "FROM", "IN":
 		var db string
-		if err := readIdent(&db)(buf); err != nil {
+		if err := readQuotableIdent(&db)(buf); err != nil {
 			return nil, err
 		}
 
@@ -1084,4 +1133,13 @@ func parseShowTableStatus(query string) (sql.Node, error) {
 	default:
 		return nil, errUnexpectedSyntax.New("one of: FROM, IN, LIKE or WHERE", clause)
 	}
+}
+
+var fixSessionRegex = regexp.MustCompile(`(,\s*|(set|SET)\s+)(SESSION|session)\s+([a-zA-Z0-9_]+)\s*=`)
+var fixGlobalRegex = regexp.MustCompile(`(,\s*|(set|SET)\s+)(GLOBAL|global)\s+([a-zA-Z0-9_]+)\s*=`)
+
+func fixSetQuery(s string) string {
+	s = fixSessionRegex.ReplaceAllString(s, `$1@@session.$4 =`)
+	s = fixGlobalRegex.ReplaceAllString(s, `$1@@global.$4 =`)
+	return s
 }

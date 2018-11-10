@@ -46,11 +46,6 @@ func (ab *Builder) WithParallelism(parallelism int) *Builder {
 	return ab
 }
 
-// ReadOnly adds a rule that only allows read queries.
-func (ab *Builder) ReadOnly() *Builder {
-	return ab.AddPreAnalyzeRule(EnsureReadOnlyRule, EnsureReadOnly)
-}
-
 // AddPreAnalyzeRule adds a new rule to the analyze before the standard analyzer rules.
 func (ab *Builder) AddPreAnalyzeRule(name string, fn RuleFunc) *Builder {
 	ab.preAnalyzeRules = append(ab.preAnalyzeRules, Rule{name, fn})

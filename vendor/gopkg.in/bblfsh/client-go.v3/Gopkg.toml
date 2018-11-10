@@ -15,7 +15,7 @@
 
 [[constraint]]
   name = "gopkg.in/bblfsh/sdk.v2"
-  version = "2.2.x"
+  version = "2.4.x"
 
 [prune]
   go-tests = true

@@ -177,7 +177,7 @@ func (s *Session) BblfshClient() (*BblfshClient, error) {
 	var attempts, totalAttempts int
 	for {
 		if attempts > bblfshMaxAttempts || totalAttempts > 3*bblfshMaxAttempts {
-			return nil, ErrBblfshConnection.New()
+			return nil, ErrBblfshConnection.New("max attempts exceeded")
 		}
 
 		switch s.bblfshClient.GetState() {
@@ -190,7 +190,7 @@ func (s *Session) BblfshClient() (*BblfshClient, error) {
 			time.Sleep(100 * time.Millisecond)
 		default:
 			if err := s.bblfshClient.Close(); err != nil {
-				return nil, err
+				return nil, ErrBblfshConnection.New(err)
 			}
 
 			logrus.Debug("bblfsh connection is closed, opening a new one")
@@ -223,10 +223,10 @@ func connectToBblfsh(endpoint string) (*bblfsh.Client, error) {
 	client, err := bblfsh.NewClient(endpoint)
 	if err != nil {
 		if err == context.DeadlineExceeded {
-			return nil, ErrBblfshConnection.New()
+			return nil, ErrBblfshConnection.New(err)
 		}
 
-		return nil, err
+		return nil, ErrBblfshConnection.New(err)
 	}
 
 	return client, nil
@@ -235,7 +235,7 @@ func connectToBblfsh(endpoint string) (*bblfsh.Client, error) {
 // NewSessionBuilder creates a SessionBuilder with the given Repository Pool.
 func NewSessionBuilder(pool *RepositoryPool, opts ...SessionOption) server.SessionBuilder {
 	return func(c *mysql.Conn, host string) sql.Session {
-		opts = append(opts, WithBaseSession(sql.NewSession(host, c.User, c.ConnectionID)))
+		opts = append(opts, WithBaseSession(sql.NewSession(host, c.RemoteAddr().String(), c.User, c.ConnectionID)))
 		return NewSession(pool, opts...)
 	}
 }
@@ -252,7 +252,7 @@ var ErrInvalidGitbaseSession = errors.NewKind("expecting gitbase session, but re
 var ErrInvalidContext = errors.NewKind("invalid context received: %v")
 
 // ErrBblfshConnection is returned when it's impossible to connect to bblfsh.
-var ErrBblfshConnection = errors.NewKind("unable to establish a connection with the bblfsh server")
+var ErrBblfshConnection = errors.NewKind("unable to establish a connection with the bblfsh server: %s")
 
 func shouldSkipErrors(ctx *sql.Context) bool {
 	s, err := getSession(ctx)

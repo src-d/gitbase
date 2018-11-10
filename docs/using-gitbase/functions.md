@@ -66,7 +66,7 @@ func unmarshalNodes(data []byte) (nodes.Array, error) {
 
 ```
 
-## How to formulate XPath queries when use uast and uast_xpath functions
+## How to formulate XPath queries when using uast and uast_xpath functions
 
 Have a look at the [bblfsh docs](https://docs.sourced.tech/babelfish/using-babelfish/uast-querying) to query UASTs with XPath.
 
@@ -95,4 +95,4 @@ Also, if you want to retrieve values from a non common property, you can pass it
 
 ## Standard functions
 
-You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/b1203b4cd0f4734da7552435f10b65a311226a35#custom-functions).
+You can check standard functions in [`go-mysql-server` documentation](https://github.com/src-d/go-mysql-server/tree/8cb8028a413e4edf66c4b57bc3eb570950d7bcfb#custom-functions).

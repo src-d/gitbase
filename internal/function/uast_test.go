@@ -62,6 +62,34 @@ func TestUASTMode(t *testing.T) {
 	}
 }
 
+func TestUASTMaxBlobSize(t *testing.T) {
+	ctx, cleanup := setup(t)
+	defer cleanup()
+
+	fn := NewUASTMode(
+		expression.NewGetField(0, sql.Text, "", false),
+		expression.NewGetField(1, sql.Blob, "", false),
+		expression.NewGetField(2, sql.Text, "", false),
+	)
+
+	u, _ := bblfshFixtures(t, ctx)
+
+	require := require.New(t)
+	row := sql.NewRow("annotated", []byte(testCode), "Python")
+	result, err := fn.Eval(ctx, row)
+	require.NoError(err)
+
+	assertUASTBlobs(t, ctx, u["annotated"], result)
+
+	uastMaxBlobSize = 2
+
+	result, err = fn.Eval(ctx, row)
+	require.NoError(err)
+	require.Nil(result)
+
+	uastMaxBlobSize = defaultUASTMaxBlobSize
+}
+
 func TestUAST(t *testing.T) {
 	ctx, cleanup := setup(t)
 	defer cleanup()
@@ -238,7 +266,7 @@ func TestUASTChildren(t *testing.T) {
 		{
 			mode:     "semantic",
 			key:      uast.KeyType,
-			expected: []string{"uast:FunctionGroup", "Expr"},
+			expected: []string{"uast:FunctionGroup", "python:Expr"},
 		},
 		{
 			mode:     "annotated",

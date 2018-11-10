@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,9 +13,10 @@ import (
 	"time"
 
 	"gopkg.in/bblfsh/sdk.v2/driver"
+	derrors "gopkg.in/bblfsh/sdk.v2/driver/errors"
 	"gopkg.in/bblfsh/sdk.v2/driver/native/jsonlines"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
-	"gopkg.in/src-d/go-errors.v1"
+	serrors "gopkg.in/src-d/go-errors.v1"
 )
 
 var (
@@ -28,7 +30,7 @@ const (
 )
 
 var (
-	ErrNotRunning = errors.NewKind("native driver is not running")
+	ErrNotRunning = serrors.NewKind("native driver is not running")
 )
 
 func NewDriver(enc Encoding) driver.Native {
@@ -140,12 +142,12 @@ func (r *parseResponse) UnmarshalJSON(data []byte) error {
 // Parse sends a request to the native driver and returns its response.
 func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
 	if !d.running {
-		return nil, ErrNotRunning.New()
+		return nil, driver.ErrDriverFailure.Wrap(ErrNotRunning.New())
 	}
 
 	str, err := d.ec.Encode(src)
 	if err != nil {
-		return nil, err
+		return nil, driver.ErrDriverFailure.Wrap(err)
 	}
 
 	deadline, _ := ctx.Deadline()
@@ -172,9 +174,9 @@ func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
 		// TODO: this reads a single line only; we can be smarter and read the whole log if driver cannot recover
 		if err := d.dec.Decode(&raw); err != nil {
 			// stream is broken on both sides, cannot get additional info
-			return nil, err
+			return nil, driver.ErrDriverFailure.Wrap(err)
 		}
-		return nil, fmt.Errorf("error: %v; %s", err, string(raw))
+		return nil, driver.ErrDriverFailure.Wrap(fmt.Errorf("error: %v; %s", err, string(raw)))
 	}
 
 	if !deadline.IsZero() {
@@ -187,18 +189,26 @@ func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
 		d.stdout.SetReadDeadline(time.Time{})
 	}
 	if err != nil {
-		return nil, err
+		return nil, driver.ErrDriverFailure.Wrap(err)
 	}
-	switch r.Status {
-	case statusOK:
+	if r.Status == statusOK {
 		return r.AST, nil
+	}
+	errs := make([]error, 0, len(r.Errors))
+	for _, s := range r.Errors {
+		errs = append(errs, errors.New(s))
+	}
+	err = derrors.Join(errs)
+	switch r.Status {
 	case statusError:
-		return nil, driver.PartialParse(r.AST, r.Errors)
+		// parsing error, wrapping will be done on a higher level
 	case statusFatal:
-		return nil, driver.MultiError(r.Errors)
+		err = driver.ErrDriverFailure.Wrap(err)
+		r.AST = nil // do not allow to propagate AST with Fatal error
 	default:
 		return nil, fmt.Errorf("unsupported status: %v", r.Status)
 	}
+	return r.AST, err
 }
 
 // Stop stops the execution of the native driver.
