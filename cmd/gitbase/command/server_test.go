@@ -18,8 +18,8 @@ func TestAddMatch(t *testing.T) {
 		{"../../../_testdata/repositories-link/", require.NoError},
 		{"../../../_testdata/repositories-not-exist/", require.Error},
 	}
+	c := &Server{pool: gitbase.NewRepositoryPool(0)}
 	for _, e := range expected {
-		c := &Server{pool: gitbase.NewRepositoryPool(0)}
 		e.err(c.addMatch(e.path))
 	}
 }
