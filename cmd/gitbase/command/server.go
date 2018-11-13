@@ -295,6 +295,10 @@ func (c *Server) addMatch(match string) error {
 	if err != nil {
 		return err
 	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return err
+	}
 
 	initDepth := strings.Count(root, string(os.PathSeparator))
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
