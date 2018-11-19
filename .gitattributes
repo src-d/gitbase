@@ -1,0 +1,2 @@
+docs/assets/gitbase_model.mwb filter=lfs diff=lfs merge=lfs -text
+docs/assets/gitbase-db-diagram.png filter=lfs diff=lfs merge=lfs -text
