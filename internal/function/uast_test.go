@@ -322,6 +322,14 @@ func TestUASTChildren(t *testing.T) {
 	}
 }
 
+func TestExtractAnyProp(t *testing.T) {
+	node, key := make(nodes.Object), "foo"
+	node[key] = nil
+
+	props := extractAnyProp(node, key)
+	require.Nil(t, props)
+}
+
 func assertUASTBlobs(t *testing.T, ctx *sql.Context, a, b interface{}) {
 	t.Helper()
 	var require = require.New(t)
