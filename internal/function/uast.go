@@ -575,7 +575,7 @@ func posToString(pos uast.Positions) string {
 
 func extractAnyProp(node nodes.Object, key string) []interface{} {
 	v, ok := node[key]
-	if !ok {
+	if !ok || v == nil {
 		return nil
 	}
 
