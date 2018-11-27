@@ -6,6 +6,58 @@ There are two ways to optimize a gitbase query:
 - Create an index for some parts.
 - Making sure the joined tables are squashed.
 
+## Assessing performance bottlenecks
+
+To assess if there is a performance bottleneck you might want to inspect the execution tree of the query. This is also very helpful when reporting performance issues on gitbase.
+
+The output from an `EXPLAIN` query is represented as a tree and shows how the query is actually evaluated.
+You can do that using the following query:
+
+```sql
+EXPLAIN FORMAT=TREE <SQL QUERY TO EXPLAIN>
+```
+
+For example, the given query:
+
+```sql
+EXPLAIN FORMAT=TREE
+    SELECT * FROM refs
+    NATURAL JOIN ref_commits
+    WHERE ref_commits.history_index = 0
+```
+
+Will output something like this:
+
+```
++-----------------------------------------------------------------------------------------+
+| plan                                                                                    |
++-----------------------------------------------------------------------------------------+
+| Project(refs.repository_id, refs.ref_name, refs.commit_hash, ref_commits.history_index) |
+|  └─ SquashedTable(refs, ref_commits)                                                    |
+|      ├─ Columns                                                                         |
+|      │   ├─ Column(repository_id, TEXT, nullable=false)                                 |
+|      │   ├─ Column(ref_name, TEXT, nullable=false)                                      |
+|      │   ├─ Column(commit_hash, TEXT, nullable=false)                                   |
+|      │   ├─ Column(repository_id, TEXT, nullable=false)                                 |
+|      │   ├─ Column(commit_hash, TEXT, nullable=false)                                   |
+|      │   ├─ Column(ref_name, TEXT, nullable=false)                                      |
+|      │   └─ Column(history_index, INT64, nullable=false)                                |
+|      └─ Filters                                                                         |
+|          ├─ refs.repository_id = ref_commits.repository_id                              |
+|          ├─ refs.ref_name = ref_commits.ref_name                                        |
+|          ├─ refs.commit_hash = ref_commits.commit_hash                                  |
+|          └─ ref_commits.history_index = 0                                               |
++-----------------------------------------------------------------------------------------+
+15 rows in set (0.00 sec)
+```
+
+#### Detecting performance issues in the query tree
+
+Some performance issues might not be obvious, but there are a few that really stand out by just looking at the query tree.
+
+- Joins not squashed. If you performed some joins between tables and instead of a `SquashedTable` node you see `Join` and `Table` nodes, it means the joins were not successfully squashed. There is a more detailed explanation about this in next sections of this document.
+- Indexes not used. If you can't see the indexes in your table nodes, it means somehow those indexes are not being used by the table. There is a more detailed explanation about this in next sections of this document.
+
 ## Indexes
 
 The more obvious way to improve the performance of a query is to create an index for such query. Since you can index multiple columns or a single arbitrary expression, this may be useful for some kinds of queries. For example, if you're querying by language, you may want to index that so there is no need to compute the language each time.
