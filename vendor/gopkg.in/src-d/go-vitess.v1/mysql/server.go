@@ -17,7 +17,7 @@ limitations under the License.
 package mysql
 
 import (
-	"crypto/tls"
+	tls "crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -37,8 +37,14 @@ const (
 	DefaultServerVersion = "5.5.10-Vitess"
 
 	// timing metric keys
-	connectTimingKey = "Connect"
-	queryTimingKey   = "Query"
+	connectTimingKey  = "Connect"
+	queryTimingKey    = "Query"
+	versionSSL30      = "SSL30"
+	versionTLS10      = "TLS10"
+	versionTLS11      = "TLS11"
+	versionTLS12      = "TLS12"
+	versionTLSUnknown = "UnknownTLSVersion"
+	versionNoTLS      = "None"
 )
 
 var (
@@ -48,8 +54,9 @@ var (
 	connAccept = stats.NewCounter("MysqlServerConnAccepted", "Connections accepted by MySQL server")
 	connSlow   = stats.NewCounter("MysqlServerConnSlow", "Connections that took more than the configured mysql_slow_connect_warn_threshold to establish")
 
-	connCountPerUser = stats.NewGaugesWithSingleLabel("MysqlServerConnCountPerUser", "Active MySQL server connections per user", "count")
-	_                = stats.NewGaugeFunc("MysqlServerConnCountUnauthenticated", "Active MySQL server connections that haven't authenticated yet", func() int64 {
+	connCountByTLSVer = stats.NewGaugesWithSingleLabel("MysqlServerConnCountByTLSVer", "Active MySQL server connections by TLS version", "tls")
+	connCountPerUser  = stats.NewGaugesWithSingleLabel("MysqlServerConnCountPerUser", "Active MySQL server connections per user", "count")
+	_                 = stats.NewGaugeFunc("MysqlServerConnCountUnauthenticated", "Active MySQL server connections that haven't authenticated yet", func() int64 {
 		totalUsers := int64(0)
 		for _, v := range connCountPerUser.Counts() {
 			totalUsers += v
@@ -300,6 +307,18 @@ func (l *Listener) handle(conn net.Conn, connectionID uint32, acceptTime time.Ti
 			return
 		}
 		c.recycleReadPacket()
+
+		if con, ok := c.conn.(*tls.Conn); ok {
+			connState := con.ConnectionState()
+			tlsVerStr := tlsVersionToString(connState.Version)
+			if tlsVerStr != "" {
+				connCountByTLSVer.Add(tlsVerStr, 1)
+				defer connCountByTLSVer.Add(tlsVerStr, -1)
+			}
+		}
+	} else {
+		connCountByTLSVer.Add(versionNoTLS, 1)
+		defer connCountByTLSVer.Add(versionNoTLS, -1)
 	}
 
 	// See what auth method the AuthServer wants to use for that user.
@@ -326,10 +345,34 @@ func (l *Listener) handle(conn net.Conn, connectionID uint32, acceptTime time.Ti
 
 	case authServerMethod == MysqlNativePassword:
 		// The server really wants to use MysqlNativePassword,
-		// but the client returned a result for something else:
-		// not sure this can happen, so not supporting this now.
-		c.writeErrorPacket(CRServerHandshakeErr, SSUnknownSQLState, "Client asked for auth %v, but server wants auth mysql_native_password", authMethod)
-		return
+		// but the client returned a result for something else.
+
+		salt, err := l.authServer.Salt()
+		if err != nil {
+			return
+		}
+		data := make([]byte, 21)
+		data = append(salt, byte(0x00))
+		if err := c.writeAuthSwitchRequest(MysqlNativePassword, data); err != nil {
+			log.Errorf("Error writing auth switch packet for %s: %v", c, err)
+			return
+		}
+
+		response, err := c.readEphemeralPacket()
+		if err != nil {
+			log.Errorf("Error reading auth switch response for %s: %v", c, err)
+			return
+		}
+		c.recycleReadPacket()
+
+		userData, err := l.authServer.ValidateHash(salt, user, response, conn.RemoteAddr())
+		if err != nil {
+			log.Warningf("Error authenticating user using MySQL native password: %v", err)
+			c.writeErrorPacketFromError(err)
+			return
+		}
+		c.User = user
+		c.UserData = userData
 
 	default:
 		// The server wants to use something else, re-negotiate.
@@ -648,4 +691,20 @@ func (c *Conn) writeAuthSwitchRequest(pluginName string, pluginData []byte) erro
 		return fmt.Errorf("error building AuthSwitchRequestPacket packet: got %v bytes expected %v", pos, len(data))
 	}
 	return c.writeEphemeralPacket()
+}
+
+// Whenever we move to a new version of go, we will need add any new supported TLS versions here
+func tlsVersionToString(version uint16) string {
+	switch version {
+	case tls.VersionSSL30:
+		return versionSSL30
+	case tls.VersionTLS10:
+		return versionTLS10
+	case tls.VersionTLS11:
+		return versionTLS11
+	case tls.VersionTLS12:
+		return versionTLS12
+	default:
+		return versionTLSUnknown
+	}
 }

@@ -25,6 +25,9 @@ var (
 	// ErrUnsupportedFeature is thrown when a feature is not already supported
 	ErrUnsupportedFeature = errors.NewKind("unsupported feature: %s")
 
+	// ErrUnsupportedSubqueryExpression is thrown because subqueries are not supported, yet.
+	ErrUnsupportedSubqueryExpression = errors.NewKind("unsupported subquery expression")
+
 	// ErrInvalidSQLValType is returned when a SQLVal type is not valid.
 	ErrInvalidSQLValType = errors.NewKind("invalid SQLVal of type: %d")
 
@@ -318,10 +321,7 @@ func convertCreateTable(c *sqlparser.DDL) (sql.Node, error) {
 	}
 
 	return plan.NewCreateTable(
-		sql.UnresolvedDatabase(""),
-		c.NewName.Name.String(),
-		schema,
-	), nil
+		sql.UnresolvedDatabase(""), c.Table.Name.String(), schema), nil
 }
 
 func convertInsert(ctx *sql.Context, i *sqlparser.Insert) (sql.Node, error) {
@@ -493,11 +493,14 @@ func tableExprToTable(
 			return plan.NewNaturalJoin(left, right), nil
 		}
 
+		if t.Condition.On == nil {
+			return nil, ErrUnsupportedSyntax.New("missed ON clause for JOIN statement")
+		}
+
 		cond, err := exprToExpression(t.Condition.On)
 		if err != nil {
 			return nil, err
 		}
-
 		return plan.NewInnerJoin(left, right, cond), nil
 	}
 }
@@ -656,7 +659,15 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 	case *sqlparser.Default:
 		return expression.NewDefaultColumn(v.ColName), nil
 	case *sqlparser.SubstrExpr:
-		name, err := exprToExpression(v.Name)
+		var (
+			name sql.Expression
+			err  error
+		)
+		if v.Name != nil {
+			name, err = exprToExpression(v.Name)
+		} else {
+			name, err = exprToExpression(v.StrVal)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -778,6 +789,8 @@ func exprToExpression(e sqlparser.Expr) (sql.Expression, error) {
 		return binaryExprToExpression(v)
 	case *sqlparser.UnaryExpr:
 		return unaryExprToExpression(v)
+	case *sqlparser.Subquery:
+		return nil, ErrUnsupportedSubqueryExpression.New()
 	}
 }
 
