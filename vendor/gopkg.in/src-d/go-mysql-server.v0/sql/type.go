@@ -37,6 +37,10 @@ var (
 
 	// ErrNotArray is returned when the value is not an array.
 	ErrNotArray = errors.NewKind("value of type %T is not an array")
+
+	// ErrConvertToSQL is returned when Convert failed.
+	// It makes an error less verbose comparingto what spf13/cast returns.
+	ErrConvertToSQL = errors.NewKind("incompatible conversion to SQL type: %s")
 )
 
 // Schema is the definition of a table.
@@ -253,6 +257,11 @@ func (t nullT) Compare(a interface{}, b interface{}) (int, error) {
 	return 0, nil
 }
 
+// IsNull returns true if expression is nil or is Null Type, otherwise false.
+func IsNull(ex Expression) bool {
+	return ex == nil || ex.Type() == Null
+}
+
 type numberT struct {
 	t query.Type
 }
@@ -264,6 +273,10 @@ func (t numberT) Type() query.Type {
 
 // SQL implements Type interface.
 func (t numberT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
+
 	switch t.t {
 	case sqltypes.Int32:
 		return sqltypes.MakeTrusted(t.t, strconv.AppendInt(nil, cast.ToInt64(v), 10))
@@ -300,7 +313,6 @@ func (t numberT) Convert(v interface{}) (interface{}, error) {
 	default:
 		return nil, ErrInvalidType.New(t.t)
 	}
-
 }
 
 // Compare implements Type interface.
@@ -383,6 +395,10 @@ var TimestampLayouts = []string{
 
 // SQL implements Type interface.
 func (t timestampT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
+
 	time := MustConvert(t, v).(time.Time)
 	return sqltypes.MakeTrusted(
 		sqltypes.Timestamp,
@@ -451,6 +467,10 @@ func (t dateT) Type() query.Type {
 }
 
 func (t dateT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
+
 	time := MustConvert(t, v).(time.Time)
 	return sqltypes.MakeTrusted(
 		sqltypes.Timestamp,
@@ -500,12 +520,20 @@ func (t textT) Type() query.Type {
 
 // SQL implements Type interface.
 func (t textT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
+
 	return sqltypes.MakeTrusted(sqltypes.Text, []byte(MustConvert(t, v).(string)))
 }
 
 // Convert implements Type interface.
 func (t textT) Convert(v interface{}) (interface{}, error) {
-	return cast.ToStringE(v)
+	val, err := cast.ToStringE(v)
+	if err != nil {
+		return nil, ErrConvertToSQL.New(t)
+	}
+	return val, nil
 }
 
 // Compare implements Type interface.
@@ -524,6 +552,10 @@ func (t booleanT) Type() query.Type {
 
 // SQL implements Type interface.
 func (t booleanT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
+
 	b := []byte{'0'}
 	if cast.ToBool(v) {
 		b[0] = '1'
@@ -534,7 +566,11 @@ func (t booleanT) SQL(v interface{}) sqltypes.Value {
 
 // Convert implements Type interface.
 func (t booleanT) Convert(v interface{}) (interface{}, error) {
-	return cast.ToBoolE(v)
+	val, err := cast.ToBoolE(v)
+	if err != nil {
+		return nil, ErrConvertToSQL.New(t)
+	}
+	return val, nil
 }
 
 // Compare implements Type interface.
@@ -561,6 +597,10 @@ func (t blobT) Type() query.Type {
 
 // SQL implements Type interface.
 func (t blobT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
+
 	return sqltypes.MakeTrusted(sqltypes.Blob, MustConvert(t, v).([]byte))
 }
 
@@ -596,6 +636,9 @@ func (t jsonT) Type() query.Type {
 
 // SQL implements Type interface.
 func (t jsonT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
 	return sqltypes.MakeTrusted(sqltypes.TypeJSON, MustConvert(t, v).([]byte))
 }
 
@@ -624,6 +667,10 @@ func (t tupleT) Type() query.Type {
 }
 
 func (t tupleT) SQL(v interface{}) sqltypes.Value {
+	if _, ok := v.(nullT); ok {
+		return sqltypes.NULL
+	}
+
 	panic("unable to convert tuple type to SQL")
 }
 
