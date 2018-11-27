@@ -668,7 +668,7 @@
   version = "v1.3.0"
 
 [[projects]]
-  digest = "1:5241ff1b46d540212369b0f7d51900e1494bd4d31962de91f1cd657a58c2ea8e"
+  digest = "1:645540beda67a91c7cc9a70a4b89b3c56dcd58687e4f7d8b61c5ece82008a624"
   name = "gopkg.in/src-d/go-vitess.v1"
   packages = [
     "bucketpool",
@@ -696,8 +696,8 @@
     "vt/vttls",
   ]
   pruneopts = ""
-  revision = "f4a943d4403d9822d460888cf87edd8831e21a1e"
-  version = "v1.3.0"
+  revision = "1e9f4dc23649eb12a326229787a0acd02fac8b50"
+  version = "v1.4.0"
 
 [[projects]]
   digest = "1:83aacdc3b7d95550b004ce34f9fe68dc50628aa3d2f4e99b5970876b8bb2b1f0"
