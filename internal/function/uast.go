@@ -185,6 +185,13 @@ func (u *uastFunc) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err err
 				"This can be configured using %s environment variable",
 			uastMaxBlobSizeKey,
 		)
+
+		ctx.Warn(
+			0,
+			"uast will be skipped, file is too big to send to bblfsh."+
+				"This can be configured using %s environment variable",
+			uastMaxBlobSizeKey,
+		)
 		return nil, nil
 	}
 
