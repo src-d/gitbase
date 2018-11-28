@@ -115,6 +115,7 @@ func getUASTFromBblfsh(ctx *sql.Context,
 	if err != nil {
 		err := ErrParseBlob.New(err)
 		logrus.Warn(err)
+		ctx.Warn(0, err.Error())
 		return nil, err
 	}
 
