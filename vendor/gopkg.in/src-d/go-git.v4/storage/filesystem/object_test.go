@@ -1,8 +1,11 @@
 package filesystem
 
 import (
+	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -81,6 +84,44 @@ func (s *FsSuite) TestGetFromPackfileKeepDescriptors(c *C) {
 		c.Assert(err, IsNil)
 
 	})
+}
+
+func (s *FsSuite) TestGetSizeOfObjectFile(c *C) {
+	fs := fixtures.ByTag(".git").ByTag("unpacked").One().DotGit()
+	o := NewObjectStorage(dotgit.New(fs), cache.NewObjectLRUDefault())
+
+	// Get the size of `tree_walker.go`.
+	expected := plumbing.NewHash("cbd81c47be12341eb1185b379d1c82675aeded6a")
+	size, err := o.EncodedObjectSize(expected)
+	c.Assert(err, IsNil)
+	c.Assert(size, Equals, int64(2412))
+}
+
+func (s *FsSuite) TestGetSizeFromPackfile(c *C) {
+	fixtures.Basic().ByTag(".git").Test(c, func(f *fixtures.Fixture) {
+		fs := f.DotGit()
+		o := NewObjectStorage(dotgit.New(fs), cache.NewObjectLRUDefault())
+
+		// Get the size of `binary.jpg`.
+		expected := plumbing.NewHash("d5c0f4ab811897cadf03aec358ae60d21f91c50d")
+		size, err := o.EncodedObjectSize(expected)
+		c.Assert(err, IsNil)
+		c.Assert(size, Equals, int64(76110))
+	})
+}
+
+func (s *FsSuite) TestGetSizeOfAllObjectFiles(c *C) {
+	fs := fixtures.ByTag(".git").One().DotGit()
+	o := NewObjectStorage(dotgit.New(fs), cache.NewObjectLRUDefault())
+
+	// Get the size of `tree_walker.go`.
+	err := o.ForEachObjectHash(func(h plumbing.Hash) error {
+		size, err := o.EncodedObjectSize(h)
+		c.Assert(err, IsNil)
+		c.Assert(size, Not(Equals), int64(0))
+		return nil
+	})
+	c.Assert(err, IsNil)
 }
 
 func (s *FsSuite) TestGetFromPackfileMultiplePackfiles(c *C) {
@@ -163,6 +204,59 @@ func (s *FsSuite) TestPackfileIter(c *C) {
 				c.Assert(err, IsNil)
 			}
 		}
+	})
+}
+
+func copyFile(c *C, dstDir, dstFilename string, srcFile *os.File) {
+	_, err := srcFile.Seek(0, 0)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(dstDir, 0750|os.ModeDir)
+	c.Assert(err, IsNil)
+
+	dst, err := os.OpenFile(filepath.Join(dstDir, dstFilename), os.O_CREATE|os.O_WRONLY, 0666)
+	c.Assert(err, IsNil)
+	defer dst.Close()
+
+	_, err = io.Copy(dst, srcFile)
+	c.Assert(err, IsNil)
+}
+
+// TestPackfileReindex tests that externally-added packfiles are considered by go-git
+// after calling the Reindex method
+func (s *FsSuite) TestPackfileReindex(c *C) {
+	// obtain a standalone packfile that is not part of any other repository
+	// in the fixtures:
+	packFixture := fixtures.ByTag("packfile").ByTag("standalone").One()
+	packFile := packFixture.Packfile()
+	idxFile := packFixture.Idx()
+	packFilename := packFixture.PackfileHash.String()
+	testObjectHash := plumbing.NewHash("a771b1e94141480861332fd0e4684d33071306c6") // this is an object we know exists in the standalone packfile
+	fixtures.ByTag(".git").Test(c, func(f *fixtures.Fixture) {
+		fs := f.DotGit()
+		storer := NewStorage(fs, cache.NewObjectLRUDefault())
+
+		// check that our test object is NOT found
+		_, err := storer.EncodedObject(plumbing.CommitObject, testObjectHash)
+		c.Assert(err, Equals, plumbing.ErrObjectNotFound)
+
+		// add the external packfile+idx to the packs folder
+		// this simulates a git bundle unbundle command, or a repack, for example.
+		copyFile(c, filepath.Join(storer.Filesystem().Root(), "objects", "pack"),
+			fmt.Sprintf("pack-%s.pack", packFilename), packFile)
+		copyFile(c, filepath.Join(storer.Filesystem().Root(), "objects", "pack"),
+			fmt.Sprintf("pack-%s.idx", packFilename), idxFile)
+
+		// check that we cannot still retrieve the test object
+		_, err = storer.EncodedObject(plumbing.CommitObject, testObjectHash)
+		c.Assert(err, Equals, plumbing.ErrObjectNotFound)
+
+		storer.Reindex() // actually reindex
+
+		// Now check that the test object can be retrieved
+		_, err = storer.EncodedObject(plumbing.CommitObject, testObjectHash)
+		c.Assert(err, IsNil)
+
 	})
 }
 
