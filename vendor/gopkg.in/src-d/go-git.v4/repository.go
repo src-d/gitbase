@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	stdioutil "io/ioutil"
 	"os"
 	"path"
@@ -175,15 +176,6 @@ func Open(s storage.Storer, worktree billy.Filesystem) (*Repository, error) {
 		return nil, err
 	}
 
-	cfg, err := s.Config()
-	if err != nil {
-		return nil, err
-	}
-
-	if !cfg.Core.IsBare && worktree == nil {
-		return nil, ErrWorktreeNotProvided
-	}
-
 	return newRepository(s, worktree), nil
 }
 
@@ -335,6 +327,8 @@ func dotGitFileToOSFilesystem(path string, fs billy.Filesystem) (bfs billy.Files
 // PlainClone a repository into the path with the given options, isBare defines
 // if the new repository will be bare or normal. If the path is not empty
 // ErrRepositoryAlreadyExists is returned.
+//
+// TODO(mcuadros): move isBare to CloneOptions in v5
 func PlainClone(path string, isBare bool, o *CloneOptions) (*Repository, error) {
 	return PlainCloneContext(context.Background(), path, isBare, o)
 }
@@ -346,13 +340,28 @@ func PlainClone(path string, isBare bool, o *CloneOptions) (*Repository, error) 
 // The provided Context must be non-nil. If the context expires before the
 // operation is complete, an error is returned. The context only affects to the
 // transport operations.
+//
+// TODO(mcuadros): move isBare to CloneOptions in v5
+// TODO(smola): refuse upfront to clone on a non-empty directory in v5, see #1027
 func PlainCloneContext(ctx context.Context, path string, isBare bool, o *CloneOptions) (*Repository, error) {
+	cleanup, cleanupParent, err := checkIfCleanupIsNeeded(path)
+	if err != nil {
+		return nil, err
+	}
+
 	r, err := PlainInit(path, isBare)
 	if err != nil {
 		return nil, err
 	}
 
-	return r, r.clone(ctx, o)
+	err = r.clone(ctx, o)
+	if err != nil && err != ErrRepositoryAlreadyExists {
+		if cleanup {
+			cleanUpDir(path, cleanupParent)
+		}
+	}
+
+	return r, err
 }
 
 func newRepository(s storage.Storer, worktree billy.Filesystem) *Repository {
@@ -361,6 +370,65 @@ func newRepository(s storage.Storer, worktree billy.Filesystem) *Repository {
 		wt:     worktree,
 		r:      make(map[string]*Remote),
 	}
+}
+
+func checkIfCleanupIsNeeded(path string) (cleanup bool, cleanParent bool, err error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return true, true, nil
+		}
+
+		return false, false, err
+	}
+
+	if !fi.IsDir() {
+		return false, false, fmt.Errorf("path is not a directory: %s", path)
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return false, false, err
+	}
+
+	defer ioutil.CheckClose(f, &err)
+
+	_, err = f.Readdirnames(1)
+	if err == io.EOF {
+		return true, false, nil
+	}
+
+	if err != nil {
+		return false, false, err
+	}
+
+	return false, false, nil
+}
+
+func cleanUpDir(path string, all bool) error {
+	if all {
+		return os.RemoveAll(path)
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	defer ioutil.CheckClose(f, &err)
+
+	names, err := f.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+
+	for _, name := range names {
+		if err := os.RemoveAll(filepath.Join(path, name)); err != nil {
+			return err
+		}
+	}
+
+	return err
 }
 
 // Config return the repository config
@@ -645,8 +713,9 @@ func (r *Repository) clone(ctx context.Context, o *CloneOptions) error {
 	}
 
 	c := &config.RemoteConfig{
-		Name: o.RemoteName,
-		URLs: []string{o.URL},
+		Name:  o.RemoteName,
+		URLs:  []string{o.URL},
+		Fetch: r.cloneRefSpec(o),
 	}
 
 	if _, err := r.CreateRemote(c); err != nil {
@@ -654,11 +723,12 @@ func (r *Repository) clone(ctx context.Context, o *CloneOptions) error {
 	}
 
 	ref, err := r.fetchAndUpdateReferences(ctx, &FetchOptions{
-		RefSpecs: r.cloneRefSpec(o, c),
-		Depth:    o.Depth,
-		Auth:     o.Auth,
-		Progress: o.Progress,
-		Tags:     o.Tags,
+		RefSpecs:   c.Fetch,
+		Depth:      o.Depth,
+		Auth:       o.Auth,
+		Progress:   o.Progress,
+		Tags:       o.Tags,
+		RemoteName: o.RemoteName,
 	}, o.ReferenceName)
 	if err != nil {
 		return err
@@ -723,21 +793,26 @@ const (
 	refspecSingleBranchHEAD = "+HEAD:refs/remotes/%s/HEAD"
 )
 
-func (r *Repository) cloneRefSpec(o *CloneOptions, c *config.RemoteConfig) []config.RefSpec {
-	var rs string
-
+func (r *Repository) cloneRefSpec(o *CloneOptions) []config.RefSpec {
 	switch {
 	case o.ReferenceName.IsTag():
-		rs = fmt.Sprintf(refspecTag, o.ReferenceName.Short())
+		return []config.RefSpec{
+			config.RefSpec(fmt.Sprintf(refspecTag, o.ReferenceName.Short())),
+		}
 	case o.SingleBranch && o.ReferenceName == plumbing.HEAD:
-		rs = fmt.Sprintf(refspecSingleBranchHEAD, c.Name)
+		return []config.RefSpec{
+			config.RefSpec(fmt.Sprintf(refspecSingleBranchHEAD, o.RemoteName)),
+			config.RefSpec(fmt.Sprintf(refspecSingleBranch, plumbing.Master.Short(), o.RemoteName)),
+		}
 	case o.SingleBranch:
-		rs = fmt.Sprintf(refspecSingleBranch, o.ReferenceName.Short(), c.Name)
+		return []config.RefSpec{
+			config.RefSpec(fmt.Sprintf(refspecSingleBranch, o.ReferenceName.Short(), o.RemoteName)),
+		}
 	default:
-		return c.Fetch
+		return []config.RefSpec{
+			config.RefSpec(fmt.Sprintf(config.DefaultFetchRefSpec, o.RemoteName)),
+		}
 	}
-
-	return []config.RefSpec{config.RefSpec(rs)}
 }
 
 func (r *Repository) setIsBare(isBare bool) error {
@@ -755,9 +830,7 @@ func (r *Repository) updateRemoteConfigIfNeeded(o *CloneOptions, c *config.Remot
 		return nil
 	}
 
-	c.Fetch = []config.RefSpec{config.RefSpec(fmt.Sprintf(
-		refspecSingleBranch, head.Name().Short(), c.Name,
-	))}
+	c.Fetch = r.cloneRefSpec(o)
 
 	cfg, err := r.Storer.Config()
 	if err != nil {
@@ -965,19 +1038,26 @@ func (r *Repository) Log(o *LogOptions) (object.CommitIter, error) {
 		return nil, err
 	}
 
+	var commitIter object.CommitIter
 	switch o.Order {
 	case LogOrderDefault:
-		return object.NewCommitPreorderIter(commit, nil, nil), nil
+		commitIter = object.NewCommitPreorderIter(commit, nil, nil)
 	case LogOrderDFS:
-		return object.NewCommitPreorderIter(commit, nil, nil), nil
+		commitIter = object.NewCommitPreorderIter(commit, nil, nil)
 	case LogOrderDFSPost:
-		return object.NewCommitPostorderIter(commit, nil), nil
+		commitIter = object.NewCommitPostorderIter(commit, nil)
 	case LogOrderBSF:
-		return object.NewCommitIterBSF(commit, nil, nil), nil
+		commitIter = object.NewCommitIterBSF(commit, nil, nil)
 	case LogOrderCommitterTime:
-		return object.NewCommitIterCTime(commit, nil, nil), nil
+		commitIter = object.NewCommitIterCTime(commit, nil, nil)
+	default:
+		return nil, fmt.Errorf("invalid Order=%v", o.Order)
 	}
-	return nil, fmt.Errorf("invalid Order=%v", o.Order)
+
+	if o.FileName == nil {
+		return commitIter, nil
+	}
+	return object.NewCommitFileIterFromIter(*o.FileName, commitIter), nil
 }
 
 // Tags returns all the tag References in a repository.
@@ -1163,7 +1243,18 @@ func (r *Repository) Worktree() (*Worktree, error) {
 	return &Worktree{r: r, Filesystem: r.wt}, nil
 }
 
-// ResolveRevision resolves revision to corresponding hash.
+func countTrue(vals ...bool) int {
+	sum := 0
+	for _, v := range vals {
+		if v {
+			sum++
+		}
+	}
+	return sum
+}
+
+// ResolveRevision resolves revision to corresponding hash. It will always
+// resolve to a commit hash, not a tree or annotated tag.
 //
 // Implemented resolvers : HEAD, branch, tag, heads/branch, refs/heads/branch,
 // refs/tags/tag, refs/remotes/origin/branch, refs/remotes/origin/HEAD, tilde and caret (HEAD~1, master~^, tag~2, ref/heads/master~1, ...), selection by text (HEAD^{/fix nasty bug})
@@ -1183,8 +1274,8 @@ func (r *Repository) ResolveRevision(rev plumbing.Revision) (*plumbing.Hash, err
 		case revision.Ref:
 			revisionRef := item.(revision.Ref)
 			var ref *plumbing.Reference
-			var hashCommit, refCommit *object.Commit
-			var rErr, hErr error
+			var hashCommit, refCommit, tagCommit *object.Commit
+			var rErr, hErr, tErr error
 
 			for _, rule := range append([]string{"%s"}, plumbing.RefRevParseRules...) {
 				ref, err = storer.ResolveReference(r.Storer, plumbing.ReferenceName(fmt.Sprintf(rule, revisionRef)))
@@ -1195,24 +1286,38 @@ func (r *Repository) ResolveRevision(rev plumbing.Revision) (*plumbing.Hash, err
 			}
 
 			if ref != nil {
+				tag, tObjErr := r.TagObject(ref.Hash())
+				if tObjErr != nil {
+					tErr = tObjErr
+				} else {
+					tagCommit, tErr = tag.Commit()
+				}
 				refCommit, rErr = r.CommitObject(ref.Hash())
 			} else {
 				rErr = plumbing.ErrReferenceNotFound
+				tErr = plumbing.ErrReferenceNotFound
 			}
 
-			isHash := plumbing.NewHash(string(revisionRef)).String() == string(revisionRef)
-
-			if isHash {
+			maybeHash := plumbing.NewHash(string(revisionRef)).String() == string(revisionRef)
+			if maybeHash {
 				hashCommit, hErr = r.CommitObject(plumbing.NewHash(string(revisionRef)))
+			} else {
+				hErr = plumbing.ErrReferenceNotFound
 			}
+
+			isTag := tErr == nil
+			isCommit := rErr == nil
+			isHash := hErr == nil
 
 			switch {
-			case rErr == nil && !isHash:
-				commit = refCommit
-			case rErr != nil && isHash && hErr == nil:
-				commit = hashCommit
-			case rErr == nil && isHash && hErr == nil:
+			case countTrue(isTag, isCommit, isHash) > 1:
 				return &plumbing.ZeroHash, fmt.Errorf(`refname "%s" is ambiguous`, revisionRef)
+			case isTag:
+				commit = tagCommit
+			case isCommit:
+				commit = refCommit
+			case isHash:
+				commit = hashCommit
 			default:
 				return &plumbing.ZeroHash, plumbing.ErrReferenceNotFound
 			}
