@@ -146,23 +146,19 @@ func (c *Server) Execute(args []string) error {
 				Fatal("unable to read jaeger environment")
 			return err
 		}
-
 		if cfg.ServiceName == "" {
 			cfg.ServiceName = TracerServiceName
 		}
 
 		logger := &jaegerLogrus{logrus.WithField("subsystem", "jaeger")}
 
-		t, closer, err := cfg.NewTracer(
-			config.Logger(logger),
-		)
-
+		closer, err := cfg.InitGlobalTracer(cfg.ServiceName, config.Logger(logger))
 		if err != nil {
-			logrus.WithField("error", err).Fatal("unable to initialize tracer")
+			logrus.WithField("error", err).Fatal("unable to initialize global tracer")
 			return err
 		}
 
-		tracer = t
+		tracer = opentracing.GlobalTracer()
 		defer closer.Close()
 
 		logrus.Info("tracing enabled")
