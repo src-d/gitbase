@@ -203,9 +203,6 @@ func (op opAppend) Check(st *State, n nodes.Node) (bool, error) {
 	// and the part we will use for sub-array checks
 	tail := len(arr) - len(sarr)
 	sub, arrs := arr[:tail], arr[tail:]
-	if len(sub) == 0 {
-		sub = nil
-	}
 	if ok, err := op.op.Check(st, sub); err != nil {
 		return false, errAppend.Wrap(err)
 	} else if !ok {
