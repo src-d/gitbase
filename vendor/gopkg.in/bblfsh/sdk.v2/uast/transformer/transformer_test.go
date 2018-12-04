@@ -22,6 +22,7 @@ var mappingCases = []struct {
 	skip     bool
 	inp, exp un.Node
 	m        Transformer
+	err      string
 }{
 	{
 		name: "trim meta",
@@ -216,6 +217,57 @@ var mappingCases = []struct {
 			Prefix: " ", Suffix: " ",
 		}),
 	},
+	{
+		name: "field unused",
+		inp: un.Object{
+			"type": un.String("A"),
+			"name": un.String("B"),
+		},
+		m: Mappings(Map(
+			Obj{
+				"type": String("A"),
+			},
+			Obj{
+				"type": String("B"),
+			},
+		)),
+		err: "check: field was not used: name",
+	},
+	{
+		name: "variable undefined",
+		inp: un.Object{
+			"type": un.String("A"),
+			"name": un.String("B"),
+		},
+		m: Mappings(Map(
+			Obj{
+				"type": String("A"),
+				"name": String("B"),
+			},
+			Obj{
+				"type": String("B"),
+				"name": Var("x"),
+			},
+		)),
+		err: `construct: key "name": variable "x" is not defined`,
+	},
+	{
+		name: "variable unused",
+		inp: un.Object{
+			"type": un.String("A"),
+			"name": un.String("B"),
+		},
+		m: Mappings(Map(
+			Obj{
+				"type": String("A"),
+				"name": Var("x"),
+			},
+			Obj{
+				"type": String("B"),
+			},
+		)),
+		err: `variables ["x"] unused in the second part of the transform`,
+	},
 }
 
 func TestMappings(t *testing.T) {
@@ -225,6 +277,14 @@ func TestMappings(t *testing.T) {
 		}
 		t.Run(c.name, func(t *testing.T) {
 			out, err := c.m.Do(c.inp)
+			if c.err != "" {
+				if err == nil {
+					require.Error(t, err)
+				} else {
+					require.Equal(t, c.err, err.Error())
+				}
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, c.exp, out, "transformation failed")
 		})

@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+
 	"gopkg.in/bblfsh/sdk.v2/driver"
 	derrors "gopkg.in/bblfsh/sdk.v2/driver/errors"
 	"gopkg.in/bblfsh/sdk.v2/driver/native/jsonlines"
@@ -139,8 +141,44 @@ func (r *parseResponse) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (d *Driver) writeRequest(ctx context.Context, req *parseRequest) error {
+	deadline, _ := ctx.Deadline()
+
+	sp, _ := opentracing.StartSpanFromContext(ctx, "bblfsh.native.Parse.encodeReq")
+	defer sp.Finish()
+
+	if !deadline.IsZero() {
+		d.stdin.SetWriteDeadline(deadline)
+		defer d.stdin.SetWriteDeadline(time.Time{})
+	}
+
+	return d.enc.Encode(req)
+}
+
+func (d *Driver) readResponse(ctx context.Context) (*parseResponse, error) {
+	deadline, _ := ctx.Deadline()
+
+	sp, _ := opentracing.StartSpanFromContext(ctx, "bblfsh.native.Parse.decodeResp")
+	defer sp.Finish()
+
+	if !deadline.IsZero() {
+		d.stdout.SetReadDeadline(deadline)
+		defer d.stdout.SetReadDeadline(time.Time{})
+	}
+
+	var r parseResponse
+	err := d.dec.Decode(&r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 // Parse sends a request to the native driver and returns its response.
-func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
+func (d *Driver) Parse(rctx context.Context, src string) (nodes.Node, error) {
+	sp, ctx := opentracing.StartSpanFromContext(rctx, "bblfsh.native.Parse")
+	defer sp.Finish()
+
 	if !d.running {
 		return nil, driver.ErrDriverFailure.Wrap(ErrNotRunning.New())
 	}
@@ -150,21 +188,12 @@ func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
 		return nil, driver.ErrDriverFailure.Wrap(err)
 	}
 
-	deadline, _ := ctx.Deadline()
-
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if !deadline.IsZero() {
-		d.stdin.SetWriteDeadline(deadline)
-	}
-
-	err = d.enc.Encode(&parseRequest{
+	err = d.writeRequest(ctx, &parseRequest{
 		Content: str, Encoding: d.ec,
 	})
-	if !deadline.IsZero() {
-		d.stdin.SetWriteDeadline(time.Time{})
-	}
 	if err != nil {
 		// Cannot write data - this means the stream is broken or driver crashed.
 		// We will try to recover by reading the response, but since it might be
@@ -179,15 +208,7 @@ func (d *Driver) Parse(ctx context.Context, src string) (nodes.Node, error) {
 		return nil, driver.ErrDriverFailure.Wrap(fmt.Errorf("error: %v; %s", err, string(raw)))
 	}
 
-	if !deadline.IsZero() {
-		d.stdout.SetReadDeadline(deadline)
-	}
-
-	var r parseResponse
-	err = d.dec.Decode(&r)
-	if !deadline.IsZero() {
-		d.stdout.SetReadDeadline(time.Time{})
-	}
+	r, err := d.readResponse(ctx)
 	if err != nil {
 		return nil, driver.ErrDriverFailure.Wrap(err)
 	}

@@ -25,6 +25,7 @@ func NewClientContext(ctx context.Context, endpoint string) (*Client, error) {
 		grpc.WithBlock(),
 		grpc.WithInsecure(),
 	}
+	opts = append(opts, protocol2.DialOptions()...)
 
 	conn, err := grpc.DialContext(ctx, endpoint, opts...)
 	if err != nil {

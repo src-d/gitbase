@@ -345,6 +345,9 @@ func (m mappings) Do(root nodes.Node) (nodes.Node, error) {
 		return n, true
 	})
 	err := NewMultiError(errs...)
+	if err == nil {
+		err = st.Validate()
+	}
 	if ok {
 		return nn, err
 	}
@@ -364,13 +367,28 @@ type Vars map[string]nodes.Node
 // State stores all variables (placeholder values, flags and wny other state) between Check and Construct steps.
 type State struct {
 	vars   Vars
+	unused map[string]struct{}
 	states map[string][]*State
 }
 
 // Reset clears the state and allows to reuse an object.
 func (st *State) Reset() {
 	st.vars = nil
+	st.unused = nil
 	st.states = nil
+}
+
+// Validate should be called after a successful transformation to check if there are any errors related to unused state.
+func (st *State) Validate() error {
+	if len(st.unused) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(st.unused))
+	for name := range st.unused {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return ErrVariableUnused.New(names)
 }
 
 // Clone will return a copy of the State. This can be used to apply Check and throw away any variables produced by it.
@@ -379,9 +397,13 @@ func (st *State) Clone() *State {
 	st2 := NewState()
 	if len(st.vars) != 0 {
 		st2.vars = make(Vars)
+		st2.unused = make(map[string]struct{})
 	}
 	for k, v := range st.vars {
 		st2.vars[k] = v
+	}
+	for k := range st.unused {
+		st2.unused[k] = struct{}{}
 	}
 	if len(st.states) != 0 {
 		st2.states = make(map[string][]*State)
@@ -396,11 +418,15 @@ func (st *State) Clone() *State {
 func (st *State) ApplyFrom(st2 *State) {
 	if len(st2.vars) != 0 && st.vars == nil {
 		st.vars = make(Vars)
+		st.unused = make(map[string]struct{})
 	}
 	for k, v := range st2.vars {
 		if _, ok := st.vars[k]; !ok {
 			st.vars[k] = v
 		}
+	}
+	for k := range st2.unused {
+		st.unused[k] = struct{}{}
 	}
 	if len(st2.states) != 0 && st.states == nil {
 		st.states = make(map[string][]*State)
@@ -415,6 +441,9 @@ func (st *State) ApplyFrom(st2 *State) {
 // GetVar looks up a named variable.
 func (st *State) GetVar(name string) (nodes.Node, bool) {
 	n, ok := st.vars[name]
+	if ok {
+		delete(st.unused, name)
+	}
 	return n, ok
 }
 
@@ -452,8 +481,10 @@ func (st *State) SetVar(name string, val nodes.Node) error {
 		// not declared
 		if st.vars == nil {
 			st.vars = make(Vars)
+			st.unused = make(map[string]struct{})
 		}
 		st.vars[name] = val
+		st.unused[name] = struct{}{}
 		return nil
 	}
 	if nodes.Equal(cur, val) {

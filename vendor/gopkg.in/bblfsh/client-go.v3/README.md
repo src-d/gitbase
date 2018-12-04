@@ -122,21 +122,17 @@ produces
 ```
 
 ```go
-iter, err := tools.NewIterator(res.UAST)
-if err != nil {
-    panic(err)
-}
-
+iter := tools.NewIterator(res, tools.PreOrder)
 for node := range tools.Iterate(iter) {
-    fmt.Println(node)
+	fmt.Println(node)
 }
 
 // For XPath expressions returning a boolean/numeric/string value, you must
 // use the right typed Filter function:
 
-boolres, err := FilterBool(res.UAST, "boolean(//*[@start-offset or @end-offset])")
-strres, err := FilterString(res.UAST, "name(//*[1])")
-numres, err := FilterNumber(res.UAST, "count(//*)")
+boolres, err := tools.FilterBool(res, "boolean(//*[@start-offset or @end-offset])")
+strres, err := tools.FilterString(res, "name(//*[1])")
+numres, err := tools.FilterNumber(res, "count(//*)")
 ```
 
 Please read the [Babelfish clients](https://doc.bblf.sh/using-babelfish/clients.html) guide section to learn more about babelfish clients and their query language.

@@ -40,6 +40,7 @@ func init() {
 		Import{},
 		RuntimeImport{},
 		RuntimeReImport{},
+		InlineImport{},
 		Argument{},
 		FunctionType{},
 		Function{},
@@ -322,7 +323,7 @@ type RuntimeImport Import
 
 type RuntimeReImport RuntimeImport
 
-//type InlineImport Import
+type InlineImport Import
 
 type Argument struct {
 	GenNode

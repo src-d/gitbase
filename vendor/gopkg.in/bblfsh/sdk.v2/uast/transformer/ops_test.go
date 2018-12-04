@@ -497,6 +497,71 @@ var opsCases = []struct {
 			}
 		},
 	},
+	{
+		name: "append complex",
+		inp: func() un.Node {
+			return un.Object{
+				"type": un.String("A"),
+				"arr": un.Array{
+					un.Object{
+						"type": un.String("B"),
+						"name": un.String("B1"),
+					},
+				},
+			}
+		},
+		src: Fields{
+			{Name: "type", Op: String("A")},
+			{
+				Name: "arr", Optional: "hasArr",
+				Op: Append(
+					Each("elems",
+						Obj{
+							"type": String("B"),
+							"name": Var("name"),
+						},
+					),
+					Arr(
+						Obj{
+							"type": String("B"),
+							"name": Var("a1_name"),
+						},
+					),
+				),
+			},
+		},
+		dst: Fields{
+			{Name: "type", Op: String("A")},
+			{
+				Name: "arr", Optional: "hasArr",
+				Op: Append(
+					Each("elems",
+						Obj{
+							"type":  String("B"),
+							"name2": Var("name"),
+						},
+					),
+					Arr(
+						Obj{
+							"type":  String("B"),
+							"name2": Var("a1_name"),
+						},
+					),
+				),
+			},
+		},
+		exp: func() un.Node {
+			return un.Object{
+				"type": un.String("A"),
+				"arr": un.Array{
+					un.Object{
+						"type":  un.String("B"),
+						"name2": un.String("B1"),
+					},
+				},
+			}
+		},
+	},
 }
 
 func TestOps(t *testing.T) {

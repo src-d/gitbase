@@ -199,6 +199,8 @@ func (s *Suite) testFixturesNative(t *testing.T) {
 }
 
 func (s *Suite) testFixturesUAST(t *testing.T, mode driver.Mode, suf string, blacklist ...string) {
+	ctx := context.Background()
+
 	list, err := ioutil.ReadDir(s.Path)
 	require.NoError(t, err)
 
@@ -226,7 +228,7 @@ func (s *Suite) testFixturesUAST(t *testing.T, mode driver.Mode, suf string, bla
 			name += suffix
 			code := s.readFixturesFile(t, name)
 
-			ctx, cancel := context.WithTimeout(context.Background(), parseTimeout)
+			ctx, cancel := context.WithTimeout(ctx, parseTimeout)
 			ast, err := dr.Parse(ctx, string(code))
 			cancel()
 			if err != nil {
@@ -240,7 +242,7 @@ func (s *Suite) testFixturesUAST(t *testing.T, mode driver.Mode, suf string, bla
 
 			tr := s.Transforms
 			if s.WritePreprocessed {
-				ua, err := tr.Do(driver.ModePreprocessed, code, ast)
+				ua, err := tr.Do(ctx, driver.ModePreprocessed, code, ast)
 				require.NoError(t, err)
 
 				un, err := marshalUAST(ua)
@@ -248,7 +250,7 @@ func (s *Suite) testFixturesUAST(t *testing.T, mode driver.Mode, suf string, bla
 
 				s.writeFixturesFile(t, name+preExt, string(un))
 			}
-			ua, err := tr.Do(mode, code, ast)
+			ua, err := tr.Do(ctx, mode, code, ast)
 			require.NoError(t, err)
 
 			if len(blacklist) != 0 {
@@ -358,7 +360,7 @@ func (s *Suite) benchmarkTransform(b *testing.B, legacy bool) {
 	for i := 0; i < b.N; i++ {
 		ast := rast.Clone()
 
-		ua, err := tr.Do(driver.ModeSemantic, code, ast)
+		ua, err := tr.Do(ctx, driver.ModeSemantic, code, ast)
 		if err != nil {
 			b.Fatal(err)
 		}

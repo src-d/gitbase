@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/opentracing/opentracing-go"
+
 	"gopkg.in/bblfsh/sdk.v2/driver/manifest"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 )
@@ -43,7 +45,10 @@ func (d *driverImpl) Close() error {
 // Parse process a protocol.ParseRequest, calling to the native driver. It a
 // parser request is done to the internal native driver and the the returned
 // native AST is transform to UAST.
-func (d *driverImpl) Parse(ctx context.Context, src string, opts *ParseOptions) (nodes.Node, error) {
+func (d *driverImpl) Parse(rctx context.Context, src string, opts *ParseOptions) (nodes.Node, error) {
+	sp, ctx := opentracing.StartSpanFromContext(rctx, "bblfsh.driver.Parse")
+	defer sp.Finish()
+
 	if opts == nil {
 		opts = &ParseOptions{}
 	}
@@ -60,7 +65,8 @@ func (d *driverImpl) Parse(ctx context.Context, src string, opts *ParseOptions) 
 	if opts.Language == "" {
 		opts.Language = d.m.Language
 	}
-	ast, err = d.t.Do(opts.Mode, src, ast)
+
+	ast, err = d.t.Do(ctx, opts.Mode, src, ast)
 	if err != nil {
 		err = ErrTransformFailure.Wrap(err)
 	}
