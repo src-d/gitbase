@@ -395,7 +395,7 @@ func buildSquashedTable(
 				var refIt gitbase.RefsIter
 
 				if index == nil {
-					f, err = transferFilters(
+					f, filters, err = transferFilters(
 						filters,
 						gitbase.RefCommitsTableName,
 						gitbase.ReferencesTableName,
@@ -1623,9 +1623,14 @@ func transferFilters(
 	from, to string,
 	schema sql.Schema,
 	columns ...string,
-) (sql.Expression, error) {
-	f, _ := filtersForColumns(filters, from, columns...)
-	return fixFieldTable(expression.JoinAnd(f...), to, schema)
+) (sql.Expression, []sql.Expression, error) {
+	f, r := filtersForColumns(filters, from, columns...)
+	fixed, err := fixFieldTable(expression.JoinAnd(f...), to, schema)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return fixed, r, err
 }
 
 func fixFieldTable(
