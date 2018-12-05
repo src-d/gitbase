@@ -40,8 +40,14 @@ var _ Squashable = (*commitsTable)(nil)
 func (commitsTable) isSquashable()   {}
 func (commitsTable) isGitbaseTable() {}
 
-func (commitsTable) String() string {
-	return printTable(CommitsTableName, CommitsSchema)
+func (r commitsTable) String() string {
+	return printTable(
+		CommitsTableName,
+		CommitsSchema,
+		nil,
+		r.filters,
+		r.index,
+	)
 }
 
 func (commitsTable) Name() string {

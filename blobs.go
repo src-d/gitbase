@@ -50,8 +50,14 @@ var _ Squashable = (*blobsTable)(nil)
 func (blobsTable) isSquashable()   {}
 func (blobsTable) isGitbaseTable() {}
 
-func (blobsTable) String() string {
-	return printTable(BlobsTableName, BlobsSchema)
+func (r blobsTable) String() string {
+	return printTable(
+		BlobsTableName,
+		BlobsSchema,
+		r.projection,
+		r.filters,
+		r.index,
+	)
 }
 
 func (blobsTable) Name() string {

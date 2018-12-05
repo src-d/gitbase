@@ -34,8 +34,14 @@ var _ Squashable = (*commitTreesTable)(nil)
 func (commitTreesTable) isSquashable()   {}
 func (commitTreesTable) isGitbaseTable() {}
 
-func (commitTreesTable) String() string {
-	return printTable(CommitTreesTableName, CommitTreesSchema)
+func (t commitTreesTable) String() string {
+	return printTable(
+		CommitTreesTableName,
+		CommitTreesSchema,
+		nil,
+		t.filters,
+		t.index,
+	)
 }
 
 func (commitTreesTable) Name() string { return CommitTreesTableName }
