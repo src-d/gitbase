@@ -122,7 +122,13 @@ func (treeEntriesTable) handledColumns() []string {
 }
 
 func (r treeEntriesTable) String() string {
-	return printTable(TreeEntriesTableName, TreeEntriesSchema)
+	return printTable(
+		TreeEntriesTableName,
+		TreeEntriesSchema,
+		nil,
+		r.filters,
+		r.index,
+	)
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.

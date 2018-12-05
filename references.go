@@ -36,7 +36,13 @@ func (referencesTable) isSquashable()   {}
 func (referencesTable) isGitbaseTable() {}
 
 func (r referencesTable) String() string {
-	return printTable(ReferencesTableName, RefsSchema)
+	return printTable(
+		ReferencesTableName,
+		RefsSchema,
+		nil,
+		r.filters,
+		r.index,
+	)
 }
 
 func (referencesTable) Name() string {
