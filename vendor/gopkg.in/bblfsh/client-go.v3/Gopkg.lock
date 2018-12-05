@@ -44,6 +44,12 @@
   version = "v1.1.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/grpc-ecosystem/grpc-opentracing"
+  packages = ["go/otgrpc"]
+  revision = "8e809c8a86450a29b90dcc9efbf062d0fe6d9746"
+
+[[projects]]
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
   revision = "c6ca198ec95c841fdb89fc0de7496fed11ab854e"
@@ -54,6 +60,16 @@
   name = "github.com/mcuadros/go-lookup"
   packages = ["."]
   revision = "5650f26be7675b629fff8356a50d906fa03e9c8b"
+
+[[projects]]
+  name = "github.com/opentracing/opentracing-go"
+  packages = [
+    ".",
+    "ext",
+    "log"
+  ]
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -183,8 +199,8 @@
     "uast/transformer",
     "uast/yaml"
   ]
-  revision = "8c2793564a37d9cf6fe70555d4010504430ab01e"
-  version = "v2.4.0"
+  revision = "910019c320386fa99a2e283d80c5c1769717d545"
+  version = "v2.9.0"
 
 [[projects]]
   name = "gopkg.in/src-d/go-errors.v1"
@@ -201,6 +217,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "cb3d0ccabcedb82c5862e6c473b3d555d2b72c11a0599f80c965941bd3c8c637"
+  inputs-digest = "ac25c758fff26b9500281f793438b3c26d9a0e2a200926d84304da64f4695efb"
   solver-name = "gps-cdcl"
   solver-version = 1

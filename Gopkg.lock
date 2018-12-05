@@ -101,6 +101,14 @@
   version = "v1.2.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:0c93b4970c254d3f8f76c3e8eb72571d6f24a15415f9c418ecb0801ba5765a90"
+  name = "github.com/grpc-ecosystem/grpc-opentracing"
+  packages = ["go/otgrpc"]
+  pruneopts = ""
+  revision = "8e809c8a86450a29b90dcc9efbf062d0fe6d9746"
+
+[[projects]]
   digest = "1:3313a63031ae281e5f6fd7b0bbca733dfa04d2429df86519e3b4d4c016ccb836"
   name = "github.com/hashicorp/golang-lru"
   packages = [
@@ -485,15 +493,15 @@
   version = "v1.15.0"
 
 [[projects]]
-  digest = "1:f2732ac0e1c6a432498f34046ed7ac8e8dc42134245e46ffafb635a0498be93e"
+  digest = "1:22b720fa4cc6526a1b80bc7e367ded4d069810ff4d599be0ea894cd4ab311e89"
   name = "gopkg.in/bblfsh/client-go.v3"
   packages = [
     ".",
     "tools",
   ]
   pruneopts = ""
-  revision = "675e9da023b6645dcfd9dd39393d1e20541052df"
-  version = "v3.1.0"
+  revision = "f1bb4239c6001f5f0b1f370b7d4a64866464c07b"
+  version = "v3.2.0"
 
 [[projects]]
   digest = "1:e4d06d096b60a4ada8cad171c97127038aff58ddff86285781becae862c409e6"
@@ -508,7 +516,7 @@
   version = "v1.16.1"
 
 [[projects]]
-  digest = "1:07ed9ffc87294fa5937c45a8daef2e8309df0f9e931fc351e50291e97eaa3fb0"
+  digest = "1:71ea0b4f4566c0753c5ffa05991f88beee2faf252eb7ec80e31bb6a7aaad0119"
   name = "gopkg.in/bblfsh/sdk.v2"
   packages = [
     "driver",
@@ -525,8 +533,8 @@
     "uast/transformer",
   ]
   pruneopts = ""
-  revision = "d932d3391d5e12c1d6af03e39e0e75f0d2d44107"
-  version = "v2.7.0"
+  revision = "0227f2a8739441f216971d20c1d096cf65c7da4f"
+  version = "v2.11.0"
 
 [[projects]]
   branch = "v1"
@@ -639,7 +647,7 @@
   version = "v4.8.1"
 
 [[projects]]
-  digest = "1:52a64139518318d0efb9a21ad423f01df7f7fe3396dfecfd26742db520942d16"
+  digest = "1:92d738a6722085113925d4cb9b89f386902dac149992ea8c6f2daf201de182b3"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -658,7 +666,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "1cffdc13f73985326120abbf1800cc4859ce2a4f"
+  revision = "12091f663c6224024dd4b3c10d2a8c1349f046d4"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"

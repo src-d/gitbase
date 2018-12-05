@@ -94,17 +94,15 @@ and keeping that structure up to date.
 
 ### Creating the driver's initial structure
 
-Let's say we're creating a driver for `mylang`. The first step is initializing a git
-repository for the driver:
+Let's say we're creating a driver for `mylang`. The first step is going to the location
+where we want the repository for the driver to be bootstrapped:
 
 ```bash
 $ cd $GOPATH/src/github.com/bblfsh
-$ git init mylang-driver
-$ cd mylang-driver
 ```
 
-Now the driver should be bootstrapped with `bblfsh-sdk`. This will create some
-directories and files required by every driver. They will be overwritten if they
+Now the driver should be bootstrapped with `bblfsh-sdk`. This will create a git repository,
+and some directories and files required by every driver. They will be overwritten if they
 exist, like the README.md file in the example below.
 
 ```bash

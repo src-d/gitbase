@@ -17,6 +17,12 @@ var (
 	// in Lookup or If, for example, before another transformation step that sets this variable is executed.
 	// If this is the case, see Fields vs Obj comparison in regards to execution order.
 	ErrVariableNotDefined = errors.NewKind("variable %q is not defined")
+	// ErrVariableUnused is returned when a first half of transformation defines a variable and the second part
+	// never uses it in any operations.
+	//
+	// If you receive this error and still think that every variable is used - double check conditional branches
+	// like Opt, If, Case, etc.
+	ErrVariableUnused = errors.NewKind("variables %q unused in the second part of the transform")
 	// ErrExpectedObject is returned when transformation expected an object in the tree or variable, but got other type.
 	ErrExpectedObject = errors.NewKind("expected object, got %T")
 	// ErrExpectedList is returned when transformation expected an array in the tree or variable, but got other type.
