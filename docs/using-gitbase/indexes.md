@@ -26,4 +26,4 @@ and for the second query also two indexes will be used and the result will be a 
 
 You can find some more examples in the [examples](./examples.md#create-an-index-for-columns-on-a-table) section.
 
-See [go-mysql-server](https://github.com/src-d/go-mysql-server/tree/12091f663c6224024dd4b3c10d2a8c1349f046d4#indexes) documentation for more details
+See [go-mysql-server](https://github.com/src-d/go-mysql-server/tree/b8d84bffc83447b4f8f283e07b4ef2b97c4b22e3#indexes) documentation for more details
