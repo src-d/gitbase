@@ -44,7 +44,7 @@ jobs:
 
 
       # specify any bash command here prefixed with `run: `
-      - run : pwd
+      - run: pwd
       - run: ls
       - run: go version
       - run: GOPATH=/home/circleci/go make test-coverage codecov
