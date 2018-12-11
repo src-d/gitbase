@@ -392,6 +392,23 @@ func buildSquashedTable(
 				}
 			case nil:
 				var f sql.Expression
+				var refIt gitbase.RefsIter
+
+				if index == nil {
+					f, filters, err = transferFilters(
+						filters,
+						gitbase.RefCommitsTableName,
+						gitbase.ReferencesTableName,
+						gitbase.RefsSchema,
+						"ref_name", "repository_id",
+					)
+					if err != nil {
+						return nil, err
+					}
+
+					refIt = gitbase.NewAllRefsIter(f, true)
+				}
+
 				f, filters, err = filtersForTable(
 					gitbase.RefCommitsTableName,
 					filters,
@@ -404,7 +421,7 @@ func buildSquashedTable(
 				if index != nil {
 					iter = gitbase.NewIndexRefCommitsIter(index, f)
 				} else {
-					iter = gitbase.NewAllRefCommitsIter(f)
+					iter = gitbase.NewRefRefCommitsIter(refIt, f)
 				}
 			default:
 				addUnsquashable(gitbase.RefCommitsTableName)
@@ -1141,6 +1158,35 @@ func filtersForTables(
 	return
 }
 
+func filtersForColumns(
+	filters []sql.Expression,
+	table string,
+	columns ...string,
+) (columnFilters []sql.Expression, remaining []sql.Expression) {
+	var fTable []sql.Expression
+	fTable, remaining = filtersForTables(filters, table)
+
+	for _, f := range fTable {
+		valid := true
+		expression.Inspect(f, func(e sql.Expression) bool {
+			gf, ok := e.(*expression.GetField)
+			if ok && !stringInSlice(columns, gf.Name()) {
+				valid = false
+				return false
+			}
+
+			return true
+		})
+
+		if valid {
+			columnFilters = append(columnFilters, f)
+		} else {
+			remaining = append(remaining, f)
+		}
+	}
+
+	return
+}
 func stringInSlice(strs []string, str string) bool {
 	for _, s := range strs {
 		if s == str {
@@ -1562,6 +1608,51 @@ func fixFieldIndexes(e sql.Expression, schema sql.Schema) (sql.Expression, error
 					idx,
 					gf.Type(),
 					gf.Table(),
+					gf.Name(),
+					gf.IsNullable(),
+				), nil
+			}
+		}
+
+		return nil, analyzer.ErrColumnTableNotFound.New(gf.Table(), gf.Name())
+	})
+}
+
+func transferFilters(
+	filters []sql.Expression,
+	from, to string,
+	schema sql.Schema,
+	columns ...string,
+) (sql.Expression, []sql.Expression, error) {
+	f, r := filtersForColumns(filters, from, columns...)
+	fixed, err := fixFieldTable(expression.JoinAnd(f...), to, schema)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return fixed, r, err
+}
+
+func fixFieldTable(
+	e sql.Expression,
+	table string,
+	schema sql.Schema,
+) (sql.Expression, error) {
+	if e == nil {
+		return nil, nil
+	}
+	return e.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+		gf, ok := e.(*expression.GetField)
+		if !ok {
+			return e, nil
+		}
+
+		for idx, col := range schema {
+			if gf.Name() == col.Name {
+				return expression.NewGetFieldWithTable(
+					idx,
+					gf.Type(),
+					table,
 					gf.Name(),
 					gf.IsNullable(),
 				), nil

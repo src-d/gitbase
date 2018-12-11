@@ -36,7 +36,13 @@ func (repositoriesTable) Schema() sql.Schema {
 }
 
 func (r repositoriesTable) String() string {
-	return printTable(RepositoriesTableName, RepositoriesSchema)
+	return printTable(
+		RepositoriesTableName,
+		RepositoriesSchema,
+		nil,
+		r.filters,
+		r.index,
+	)
 }
 
 func (repositoriesTable) HandledFilters(filters []sql.Expression) []sql.Expression {

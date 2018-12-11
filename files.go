@@ -149,8 +149,14 @@ func (filesTable) handledColumns() []string {
 	return []string{"repository_id", "tree_hash", "blob_hash", "file_path"}
 }
 
-func (filesTable) String() string {
-	return printTable(FilesTableName, FilesSchema)
+func (r filesTable) String() string {
+	return printTable(
+		FilesTableName,
+		FilesSchema,
+		r.projection,
+		r.filters,
+		r.index,
+	)
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.

@@ -44,7 +44,13 @@ func (remotesTable) Schema() sql.Schema {
 }
 
 func (r remotesTable) String() string {
-	return printTable(RemotesTableName, RemotesSchema)
+	return printTable(
+		RemotesTableName,
+		RemotesSchema,
+		nil,
+		r.filters,
+		r.index,
+	)
 }
 
 func (r *remotesTable) WithFilters(filters []sql.Expression) sql.Table {

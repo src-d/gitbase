@@ -15,8 +15,8 @@ const expectedString = `Table(foo)
 func TestTableString(t *testing.T) {
 	require := require.New(t)
 	schema := sql.Schema{
-		{"col1", sql.Text, nil, true, ""},
-		{"col2", sql.Int64, nil, false, ""},
+		{Name: "col1", Type: sql.Text, Nullable: true},
+		{Name: "col2", Type: sql.Int64},
 	}
-	require.Equal(expectedString, printTable("foo", schema))
+	require.Equal(expectedString, printTable("foo", schema, nil, nil, nil))
 }

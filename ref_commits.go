@@ -37,8 +37,14 @@ var _ Squashable = (*refCommitsTable)(nil)
 func (refCommitsTable) isSquashable()   {}
 func (refCommitsTable) isGitbaseTable() {}
 
-func (refCommitsTable) String() string {
-	return printTable(RefCommitsTableName, RefCommitsSchema)
+func (t refCommitsTable) String() string {
+	return printTable(
+		RefCommitsTableName,
+		RefCommitsSchema,
+		nil,
+		t.filters,
+		t.index,
+	)
 }
 
 func (refCommitsTable) Name() string { return RefCommitsTableName }
