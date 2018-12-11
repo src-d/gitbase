@@ -1,0 +1,67 @@
+# Golang CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-go/ for more details
+version: 2
+jobs:
+  build:
+    machine: true
+    # docker:
+    #   # specify the version
+    #   - image: circleci/golang:1.11
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/postgres:9.4
+
+    #### TEMPLATE_NOTE: go expects specific checkout path representing url
+    #### expecting it in the form of
+    ####   /go/src/github.com/circleci/go-tool
+    ####   /go/src/bitbucket.org/circleci/go-tool
+    working_directory: /home/circleci/go/src/github.com/src-d/gitbase
+    steps:
+      #- setup_remote_docker
+      - checkout
+      - run: &install
+          name: Install dependancies 
+          command: |
+            sudo apt-get update
+            sudo apt-get install build-essential software-properties-common -y
+            sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+            sudo apt-get update
+            sudo apt-get install -y gcc g++-6
+            wget https://dl.google.com/go/go1.11.linux-amd64.tar.gz
+            sudo tar -xf go1.11.linux-amd64.tar.gz
+            sudo rm -rf /usr/local/go
+            sudo mv go /usr/local
+            sudo cp /usr/local/go/bin/* /usr/bin/
+            sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
+            sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
+            docker run -d --name bblfshd --privileged -p 9432:9432 -v /var/lib/bblfshd:/var/lib/bblfshd bblfsh/bblfshd
+            docker exec -it bblfshd bblfshctl driver install python bblfsh/python-driver
+            docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
+            docker exec -it bblfshd bblfshctl driver install go bblfsh/go-driver
+
+
+      # specify any bash command here prefixed with `run: `
+      - run: pwd
+      - run: ls
+      - run: go version
+      - run: GOPATH=/home/circleci/go make test-coverage codecov
+  test-mac:
+    macos:
+      xcode: "9.3.0"
+    working_directory: ~/go/src/github.com/src-d/gitbase
+    steps:
+      - checkout
+      - run: brew update
+      - run: brew install go
+      - run: make packages || echo "" # will fail because of docker being missing
+      - run: if [ ! -f "build/gitbase_darwin_amd64/gitbase" ]; then echo "gitbase binary not generated" && exit 1; fi
+
+workflows:
+  version: 2
+  workflow:
+    jobs:
+    - build
+    - test-mac
