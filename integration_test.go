@@ -243,6 +243,25 @@ func TestIntegration(t *testing.T) {
 				{"go/example.go", int32(1)},
 			},
 		},
+		{
+			`
+			SELECT language, COUNT(repository_id) AS repository_count
+			FROM (
+				SELECT DISTINCT r.repository_id, LANGUAGE(t.tree_entry_name, b.blob_content) AS language
+        		FROM   refs r
+                JOIN commits c ON r.commit_hash = c.commit_hash
+                NATURAL JOIN commit_trees
+                NATURAL JOIN tree_entries t
+				NATURAL JOIN blobs b
+				WHERE language IS NOT NULL
+			) AS q1
+			GROUP  BY language
+			ORDER  BY repository_count DESC
+			`,
+			[]sql.Row{
+				{"Text", int32(1)},
+			},
+		},
 	}
 
 	runTests := func(t *testing.T) {
