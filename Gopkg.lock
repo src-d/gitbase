@@ -647,7 +647,7 @@
   version = "v4.8.1"
 
 [[projects]]
-  digest = "1:21e83df7f205d5f8b556bd2ca469d90ed9890a62ac12e36b5f3bbe8b2ae5393b"
+  digest = "1:9bd94c3cf630156507c27030c6bf1165c126017346bf88dc1ac4629f3f7a5ff0"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -666,7 +666,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "b8d84bffc83447b4f8f283e07b4ef2b97c4b22e3"
+  revision = "7beeb8dc126e3134a5acf805ee5e6df45014151d"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
