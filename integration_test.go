@@ -328,12 +328,14 @@ func TestUastQueries(t *testing.T) {
 
 	_ = testCases
 
+	var pid uint64
 	for _, c := range testCases {
+		pid++
 		t.Run(c.query, func(t *testing.T) {
 			require := require.New(t)
 
 			session := gitbase.NewSession(pool)
-			ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+			ctx := sql.NewContext(context.TODO(), sql.WithSession(session), sql.WithPid(pid))
 
 			_, iter, err := engine.Query(ctx, c.query)
 			require.NoError(err)
