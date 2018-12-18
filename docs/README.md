@@ -9,6 +9,7 @@
 * [Schema](using-gitbase/schema.md)
 * [Supported syntax](using-gitbase/supported-syntax.md)
 * [Supported clients](using-gitbase/supported-clients.md)
+* [Supported languages](using-gitbase/supported-languages.md)
 * [Functions](using-gitbase/functions.md)
 * [Indexes](using-gitbase/indexes.md)
 * [Examples](using-gitbase/examples.md)
