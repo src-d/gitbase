@@ -1,44 +1,44 @@
 ---
 -
-  ID: 'query0'
+  ID: 'query00'
   Name: 'All commits'
   Statements:
     - SELECT * FROM commits
 -
-  ID: 'query1'
+  ID: 'query01'
   Name: 'Last commit messages in HEAD for every repository'
   Statements:
     - SELECT c.commit_message FROM refs r JOIN commits c ON r.commit_hash = c.commit_hash WHERE r.ref_name = 'HEAD'
 -
-  ID: 'query2'
+  ID: 'query02'
   Name: 'All commit messages in HEAD history for every repository'
   Statements:
     - SELECT c.commit_message FROM commits c NATURAL JOIN ref_commits r WHERE r.ref_name = 'HEAD'
 -
-  ID: 'query3'
+  ID: 'query03'
   Name: 'Top 10 repositories by commit count in HEAD'
   Statements:
     - SELECT repository_id,commit_count FROM (SELECT r.repository_id,count(*) AS commit_count FROM ref_commits r WHERE r.ref_name = 'HEAD' GROUP BY r.repository_id) AS q ORDER BY commit_count DESC LIMIT 10
 -
-  ID: 'query4'
+  ID: 'query04'
   Name: 'Top 10 repositories by contributor count (all branches)'
   Statements:
     - SELECT repository_id,contributor_count FROM (SELECT repository_id, COUNT(DISTINCT commit_author_email) AS contributor_count FROM commits GROUP BY repository_id) AS q ORDER BY contributor_count DESC LIMIT 10
 -
-  ID: 'query6'
+  ID: 'query06'
   Name: 'Create pilosa index on language UDF'
   Statements:
     - CREATE INDEX language_idx ON files USING pilosa (language(file_path, blob_content)) WITH (async = false)
     - DROP INDEX language_idx ON files
 -
-  ID: 'query8'
+  ID: 'query08'
   Name: 'Query by language using the pilosa index'
   Statements:
     - CREATE INDEX language_idx ON files USING pilosa (language(file_path, blob_content)) WITH (async = false)
     - SELECT file_path FROM files WHERE language(file_path, blob_content) = 'Go'
     - DROP INDEX language_idx ON files
 -
-  ID: 'query9'
+  ID: 'query09'
   Name: 'Query all files from HEAD'
   Statements:
     - SELECT cf.file_path, f.blob_content FROM ref_commits r NATURAL JOIN commit_files cf NATURAL JOIN files f WHERE r.ref_name = 'HEAD' AND r.history_index = 0
