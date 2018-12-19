@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"testing"
@@ -18,6 +19,8 @@ var (
 	bin     = flag.String("gitbase-bin", "", "path to the gitbase binary to test")
 	repos   = flag.String("gitbase-repos", "", "path to the gitbase repos to test")
 	version = flag.String("gitbase-version", "", "(optional) version of the binary")
+
+	port int
 )
 
 func TestMain(m *testing.M) {
@@ -42,13 +45,19 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	port, err = findPort()
+	if err != nil {
+		fmt.Println("unable to find an available port: ", err)
+		os.Exit(1)
+	}
+
 	var done = make(chan error)
 	cmd := exec.Command(
 		path,
 		"server",
 		"--directories="+*repos,
 		"--host=127.0.0.1",
-		"--port=3308",
+		fmt.Sprintf("--port=%d", port),
 		"--index=indexes",
 	)
 
@@ -84,7 +93,7 @@ func TestMain(m *testing.M) {
 }
 
 func connect(t *testing.T) (*sql.DB, func()) {
-	db, err := sql.Open("mysql", "root:@tcp(127.0.0.1:3308)/gitbase")
+	db, err := sql.Open("mysql", fmt.Sprintf("root:@tcp(127.0.0.1:%d)/gitbase", port))
 	if err != nil {
 		t.Errorf("unexpected error connecting to gitbase: %s", err)
 	}
@@ -92,6 +101,23 @@ func connect(t *testing.T) (*sql.DB, func()) {
 	return db, func() {
 		require.NoError(t, db.Close())
 	}
+}
+
+func findPort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, err
+	}
+
+	port := l.Addr().(*net.TCPAddr).Port
+	_ = l.Close()
+
+	return port, nil
 }
 
 func TestVersion(t *testing.T) {
