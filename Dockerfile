@@ -1,14 +1,16 @@
 #================================
 # Stage 1: Build Gitbase
 #================================
-FROM golang:1.11-alpine as gitbase-build
+FROM golang:1.11-alpine as builder
 
 ENV GITBASE_REPO=github.com/src-d/gitbase
 ENV GITBASE_PATH=$GOPATH/src/$GITBASE_REPO
 
+RUN apk add --no-cache git
+
 COPY . $GITBASE_PATH
 WORKDIR $GITBASE_PATH
-RUN go build -ldflags="-s -w" -o /bin/gitbase ./cmd/gitbase
+RUN go build -ldflags="-X main.version=$(cat version.txt || echo "undefined") -X main.build=$(date +"%m-%d-%Y_%H_%M_%S") -X main.commit=$(git rev-parse --short HEAD) -s -w" -o /bin/gitbase ./cmd/gitbase
 
 #=================================
 # Stage 2: Start Gitbase Server
@@ -28,7 +30,7 @@ RUN chmod +x /tini
 ENTRYPOINT ["/tini", "--"]
 
 # copy build artifacts
-COPY --from=gitbase-build /bin/gitbase /bin/gitbase
+COPY --from=builder /bin/gitbase /bin/gitbase
 
 CMD /bin/gitbase server -v \
     --host=0.0.0.0 \

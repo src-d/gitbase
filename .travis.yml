@@ -35,6 +35,7 @@ jobs:
 
       before_deploy:
         - make packages
+        - echo "${TRAVIS_TAG}" > version.txt
         - make docker-push-latest-release
 
       deploy:
