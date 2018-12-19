@@ -21,9 +21,11 @@ before_script:
   - docker exec -it bblfshd bblfshctl driver install python bblfsh/python-driver
   - docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
   - docker exec -it bblfshd bblfshctl driver install go bblfsh/go-driver
+  - go get -v github.com/go-sql-driver/mysql/...
 
 script:
   - make test-coverage codecov
+  - make ci-e2e
 
 jobs:
   include:

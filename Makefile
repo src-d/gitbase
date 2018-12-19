@@ -41,3 +41,9 @@ static-build: LD_FLAGS += -linkmode external -extldflags '-static -lz'
 static-build: GO_BUILD_ARGS += -tags oniguruma
 static-build:
 	go install -v $(GO_BUILD_ARGS) github.com/src-d/gitbase/...
+
+ci-e2e: packages
+	go test ./e2e -gitbase-version="$(TRAVIS_TAG)" \
+	-must-run \
+	-gitbase-bin="$(TRAVIS_BUILD_DIR)/build/gitbase_linux_amd64/gitbase" \
+	-gitbase-repos="$(TRAVIS_BUILD_DIR)/.." -v
