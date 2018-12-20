@@ -26,37 +26,31 @@
     - SELECT repository_id,contributor_count FROM (SELECT repository_id, COUNT(DISTINCT commit_author_email) AS contributor_count FROM commits GROUP BY repository_id) AS q ORDER BY contributor_count DESC LIMIT 10
 -
   ID: 'query05'
-  Name: 'Create pilosa index on language UDF'
-  Statements:
-    - CREATE INDEX language_idx ON files USING pilosa (language(file_path, blob_content)) WITH (async = false)
-    - DROP INDEX language_idx ON files
--
-  ID: 'query06'
   Name: 'Query all files from HEAD'
   Statements:
     - SELECT cf.file_path, f.blob_content FROM ref_commits r NATURAL JOIN commit_files cf NATURAL JOIN files f WHERE r.ref_name = 'HEAD' AND r.history_index = 0
 -
-  ID: 'query07'
+  ID: 'query06'
   Name: '10 top repos by file count in HEAD'
   Statements:
     - SELECT repository_id, num_files FROM (SELECT COUNT(f.*) num_files, f.repository_id FROM ref_commits r INNER JOIN commit_files cf ON r.commit_hash = cf.commit_hash AND r.repository_id = cf.repository_id INNER JOIN files f ON cf.repository_id = f.repository_id AND cf.blob_hash = f.blob_hash AND cf.tree_hash = f.tree_hash AND cf.file_path = f.file_path WHERE r.ref_name = 'HEAD' GROUP BY f.repository_id) t ORDER BY num_files DESC LIMIT 10
 -
-  ID: 'query08'
+  ID: 'query07'
   Name: 'Top committers per repository'
   Statements:
     - SELECT * FROM (SELECT commit_author_email as author, repository_id as id, count(*) as num_commits FROM commits GROUP BY commit_author_email, repository_id) AS t ORDER BY num_commits DESC
 -
-  ID: 'query09'
+  ID: 'query08'
   Name: 'Top committers in all repositories'
   Statements:
     - SELECT * FROM (SELECT commit_author_email as author,count(*) as num_commits FROM commits GROUP BY commit_author_email) t ORDER BY num_commits DESC
 -
-  ID: 'query10'
+  ID: 'query09'
   Name: 'Count all commits with NOT operation'
   Statements:
   - SELECT COUNT(*) FROM commits WHERE NOT(commit_author_email = 'non existing email address');
 -
-  ID: 'query11'
+  ID: 'query10'
   Name: 'Count all commits with NOT operation and pilosa index'
   Statements:
   - CREATE INDEX email_idx ON commits USING pilosa (commit_author_email) WITH (async = false)
