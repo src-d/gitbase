@@ -190,4 +190,4 @@ Diagram generated with MySQL Workbench. Edit the model in docs/assets/gitbase_mo
 
  -->
 
-![gitbase schema](/docs/assets/gitbase-db-diagram.png)
+![gitbase schema](/docs/assets/gitbase-schema.png)
