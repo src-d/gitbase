@@ -70,8 +70,6 @@ func main() {
 		if err != nil {
 			log.Println(err)
 			w.Reset(&git.ResetOptions{Mode: git.MixedReset})
-		} else {
-			// let commit manually
 		}
 	}()
 

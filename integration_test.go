@@ -21,7 +21,6 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/auth"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	sqlfunction "gopkg.in/src-d/go-mysql-server.v0/sql/expression/function"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 )
@@ -749,17 +748,6 @@ func TestIndexes(t *testing.T) {
 			require.ElementsMatch(expected, squashRows)
 		})
 	}
-}
-
-func col(t testing.TB, schema sql.Schema, name string) sql.Expression {
-	for i, col := range schema {
-		if col.Name == name {
-			return expression.NewGetFieldWithTable(i, col.Type, col.Source, col.Name, col.Nullable)
-		}
-	}
-
-	t.Fatalf("unknown column %s in schema", name)
-	return nil
 }
 
 type indexData struct {
