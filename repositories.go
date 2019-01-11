@@ -7,6 +7,7 @@ import (
 )
 
 type repositoriesTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -17,8 +18,8 @@ var RepositoriesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: RepositoriesTableName},
 }
 
-func newRepositoriesTable() *repositoriesTable {
-	return new(repositoriesTable)
+func newRepositoriesTable(pool *RepositoryPool) *repositoriesTable {
+	return &repositoriesTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*repositoriesTable)(nil)
@@ -102,13 +103,13 @@ func (r *repositoriesTable) IndexLookup() sql.IndexLookup { return r.index }
 func (r *repositoriesTable) Filters() []sql.Expression    { return r.filters }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*repositoriesTable) IndexKeyValues(
+func (r *repositoriesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newTablePartitionIndexKeyValueIter(
 		ctx,
-		newRepositoriesTable(),
+		newRepositoriesTable(r.pool),
 		RepositoriesTableName,
 		colNames,
 		new(repoRowKeyMapper),

@@ -13,6 +13,7 @@ import (
 )
 
 type referencesTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -25,8 +26,8 @@ var RefsSchema = sql.Schema{
 	{Name: "commit_hash", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
 }
 
-func newReferencesTable() *referencesTable {
-	return new(referencesTable)
+func newReferencesTable(pool *RepositoryPool) *referencesTable {
+	return &referencesTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*referencesTable)(nil)
@@ -129,13 +130,13 @@ func (referencesTable) HandledFilters(filters []sql.Expression) []sql.Expression
 func (referencesTable) handledColumns() []string { return []string{"commit_hash", "ref_name"} }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*referencesTable) IndexKeyValues(
+func (r *referencesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newTablePartitionIndexKeyValueIter(
 		ctx,
-		newReferencesTable(),
+		newReferencesTable(r.pool),
 		ReferencesTableName,
 		colNames,
 		new(refRowKeyMapper),

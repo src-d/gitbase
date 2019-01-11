@@ -253,3 +253,12 @@ func testTableIterClosed(t *testing.T, table sql.IndexableTable) {
 
 	require.True(closed.Check())
 }
+
+func poolFromCtx(t *testing.T, ctx *sql.Context) *RepositoryPool {
+	t.Helper()
+
+	session, err := getSession(ctx)
+	require.NoError(t, err)
+
+	return session.Pool
+}

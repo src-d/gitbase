@@ -12,6 +12,7 @@ import (
 )
 
 type commitTreesTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -24,8 +25,8 @@ var CommitTreesSchema = sql.Schema{
 	{Name: "tree_hash", Type: sql.Text, Source: CommitTreesTableName},
 }
 
-func newCommitTreesTable() Indexable {
-	return new(commitTreesTable)
+func newCommitTreesTable(pool *RepositoryPool) Indexable {
+	return &commitTreesTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*commitTreesTable)(nil)
@@ -110,13 +111,13 @@ func (t *commitTreesTable) PartitionRows(
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*commitTreesTable) IndexKeyValues(
+func (t *commitTreesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newTablePartitionIndexKeyValueIter(
 		ctx,
-		newCommitTreesTable(),
+		newCommitTreesTable(t.pool),
 		CommitTreesTableName,
 		colNames,
 		new(commitTreesRowKeyMapper),

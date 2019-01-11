@@ -27,7 +27,7 @@ func TestRepositoriesTable(t *testing.T) {
 	session := NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
-	db := NewDatabase(RepositoriesTableName)
+	db := NewDatabase(RepositoriesTableName, poolFromCtx(t, ctx))
 	require.NotNil(db)
 
 	tables := db.Tables()
@@ -58,7 +58,7 @@ func TestRepositoriesPushdown(t *testing.T) {
 	ctx, path, cleanup := setup(t)
 	defer cleanup()
 
-	table := newRepositoriesTable()
+	table := newRepositoriesTable(poolFromCtx(t, ctx))
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)

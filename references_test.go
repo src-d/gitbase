@@ -14,7 +14,7 @@ func TestReferencesTable(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newReferencesTable()
+	table := newReferencesTable(poolFromCtx(t, ctx))
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
@@ -37,7 +37,7 @@ func TestReferencesPushdown(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newReferencesTable()
+	table := newReferencesTable(poolFromCtx(t, ctx))
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
@@ -83,10 +83,11 @@ func TestReferencesIndexKeyValueIter(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	iter, err := newReferencesTable().IndexKeyValues(ctx, []string{"ref_name"})
+	iter, err := newReferencesTable(poolFromCtx(t, ctx)).
+		IndexKeyValues(ctx, []string{"ref_name"})
 	require.NoError(err)
 
-	rows, err := tableToRows(ctx, newReferencesTable())
+	rows, err := tableToRows(ctx, newReferencesTable(poolFromCtx(t, ctx)))
 	require.NoError(err)
 
 	var expected []keyValue

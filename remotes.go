@@ -10,6 +10,7 @@ import (
 )
 
 type remotesTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -25,8 +26,8 @@ var RemotesSchema = sql.Schema{
 	{Name: "remote_fetch_refspec", Type: sql.Text, Nullable: false, Source: RemotesTableName},
 }
 
-func newRemotesTable() *remotesTable {
-	return new(remotesTable)
+func newRemotesTable(pool *RepositoryPool) *remotesTable {
+	return &remotesTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*remotesTable)(nil)
@@ -123,13 +124,13 @@ func (remotesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
 func (remotesTable) handledColumns() []string { return nil }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*remotesTable) IndexKeyValues(
+func (r *remotesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newPartitionedIndexKeyValueIter(
 		ctx,
-		newRemotesTable(),
+		newRemotesTable(r.pool),
 		colNames,
 		newRemotesKeyValueIter,
 	)

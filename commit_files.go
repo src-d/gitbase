@@ -14,6 +14,7 @@ import (
 )
 
 type commitFilesTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -28,8 +29,8 @@ var CommitFilesSchema = sql.Schema{
 	{Name: "tree_hash", Type: sql.Text, Source: CommitFilesTableName},
 }
 
-func newCommitFilesTable() Indexable {
-	return new(commitFilesTable)
+func newCommitFilesTable(pool *RepositoryPool) Indexable {
+	return &commitFilesTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*commitFilesTable)(nil)
@@ -127,13 +128,13 @@ func (commitFilesTable) handledColumns() []string {
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*commitFilesTable) IndexKeyValues(
+func (t *commitFilesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newPartitionedIndexKeyValueIter(
 		ctx,
-		newCommitFilesTable(),
+		newCommitFilesTable(t.pool),
 		colNames,
 		newCommitFilesKeyValueIter,
 	)

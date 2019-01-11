@@ -10,6 +10,7 @@ import (
 )
 
 type commitsTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -30,8 +31,8 @@ var CommitsSchema = sql.Schema{
 	{Name: "commit_parents", Type: sql.Array(sql.Text), Nullable: false, Source: CommitsTableName},
 }
 
-func newCommitsTable() *commitsTable {
-	return new(commitsTable)
+func newCommitsTable(pool *RepositoryPool) *commitsTable {
+	return &commitsTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*commitsTable)(nil)
@@ -136,13 +137,13 @@ func (commitsTable) handledColumns() []string {
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*commitsTable) IndexKeyValues(
+func (r *commitsTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newPartitionedIndexKeyValueIter(
 		ctx,
-		newCommitsTable(),
+		newCommitsTable(r.pool),
 		colNames,
 		newCommitsKeyValueIter,
 	)

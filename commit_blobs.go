@@ -10,6 +10,7 @@ import (
 )
 
 type commitBlobsTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -24,8 +25,8 @@ var CommitBlobsSchema = sql.Schema{
 
 var _ Table = (*commitBlobsTable)(nil)
 
-func newCommitBlobsTable() Indexable {
-	return new(commitBlobsTable)
+func newCommitBlobsTable(pool *RepositoryPool) Indexable {
+	return &commitBlobsTable{checksumable: checksumable{pool}}
 }
 
 var _ Squashable = (*blobsTable)(nil)
@@ -120,13 +121,13 @@ func (commitBlobsTable) HandledFilters(filters []sql.Expression) []sql.Expressio
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*commitBlobsTable) IndexKeyValues(
+func (t *commitBlobsTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newTablePartitionIndexKeyValueIter(
 		ctx,
-		newCommitBlobsTable(),
+		newCommitBlobsTable(t.pool),
 		CommitBlobsTableName,
 		colNames,
 		new(commitBlobsRowKeyMapper),

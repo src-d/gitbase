@@ -107,7 +107,7 @@ func testTable(t *testing.T, tableName string, number int) {
 	ctx, cleanup := setupErrorRepos(t)
 	defer cleanup()
 
-	table := getTable(require, tableName)
+	table := getTable(t, tableName, ctx)
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 

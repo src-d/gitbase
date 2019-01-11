@@ -14,7 +14,7 @@ func TestTreeEntriesTable(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newTreeEntriesTable()
+	table := newTreeEntriesTable(poolFromCtx(t, ctx))
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
@@ -32,7 +32,7 @@ func TestTreeEntriesPushdown(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newTreeEntriesTable()
+	table := newTreeEntriesTable(poolFromCtx(t, ctx))
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)

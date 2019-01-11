@@ -16,7 +16,7 @@ func TestRemotesTable(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newRemotesTable()
+	table := newRemotesTable(poolFromCtx(t, ctx))
 
 	session := ctx.Session.(*Session)
 	pool := session.Pool
@@ -70,7 +70,7 @@ func TestRemotesPushdown(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newRemotesTable()
+	table := newRemotesTable(poolFromCtx(t, ctx))
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)

@@ -135,7 +135,7 @@ func TestAllRefsIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	table := newReferencesTable()
+	table := newReferencesTable(poolFromCtx(t, ctx))
 	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
@@ -317,7 +317,10 @@ func TestAllCommitsIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	expected, err := tableToRows(ctx, newCommitsTable())
+	expected, err := tableToRows(
+		ctx,
+		newCommitsTable(poolFromCtx(t, ctx)),
+	)
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -404,7 +407,7 @@ func TestRefHEADCommitsIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	table := newReferencesTable()
+	table := newReferencesTable(poolFromCtx(t, ctx))
 	expected, err := tableToRows(ctx, table)
 	require.NoError(err)
 
@@ -461,7 +464,7 @@ func TestAllTreeEntriesIter(t *testing.T) {
 
 	expectedRowsLen := len(rows)
 
-	expected, err := tableToRows(ctx, newTreeEntriesTable())
+	expected, err := tableToRows(ctx, newTreeEntriesTable(poolFromCtx(t, ctx)))
 	require.NoError(err)
 
 	require.ElementsMatch(expected, rows)
@@ -653,7 +656,10 @@ func TestRepoBlobsIter(t *testing.T) {
 		),
 	)
 
-	expected, err := tableToRows(ctx, newBlobsTable())
+	expected, err := tableToRows(
+		ctx,
+		newBlobsTable(poolFromCtx(t, ctx)),
+	)
 	require.NoError(err)
 
 	for i := range rows {

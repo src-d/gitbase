@@ -47,20 +47,20 @@ type Database struct {
 
 // NewDatabase creates a new Database structure and initializes its
 // tables with the given pool
-func NewDatabase(name string) sql.Database {
+func NewDatabase(name string, pool *RepositoryPool) sql.Database {
 	return &Database{
 		name:         name,
-		commits:      newCommitsTable(),
-		references:   newReferencesTable(),
-		blobs:        newBlobsTable(),
-		treeEntries:  newTreeEntriesTable(),
-		repositories: newRepositoriesTable(),
-		remotes:      newRemotesTable(),
-		refCommits:   newRefCommitsTable(),
-		commitTrees:  newCommitTreesTable(),
-		commitBlobs:  newCommitBlobsTable(),
-		commitFiles:  newCommitFilesTable(),
-		files:        newFilesTable(),
+		commits:      newCommitsTable(pool),
+		references:   newReferencesTable(pool),
+		blobs:        newBlobsTable(pool),
+		treeEntries:  newTreeEntriesTable(pool),
+		repositories: newRepositoriesTable(pool),
+		remotes:      newRemotesTable(pool),
+		refCommits:   newRefCommitsTable(pool),
+		commitTrees:  newCommitTreesTable(pool),
+		commitBlobs:  newCommitBlobsTable(pool),
+		commitFiles:  newCommitFilesTable(pool),
+		files:        newFilesTable(pool),
 	}
 }
 

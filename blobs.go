@@ -26,6 +26,7 @@ var (
 )
 
 type blobsTable struct {
+	checksumable
 	partitioned
 	filters    []sql.Expression
 	projection []string
@@ -40,8 +41,8 @@ var BlobsSchema = sql.Schema{
 	{Name: "blob_content", Type: sql.Blob, Nullable: false, Source: BlobsTableName},
 }
 
-func newBlobsTable() *blobsTable {
-	return new(blobsTable)
+func newBlobsTable(pool *RepositoryPool) *blobsTable {
+	return &blobsTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*blobsTable)(nil)
@@ -155,13 +156,13 @@ func (*blobsTable) handledColumns() []string {
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*blobsTable) IndexKeyValues(
+func (r *blobsTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newPartitionedIndexKeyValueIter(
 		ctx,
-		newBlobsTable(),
+		newBlobsTable(r.pool),
 		colNames,
 		newBlobsKeyValueIter,
 	)

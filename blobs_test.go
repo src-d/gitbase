@@ -13,7 +13,7 @@ func TestBlobsTable(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := getTable(require, BlobsTableName)
+	table := getTable(t, BlobsTableName, ctx)
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
@@ -28,7 +28,7 @@ func TestBlobsTable(t *testing.T) {
 
 func TestBlobsLimit(t *testing.T) {
 	require := require.New(t)
-	session, _, cleanup := setup(t)
+	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
 	prev := blobsMaxSize
@@ -37,8 +37,9 @@ func TestBlobsLimit(t *testing.T) {
 		blobsMaxSize = prev
 	}()
 
-	table := newBlobsTable().WithProjection([]string{"blob_content"})
-	rows, err := tableToRows(session, table)
+	table := newBlobsTable(poolFromCtx(t, ctx)).
+		WithProjection([]string{"blob_content"})
+	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
 
 	expected := []struct {
@@ -72,7 +73,7 @@ func TestBlobsPushdown(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newBlobsTable()
+	table := newBlobsTable(poolFromCtx(t, ctx))
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)

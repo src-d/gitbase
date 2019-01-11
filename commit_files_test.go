@@ -13,11 +13,11 @@ import (
 func TestCommitFilesTableRowIter(t *testing.T) {
 	require := require.New(t)
 
-	table := newCommitFilesTable()
-	require.NotNil(table)
-
 	ctx, _, cleanup := setupRepos(t)
 	defer cleanup()
+
+	table := newCommitFilesTable(poolFromCtx(t, ctx))
+	require.NotNil(table)
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
