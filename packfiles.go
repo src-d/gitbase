@@ -19,10 +19,6 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/format/packfile"
 )
 
-type packRepository struct {
-	packs map[plumbing.Hash]idxfile.Index
-}
-
 func repositoryPackfiles(fs billy.Filesystem) (*dotgit.DotGit, []plumbing.Hash, error) {
 	fs, err := findDotGit(fs)
 	if err != nil {

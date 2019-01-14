@@ -512,8 +512,6 @@ func (i *commitFilesKeyValueIter) Close() error {
 type commitFilesIndexIter struct {
 	index   sql.IndexValueIter
 	decoder *objectDecoder
-
-	file *object.File // holds the last obtained key
 }
 
 func newCommitFilesIndexIter(

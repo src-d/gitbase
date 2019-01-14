@@ -101,34 +101,6 @@ type rowKeyMapper interface {
 	fromRow(sql.Row) ([]byte, error)
 }
 
-type rowKeyValueIter struct {
-	mapper  rowKeyMapper
-	iter    sql.RowIter
-	columns []string
-	schema  sql.Schema
-}
-
-func (i *rowKeyValueIter) Next() ([]interface{}, []byte, error) {
-	row, err := i.iter.Next()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	key, err := i.mapper.fromRow(row)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	values, err := rowIndexValues(row, i.columns, i.schema)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return values, key, nil
-}
-
-func (i *rowKeyValueIter) Close() error { return i.iter.Close() }
-
 var (
 	errRowKeyMapperRowLength = errors.NewKind("row should have %d columns, has: %d")
 	errRowKeyMapperColType   = errors.NewKind("row column %d should have type %T, has: %T")

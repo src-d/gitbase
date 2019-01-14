@@ -17,9 +17,7 @@ import (
 )
 
 var (
-	errInvalidRepoKind       = errors.NewKind("the repository is not: %s")
 	errRepoAlreadyRegistered = errors.NewKind("the repository is already registered: %s")
-	errRepoCannotOpen        = errors.NewKind("the repository could not be opened: %s")
 
 	gitStorerOptions = filesystem.Options{
 		ExclusiveAccess: true,
