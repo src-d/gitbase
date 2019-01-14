@@ -2758,14 +2758,6 @@ func lit(v interface{}) sql.Expression {
 	return expression.NewLiteral(v, sql.Int64)
 }
 
-func gte(left, right sql.Expression) sql.Expression {
-	return expression.NewGreaterThanOrEqual(left, right)
-}
-
-func lte(left, right sql.Expression) sql.Expression {
-	return expression.NewLessThanOrEqual(left, right)
-}
-
 func and(exprs ...sql.Expression) sql.Expression {
 	return expression.JoinAnd(exprs...)
 }

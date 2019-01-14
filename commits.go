@@ -347,40 +347,38 @@ func newCommitsKeyValueIter(
 }
 
 func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
-	for {
-		commit, err := i.commits.Next()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		offset, packfile, err := i.idx.find(commit.Hash)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		var hash string
-		if offset < 0 {
-			hash = commit.Hash.String()
-		}
-
-		key, err := encodeIndexKey(&packOffsetIndexKey{
-			Repository: i.repo.ID,
-			Packfile:   packfile.String(),
-			Offset:     offset,
-			Hash:       hash,
-		})
-		if err != nil {
-			return nil, nil, err
-		}
-
-		row := commitToRow(i.repo.ID, commit)
-		values, err := rowIndexValues(row, i.columns, CommitsSchema)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return values, key, nil
+	commit, err := i.commits.Next()
+	if err != nil {
+		return nil, nil, err
 	}
+
+	offset, packfile, err := i.idx.find(commit.Hash)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var hash string
+	if offset < 0 {
+		hash = commit.Hash.String()
+	}
+
+	key, err := encodeIndexKey(&packOffsetIndexKey{
+		Repository: i.repo.ID,
+		Packfile:   packfile.String(),
+		Offset:     offset,
+		Hash:       hash,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	row := commitToRow(i.repo.ID, commit)
+	values, err := rowIndexValues(row, i.columns, CommitsSchema)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return values, key, nil
 }
 
 func (i *commitsKeyValueIter) Close() error {
