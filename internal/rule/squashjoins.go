@@ -27,7 +27,7 @@ func SquashJoins(
 		return n, nil
 	}
 
-	span, ctx := ctx.Span("gitbase.SquashJoins")
+	span, _ := ctx.Span("gitbase.SquashJoins")
 	defer span.Finish()
 
 	a.Log("squashing joins, node of type %T", n)
@@ -121,10 +121,6 @@ func squashProjects(parent, child *plan.Project) (sql.Node, bool) {
 	}
 
 	return plan.NewProject(projections, child.Child), true
-}
-
-func referenceSameColumn(parent, child *expression.GetField) bool {
-	return parent.Name() == child.Name() && parent.Table() == child.Table()
 }
 
 func squashJoin(join *plan.InnerJoin) (sql.Node, error) {
@@ -675,6 +671,9 @@ func buildSquashedTable(
 					filters,
 					append(it.Schema(), gitbase.TreeEntriesSchema...),
 				)
+				if err != nil {
+					return nil, err
+				}
 
 				iter = gitbase.NewTreeTreeEntriesIter(it, f, false)
 			case nil:
@@ -1543,53 +1542,6 @@ func isCol(table, name string) validator {
 
 		return gf.Table() == table && gf.Name() == name
 	}
-}
-
-func isGte(left, right validator) validator {
-	return func(e sql.Expression) bool {
-		switch e := e.(type) {
-		case *expression.GreaterThanOrEqual:
-			return left(e.Left()) && right(e.Right())
-		case *expression.LessThanOrEqual:
-			return left(e.Right()) && right(e.Left())
-		default:
-			return false
-		}
-	}
-}
-
-func isNum(n int64) validator {
-	return func(e sql.Expression) bool {
-		lit, ok := e.(*expression.Literal)
-		if !ok {
-			return false
-		}
-
-		result, err := lit.Eval(nil, nil)
-		if err != nil {
-			return false
-		}
-
-		num, ok := result.(int64)
-		if !ok {
-			return false
-		}
-
-		return num == n
-	}
-}
-
-func containsField(e sql.Expression, table, name string) bool {
-	var found bool
-	expression.Inspect(e, func(e sql.Expression) bool {
-		gf, ok := e.(*expression.GetField)
-		if ok && gf.Table() == table && gf.Name() == name {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
 }
 
 func fixFieldIndexes(e sql.Expression, schema sql.Schema) (sql.Expression, error) {

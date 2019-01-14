@@ -66,23 +66,6 @@ func (s selectors) textValues(key string) ([]string, error) {
 	return result, nil
 }
 
-// filtersToExpression concatenates all filters and turns them into an
-// expression using the AND expression.
-func filtersToExpression(filters []sql.Expression) sql.Expression {
-	switch len(filters) {
-	case 0:
-		return nil
-	case 1:
-		return filters[0]
-	default:
-		exp := expression.NewAnd(filters[0], filters[1])
-		for _, f := range filters[2:] {
-			exp = expression.NewAnd(exp, f)
-		}
-		return exp
-	}
-}
-
 // canHandleEquals returns whether the given equals expression can be handled
 // as a selector. For that to happen one of the sides must be a GetField expr
 // that exists in the given schema and the other must be a literal.
@@ -246,21 +229,22 @@ func classifyFilters(
 			// check all unfolded exprs can be handled, if not we have to
 			// resort to treating them as conditions
 			valid := true
+		Loop:
 			for _, e := range exprs {
 				switch e := e.(type) {
 				case *expression.Equals:
 					if !canHandleEquals(schema, table, e) {
 						valid = false
-						break
+						break Loop
 					}
 				case *expression.In:
 					if !canHandleIn(schema, table, e) {
 						valid = false
-						break
+						break Loop
 					}
 				default:
 					valid = false
-					break
+					break Loop
 				}
 			}
 
