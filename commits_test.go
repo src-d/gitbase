@@ -13,7 +13,7 @@ func TestCommitsTable(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newCommitsTable()
+	table := newCommitsTable(poolFromCtx(t, ctx))
 	rows, err := tableToRows(ctx, table)
 	require.Nil(err)
 	require.Len(rows, 9)
@@ -30,7 +30,7 @@ func TestCommitsPushdown(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newCommitsTable()
+	table := newCommitsTable(poolFromCtx(t, ctx))
 
 	rows, err := tableToRows(ctx, table)
 	require.NoError(err)
@@ -89,7 +89,7 @@ func TestCommitsParents(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	table := newCommitsTable()
+	table := newCommitsTable(poolFromCtx(t, ctx))
 	rows, err := tableToRows(ctx, table)
 	require.NoError(t, err)
 	require.Len(t, rows, 9)

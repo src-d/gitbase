@@ -13,6 +13,7 @@ import (
 )
 
 type refCommitsTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -28,8 +29,8 @@ var RefCommitsSchema = sql.Schema{
 
 var _ Table = (*refCommitsTable)(nil)
 
-func newRefCommitsTable() *refCommitsTable {
-	return new(refCommitsTable)
+func newRefCommitsTable(pool *RepositoryPool) *refCommitsTable {
+	return &refCommitsTable{checksumable: checksumable{pool}}
 }
 
 var _ Squashable = (*refCommitsTable)(nil)
@@ -131,13 +132,13 @@ func (refCommitsTable) HandledFilters(filters []sql.Expression) []sql.Expression
 func (refCommitsTable) handledColumns() []string { return []string{"ref_name", "repository_id"} }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*refCommitsTable) IndexKeyValues(
+func (t *refCommitsTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newTablePartitionIndexKeyValueIter(
 		ctx,
-		newRefCommitsTable(),
+		newRefCommitsTable(t.pool),
 		RefCommitsTableName,
 		colNames,
 		new(refCommitsRowKeyMapper),

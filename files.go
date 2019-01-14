@@ -11,6 +11,7 @@ import (
 )
 
 type filesTable struct {
+	checksumable
 	partitioned
 	filters    []sql.Expression
 	projection []string
@@ -28,8 +29,8 @@ var FilesSchema = sql.Schema{
 	{Name: "blob_size", Type: sql.Int64, Source: "files"},
 }
 
-func newFilesTable() *filesTable {
-	return new(filesTable)
+func newFilesTable(pool *RepositoryPool) *filesTable {
+	return &filesTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*filesTable)(nil)
@@ -160,13 +161,13 @@ func (r filesTable) String() string {
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*filesTable) IndexKeyValues(
+func (r *filesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newPartitionedIndexKeyValueIter(
 		ctx,
-		newFilesTable(),
+		newFilesTable(r.pool),
 		colNames,
 		newFilesKeyValueIter,
 	)

@@ -18,7 +18,9 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	require := require.New(t)
 
 	catalog := sql.NewCatalog()
-	catalog.AddDatabase(gitbase.NewDatabase("foo"))
+	catalog.AddDatabase(
+		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0)),
+	)
 	a := analyzer.NewBuilder(catalog).
 		WithParallelism(2).
 		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
@@ -50,7 +52,9 @@ func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 	require := require.New(t)
 
 	catalog := sql.NewCatalog()
-	catalog.AddDatabase(gitbase.NewDatabase("foo"))
+	catalog.AddDatabase(
+		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0)),
+	)
 	a := analyzer.NewBuilder(catalog).
 		WithParallelism(2).
 		AddPostAnalyzeRule(SquashJoinsRule, SquashJoins).
@@ -87,7 +91,7 @@ func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 func TestSquashJoins(t *testing.T) {
 	require := require.New(t)
 
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 
 	node := plan.NewProject(
 		[]sql.Expression{lit(1)},
@@ -184,7 +188,7 @@ func TestSquashJoins(t *testing.T) {
 func TestSquashJoinsIndexes(t *testing.T) {
 	require := require.New(t)
 
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 
 	idx1, idx2 := &dummyLookup{1}, &dummyLookup{2}
 
@@ -235,7 +239,7 @@ func TestSquashJoinsIndexes(t *testing.T) {
 func TestSquashJoinsUnsquashable(t *testing.T) {
 	require := require.New(t)
 
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 
 	node := plan.NewProject(
 		[]sql.Expression{lit(1)},
@@ -258,7 +262,7 @@ func TestSquashJoinsUnsquashable(t *testing.T) {
 func TestSquashJoinsPartial(t *testing.T) {
 	require := require.New(t)
 
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 
 	node := plan.NewProject(
 		[]sql.Expression{lit(1)},
@@ -323,7 +327,7 @@ func TestSquashJoinsPartial(t *testing.T) {
 func TestSquashJoinsSchema(t *testing.T) {
 	require := require.New(t)
 
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 
 	node := plan.NewInnerJoin(
 		plan.NewResolvedTable(
@@ -366,7 +370,7 @@ func TestSquashJoinsSchema(t *testing.T) {
 }
 
 func TestBuildSquashedTable(t *testing.T) {
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 	repositories := tables[gitbase.RepositoriesTableName]
 	refs := tables[gitbase.ReferencesTableName]
 	refCommits := tables[gitbase.RefCommitsTableName]
@@ -2143,7 +2147,7 @@ func fixIdx(t *testing.T, e sql.Expression, schema sql.Schema) sql.Expression {
 }
 
 func TestIsJoinLeafSquashable(t *testing.T) {
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 	t1 := plan.NewResolvedTable(
 		tables[gitbase.RepositoriesTableName],
 	)
@@ -2230,7 +2234,7 @@ func TestIsJoinLeafSquashable(t *testing.T) {
 }
 
 func TestOrderedTableNames(t *testing.T) {
-	tables := gitbase.NewDatabase("foo").Tables()
+	tables := gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0)).Tables()
 
 	input := []sql.Table{
 		tables[gitbase.BlobsTableName],
@@ -2391,7 +2395,7 @@ func TestRemoveRedundantCompoundFilters(t *testing.T) {
 
 func TestIsJoinCondSquashable(t *testing.T) {
 	require := require.New(t)
-	tables := gitbase.NewDatabase("").Tables()
+	tables := gitbaseTables()
 	repos := plan.NewResolvedTable(
 		tables[gitbase.ReferencesTableName],
 	)
@@ -2768,4 +2772,8 @@ func (dummyLookup) Values(p sql.Partition) (sql.IndexValueIter, error) {
 
 func (l dummyLookup) Indexes() []string {
 	return []string{fmt.Sprintf("index_%d", l.n)}
+}
+
+func gitbaseTables() map[string]sql.Table {
+	return gitbase.NewDatabase("", gitbase.NewRepositoryPool(0)).Tables()
 }

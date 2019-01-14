@@ -14,7 +14,7 @@ func TestRefCommitsRowIter(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
 
-	rows, err := tableToRows(ctx, newRefCommitsTable())
+	rows, err := tableToRows(ctx, newRefCommitsTable(poolFromCtx(t, ctx)))
 	require.NoError(err)
 
 	for i, row := range rows {

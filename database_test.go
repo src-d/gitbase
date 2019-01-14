@@ -19,7 +19,7 @@ const testDBName = "foo"
 func TestDatabase_Tables(t *testing.T) {
 	require := require.New(t)
 
-	db := getDB(require, testDBName)
+	db := getDB(t, testDBName, NewRepositoryPool(0))
 
 	tables := db.Tables()
 	var tableNames []string
@@ -49,19 +49,22 @@ func TestDatabase_Tables(t *testing.T) {
 func TestDatabase_Name(t *testing.T) {
 	require := require.New(t)
 
-	db := getDB(require, testDBName)
+	db := getDB(t, testDBName, NewRepositoryPool(0))
 	require.Equal(testDBName, db.Name())
 }
 
-func getDB(require *require.Assertions, name string) sql.Database {
-	db := NewDatabase(name)
-	require.NotNil(db)
+func getDB(t *testing.T, name string, pool *RepositoryPool) sql.Database {
+	t.Helper()
+	db := NewDatabase(name, pool)
+	require.NotNil(t, db)
 
 	return db
 }
 
-func getTable(require *require.Assertions, name string) sql.Table {
-	db := getDB(require, "foo")
+func getTable(t *testing.T, name string, ctx *sql.Context) sql.Table {
+	t.Helper()
+	require := require.New(t)
+	db := getDB(t, "foo", poolFromCtx(t, ctx))
 	require.NotNil(db)
 	require.Equal(db.Name(), "foo")
 

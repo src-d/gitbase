@@ -12,6 +12,7 @@ import (
 )
 
 type treeEntriesTable struct {
+	checksumable
 	partitioned
 	filters []sql.Expression
 	index   sql.IndexLookup
@@ -26,8 +27,8 @@ var TreeEntriesSchema = sql.Schema{
 	{Name: "tree_entry_mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 }
 
-func newTreeEntriesTable() *treeEntriesTable {
-	return new(treeEntriesTable)
+func newTreeEntriesTable(pool *RepositoryPool) *treeEntriesTable {
+	return &treeEntriesTable{checksumable: checksumable{pool}}
 }
 
 var _ Table = (*treeEntriesTable)(nil)
@@ -132,13 +133,13 @@ func (r treeEntriesTable) String() string {
 }
 
 // IndexKeyValues implements the sql.IndexableTable interface.
-func (*treeEntriesTable) IndexKeyValues(
+func (r *treeEntriesTable) IndexKeyValues(
 	ctx *sql.Context,
 	colNames []string,
 ) (sql.PartitionIndexKeyValueIter, error) {
 	return newPartitionedIndexKeyValueIter(
 		ctx,
-		newTreeEntriesTable(),
+		newTreeEntriesTable(r.pool),
 		colNames,
 		newTreeEntriesKeyValueIter,
 	)

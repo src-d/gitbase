@@ -14,11 +14,11 @@ import (
 func TestCommitBlobsTableRowIter(t *testing.T) {
 	require := require.New(t)
 
-	table := newCommitBlobsTable()
-	require.NotNil(table)
-
 	ctx, paths, cleanup := setupRepos(t)
 	defer cleanup()
+
+	table := newCommitBlobsTable(poolFromCtx(t, ctx))
+	require.NotNil(table)
 
 	expectedRows := []sql.Row{
 		sql.NewRow(paths[0], "e8d3ffab552895c19b9fcf7aa264d277cde33881", "32858aad3c383ed1ff0a0f9bdf231d54a00c9e88"),

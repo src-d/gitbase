@@ -26,7 +26,6 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
-	engine := newBaseEngine()
 	require.NoError(t, fixtures.Init())
 	defer func() {
 		require.NoError(t, fixtures.Clean())
@@ -36,6 +35,8 @@ func TestIntegration(t *testing.T) {
 
 	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
 	require.NoError(t, pool.AddGitWithID("worktree", path))
+
+	engine := newBaseEngine(pool)
 
 	testCases := []struct {
 		query  string
@@ -350,7 +351,7 @@ func TestSquashCorrectness(t *testing.T) {
 	engine, pool, cleanup := setup(t)
 	defer cleanup()
 
-	squashEngine := newSquashEngine()
+	squashEngine := newSquashEngine(pool)
 
 	queries := []string{
 		`SELECT * FROM repositories`,
@@ -500,7 +501,7 @@ func TestMissingHeadRefs(t *testing.T) {
 		}),
 	)
 
-	engine := newBaseEngine()
+	engine := newBaseEngine(pool)
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -617,9 +618,9 @@ func BenchmarkQueries(b *testing.B) {
 		sql.WithSession(gitbase.NewSession(pool)),
 	)
 
-	engine := newBaseEngine()
-	squashEngine := newSquashEngine()
-	squashIndexEngine := newSquashEngine()
+	engine := newBaseEngine(pool)
+	squashEngine := newSquashEngine(pool)
+	squashIndexEngine := newSquashEngine(pool)
 
 	tmpDir2, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
 	require.NoError(b, err)
@@ -678,8 +679,8 @@ func TestIndexes(t *testing.T) {
 		sql.WithSession(gitbase.NewSession(pool)),
 	)
 
-	baseEngine := newBaseEngine()
-	squashEngine := newSquashEngine()
+	baseEngine := newBaseEngine(pool)
+	squashEngine := newSquashEngine(pool)
 
 	tmpDir2, err := ioutil.TempDir(os.TempDir(), "pilosa-idx-gitbase")
 	require.NoError(t, err)
@@ -866,11 +867,11 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 		pool.AddGitWithID("worktree", f.Worktree().Root())
 	}
 
-	return newBaseEngine(), pool, cleanup
+	return newBaseEngine(pool), pool, cleanup
 }
 
-func newSquashEngine() *sqle.Engine {
-	engine := newBaseEngine()
+func newSquashEngine(pool *gitbase.RepositoryPool) *sqle.Engine {
+	engine := newBaseEngine(pool)
 
 	engine.Catalog.RegisterFunctions(sqlfunction.Defaults)
 	engine.Analyzer = analyzer.NewBuilder(engine.Catalog).
@@ -880,8 +881,8 @@ func newSquashEngine() *sqle.Engine {
 	return engine
 }
 
-func newBaseEngine() *sqle.Engine {
-	foo := gitbase.NewDatabase("foo")
+func newBaseEngine(pool *gitbase.RepositoryPool) *sqle.Engine {
+	foo := gitbase.NewDatabase("foo", pool)
 	au := new(auth.None)
 	engine := command.NewDatabaseEngine(au, "test", 0, false)
 

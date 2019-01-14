@@ -73,6 +73,14 @@
   version = "v1.12.0"
 
 [[projects]]
+  digest = "1:e692d16fdfbddb94e9e4886aaf6c08bdbae5cb4ac80651445de9181b371c6e46"
+  name = "github.com/go-sql-driver/mysql"
+  packages = ["."]
+  pruneopts = ""
+  revision = "72cd26f257d44c1114970e19afddcd812016007e"
+  version = "v1.4.1"
+
+[[projects]]
   digest = "1:6e73003ecd35f4487a5e88270d3ca0a81bc80dc88053ac7e4dcfec5fba30d918"
   name = "github.com/gogo/protobuf"
   packages = [
@@ -450,6 +458,14 @@
   version = "v0.3.0"
 
 [[projects]]
+  digest = "1:bc09e719c4e2a15d17163f5272d9a3131c45d77542b7fdc53ff518815bc19ab3"
+  name = "google.golang.org/appengine"
+  packages = ["cloudsql"]
+  pruneopts = ""
+  revision = "e9657d882bb81064595ca3b56cbe2546bbabf7b1"
+  version = "v1.4.0"
+
+[[projects]]
   branch = "master"
   digest = "1:849525811c9f6ae1f5bd9b866adb4c9436f4a12d767f48e33bf343596d4aafd7"
   name = "google.golang.org/genproto"
@@ -647,7 +663,7 @@
   version = "v4.8.1"
 
 [[projects]]
-  digest = "1:083f309a101a2bce7330678b9194f67845144484d1ab8c12949cc93ce811ee54"
+  digest = "1:32435d6a9140041b36e3415f75077c31829123168aa57ab59aa6df7d2e8678b9"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -666,7 +682,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "ac598027ca4498f318051bcb79ca5b4231faf733"
+  revision = "7afa88202b2490bb93c08603da422a690099695e"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
@@ -737,6 +753,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/BurntSushi/toml",
+    "github.com/go-sql-driver/mysql",
     "github.com/hashicorp/golang-lru",
     "github.com/jessevdk/go-flags",
     "github.com/opentracing/opentracing-go",
