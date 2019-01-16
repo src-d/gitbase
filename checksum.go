@@ -5,6 +5,8 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"io"
+	"sort"
+	"strings"
 
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -79,6 +81,24 @@ func readChecksum(r repository) ([]byte, error) {
 	return result, nil
 }
 
+type reference struct {
+	name string
+	hash string
+}
+
+type references []reference
+
+type byHashAndName []reference
+
+func (b byHashAndName) Len() int      { return len(b) }
+func (b byHashAndName) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b byHashAndName) Less(i, j int) bool {
+	if cmp := strings.Compare(b[i].hash, b[j].hash); cmp != 0 {
+		return cmp < 0
+	}
+	return strings.Compare(b[i].name, b[j].name) < 0
+}
+
 func readRefs(r repository) ([]byte, error) {
 	repo, err := r.Repo()
 	if err != nil {
@@ -90,26 +110,28 @@ func readRefs(r repository) ([]byte, error) {
 
 	buf := bytes.NewBuffer(nil)
 
-	head, err := repo.Head()
-	if err != nil && err != plumbing.ErrReferenceNotFound {
-		return nil, err
-	} else {
-		buf.WriteString("HEAD")
-		buf.WriteString(head.Hash().String())
-	}
-
 	refs, err := repo.References()
 	if err != nil {
 		return nil, err
 	}
 
+	var references []reference
 	err = refs.ForEach(func(r *plumbing.Reference) error {
-		buf.WriteString(string(r.Name()))
-		buf.WriteString(r.Hash().String())
+		references = append(references, reference{
+			name: string(r.Name()),
+			hash: r.Hash().String(),
+		})
 		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	sort.Stable(byHashAndName(references))
+
+	for _, r := range references {
+		buf.WriteString(r.name)
+		buf.WriteString(r.hash)
 	}
 
 	return buf.Bytes(), nil
