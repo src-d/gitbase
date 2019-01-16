@@ -106,3 +106,36 @@ func TestCommitFilesIndexIterClosed(t *testing.T) {
 func TestCommitFilesIterClosed(t *testing.T) {
 	testTableIterClosed(t, new(commitFilesTable))
 }
+
+func TestPartitionRowsWithIndex(t *testing.T) {
+
+	t.Helper()
+	require := require.New(t)
+	ctx, _, cleanup := setup(t)
+	defer cleanup()
+
+	table := new(commitFilesTable)
+	expected, err := tableToRows(ctx, table)
+	require.NoError(err)
+
+	lookup := tableIndexLookup(t, table, ctx)
+	tbl := table.WithIndexLookup(lookup)
+
+	pit, err := tbl.Partitions(ctx)
+	require.NoError(err)
+
+	i := 0
+	for p, e := pit.Next(); e != io.EOF; p, e = pit.Next() {
+		require.NoError(e)
+
+		rit, err := tbl.PartitionRows(ctx, p)
+		require.NoError(err)
+
+		for r, e := rit.Next(); e != io.EOF; r, e = rit.Next() {
+			require.NoError(e)
+
+			require.ElementsMatch(expected[i], r)
+			i++
+		}
+	}
+}

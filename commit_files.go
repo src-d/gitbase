@@ -102,8 +102,16 @@ func (t *commitFilesTable) PartitionRows(
 				return nil, err
 			}
 
+			var index sql.IndexValueIter
+			if t.index != nil {
+				if index, err = t.index.Values(p); err != nil {
+					return nil, err
+				}
+			}
+
 			return &commitFilesRowIter{
 				repo:          repo,
+				index:         index,
 				commitHashes:  stringsToHashes(hashes),
 				paths:         paths,
 				skipGitErrors: shouldSkipErrors(ctx),
