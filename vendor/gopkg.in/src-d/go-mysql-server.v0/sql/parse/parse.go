@@ -43,6 +43,7 @@ var (
 	showCreateRegex      = regexp.MustCompile(`^show create\s+\S+\s*`)
 	showVariablesRegex   = regexp.MustCompile(`^show\s+(.*)?variables\s*`)
 	showWarningsRegex    = regexp.MustCompile(`^show\s+warnings\s*`)
+	showCollationRegex   = regexp.MustCompile(`^show\s+collation\s*`)
 	describeRegex        = regexp.MustCompile(`^(describe|desc|explain)\s+(.*)\s+`)
 	fullProcessListRegex = regexp.MustCompile(`^show\s+(full\s+)?processlist$`)
 	unlockTablesRegex    = regexp.MustCompile(`^unlock\s+tables$`)
@@ -82,6 +83,8 @@ func Parse(ctx *sql.Context, query string) (sql.Node, error) {
 		return parseShowVariables(ctx, s)
 	case showWarningsRegex.MatchString(lowerQuery):
 		return parseShowWarnings(ctx, s)
+	case showCollationRegex.MatchString(lowerQuery):
+		return parseShowCollation(s)
 	case describeRegex.MatchString(lowerQuery):
 		return parseDescribeQuery(ctx, s)
 	case fullProcessListRegex.MatchString(lowerQuery):
@@ -142,6 +145,8 @@ func convert(ctx *sql.Context, stmt sqlparser.Statement, query string) (sql.Node
 		return convertSet(ctx, n)
 	case *sqlparser.Use:
 		return convertUse(n)
+	case *sqlparser.Rollback:
+		return plan.NewRollback(), nil
 	}
 }
 
@@ -210,7 +215,35 @@ func convertSet(ctx *sql.Context, n *sqlparser.Set) (sql.Node, error) {
 func convertShow(s *sqlparser.Show, query string) (sql.Node, error) {
 	switch s.Type {
 	case sqlparser.KeywordString(sqlparser.TABLES):
-		return plan.NewShowTables(sql.UnresolvedDatabase("")), nil
+		var dbName string
+		var filter sql.Expression
+		var full bool
+		if s.ShowTablesOpt != nil {
+			dbName = s.ShowTablesOpt.DbName
+			full = s.ShowTablesOpt.Full != ""
+
+			if s.ShowTablesOpt.Filter != nil {
+				if s.ShowTablesOpt.Filter.Filter != nil {
+					var err error
+					filter, err = exprToExpression(s.ShowTablesOpt.Filter.Filter)
+					if err != nil {
+						return nil, err
+					}
+				} else if s.ShowTablesOpt.Filter.Like != "" {
+					filter = expression.NewLike(
+						expression.NewUnresolvedColumn("Table"),
+						expression.NewLiteral(s.ShowTablesOpt.Filter.Like, sql.Text),
+					)
+				}
+			}
+		}
+
+		var node sql.Node = plan.NewShowTables(sql.UnresolvedDatabase(dbName), full)
+		if filter != nil {
+			node = plan.NewFilter(filter, node)
+		}
+
+		return node, nil
 	case sqlparser.KeywordString(sqlparser.DATABASES):
 		return plan.NewShowDatabases(), nil
 	case sqlparser.KeywordString(sqlparser.FIELDS), sqlparser.KeywordString(sqlparser.COLUMNS):
@@ -1187,6 +1220,63 @@ func parseShowTableStatus(query string) (sql.Node, error) {
 		), nil
 	default:
 		return nil, errUnexpectedSyntax.New("one of: FROM, IN, LIKE or WHERE", clause)
+	}
+}
+
+func parseShowCollation(query string) (sql.Node, error) {
+	buf := bufio.NewReader(strings.NewReader(query))
+	err := parseFuncs{
+		expect("show"),
+		skipSpaces,
+		expect("collation"),
+		skipSpaces,
+	}.exec(buf)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err = buf.Peek(1); err == io.EOF {
+		return plan.NewShowCollation(), nil
+	}
+
+	var clause string
+	if err := readIdent(&clause)(buf); err != nil {
+		return nil, err
+	}
+
+	if err := skipSpaces(buf); err != nil {
+		return nil, err
+	}
+
+	switch strings.ToUpper(clause) {
+	case "WHERE", "LIKE":
+		bs, err := ioutil.ReadAll(buf)
+		if err != nil {
+			return nil, err
+		}
+
+		expr, err := parseExpr(string(bs))
+		if err != nil {
+			return nil, err
+		}
+
+		var filter sql.Expression
+		if strings.ToUpper(clause) == "LIKE" {
+			filter = expression.NewLike(
+				expression.NewUnresolvedColumn("collation"),
+				expr,
+			)
+		} else {
+			filter = expr
+		}
+
+		return plan.NewFilter(
+			filter,
+			plan.NewShowCollation(),
+		), nil
+	default:
+		return nil, errUnexpectedSyntax.New("one of: LIKE or WHERE", clause)
 	}
 }
 

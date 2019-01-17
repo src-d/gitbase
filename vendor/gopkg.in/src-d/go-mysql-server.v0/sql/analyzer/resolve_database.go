@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
 
 func resolveDatabase(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
@@ -11,53 +10,28 @@ func resolveDatabase(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error
 
 	a.Log("resolve database, node of type: %T", n)
 
-	switch v := n.(type) {
-	case *plan.ShowIndexes:
-		db, err := a.Catalog.Database(a.Catalog.CurrentDatabase())
+	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+		d, ok := n.(sql.Databaser)
+		if !ok {
+			return n, nil
+		}
+
+		var dbName = a.Catalog.CurrentDatabase()
+		if db := d.Database(); db != nil {
+			if _, ok := db.(sql.UnresolvedDatabase); !ok {
+				return n, nil
+			}
+
+			if db.Name() != "" {
+				dbName = db.Name()
+			}
+		}
+
+		db, err := a.Catalog.Database(dbName)
 		if err != nil {
 			return nil, err
 		}
 
-		nc := *v
-		nc.Database = db
-		return &nc, nil
-	case *plan.ShowTables:
-		db, err := a.Catalog.Database(a.Catalog.CurrentDatabase())
-		if err != nil {
-			return nil, err
-		}
-
-		nc := *v
-		nc.Database = db
-		return &nc, nil
-	case *plan.CreateTable:
-		db, err := a.Catalog.Database(a.Catalog.CurrentDatabase())
-		if err != nil {
-			return nil, err
-		}
-
-		nc := *v
-		nc.Database = db
-		return &nc, nil
-	case *plan.Use:
-		db, err := a.Catalog.Database(v.Database.Name())
-		if err != nil {
-			return nil, err
-		}
-
-		nc := *v
-		nc.Database = db
-		return &nc, nil
-	case *plan.ShowCreateDatabase:
-		db, err := a.Catalog.Database(v.Database.Name())
-		if err != nil {
-			return nil, err
-		}
-
-		nc := *v
-		nc.Database = db
-		return &nc, nil
-	default:
-		return n, nil
-	}
+		return d.WithDatabase(db)
+	})
 }
