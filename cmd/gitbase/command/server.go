@@ -108,7 +108,10 @@ func NewDatabaseEngine(
 func (c *Server) Execute(args []string) error {
 	if c.Verbose {
 		logrus.SetLevel(logrus.DebugLevel)
-	} else {
+	}
+
+	// info is the default log level
+	if c.LogLevel != "info" {
 		level, err := logrus.ParseLevel(c.LogLevel)
 		if err != nil {
 			return fmt.Errorf("cannot parse log level: %s", err.Error())
