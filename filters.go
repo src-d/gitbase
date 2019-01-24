@@ -224,72 +224,10 @@ func classifyFilters(
 					continue
 				}
 			}
-		case *expression.Or:
-			exprs := unfoldOrs(f)
-			// check all unfolded exprs can be handled, if not we have to
-			// resort to treating them as conditions
-			valid := true
-		Loop:
-			for _, e := range exprs {
-				switch e := e.(type) {
-				case *expression.Equals:
-					if !canHandleEquals(schema, table, e) {
-						valid = false
-						break Loop
-					}
-				case *expression.In:
-					if !canHandleIn(schema, table, e) {
-						valid = false
-						break Loop
-					}
-				default:
-					valid = false
-					break Loop
-				}
-			}
-
-			if !valid {
-				conditions = append(conditions, f)
-				continue
-			}
-
-			// by definition there can be no conditions
-			sels, _, err := classifyFilters(schema, table, exprs, handledCols...)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			for k, v := range sels {
-				var values selector
-				for _, vals := range v {
-					values = append(values, vals...)
-				}
-				selectors[k] = append(selectors[k], values)
-			}
-
-			continue
 		}
 		conditions = append(conditions, f)
 	}
 	return selectors, conditions, nil
-}
-
-func unfoldOrs(or *expression.Or) []sql.Expression {
-	var exprs []sql.Expression
-
-	if left, ok := or.Left.(*expression.Or); ok {
-		exprs = append(exprs, unfoldOrs(left)...)
-	} else {
-		exprs = append(exprs, or.Left)
-	}
-
-	if right, ok := or.Right.(*expression.Or); ok {
-		exprs = append(exprs, unfoldOrs(right)...)
-	} else {
-		exprs = append(exprs, or.Right)
-	}
-
-	return exprs
 }
 
 type iteratorBuilder func(selectors) (sql.RowIter, error)

@@ -308,106 +308,6 @@ func TestClassifyFilters(t *testing.T) {
 			),
 			false,
 		},
-		{
-			expression.NewOr(
-				expression.NewOr(
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(1, sql.Int64),
-					),
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(2, sql.Int64),
-					),
-				),
-				expression.NewOr(
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(3, sql.Int64),
-					),
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(4, sql.Int64),
-					),
-				),
-			),
-			true,
-		},
-		{
-			expression.NewOr(
-				expression.NewIn(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewTuple(
-						expression.NewLiteral(10, sql.Int64),
-						expression.NewLiteral(11, sql.Int64),
-					),
-				),
-				expression.NewOr(
-					expression.NewIn(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewTuple(
-							expression.NewLiteral(12, sql.Int64),
-							expression.NewLiteral(13, sql.Int64),
-						),
-					),
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(14, sql.Int64),
-					),
-				),
-			),
-			true,
-		},
-		{
-			expression.NewOr(
-				expression.NewOr(
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(1, sql.Int64),
-					),
-					expression.NewGreaterThan(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(2, sql.Int64),
-					),
-				),
-				expression.NewOr(
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(3, sql.Int64),
-					),
-					expression.NewEquals(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(4, sql.Int64),
-					),
-				),
-			),
-			false,
-		},
-		{
-			expression.NewOr(
-				expression.NewIn(
-					expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-					expression.NewTuple(
-						expression.NewLiteral(10, sql.Int64),
-						expression.NewLiteral(11, sql.Int64),
-					),
-				),
-				expression.NewOr(
-					expression.NewIn(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewTuple(
-							expression.NewLiteral(12, sql.Int64),
-							expression.NewLiteral(13, sql.Int64),
-						),
-					),
-					expression.NewGreaterThan(
-						expression.NewGetFieldWithTable(0, sql.Int64, "foo", "a", false),
-						expression.NewLiteral(2, sql.Int64),
-					),
-				),
-			),
-			false,
-		},
 	}
 	schema := sql.Schema{
 		{Name: "a", Source: "foo"},
@@ -431,8 +331,6 @@ func TestClassifyFilters(t *testing.T) {
 		"a": []selector{
 			selector{1},
 			selector{5, 6, 7},
-			selector{1, 2, 3, 4},
-			selector{10, 11, 12, 13, 14},
 		},
 	}, sels)
 
