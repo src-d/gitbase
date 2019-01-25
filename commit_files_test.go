@@ -76,6 +76,25 @@ func TestCommitFilesIndex(t *testing.T) {
 	)
 }
 
+func TestCommitFilesOr(t *testing.T) {
+	testTableIndex(
+		t,
+		new(commitFilesTable),
+		[]sql.Expression{
+			expression.NewOr(
+				expression.NewEquals(
+					expression.NewGetField(1, sql.Text, "commit_hash", false),
+					expression.NewLiteral("1669dce138d9b841a518c64b10914d88f5e488ea", sql.Text),
+				),
+				expression.NewEquals(
+					expression.NewGetField(2, sql.Text, "file_path", false),
+					expression.NewLiteral("go/example.go", sql.Text),
+				),
+			),
+		},
+	)
+}
+
 func TestEncodeCommitFileIndexKey(t *testing.T) {
 	require := require.New(t)
 
