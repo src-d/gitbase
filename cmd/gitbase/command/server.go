@@ -62,6 +62,7 @@ type Server struct {
 	DisableGit    bool           `long:"no-git" description:"disable the load of git standard repositories."`
 	DisableSiva   bool           `long:"no-siva" description:"disable the load of siva files."`
 	Verbose       bool           `short:"v" description:"Activates the verbose mode"`
+	LogLevel      string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
 }
 
 type jaegerLogrus struct {
@@ -109,6 +110,15 @@ func (c *Server) Execute(args []string) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	// info is the default log level
+	if c.LogLevel != "info" {
+		level, err := logrus.ParseLevel(c.LogLevel)
+		if err != nil {
+			return fmt.Errorf("cannot parse log level: %s", err.Error())
+		}
+		logrus.SetLevel(level)
+	}
+
 	var err error
 	if c.UserFile != "" {
 		if c.ReadOnly {
@@ -127,7 +137,7 @@ func (c *Server) Execute(args []string) error {
 		c.userAuth = auth.NewNativeSingle(c.User, c.Password, permissions)
 	}
 
-	c.userAuth = auth.NewAudit(c.userAuth, auth.NewAuditLog(logrus.New()))
+	c.userAuth = auth.NewAudit(c.userAuth, auth.NewAuditLog(logrus.StandardLogger()))
 	if err := c.buildDatabase(); err != nil {
 		logrus.WithField("error", err).Fatal("unable to initialize database engine")
 		return err
