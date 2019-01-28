@@ -166,6 +166,72 @@ func TestIntegration(t *testing.T) {
 			},
 		},
 		{
+			`SELECT commit_hash, file_path
+			FROM commit_files
+			WHERE commit_hash='1669dce138d9b841a518c64b10914d88f5e488ea' OR file_path = 'go/example.go'`,
+			[]sql.Row{
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "go/example.go"},
+				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "go/example.go"},
+				{"918c48b83bd081e863dbe1b80f8998f058cd8294", "go/example.go"},
+				{"1669dce138d9b841a518c64b10914d88f5e488ea", ".gitignore"},
+				{"1669dce138d9b841a518c64b10914d88f5e488ea", "CHANGELOG"},
+				{"1669dce138d9b841a518c64b10914d88f5e488ea", "LICENSE"},
+				{"1669dce138d9b841a518c64b10914d88f5e488ea", "binary.jpg"},
+			},
+		},
+		{
+			`SELECT commit_hash, file_path
+			FROM commit_files
+			WHERE commit_hash='1669dce138d9b841a518c64b10914d88f5e488ea' AND file_path = 'binary.jpg'`,
+			[]sql.Row{
+				{"1669dce138d9b841a518c64b10914d88f5e488ea", "binary.jpg"},
+			},
+		},
+		{
+			`SELECT commit_hash, file_path
+			FROM commit_files
+			WHERE NOT commit_hash = '1669dce138d9b841a518c64b10914d88f5e488ea' AND file_path = 'go/example.go'`,
+			[]sql.Row{
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", "go/example.go"},
+				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "go/example.go"},
+				{"918c48b83bd081e863dbe1b80f8998f058cd8294", "go/example.go"},
+			},
+		},
+		{
+			`SELECT blob_hash, tree_hash
+			FROM commit_files
+			WHERE tree_hash='eba74343e2f15d62adedfd8c883ee0262b5c8021' OR blob_hash = 'd3ff53e0564a9f87d8e84b6e28e5060e517008aa'`,
+			[]sql.Row{
+				{"32858aad3c383ed1ff0a0f9bdf231d54a00c9e88", "eba74343e2f15d62adedfd8c883ee0262b5c8021"},
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "eba74343e2f15d62adedfd8c883ee0262b5c8021"},
+				{"c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "eba74343e2f15d62adedfd8c883ee0262b5c8021"},
+				{"d5c0f4ab811897cadf03aec358ae60d21f91c50d", "eba74343e2f15d62adedfd8c883ee0262b5c8021"},
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "a8d315b2b1c615d43042c3a62402b8a54288cf5c"},
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "fb72698cab7617ac416264415f13224dfd7a165e"},
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "c2d30fa8ef288618f65f6eed6e168e0d514886f4"},
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd"},
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "c2d30fa8ef288618f65f6eed6e168e0d514886f4"},
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "dbd3641b371024f44d0e469a9c8f5457b0660de1"},
+			},
+		},
+		{
+			`SELECT blob_hash, tree_hash
+			FROM commit_files
+			WHERE tree_hash='eba74343e2f15d62adedfd8c883ee0262b5c8021' AND blob_hash = 'd3ff53e0564a9f87d8e84b6e28e5060e517008aa'`,
+			[]sql.Row{
+				{"d3ff53e0564a9f87d8e84b6e28e5060e517008aa", "eba74343e2f15d62adedfd8c883ee0262b5c8021"},
+			},
+		},
+		{
+			`SELECT commit_hash, tree_hash
+			FROM commits
+			WHERE commit_author_email='daniel@lordran.local' OR commit_hash='b029517f6300c2da0f4b651b8642506cd6aaf45d'`,
+			[]sql.Row{
+				{"b029517f6300c2da0f4b651b8642506cd6aaf45d", "aa9b383c260e1d05fbbf6b30a02914555e20c725"},
+				{"b8e471f58bcbca63b07bda20e428190409c2db47", "c2d30fa8ef288618f65f6eed6e168e0d514886f4"},
+			},
+		},
+		{
 			`SELECT MONTH(committer_when) as month,
 				r.repository_id as repo_id,
 				committer_email
@@ -248,10 +314,10 @@ func TestIntegration(t *testing.T) {
 			SELECT language, COUNT(repository_id) AS repository_count
 			FROM (
 				SELECT DISTINCT r.repository_id, LANGUAGE(t.tree_entry_name, b.blob_content) AS language
-        		FROM   refs r
-                JOIN commits c ON r.commit_hash = c.commit_hash
-                NATURAL JOIN commit_trees
-                NATURAL JOIN tree_entries t
+				FROM   refs r
+		        JOIN commits c ON r.commit_hash = c.commit_hash
+		        NATURAL JOIN commit_trees
+		        NATURAL JOIN tree_entries t
 				NATURAL JOIN blobs b
 				WHERE language IS NOT NULL
 			) AS q1
