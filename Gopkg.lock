@@ -613,7 +613,7 @@
   version = "v3.1.1"
 
 [[projects]]
-  digest = "1:2575e0987bd652097e3921a4713b886f786483fecac75ca0707cf7dad26424f3"
+  digest = "1:a72d911e18578e34367f4b849340501c7e6a2787a3a05651b3d53c6cb96990f4"
   name = "gopkg.in/src-d/go-git.v4"
   packages = [
     ".",
@@ -658,12 +658,12 @@
     "utils/merkletrie/noder",
   ]
   pruneopts = ""
-  revision = "3dbfb89e0f5bce0008724e547b999fe3af9f60db"
+  revision = "a1f6ef44dfed1253ef7f3bc049f66b15f8fc2ab2"
   source = "github.com/src-d/go-git"
-  version = "v4.8.1"
+  version = "v4.9.1"
 
 [[projects]]
-  digest = "1:5ca66c5e97c9416cbc987566baa52f838fec2fc78cfccba2b5a690171921030b"
+  digest = "1:bfdfff30b5303aefc606eb7219da01d92c805bd123bd3dd4f4a0e303af80e03d"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -682,7 +682,7 @@
     "sql/plan",
   ]
   pruneopts = "NT"
-  revision = "5a9075414ef5cc7799a551289f81cd6d34242eaf"
+  revision = "31ad0f968a8823de219f1db70e2b4890f06ff48b"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"

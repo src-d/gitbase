@@ -1,6 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "5a9075414ef5cc7799a551289f81cd6d34242eaf"
+  revision = "31ad0f968a8823de219f1db70e2b4890f06ff48b"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -17,7 +17,7 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-git.v4"
   source = "github.com/src-d/go-git"
-  version = "4.8.1"
+  version = "4.9.1"
 
 [[constraint]]
   name = "gopkg.in/src-d/go-git-fixtures.v3"
