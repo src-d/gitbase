@@ -663,7 +663,7 @@
   version = "v4.9.1"
 
 [[projects]]
-  digest = "1:e1a3df05381528299bf4034758ec73bab03e16ea2923f0afe20a14b254ced5b0"
+  digest = "1:0056c43a3fc6780d46aeedf43d08a039801668c6e6f6b33b97f2d53822e434e8"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -681,7 +681,7 @@
     "sql/parse",
     "sql/plan",
   ]
-  pruneopts = "NT"
+  pruneopts = "NUT"
   revision = "2ea67817f6a1d08a352c31608f9bd426987acdc0"
 
 [[projects]]

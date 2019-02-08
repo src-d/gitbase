@@ -85,3 +85,4 @@
     name = "gopkg.in/src-d/go-mysql-server.v0"
     go-tests = true
     non-go = true
+    unused-packages = true
