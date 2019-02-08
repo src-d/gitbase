@@ -1,6 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "31ad0f968a8823de219f1db70e2b4890f06ff48b"
+  revision = "2ea67817f6a1d08a352c31608f9bd426987acdc0"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -85,3 +85,4 @@
     name = "gopkg.in/src-d/go-mysql-server.v0"
     go-tests = true
     non-go = true
+    unused-packages = true
