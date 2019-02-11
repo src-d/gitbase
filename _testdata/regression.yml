@@ -56,3 +56,53 @@
   - CREATE INDEX email_idx ON commits USING pilosa (commit_author_email) WITH (async = false)
   - SELECT COUNT(*) FROM commits WHERE NOT(commit_author_email = 'non existing email address')
   - DROP INDEX email_idx ON commits
+-
+  ID: 'query11'
+  Name: 'Leak detection on all refs'
+  Statements:
+  - >
+      SELECT f.repository_id, f.blob_hash, f.commit_hash, f.file_path
+      FROM (
+          SELECT blob_hash, repository_id
+          FROM blobs
+          WHERE NOT IS_BINARY(blob_content) AND (
+              blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
+              OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
+              OR blob_content REGEXP '(?i)github.*[\'\\"][0-9a-zA-Z]{35,40}[\'\\"]'
+              OR blob_content REGEXP 'AKIA[0-9A-Z]{16}'
+              OR blob_content REGEXP '(?i)heroku.*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}'
+              OR blob_content REGEXP '.*-----BEGIN ((RSA|DSA|OPENSSH|SSH2|EC) )?PRIVATE KEY-----.*'
+          )
+      ) h
+      INNER JOIN commit_files f
+      ON h.blob_hash = f.blob_hash
+          AND h.repository_id = f.repository_id
+          AND f.file_path NOT REGEXP '^vendor.*'
+-
+  ID: 'query12'
+  Name: 'Leaks detection on HEAD'
+  Statements:
+  - >
+      SELECT repository_id, blob_hash, commit_hash, file_path
+      FROM refs r
+      NATURAL JOIN commit_files cf
+      NATURAL JOIN files f
+      WHERE r.ref_name = 'HEAD' AND NOT IS_BINARY(blob_content) AND (
+          blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
+          OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
+          OR blob_content REGEXP '(?i)github.*[\'\\"][0-9a-zA-Z]{35,40}[\'\\"]'
+          OR blob_content REGEXP 'AKIA[0-9A-Z]{16}'
+          OR blob_content REGEXP '(?i)heroku.*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}'
+          OR blob_content REGEXP '.*-----BEGIN ((RSA|DSA|OPENSSH|SSH2|EC) )?PRIVATE KEY-----.*'
+      ) AND cf.file_path NOT REGEXP '^vendor.*'
+-
+  ID: 'query13'
+  Name: 'Has README'
+  Statements:
+  - >
+      SELECT DISTINCT repository_id
+      FROM refs r
+      NATURAL JOIN commits
+      NATURAL JOIN tree_entries te
+      WHERE r.ref_name = 'HEAD'
+          AND te.tree_entry_name REGEXP '^(?i)readme(\.[a-z]+)?$'
