@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -192,7 +193,9 @@ type filesRowIter struct {
 func (i *filesRowIter) init() error {
 	var err error
 	i.seen = make(map[plumbing.Hash]struct{})
-	i.commits, err = i.repo.CommitObjects()
+	i.commits, err = i.repo.Log(&git.LogOptions{
+		All: true,
+	})
 	return err
 }
 
@@ -411,7 +414,9 @@ func newFilesKeyValueIter(pool *RepositoryPool, repo *Repository, columns []stri
 		return nil, err
 	}
 
-	commits, err := repo.CommitObjects()
+	commits, err := repo.Log(&git.LogOptions{
+		All: true,
+	})
 	if err != nil {
 		return nil, err
 	}

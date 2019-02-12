@@ -101,14 +101,14 @@ func TestCommitsParents(t *testing.T) {
 	}{
 		{
 			name: "test commits parents 1",
-			hash: "e8d3ffab552895c19b9fcf7aa264d277cde33881",
+			hash: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
 			parents: []string{
 				"918c48b83bd081e863dbe1b80f8998f058cd8294",
 			},
 		},
 		{
 			name: "test commits parents 2",
-			hash: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+			hash: "e8d3ffab552895c19b9fcf7aa264d277cde33881",
 			parents: []string{
 				"918c48b83bd081e863dbe1b80f8998f058cd8294",
 			},
@@ -137,6 +137,18 @@ func TestCommitsParents(t *testing.T) {
 		},
 		{
 			name: "test commits parents 6",
+			hash: "35e85108805c84807bc66a02d91535e1e24b38b9",
+			parents: []string{
+				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
+			},
+		},
+		{
+			name:    "test commits parents 7",
+			hash:    "b029517f6300c2da0f4b651b8642506cd6aaf45d",
+			parents: []string{},
+		},
+		{
+			name: "test commits parents 8",
 			hash: "a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69",
 			parents: []string{
 				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
@@ -144,23 +156,11 @@ func TestCommitsParents(t *testing.T) {
 			},
 		},
 		{
-			name: "test commits parents 7",
+			name: "test commits parents 9",
 			hash: "b8e471f58bcbca63b07bda20e428190409c2db47",
 			parents: []string{
 				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
 			},
-		},
-		{
-			name: "test commits parents 8",
-			hash: "35e85108805c84807bc66a02d91535e1e24b38b9",
-			parents: []string{
-				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
-			},
-		},
-		{
-			name:    "test commits parents 9",
-			hash:    "b029517f6300c2da0f4b651b8642506cd6aaf45d",
-			parents: []string{},
 		},
 	}
 
@@ -188,6 +188,50 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     186,
+			}),
+			[]interface{}{
+				"6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+				"mcuadros@gmail.com",
+			},
+		},
+		{
+			assertEncodeKey(t, &packOffsetIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     12,
+			}),
+			[]interface{}{
+				"e8d3ffab552895c19b9fcf7aa264d277cde33881",
+				"mcuadros@gmail.com",
+			},
+		},
+		{
+			assertEncodeKey(t, &packOffsetIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     353,
+			}),
+			[]interface{}{
+				"918c48b83bd081e863dbe1b80f8998f058cd8294",
+				"mcuadros@gmail.com",
+			},
+		},
+		{
+			assertEncodeKey(t, &packOffsetIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
+				Offset:     516,
+			}),
+			[]interface{}{
+				"af2d6a6954d532f8ffb47615169c8fdf9d383a1a",
+				"mcuadros@gmail.com",
+			},
+		},
+		{
+			assertEncodeKey(t, &packOffsetIndexKey{
+				Repository: path,
+				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     682,
 			}),
 			[]interface{}{
@@ -210,21 +254,10 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
-				Offset:     186,
+				Offset:     1459,
 			}),
 			[]interface{}{
-				"6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
-				"mcuadros@gmail.com",
-			},
-		},
-		{
-			assertEncodeKey(t, &packOffsetIndexKey{
-				Repository: path,
-				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
-				Offset:     353,
-			}),
-			[]interface{}{
-				"918c48b83bd081e863dbe1b80f8998f058cd8294",
+				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
 				"mcuadros@gmail.com",
 			},
 		},
@@ -243,44 +276,11 @@ func TestCommitsIndexKeyValueIter(t *testing.T) {
 			assertEncodeKey(t, &packOffsetIndexKey{
 				Repository: path,
 				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
-				Offset:     516,
-			}),
-			[]interface{}{
-				"af2d6a6954d532f8ffb47615169c8fdf9d383a1a",
-				"mcuadros@gmail.com",
-			},
-		},
-		{
-			assertEncodeKey(t, &packOffsetIndexKey{
-				Repository: path,
-				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
-				Offset:     1459,
-			}),
-			[]interface{}{
-				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
-				"mcuadros@gmail.com",
-			},
-		},
-		{
-			assertEncodeKey(t, &packOffsetIndexKey{
-				Repository: path,
-				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
 				Offset:     1130,
 			}),
 			[]interface{}{
 				"b8e471f58bcbca63b07bda20e428190409c2db47",
 				"daniel@lordran.local",
-			},
-		},
-		{
-			assertEncodeKey(t, &packOffsetIndexKey{
-				Repository: path,
-				Packfile:   "323a4b6b5de684f9966953a043bc800154e5dbfa",
-				Offset:     12,
-			}),
-			[]interface{}{
-				"e8d3ffab552895c19b9fcf7aa264d277cde33881",
-				"mcuadros@gmail.com",
 			},
 		},
 	}

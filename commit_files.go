@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/sirupsen/logrus"
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -196,7 +197,10 @@ func (i *commitFilesRowIter) init() error {
 	if len(i.commitHashes) > 0 {
 		i.commits, err = NewCommitsByHashIter(i.repo, i.commitHashes)
 	} else {
-		i.commits, err = i.repo.CommitObjects()
+		i.commits, err = i.repo.
+			Log(&git.LogOptions{
+				All: true,
+			})
 	}
 
 	return err
@@ -433,7 +437,10 @@ func newCommitFilesKeyValueIter(
 		return nil, err
 	}
 
-	commits, err := repo.CommitObjects()
+	commits, err := repo.
+		Log(&git.LogOptions{
+			All: true,
+		})
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -219,7 +220,9 @@ func (i *commitBlobsRowIter) init() error {
 	if len(i.commits) > 0 {
 		i.iter, err = NewCommitsByHashIter(i.repo, i.commits)
 	} else {
-		i.iter, err = i.repo.CommitObjects()
+		i.iter, err = i.repo.Log(&git.LogOptions{
+			All: true,
+		})
 	}
 
 	return err

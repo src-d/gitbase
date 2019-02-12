@@ -90,7 +90,9 @@ func TestRepositoryPoolGit(t *testing.T) {
 	require.NotNil(repo)
 	require.NoError(err)
 
-	iter, err := repo.CommitObjects()
+	iter, err := repo.Log(&git.LogOptions{
+		All: true,
+	})
 	require.NoError(err)
 
 	count := 0
@@ -167,14 +169,16 @@ func TestRepositoryPoolSiva(t *testing.T) {
 
 	require.Equal(expectedRepos, len(pool.repositories))
 
-	expected := []int{606, 452, 75}
+	expected := []int{606, 380, 69}
 	result := make([]int, expectedRepos)
 
 	for i := 0; i < expectedRepos; i++ {
 		repo, err := pool.GetPos(i)
 		require.NoError(err)
 
-		iter, err := repo.CommitObjects()
+		iter, err := repo.Log(&git.LogOptions{
+			All: true,
+		})
 		require.NoError(err)
 
 		require.NoError(iter.ForEach(func(c *object.Commit) error {

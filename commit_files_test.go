@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -35,7 +36,9 @@ func TestCommitFilesTableRowIter(t *testing.T) {
 
 		require.NoError(err)
 
-		commits, err := repo.CommitObjects()
+		commits, err := repo.Log(&git.LogOptions{
+			All: true,
+		})
 		require.NoError(err)
 
 		for {

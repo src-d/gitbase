@@ -3,6 +3,7 @@ package gitbase
 import (
 	"io"
 
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -161,7 +162,10 @@ func (i *commitIter) init() error {
 	if len(i.hashes) > 0 {
 		i.iter, err = NewCommitsByHashIter(i.repo, i.hashes)
 	} else {
-		i.iter, err = i.repo.CommitObjects()
+		i.iter, err =
+			i.repo.Log(&git.LogOptions{
+				All: true,
+			})
 	}
 
 	return err
@@ -245,7 +249,10 @@ func NewCommitsByHashIter(
 	var commitIter object.CommitIter
 	var err error
 	if len(hashes) == 0 {
-		commitIter, err = repo.CommitObjects()
+		commitIter, err =
+			repo.Log(&git.LogOptions{
+				All: true,
+			})
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +340,10 @@ func newCommitsKeyValueIter(
 		return nil, err
 	}
 
-	commits, err := repo.CommitObjects()
+	commits, err :=
+		repo.Log(&git.LogOptions{
+			All: true,
+		})
 	if err != nil {
 		return nil, err
 	}
