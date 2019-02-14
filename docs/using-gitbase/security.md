@@ -8,7 +8,7 @@ User credentials can be specified in the command line or using a user file. For 
 gitbase server --user root --password r00tp4ssword! -d /my/repositories/path
 ```
 
-If you want to have more than one user or do not have the password in plain text you can use a user file with this format:
+If you want to have more than one user or not having the password in plain text you can use a user file with the following format:
 
 ```json
 [
@@ -24,15 +24,15 @@ If you want to have more than one user or do not have the password in plain text
 ]
 ```
 
-You can either specify a plain text password or hashed. Hashed version uses the same format as MySQL 5.x passwords. You can generate the native password with this command, remember to prefix the hash with `*`:
+You can use a hashed or plain text password. Hashed version uses the same format as MySQL 5.x passwords. You can generate the native password with this command, remember to prefix the hash with `*`:
 
 ```
 echo -n password | openssl sha1 -binary | openssl sha1 | tr '[:lower:]' '[:upper:]'
 ```
 
-There are two permissions you can set to users, `read` and `write`. `read` only allows executing queries. `write` is needed to create and delete indexes or lock tables. If no permissions are set for a user the default permission is `read`.
+There are two permissions you can set for users, `read` and `write`. `read` only allows executing read-only queries that do not modify the internal state or the data itself. `write` is needed to create and delete indexes or lock tables. If no permissions are set for a user the default permission is `read`.
 
-Then you can specify which user file to use with parameter `--user-file`:
+Then you can specify which user file to use with the `--user-file` parameter:
 
 ```
 gitbase server --user-file /path/to/user-file.json -d /my/repositories/path
@@ -40,7 +40,7 @@ gitbase server --user-file /path/to/user-file.json -d /my/repositories/path
 
 ## Audit
 
-Gitbase offer audit traces on logs. Right now, we have three different kinds of traces; for `authentication`, `authorization` and `query`
+Gitbase offers audit traces on logs. Right now, we have three different kinds of traces: `authentication`, `authorization` and `query`
 
 ### Authentication
 
@@ -48,10 +48,10 @@ Trace triggered when a user is trying to connect to gitbase. It contains the fol
 
 - action: Always `authentication`.
 - system: Always `audit`
-- address: Address from the client that is trying to connect.
+- address: Address of the client trying to connect.
 - err: Human readable error if the authentication was not successful.
-- success: True or false depending on if the client authenticated correctly or not.
-- user: Username that is trying to connect
+- success: True or false depending on whether the client authenticated correctly or not.
+- user: Username trying to connect
 
 Example:
 
@@ -65,13 +65,13 @@ Trace triggered checking when a user is authorized to execute a specific valid q
 
 - action: Always `authorization`.
 - system: Always `audit`
-- address: Address from the client.
-- success: True or false depending on if the client has been authorized correctly or not.
-- user: Username that is trying to connect.
-- connection_id: Unique connection identifier from the request is being done.
+- address: Address of the client.
+- success: True or false depending on whether the client has been authorized correctly or not.
+- user: Username trying to execute the query.
+- connection_id: Unique connection identifier of the current request.
 - permission: Permission needed to execute the query.
-- pid: Pid returns the process ID associated with this context. It will grow over the queries sent to gitbase.
-- query: Query that the client is trying to execute.
+- pid: Pid returns the process ID associated with this context. It will change in subsequent queries sent using the same connection.
+- query: Query that client is trying to execute.
 
 Example:
 
@@ -85,12 +85,12 @@ Trace triggered at the end of the executed query. It contains the following info
 
 - action: Always `query`.
 - system: Always `audit`
-- address: Address from the client.
-- success: True or false depending on if the query was executed or not.
-- user: Username that is executing the query.
-- connection_id: Unique connection identifier from the request is being done.
-- pid: Pid returns the process ID associated with this context. It will grow over the queries sent to gitbase.
-- query: Query that the client is trying to execute.
+- address: Address of the client.
+- success: True or false depending on whether the query was executed or not.
+- user: Username executing the query.
+- connection_id: Unique connection identifier of the current request.
+- pid: Pid returns the process ID associated with this context. It will change in subsequent queries sent using the same connection.
+- query: Query that client is trying to execute.
 - err: If `success=false`. Human readable error describing the problem.
 
 Examples:
