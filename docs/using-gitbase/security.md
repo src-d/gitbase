@@ -2,13 +2,13 @@
 
 ## User credentials
 
-User credentials can be specified in the command line or using a user file. For a single user this can be done with parameters `--user` and `--password`:
+User credentials can be specified in the command line or in the user file. For a single user this can be done with parameters `--user` and `--password`:
 
 ```
 gitbase server --user root --password r00tp4ssword! -d /my/repositories/path
 ```
 
-If you want to have more than one user or not having the password in plain text you can use a user file with the following format:
+If you want to have more than one user or not having the password in plain text, then the user file can be useful. You can keep passwords, permissions and user names in the following format:
 
 ```json
 [
@@ -24,7 +24,7 @@ If you want to have more than one user or not having the password in plain text 
 ]
 ```
 
-You can use a hashed or plain text password. Hashed version uses the same format as MySQL 5.x passwords. You can generate the native password with this command, remember to prefix the hash with `*`:
+You can either specify passwords as a plain text or hashed. Hashed version uses the same format as MySQL 5.x passwords. You can generate the native password with this command, remember to prefix the hash with `*`:
 
 ```
 echo -n password | openssl sha1 -binary | openssl sha1 | tr '[:lower:]' '[:upper:]'
