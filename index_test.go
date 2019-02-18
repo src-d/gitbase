@@ -76,6 +76,7 @@ func assertIndexKeyValueIter(t *testing.T, iter sql.PartitionIndexKeyValueIter, 
 	}
 
 	require.NoError(iter.Close())
+	require.Equal(len(expected), len(result))
 	require.ElementsMatch(expected, result)
 }
 

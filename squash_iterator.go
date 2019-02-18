@@ -1307,7 +1307,10 @@ func (i *squashCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIt
 		return nil, err
 	}
 
-	commits, err := repo.CommitObjects()
+	commits, err := repo.
+		Log(&git.LogOptions{
+			All: true,
+		})
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"repo":  repo.ID,
@@ -1533,7 +1536,10 @@ func (i *squashRepoCommitsIter) Advance() error {
 				return err
 			}
 
-			i.commits, err = i.repos.Repository().CommitObjects()
+			i.commits, err = i.repos.Repository().
+				Log(&git.LogOptions{
+					All: true,
+				})
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"repo":  i.repos.Repository().ID,

@@ -105,8 +105,8 @@ func TestFilesTablePushdownFilters(t *testing.T) {
 				),
 			},
 			[]sql.Row{
-				{"binary.jpg", "d5c0f4ab811897cadf03aec358ae60d21f91c50d", "dbd3641b371024f44d0e469a9c8f5457b0660de1", "0100644"},
 				{"binary.jpg", "d5c0f4ab811897cadf03aec358ae60d21f91c50d", "a8d315b2b1c615d43042c3a62402b8a54288cf5c", "0100644"},
+				{"binary.jpg", "d5c0f4ab811897cadf03aec358ae60d21f91c50d", "dbd3641b371024f44d0e469a9c8f5457b0660de1", "0100644"},
 				{"binary.jpg", "d5c0f4ab811897cadf03aec358ae60d21f91c50d", "fb72698cab7617ac416264415f13224dfd7a165e", "0100644"},
 				{"binary.jpg", "d5c0f4ab811897cadf03aec358ae60d21f91c50d", "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd", "0100644"},
 				{"binary.jpg", "d5c0f4ab811897cadf03aec358ae60d21f91c50d", "eba74343e2f15d62adedfd8c883ee0262b5c8021", "0100644"},
@@ -122,14 +122,14 @@ func TestFilesTablePushdownFilters(t *testing.T) {
 				),
 			},
 			[]sql.Row{
-				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "dbd3641b371024f44d0e469a9c8f5457b0660de1", "0100644"},
 				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "a8d315b2b1c615d43042c3a62402b8a54288cf5c", "0100644"},
+				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "dbd3641b371024f44d0e469a9c8f5457b0660de1", "0100644"},
 				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "fb72698cab7617ac416264415f13224dfd7a165e", "0100644"},
 				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "4d081c50e250fa32ea8b1313cf8bb7c2ad7627fd", "0100644"},
 				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "eba74343e2f15d62adedfd8c883ee0262b5c8021", "0100644"},
-				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "c2d30fa8ef288618f65f6eed6e168e0d514886f4", "0100644"},
 				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "8dcef98b1d52143e1e2dbc458ffe38f925786bf2", "0100644"},
 				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "aa9b383c260e1d05fbbf6b30a02914555e20c725", "0100644"},
+				{"LICENSE", "c192bd6a24ea1ab01d78686e417c8bdc7c3d197f", "c2d30fa8ef288618f65f6eed6e168e0d514886f4", "0100644"},
 			},
 		},
 	}
