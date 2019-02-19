@@ -40,11 +40,11 @@ gitbase server --user-file /path/to/user-file.json -d /my/repositories/path
 
 ## Audit
 
-Gitbase offers audit traces on logs. Right now, we have three different kinds of traces: `authentication`, `authorization` and `query`
+Gitbase offers audit trails on logs. Right now, we have three different kinds of records: `authentication`, `authorization` and `query`
 
 ### Authentication
 
-Trace triggered when a user is trying to connect to gitbase. It contains the following information:
+Record triggered when a user is trying to connect to gitbase. It contains the following information:
 
 - action: Always `authentication`.
 - system: Always `audit`
@@ -61,7 +61,7 @@ action=authentication address="127.0.0.1:41720" err="Access denied for user 'tes
 
 ### Authorization
 
-Trace triggered checking when a user is authorized to execute a specific valid query with their permissions. It contains the following information:
+Record triggered checking when a user is authorized to execute a specific valid query with their permissions. It contains the following information:
 
 - action: Always `authorization`.
 - system: Always `audit`
@@ -81,7 +81,7 @@ INFO[0007] audit trail                                   action=authorization ad
 
 ### Query
 
-Trace triggered at the end of the executed query. It contains the following information:
+Record triggered at the end of the executed query. It contains the following information:
 
 - action: Always `query`.
 - system: Always `audit`
@@ -92,6 +92,7 @@ Trace triggered at the end of the executed query. It contains the following info
 - pid: Pid returns the process ID associated with this context. It will change in subsequent queries sent using the same connection.
 - query: Query that client is trying to execute.
 - err: If `success=false`. Human readable error describing the problem.
+- duration: Time that the query took to execute. If the format of the logs is `JSON` this duration unit is nanoseconds.
 
 Examples:
 
