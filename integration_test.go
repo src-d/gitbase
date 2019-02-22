@@ -326,6 +326,7 @@ func TestIntegration(t *testing.T) {
 			`,
 			[]sql.Row{
 				{"Text", int32(1)},
+				{"Ignore List", int32(1)},
 			},
 		},
 	}
