@@ -49,10 +49,11 @@ const (
 	// Operator is any form of operator.
 	Operator
 
-	// Binary is any form of binary operator, in contrast with unary operators.
+	// Binary is any form of binary operator or expression in contrast with unary operators /
+	// expressions.
 	Binary
 
-	// Unary is any form of unary operator, in contrast with binary operators.
+	// Unary is any form of unary operator or expression, in contrast with binary.
 	Unary
 
 	// Left is a left hand side in a binary expression.
@@ -69,13 +70,13 @@ const (
 	// Nodes without Infix or Postfix mark are considered in prefix order by default.
 	Postfix
 
-	// Bitwise is any form of bitwise operation.
+	// Bitwise is any form of bitwise operation, expression or declaration.
 	Bitwise
 
-	// Boolean is any form of boolean operation.
+	// Boolean is any form of boolean operation, expression or declaration.
 	Boolean
 
-	// Unsigned is an form of unsigned operation.
+	// Unsigned is an form of unsigned operation, expression or declaration.
 	Unsigned
 
 	// LeftShift is a left shift operation (i.e. `<<`, `rol`, etc.)
@@ -96,7 +97,7 @@ const (
 	// Expression is a construct computed to produce some value.
 	Expression
 
-	// Statement is some action to be carried out.
+	// Statement is some action to be carried out usually without producing a value.
 	Statement
 
 	// Equal is an eaquality predicate (i.e. `=`, `==`, etc.)
@@ -111,7 +112,7 @@ const (
 	// LessThanOrEqual is a comparison predicate that checks if the lhs value is smaller or equal to the rhs value (i.e. `<=`.)
 	LessThanOrEqual
 
-	// GreaterThan is a comparison predicate that checks if the lhs value is greather than the rhs value (i. e. `>`.)
+	// GreaterThan is a comparison predicate that checks if the lhs value is greater than the rhs value (i. e. `>`.)
 	GreaterThan
 
 	// GreaterThanOrEqual is a comparison predicate that checks if the lhs value is greather than or equal to the rhs value (i.e. 1>=`.)
@@ -123,10 +124,10 @@ const (
 	// Contains is a membership predicate that checks if the lhs value is a member of the rhs container (i.e. `in` in Python.)
 	Contains
 
-	// Increment is an arithmetic operator that increments a value (i. e. `++i`.)
+	// Increment is an arithmetic operator that increments a value (i.e. `++i`.)
 	Increment
 
-	// Decrement is an arithmetic operator that decrements a value (i. e. `--i`.)
+	// Decrement is an arithmetic operator that decrements a value (i.e. `--i`.)
 	Decrement
 
 	// Negative is an arithmetic operator that negates a value (i.e. `-x`.)
@@ -213,10 +214,10 @@ const (
 	// Module is a set of funcitonality grouped.
 	Module
 
-	// Friend is an access granter for some private resources.
+	// Friend is an access granter for some private resources to "friend" types.
 	Friend
 
-	// World is a set of every component.
+	// World is a public access granter.
 	World
 
 	// If is used for if-then[-else] statements or expressions.
@@ -253,7 +254,7 @@ const (
 	// Else is the clause executed when the Condition is false.
 	Else
 
-	// Switch is used to represent a broad of switch flavors. An expression
+	// Switch is used to represent many switch flavors. An expression
 	// is evaluated and then compared to the values returned by different
 	// case expressions, executing a body associated to the first case that
 	// matches. Similar constructions that go beyond expression comparison
@@ -293,11 +294,11 @@ const (
 	// Continue is a construct for continuation with the next iteration of a loop.
 	Continue
 
-	// Goto is an unconditional transfer of control statement.
+	// Goto is an unconditional transfer of the program flow to another place.
 	Goto
 
 	// Block is a group of statements. If the source language has block scope,
-	// it should be annotated both with Block and BlockScope.
+	// it should be annotated both with Block and Scope.
 	Block
 
 	// Scope is a range in which a variable can be referred.
@@ -313,14 +314,15 @@ const (
 	// Catch is a clause to capture exceptions.
 	Catch
 
-	// Finally is a clause for a block executed after a block with exception handling.
+	// Finally defines a block or expression to be run inconditionally after an
+	// expression handling block.
 	Finally
 
-	// Throw is a statement that creates an exception.
+	// Throw is a statement that creates and throw an exception.
 	Throw
 
-	// Assert checks if an expression is true and if it is not, it signals
-	// an error/exception, possibly stopping the execution.
+	// Assert checks if an expression is true and, if it is not, signals
+	// an error/exception, usually stopping the program's execution.
 	Assert
 
 	// Call is any call, whether it is a function, procedure, method or macro.
@@ -337,7 +339,8 @@ const (
 	// Positional is an element which position has meaning (i.e. a positional argument in a call).
 	Positional
 
-	// Noop is a construct that does nothing.
+	// Noop is a construct that does nothing like comments, documentation or, in some
+	// languages like Python, annotations.
 	Noop
 
 	// Literal is a literal value.
@@ -417,27 +420,29 @@ const (
 
 	// Unannotated will be automatically added by the SDK for nodes that did not receive
 	// any annotations with the current version of the driver's `annotations.go` file.
-	// Added in BIP-002.
+	// Added in BIP-002. Having a driver produce Unannotated nodes should be considered
+	// a bug.
 	Unannotated
 
 	// Visibility is an access granter role, usually together with an specifier role
 	Visibility
 
-	// Annotation is syntactic metadata
+	// Annotation is syntactic metadata with or without semantic meaning.
 	Annotation
 
-	// Anonymous is an unbound construct
+	// Anonymous is an construct not bound to name i.e. lambda functions.
 	Anonymous
 
-	// Enumeration is a distinct type that represents a set of named constants
+	// Enumeration is a distinct type that represents a set of named constants.
 	Enumeration
 
-	// Arithmetic is a type of operation
+	// Arithmetic is a type of arithmetic operation.
 	Arithmetic
 
-	// Relational is a type of operation
+	// Relational is a type of relational operation i.e. "equal", "not equal",
+	// "less than"...
 	Relational
 
-	// Variable is a symbolic name associatend with a value
+	// Variable is a symbolic name associatend with a value.
 	Variable
 )

@@ -1,7 +1,0 @@
-package data
-
-var LanguagesType = map[string]int{
-	{{range $language, $type := . -}}
-	"{{ $language }}": {{ $type -}},
-	{{end -}}
-}

@@ -94,9 +94,26 @@ func MapSemanticPos(nativeType string, semType interface{}, pos map[string]strin
 }
 
 func CommentText(tokens [2]string, vr string) Op {
-	return commentUAST{
-		tokens: tokens,
-		text:   vr + "_text", pref: vr + "_pref", suff: vr + "_suff", tab: vr + "_tab",
+	return &commentUAST{
+		startToken: tokens[0],
+		endToken:   tokens[1],
+		textVar:    vr + "_text",
+		prefVar:    vr + "_pref",
+		suffVar:    vr + "_suff",
+		indentVar:  vr + "_tab",
+		doTrim:     false,
+	}
+}
+
+func CommentTextTrimmed(tokens [2]string, vr string) Op {
+	return &commentUAST{
+		startToken: tokens[0],
+		endToken:   tokens[1],
+		textVar:    vr + "_text",
+		prefVar:    vr + "_pref",
+		suffVar:    vr + "_suff",
+		indentVar:  vr + "_tab",
+		doTrim:     true,
 	}
 }
 
@@ -114,72 +131,201 @@ func CommentNode(block bool, vr string, pos Op) ObjectOp {
 	return UASTType(uast.Comment{}, obj)
 }
 
-type commentUAST struct {
-	tokens          [2]string
-	text            string
-	pref, suff, tab string
+// commentElems contains individual comment elements.
+// See uast.Comment for details.
+type commentElems struct {
+	StartToken string
+	EndToken   string
+	Text       string
+	Prefix     string
+	Suffix     string
+	Indent     string
+	DoTrim     bool
 }
 
-func (commentUAST) Kinds() nodes.Kind {
+func (c *commentElems) isTab(r rune) bool {
+	if unicode.IsSpace(r) {
+		return true
+	}
+	for _, r2 := range c.StartToken {
+		if r == r2 {
+			return true
+		}
+	}
+	for _, r2 := range c.EndToken {
+		if r == r2 {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *commentElems) Split(text string) bool {
+	if c.DoTrim {
+		text = strings.TrimLeftFunc(text, unicode.IsSpace)
+	}
+
+	if !strings.HasPrefix(text, c.StartToken) || !strings.HasSuffix(text, c.EndToken) {
+		return false
+	}
+	text = strings.TrimPrefix(text, c.StartToken)
+	text = strings.TrimSuffix(text, c.EndToken)
+
+	// find prefix (if not already trimmed)
+	i := strings.IndexFunc(text, func(r rune) bool {
+		return !c.isTab(r)
+	})
+
+	c.Prefix = ""
+
+	if i >= 0 {
+		c.Prefix = text[:i]
+		text = text[i:]
+	}
+
+	// find suffix
+	i = strings.LastIndexFunc(text, func(r rune) bool {
+		return !c.isTab(r)
+	})
+
+	c.Suffix = ""
+	if i >= 0 {
+		c.Suffix = text[i+1:]
+		text = text[:i+1]
+	}
+	c.Text = text
+
+	sub := strings.Split(text, "\n")
+	if len(sub) == 1 {
+		// fast path, no tabs
+		return true
+	}
+
+	// find minimal common prefix for other lines
+	// first line is special, it won't contain tab
+	for i, line := range sub[1:] {
+		if i == 0 {
+			j := strings.IndexFunc(line, func(r rune) bool {
+				return !c.isTab(r)
+			})
+
+			c.Indent = ""
+			if j >= 0 {
+				c.Indent = line[:j]
+			} else {
+				return true // no tabs
+			}
+			continue
+		}
+		if strings.HasPrefix(line, c.Indent) {
+			continue
+		}
+		j := strings.IndexFunc(line, func(r rune) bool {
+			return !c.isTab(r)
+		})
+
+		tab := ""
+		if j >= 0 {
+			tab = line[:j]
+		} else {
+			return true // no tabs
+		}
+
+		for j := 0; j < len(c.Indent) && j < len(tab); j++ {
+			if c.Indent[j] == tab[j] {
+				continue
+			}
+			if j == 0 {
+				return true // inconsistent, no tabs
+			}
+			tab = tab[:j]
+			break
+		}
+		c.Indent = tab
+	}
+	for i, line := range sub {
+		if i == 0 {
+			continue
+		}
+		sub[i] = strings.TrimPrefix(line, c.Indent)
+	}
+	c.Text = strings.Join(sub, "\n")
+	return true
+}
+
+func (c commentElems) Join() string {
+	if c.Indent != "" {
+		sub := strings.Split(c.Text, "\n")
+		for i, line := range sub {
+			if i == 0 {
+				continue
+			}
+			sub[i] = c.Indent + line
+		}
+		c.Text = strings.Join(sub, "\n")
+	}
+	return strings.Join([]string{
+		c.StartToken, c.Prefix,
+		c.Text,
+		c.Suffix, c.EndToken,
+	}, "")
+}
+
+type commentUAST struct {
+	startToken string
+	endToken   string
+	textVar    string
+	prefVar    string
+	suffVar    string
+	indentVar  string
+	doTrim     bool
+}
+
+func (*commentUAST) Kinds() nodes.Kind {
 	return nodes.KindString
 }
 
-func (op commentUAST) Check(st *State, n nodes.Node) (bool, error) {
+func (op *commentUAST) Check(st *State, n nodes.Node) (bool, error) {
 	s, ok := n.(nodes.String)
 	if !ok {
 		return false, nil
 	}
-	text := string(s)
-	if !strings.HasPrefix(text, op.tokens[0]) || !strings.HasSuffix(text, op.tokens[1]) {
+
+	c := commentElems{StartToken: op.startToken, EndToken: op.endToken, DoTrim: op.doTrim}
+	if !c.Split(string(s)) {
 		return false, nil
 	}
-	text = strings.TrimPrefix(text, op.tokens[0])
-	text = strings.TrimSuffix(text, op.tokens[1])
-	var (
-		pref, suff, tab string
-	)
-
-	// find prefix
-	i := 0
-	for ; i < len(text); i++ {
-		if r := rune(text[i]); unicode.IsLetter(r) || unicode.IsNumber(r) {
-			break
-		}
-	}
-	pref = text[:i]
-	text = text[i:]
-
-	// find suffix
-	i = len(text) - 1
-	for ; i >= 0 && unicode.IsSpace(rune(text[i])); i-- {
-	}
-	suff = text[i+1:]
-	text = text[:i+1]
-
-	// TODO: set tab
 
 	err := st.SetVars(Vars{
-		op.text: nodes.String(text),
-		op.pref: nodes.String(pref),
-		op.suff: nodes.String(suff),
-		op.tab:  nodes.String(tab),
+		op.textVar:   nodes.String(c.Text),
+		op.prefVar:   nodes.String(c.Prefix),
+		op.suffVar:   nodes.String(c.Suffix),
+		op.indentVar: nodes.String(c.Indent),
 	})
 	return err == nil, err
 }
 
-func (op commentUAST) Construct(st *State, n nodes.Node) (nodes.Node, error) {
+func (op *commentUAST) Construct(st *State, n nodes.Node) (nodes.Node, error) {
 	var (
 		text, pref, suff, tab nodes.String
 	)
 
 	err := st.MustGetVars(VarsPtrs{
-		op.text: &text,
-		op.pref: &pref, op.suff: &suff, op.tab: &tab,
+		op.textVar: &text,
+		op.prefVar: &pref, op.suffVar: &suff, op.indentVar: &tab,
 	})
 	if err != nil {
 		return nil, err
 	}
-	// FIXME: handle tab
-	text = pref + text + suff
-	return nodes.String(op.tokens[0] + string(text) + op.tokens[1]), nil
+
+	c := commentElems{
+		StartToken: op.startToken,
+		EndToken:   op.endToken,
+		Text:       string(text),
+		Prefix:     string(pref),
+		Suffix:     string(suff),
+		Indent:     string(tab),
+	}
+
+	return nodes.String(c.Join()), nil
 }

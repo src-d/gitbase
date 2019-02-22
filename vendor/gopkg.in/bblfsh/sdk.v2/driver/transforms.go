@@ -9,26 +9,69 @@ import (
 	"gopkg.in/bblfsh/sdk.v2/uast/transformer"
 )
 
-// Transforms describes a set of AST transformations this driver requires.
+// Transforms describes a set of AST transformations the driver requires.
+//
+// The pipeline can be illustrated as:
+//         ( AST )--------------> ( ModeNative )
+//            V
+//      [ Preprocess ]
+//    [ PreprocessCode ]--------> ( ModePreprocessed )
+//            |
+//            |----------------\
+//            |           [ Normalize ]
+//     [ Annotations ] <-------/
+//            |
+//            V
+//        [ Code ]-------------\
+//            |           [ Namespace ]
+//            |                |
+//            V                V
+//     ( ModeAnnotated ) ( ModeSemantic )
 type Transforms struct {
-	// Namespace for this language driver
+	// Namespace for native AST nodes of this language. Only enabled in Semantic mode.
+	//
+	// Namespace will be set at the end of the pipeline, thus all transforms can
+	// use type names without the driver namespace.
 	Namespace string
-	// Preprocess transforms normalizes native AST.
-	// It usually includes:
-	//	* changing type key to uast.KeyType
-	//	* changing token key to uast.KeyToken
-	//	* restructure positional information
+
+	// Preprocess stage normalizes native AST for both Annotated and Semantic stages.
+	//
+	// It usually:
+	//  * changes type key to uast.KeyType
+	//  * restructures positional information
+	//  * fixes any issues with native AST structure
 	Preprocess []transformer.Transformer
-	// Normalize converts known AST structures to high-level AST representation (UAST).
+
+	// PreprocessCode stage runs code-assisted transformations after the Preprocess stage.
+	// It can be used to fix node tokens or positional information based on the source.
+	PreprocessCode []transformer.CodeTransformer
+
+	// Normalize stage converts a known native AST structures to a canonicalized
+	// high-level AST representation (UAST). It is executed after PreprocessCode
+	// and before the Annotations stage.
 	Normalize []transformer.Transformer
-	// Annotations transforms annotates the tree with roles.
+
+	// Annotations stage applies UAST role annotations and is executed after
+	// Semantic stage, or after PreprocessCode if Semantic is disabled.
+	//
+	// It also changes token key to uast.KeyToken. It should not be done in the
+	// Preprocess stage, because Semantic annotations are easier on clean native AST.
 	Annotations []transformer.Transformer
-	// Code transforms are applied directly after Native and provide a way
+
+	// Code stage is applied directly after annotations and provides a way
 	// to extract more information from source files, fix positional info, etc.
+	//
+	// TODO(dennwc): deprecate and examine drivers; documentation was incorrect
+	//               it was described that the stage runs after Native, but it
+	//               was always running after all annotation stages
+	//
+	// Deprecated: see PreprocessCode
 	Code []transformer.CodeTransformer
 }
 
-// Do applies AST transformation pipeline for specified nodes.
+// Do applies AST transformation pipeline for specified AST subtree.
+//
+// Mode can be specified to stop the pipeline at a specific abstraction level.
 func (t Transforms) Do(rctx context.Context, mode Mode, code string, nd nodes.Node) (nodes.Node, error) {
 	sp, ctx := opentracing.StartSpanFromContext(rctx, "uast.Transform")
 	defer sp.Finish()
@@ -43,27 +86,10 @@ func (t Transforms) Do(rctx context.Context, mode Mode, code string, nd nodes.No
 		return nd, nil
 	}
 
-	var err error
-
-	nd, err = t.do(ctx, mode, nd)
-	if err != nil {
-		return nd, err
-	}
-
-	nd, err = t.doCode(ctx, code, nd)
-	if err != nil {
-		return nd, err
-	}
-
-	nd, err = t.doPost(ctx, mode, nd)
-	if err != nil {
-		return nd, err
-	}
-
-	return nd, nil
+	return t.do(ctx, mode, code, nd)
 }
 
-func (t Transforms) do(ctx context.Context, mode Mode, nd nodes.Node) (nodes.Node, error) {
+func (t Transforms) do(ctx context.Context, mode Mode, code string, nd nodes.Node) (nodes.Node, error) {
 	var err error
 	runAll := func(name string, list []transformer.Transformer) error {
 		sp, _ := opentracing.StartSpanFromContext(ctx, "uast.Transform."+name)
@@ -77,47 +103,62 @@ func (t Transforms) do(ctx context.Context, mode Mode, nd nodes.Node) (nodes.Nod
 		}
 		return nil
 	}
+	runAllCode := func(name string, list []transformer.CodeTransformer) error {
+		sp, _ := opentracing.StartSpanFromContext(ctx, "uast.Transform."+name)
+		defer sp.Finish()
+
+		for _, ct := range list {
+			t := ct.OnCode(code)
+			nd, err = t.Do(nd)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Preprocess AST and optionally use the second pre-processing stage
+	// that can access the source code (to fix tokens, for example).
 	if err := runAll("preprocess", t.Preprocess); err != nil {
 		return nd, err
 	}
+	if err := runAllCode("preprocess-code", t.PreprocessCode); err != nil {
+		return nd, err
+	}
+
+	// First run Semantic mode (UAST canonicalization).
+	// It's considered a more high-level representation, but it needs
+	// a clean AST to run, so we execute it before Annotated mode.
 	if mode >= ModeSemantic {
 		if err := runAll("semantic", t.Normalize); err != nil {
 			return nd, err
 		}
 	}
+
+	// Next run Annotated mode. It won't see nodes converted by Semantic nodes,
+	// because it expects a clean native AST.
+	// This is intentional — Semantic nodes are already defined with specific
+	// roles in mind, thus they shouldn't be annotated further on this stage.
 	if mode >= ModeAnnotated {
 		if err := runAll("annotated", t.Annotations); err != nil {
 			return nd, err
 		}
 	}
-	return nd, nil
-}
 
-func (t Transforms) doCode(ctx context.Context, code string, nd nodes.Node) (nodes.Node, error) {
-	sp, _ := opentracing.StartSpanFromContext(ctx, "uast.Transform.onCode")
-	defer sp.Finish()
-
-	var err error
-	for _, ct := range t.Code {
-		t := ct.OnCode(code)
-		nd, err = t.Do(nd)
-		if err != nil {
-			return nd, err
-		}
+	// Run a code-assisted post-processing. Deprecated.
+	// There is no real reason to run it after all other stages except Preprocess.
+	if err := runAllCode("on-code", t.Code); err != nil {
+		return nd, err
 	}
-	return nd, nil
-}
 
-func (t Transforms) doPost(ctx context.Context, mode Mode, nd nodes.Node) (nodes.Node, error) {
-	sp, _ := opentracing.StartSpanFromContext(ctx, "uast.Transform.namespace")
-	defer sp.Finish()
-
-	var err error
+	// All native nodes should have a namespace in Semantic mode.
+	// Set if it was specified in the transform configuration.
 	if mode >= ModeSemantic && t.Namespace != "" {
-		nd, err = transformer.DefaultNamespace(t.Namespace).Do(nd)
-		if err != nil {
+		tr := transformer.DefaultNamespace(t.Namespace)
+		if err := runAll("namespace", []transformer.Transformer{tr}); err != nil {
 			return nd, err
 		}
 	}
+
 	return nd, nil
 }

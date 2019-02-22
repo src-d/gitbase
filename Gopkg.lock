@@ -532,7 +532,7 @@
   version = "v1.16.1"
 
 [[projects]]
-  digest = "1:71ea0b4f4566c0753c5ffa05991f88beee2faf252eb7ec80e31bb6a7aaad0119"
+  digest = "1:66b86144b638269dbbe254b0e72069ee3aff0ecd77454b012d5f7d43164f3a84"
   name = "gopkg.in/bblfsh/sdk.v2"
   packages = [
     "driver",
@@ -548,9 +548,9 @@
     "uast/role",
     "uast/transformer",
   ]
-  pruneopts = ""
-  revision = "0227f2a8739441f216971d20c1d096cf65c7da4f"
-  version = "v2.11.0"
+  pruneopts = "NUT"
+  revision = "5a1a268859490ec2772d8106a331be1f7d0d85a3"
+  version = "v2.14.2"
 
 [[projects]]
   branch = "v1"
@@ -561,17 +561,18 @@
   revision = "788fd78401277ebd861206a03c884797c6ec5541"
 
 [[projects]]
-  digest = "1:c39753071b92c76b9679a1477130bfd362ce80cdf15d9985097e7452d2bb1f74"
+  digest = "1:57a3ce4850faf6af62c1a8c9ae41870084cfabaeba01b57cdc81967c11246a04"
   name = "gopkg.in/src-d/enry.v1"
   packages = [
     ".",
     "data",
+    "data/rule",
     "internal/tokenizer",
     "regex",
   ]
-  pruneopts = ""
-  revision = "e9fd3640e0f143972c4da414aee538012cffed7f"
-  version = "v1.6.6"
+  pruneopts = "NUT"
+  revision = "e067e4504402176864d8b5464bfed5b7e6d40307"
+  version = "v1.7.1"
 
 [[projects]]
   digest = "1:5e22c90776cebac8e7ff7cc6233c5569988d2042672156f9789c9ba6b03d1ac1"

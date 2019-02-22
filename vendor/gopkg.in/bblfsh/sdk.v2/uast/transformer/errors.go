@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	"gopkg.in/src-d/go-errors.v1"
+
+	"gopkg.in/bblfsh/sdk.v2/uast"
+	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 )
 
 var (
@@ -44,7 +47,9 @@ var (
 	// ErrUnusedField is returned when a transformation is not defined as partial, but does not process a specific key
 	// found in object. This usually means that an AST has a field that is not covered by transformation code and it
 	// should be added to the mapping.
-	ErrUnusedField = errors.NewKind("field was not used: %v")
+	//
+	// Use NewErrUnusedField for constructing this error.
+	ErrUnusedField = errors.NewKind("unused field(s) on node %v: %v")
 	// ErrDuplicateField is returned when trying to create a Fields definition with two items with the same name.
 	ErrDuplicateField = errors.NewKind("duplicate field: %v")
 	// ErrUndefinedField is returned when trying to create an object with a field that is not defined in the type spec.
@@ -88,4 +93,21 @@ func (e *MultiError) Error() string {
 		fmt.Fprintf(buf, "\t%v\n", err)
 	}
 	return buf.String()
+}
+
+// NewErrUnusedField is a helper for creating ErrUnusedField.
+//
+// It will include a short type information for the node to simplify debugging.
+func NewErrUnusedField(n nodes.Object, fields []string) error {
+	var t interface{}
+	if typ, _ := n[uast.KeyType].(nodes.String); typ != "" {
+		t = typ
+	} else {
+		t = n.Keys()
+	}
+	var f interface{} = fields
+	if len(fields) == 1 {
+		f = fields[0]
+	}
+	return ErrUnusedField.New(t, f)
 }

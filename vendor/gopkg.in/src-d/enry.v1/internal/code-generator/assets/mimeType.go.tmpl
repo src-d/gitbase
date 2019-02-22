@@ -1,7 +1,0 @@
-package data
-
-var LanguagesMime = map[string]string{
-  {{range $language, $mime := . -}}
-  "{{$language}}": "{{$mime -}}",
-  {{end -}}
-}

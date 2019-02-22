@@ -77,6 +77,7 @@ func (it *positionIter) sort() {
 	plist = nil
 }
 
+// Next implements nodes.Iterator.
 func (it *positionIter) Next() bool {
 	if it.nodes == nil {
 		it.sort()
@@ -89,6 +90,7 @@ func (it *positionIter) Next() bool {
 	return len(it.nodes) != 0
 }
 
+// Node implements nodes.Iterator.
 func (it *positionIter) Node() nodes.External {
 	if len(it.nodes) == 0 {
 		return nil

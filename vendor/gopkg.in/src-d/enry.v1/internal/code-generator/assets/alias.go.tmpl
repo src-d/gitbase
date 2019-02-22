@@ -1,9 +1,0 @@
-package data
-
-// LanguagesByAlias keeps alias for different languages and use the name of the languages as an alias too.
-// All the keys (alias or not) are written in lower case and the whitespaces has been replaced by underscores.
-var LanguagesByAlias = map[string]string{
-	{{range $alias, $language := . -}}
-	"{{ $alias }}":	{{ printf "%q" $language -}},
-	{{end -}}
-}

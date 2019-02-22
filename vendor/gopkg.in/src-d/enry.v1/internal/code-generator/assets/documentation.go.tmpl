@@ -1,9 +1,0 @@
-package data
-
-import "gopkg.in/toqueteos/substring.v1"
-
-var DocumentationMatchers = substring.Or(
-	{{range $regexp := . -}}
-	substring.Regexp(`{{ $regexp }}`),
-	{{end -}}
-)

@@ -67,6 +67,63 @@ func One(op Op) ArrayOp {
 	return Arr(op)
 }
 
+// AnyElem check matches if any of list elements matches sub-check.
+func AnyElem(s Sel) Sel {
+	if s == nil {
+		s = Is(nil)
+	}
+	return &opAnyElem{sel: s}
+}
+
+type opAnyElem struct {
+	sel Sel
+}
+
+func (*opAnyElem) Kinds() nodes.Kind {
+	return nodes.KindArray
+}
+
+func (op *opAnyElem) Check(st *State, n nodes.Node) (bool, error) {
+	l, ok := n.(nodes.Array)
+	if !ok {
+		return false, nil
+	}
+	for _, o := range l {
+		if ok, err := op.sel.Check(st.Clone(), o); err != nil {
+			return false, err
+		} else if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// All check matches if all list elements matches sub-check.
+func All(s Sel) Sel {
+	return &opAll{sel: s}
+}
+
+type opAll struct {
+	sel Sel
+}
+
+func (*opAll) Kinds() nodes.Kind {
+	return nodes.KindArray
+}
+
+func (op *opAll) Check(st *State, n nodes.Node) (bool, error) {
+	l, ok := n.(nodes.Array)
+	if !ok {
+		return false, nil
+	}
+	for _, o := range l {
+		if ok, err := op.sel.Check(st.Clone(), o); err != nil || !ok {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
 // LookupArrOpVar is like LookupOpVar but returns an array operation.
 // Default value can be specified by setting the nil key.
 func LookupArrOpVar(vr string, cases map[nodes.Value]ArrayOp) ArrayOp {

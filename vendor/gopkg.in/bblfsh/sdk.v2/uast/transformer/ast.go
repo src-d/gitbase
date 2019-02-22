@@ -412,11 +412,11 @@ func StringToRolesMap(m map[string][]role.Role) map[nodes.Value]ArrayOp {
 // Since rules are applied depth-first, this operation will work properly only in a separate mapping step.
 // In other cases it will apply itself before parent node appends field roles.
 func AnnotateIfNoRoles(typ string, roles ...role.Role) Mapping {
-	return Map(
-		Check( // TODO: CheckObj
-			Not(Has{
-				uast.KeyRoles: AnyNode(nil),
-			}),
+	return MapObj(
+		CheckObj(
+			HasFields{
+				uast.KeyRoles: false,
+			},
 			Part("_", Obj{
 				uast.KeyType: String(typ),
 			}),
