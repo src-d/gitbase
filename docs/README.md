@@ -6,6 +6,7 @@
 
 * [Getting started](using-gitbase/getting-started.md)
 * [Configuration](using-gitbase/configuration.md)
+* [Security](using-gitbase/security.md)
 * [Schema](using-gitbase/schema.md)
 * [Supported syntax](using-gitbase/supported-syntax.md)
 * [Supported clients](using-gitbase/supported-clients.md)
