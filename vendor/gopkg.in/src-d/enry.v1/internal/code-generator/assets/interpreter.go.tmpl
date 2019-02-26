@@ -1,7 +1,0 @@
-package data
-
-var LanguagesByInterpreter = map[string][]string{
-	{{range $interpreter, $languages := . -}}
-	"{{ $interpreter }}":	{ {{- $languages | formatStringSlice -}} },
-	{{end -}}
-}

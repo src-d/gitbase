@@ -948,3 +948,29 @@ func UniqueKey(n Node) Comparable {
 		return unkPtr(ptr)
 	}
 }
+
+// ChildrenCount reports the number of immediate children of n. If n is an Array this is
+// the length of the array. If n is an Object, each object in a field of n counts as
+// one child and each array is counted as its length.
+func ChildrenCount(n Node) int {
+	switch n := n.(type) {
+	case nil:
+		return 0
+	case Value:
+		return 0
+	case Array:
+		return len(n)
+	case Object:
+		c := 0
+		for _, v := range n {
+			switch v := v.(type) {
+			case Object:
+				c++
+			case Array:
+				c += len(v)
+			}
+		}
+		return c
+	}
+	return 0
+}

@@ -50,7 +50,7 @@
 
 [[constraint]]
   name = "gopkg.in/src-d/enry.v1"
-  version = "1.6.5"
+  version = "1.7.1"
 
 [[constraint]]
   name = "gopkg.in/bblfsh/client-go.v3"
@@ -58,11 +58,11 @@
 
 [[override]]
   name = "gopkg.in/bblfsh/sdk.v1"
-  version = "1.16.0"
+  version = "1.16.1"
 
 [[constraint]]
   name = "gopkg.in/bblfsh/sdk.v2"
-  version = "2.11.0"
+  version = "2.14.2"
 
 [[constraint]]
   name = "github.com/uber/jaeger-client-go"
@@ -83,6 +83,16 @@
 [prune]
   [[prune.project]]
     name = "gopkg.in/src-d/go-mysql-server.v0"
+    go-tests = true
+    non-go = true
+    unused-packages = true
+  [[prune.project]]
+    name = "gopkg.in/src-d/enry.v1"
+    go-tests = true
+    non-go = true
+    unused-packages = true
+  [[prune.project]]
+    name = "gopkg.in/bblfsh/sdk.v2"
     go-tests = true
     non-go = true
     unused-packages = true

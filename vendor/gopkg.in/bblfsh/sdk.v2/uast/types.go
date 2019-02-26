@@ -10,7 +10,11 @@ import (
 )
 
 var (
-	ErrIncorrectType     = errors.NewKind("incorrect object type: %q, expected: %q")
+	// ErrIncorrectType is returned when trying to load a generic UAST node into a Go value
+	// of an incorrect type.
+	ErrIncorrectType = errors.NewKind("incorrect object type: %q, expected: %q")
+	// ErrTypeNotRegistered is returned when trying to create a UAST type that was not associated
+	// with any Go type. See RegisterPackage.
 	ErrTypeNotRegistered = errors.NewKind("type is not registered: %q")
 )
 
@@ -46,6 +50,18 @@ func (n nodeID) String() string {
 	return n.NS + ":" + n.Name
 }
 
+// RegisterPackage registers a new UAST namespace and associates the concrete types
+// of the specified values with it. All types should be in the same Go package.
+// The name of each type is derived from its reflect.Type name.
+//
+// Example:
+//   type Node struct{}
+//
+//   func init(){
+//      // will register a UAST type "my:Node" associated with
+//      // a Node type from this package
+//      RegisterPackage("my", Node{})
+//   }
 func RegisterPackage(ns string, types ...interface{}) {
 	if _, ok := namespaces[ns]; ok {
 		panic("namespace already registered")
@@ -73,6 +89,9 @@ func RegisterPackage(ns string, types ...interface{}) {
 	}
 }
 
+// LookupType finds a Go type corresponding to a specified UAST type.
+//
+// It only returns types registered via RegisterPackage.
 func LookupType(typ string) (reflect.Type, bool) {
 	name := parseNodeID(typ)
 	rt, ok := name2type[name]
@@ -139,6 +158,9 @@ func NewObjectByTypeOpt(typ string) (obj, opt nodes.Object) {
 	return obj, opt
 }
 
+// NewValue creates a new Go value corresponding to a specified UAST type.
+//
+// It only creates types registered via RegisterPackage.
 func NewValue(typ string) (reflect.Value, error) {
 	rt, ok := LookupType(typ)
 	if !ok {
@@ -152,6 +174,11 @@ func NewValue(typ string) (reflect.Value, error) {
 	}
 }
 
+// TypeOf returns the UAST type of a value.
+//
+// If the value is a generic UAST node, the function returns the value of its KeyType.
+//
+// If an object is registered as a UAST schema type, the function returns the associated type.
 func TypeOf(o interface{}) string {
 	switch obj := o.(type) {
 	case nil:
@@ -210,14 +237,15 @@ func fieldName(f reflect.StructField) (string, bool, error) {
 }
 
 var (
-	reflString  = reflect.TypeOf("")
-	reflAny     = reflect.TypeOf((*Any)(nil)).Elem()
-	reflNode    = reflect.TypeOf((*nodes.Node)(nil)).Elem()
-	reflNodeExt = reflect.TypeOf((*nodes.External)(nil)).Elem()
+	reflString   = reflect.TypeOf("")
+	reflAny      = reflect.TypeOf((*Any)(nil)).Elem()
+	reflAnySlice = reflect.TypeOf([]Any{})
+	reflNode     = reflect.TypeOf((*nodes.Node)(nil)).Elem()
+	reflNodeExt  = reflect.TypeOf((*nodes.External)(nil)).Elem()
 )
 
-// ToNode converts objects returned by schema-less encodings such as JSON to Node objects.
-// It also supports types from packages registered via RegisterPackage.
+// ToNode converts generic values returned by schema-less encodings such as JSON to Node objects.
+// It also supports values registered via RegisterPackage.
 func ToNode(o interface{}) (nodes.Node, error) {
 	return nodes.ToNode(o, toNodeFallback)
 }
@@ -332,6 +360,9 @@ func structToNode(obj nodes.Object, rv reflect.Value, rt reflect.Type) error {
 	return nil
 }
 
+// NodeAs loads a generic UAST node into provided Go value.
+//
+// It returns ErrIncorrectType in case of type mismatch.
 func NodeAs(n nodes.External, dst interface{}) error {
 	var rv reflect.Value
 	if v, ok := dst.(reflect.Value); ok {
@@ -353,6 +384,26 @@ func setAnyOrNode(dst reflect.Value, n nodes.External) (bool, error) {
 			return false, err
 		}
 		dst.Set(reflect.ValueOf(nd))
+		return true, nil
+	} else if rt == reflAnySlice {
+		narr, ok := n.(nodes.ExternalArray)
+		if !ok {
+			return false, nil
+		}
+		sz := narr.Size()
+		arr := make([]Any, 0, sz)
+		for i := 0; i < sz; i++ {
+			e := narr.ValueAt(i)
+			var v Any = e
+			if nv, err := NewValue(TypeOf(e)); err == nil {
+				if err = nodeAs(e, nv); err != nil {
+					return false, err
+				}
+				v = nv.Interface()
+			}
+			arr = append(arr, v)
+		}
+		dst.Set(reflect.ValueOf(arr))
 		return true, nil
 	}
 	return false, nil

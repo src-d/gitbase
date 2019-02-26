@@ -16,7 +16,7 @@ const OtherLanguage = ""
 // Strategy type fix the signature for the functions that can be used as a strategy.
 type Strategy func(filename string, content []byte, candidates []string) (languages []string)
 
-// DefaultStrategies is the strategies' sequence GetLanguage uses to detect languages.
+// DefaultStrategies is a sequence of strategies used by GetLanguage to detect languages.
 var DefaultStrategies = []Strategy{
 	GetLanguagesByModeline,
 	GetLanguagesByFilename,
@@ -26,6 +26,7 @@ var DefaultStrategies = []Strategy{
 	GetLanguagesByClassifier,
 }
 
+// DefaultClassifier is a naive Bayes classifier based on Linguist samples.
 var DefaultClassifier Classifier = &classifier{
 	languagesLogProbabilities: data.LanguagesLogProbabilities,
 	tokensLogProbabilities:    data.TokensLogProbabilities,
@@ -396,12 +397,13 @@ func GetLanguagesByContent(filename string, content []byte, _ []string) []string
 	}
 
 	ext := strings.ToLower(filepath.Ext(filename))
-	fnMatcher, ok := data.ContentMatchers[ext]
+
+	heuristic, ok := data.ContentHeuristics[ext]
 	if !ok {
 		return nil
 	}
 
-	return fnMatcher(content)
+	return heuristic.Match(content)
 }
 
 // GetLanguagesByClassifier uses DefaultClassifier as a Classifier and returns a sorted slice of possible languages ordered by
@@ -454,9 +456,7 @@ func GetLanguageType(language string) (langType Type) {
 // GetLanguageByAlias returns either the language related to the given alias and ok set to true
 // or Otherlanguage and ok set to false if the alias is not recognized.
 func GetLanguageByAlias(alias string) (lang string, ok bool) {
-	a := strings.Split(alias, `,`)[0]
-	a = strings.ToLower(a)
-	lang, ok = data.LanguagesByAlias[a]
+	lang, ok = data.LanguageByAlias(alias)
 	if !ok {
 		lang = OtherLanguage
 	}
