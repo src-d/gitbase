@@ -17,7 +17,7 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-git.v4"
   source = "github.com/src-d/go-git"
-  revision = "4d8bd13a73d6efd41b6be0b2eba5130c498fae0d"
+  revision = "0106daba16494c33d330168e38c8a610b7a9b32c"
 
 [[constraint]]
   name = "gopkg.in/src-d/go-git-fixtures.v3"
@@ -83,6 +83,11 @@
 [prune]
   [[prune.project]]
     name = "gopkg.in/src-d/go-mysql-server.v0"
+    go-tests = true
+    non-go = true
+    unused-packages = true
+  [[prune.project]]
+    name = "gopkg.in/src-d/go-git.v4"
     go-tests = true
     non-go = true
     unused-packages = true
