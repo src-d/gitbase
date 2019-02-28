@@ -16,12 +16,6 @@ $(MAKEFILE):
 
 -include $(MAKEFILE)
 
-# we still need to do this for windows
-bblfsh-client:
-	cd vendor/gopkg.in/bblfsh/client-go.v3 && make dependencies
-
-dependencies: bblfsh-client
-
 upgrade:
 	go run tools/rev-upgrade/main.go -p $(UPGRADE_PRJ) -r $(UPGRADE_REV)
 
