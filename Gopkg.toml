@@ -1,6 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "2ea67817f6a1d08a352c31608f9bd426987acdc0"
+  revision = "v0.5.1"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
