@@ -26,14 +26,6 @@
   revision = "3de91f3991a1af6e495d49c9218318b5544b20e3"
 
 [[projects]]
-  digest = "1:ed112122ed4a920d944cc99b9d00b0441c11685939c28462c719488d36fe29aa"
-  name = "github.com/boltdb/bolt"
-  packages = ["."]
-  pruneopts = ""
-  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
-  version = "v1.3.1"
-
-[[projects]]
   digest = "1:7bb1a80aeedb97f4eca27ffb775777c8d7be3be33067ad1f6808620f51e503ce"
   name = "github.com/cespare/xxhash"
   packages = ["."]
@@ -379,6 +371,14 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:8fe1bf6222077787bf88db4eae509f1c910743be1b82e1a6a57444fe092fc4a5"
+  name = "go.etcd.io/bbolt"
+  packages = ["."]
+  pruneopts = ""
+  revision = "63597a96ec0ad9e6d43c3fc81e809909e0237461"
+  version = "v1.3.2"
+
+[[projects]]
   branch = "master"
   digest = "1:78f41d38365ccef743e54ed854a2faf73313ba0750c621116a8eeb0395590bd0"
   name = "golang.org/x/crypto"
@@ -672,7 +672,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:038546cbff2ae3af553f9f623c8c729556ed87ef296c22f9026dfd0cee798bc7"
+  digest = "1:f1dc8dd661130c9362c7e99d5b05450bebe60778bfc85dac991f05e8275d0459"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -691,7 +691,7 @@
     "sql/plan",
   ]
   pruneopts = "NUT"
-  revision = "v0.5.1"
+  revision = "b32d2fdea095e2743d13f3ab4da5ae83aef55bc7"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"

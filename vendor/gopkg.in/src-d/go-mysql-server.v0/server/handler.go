@@ -9,7 +9,7 @@ import (
 	"time"
 
 	errors "gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-mysql-server.v0"
+	sqle "gopkg.in/src-d/go-mysql-server.v0"
 	"gopkg.in/src-d/go-mysql-server.v0/auth"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
@@ -173,23 +173,35 @@ func (h *Handler) handleKill(conn *mysql.Conn, query string) (bool, error) {
 	// KILL CONNECTION and KILL should close the connection. KILL QUERY only
 	// cancels the query.
 	//
-	// https://dev.mysql.com/doc/refman/5.7/en/kill.html
+	// https://dev.mysql.com/doc/refman/8.0/en/kill.html
+	//
+	// KILL [CONNECTION | QUERY] processlist_id
+	// - KILL QUERY terminates the statement the connection is currently executing,
+	// but leaves the connection itself intact.
 
+	// - KILL CONNECTION is the same as KILL with no modifier:
+	// It terminates the connection associated with the given processlist_id,
+	// after terminating any statement the connection is executing.
 	if s[1] == "query" {
-		logrus.Infof("kill query: id %v", id)
+		logrus.Infof("kill query: id %d", id)
 		h.e.Catalog.Kill(id)
 	} else {
-		logrus.Infof("kill connection: id %v, pid: %v", conn.ConnectionID, id)
-		h.mu.Lock()
-		c, ok := h.c[conn.ConnectionID]
-		delete(h.c, conn.ConnectionID)
-		h.mu.Unlock()
-
+		connID, ok := h.e.Catalog.KillConnection(id)
 		if !ok {
-			return false, errConnectionNotFound.New(conn.ConnectionID)
+			return false, errConnectionNotFound.New(connID)
+		}
+		logrus.Infof("kill connection: id %d, pid: %d", connID, id)
+
+		h.mu.Lock()
+		c, ok := h.c[connID]
+		if ok {
+			delete(h.c, connID)
+		}
+		h.mu.Unlock()
+		if !ok {
+			return false, errConnectionNotFound.New(connID)
 		}
 
-		h.e.Catalog.KillConnection(uint32(id))
 		h.sm.CloseConn(c)
 		c.Close()
 	}
@@ -209,9 +221,17 @@ func rowToSQL(s sql.Schema, row sql.Row) []sqltypes.Value {
 func schemaToFields(s sql.Schema) []*query.Field {
 	fields := make([]*query.Field, len(s))
 	for i, c := range s {
+		var charset uint32
+		if c.Type.Type() == mysql.TypeBlob {
+			charset = mysql.CharacterSetBinary
+		} else {
+			charset = mysql.CharacterSetUtf8
+		}
+
 		fields[i] = &query.Field{
-			Name: c.Name,
-			Type: c.Type.Type(),
+			Name:    c.Name,
+			Type:    c.Type.Type(),
+			Charset: charset,
 		}
 	}
 
