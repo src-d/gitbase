@@ -163,9 +163,7 @@ func (i *commitIter) init() error {
 		i.iter, err = NewCommitsByHashIter(i.repo, i.hashes)
 	} else {
 		i.iter, err =
-			i.repo.Log(&git.LogOptions{
-				All: true,
-			})
+			i.repo.Log(&git.LogOptions{})
 	}
 
 	return err
