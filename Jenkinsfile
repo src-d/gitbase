@@ -4,6 +4,7 @@ pipeline {
       label 'regression-gitbase'
       inheritFrom 'performance'
       defaultContainer 'regression-gitbase'
+      nodeSelector 'srcd.host/type=jenkins-worker'
       containerTemplate {
         name 'regression-gitbase'
         image 'srcd/regression-gitbase:v0.2.0'
