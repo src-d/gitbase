@@ -53,7 +53,7 @@ func TestCommitTreesRowIter(t *testing.T) {
 		{"b8e471f58bcbca63b07bda20e428190409c2db47", "c2d30fa8ef288618f65f6eed6e168e0d514886f4"},
 	}
 
-	require.Equal(expected, rows)
+	require.ElementsMatch(expected, rows)
 }
 
 func TestCommitTreesPushdown(t *testing.T) {
@@ -109,7 +109,7 @@ func TestCommitTreesPushdown(t *testing.T) {
 				rows[i] = row[1:]
 			}
 
-			require.Equal(tt.expected, rows)
+			require.ElementsMatch(tt.expected, rows)
 		})
 	}
 }
