@@ -21,9 +21,8 @@ pipeline {
   triggers { pollSCM('0 0,12 * * *') }
   stages {
     stage('Run') {
-      when { branch 'master' }
       steps {
-        sh 'apt-get install oniguruma-dev'
+        sh 'apt-get install libonig-dev'
         sh '/bin/regression --complexity=2 --csv local:HEAD'
       }
     }
