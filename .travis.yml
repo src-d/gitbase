@@ -38,8 +38,7 @@ jobs:
       services: [docker]
 
       before_deploy:
-        - make packages
-        - echo "${TRAVIS_TAG}" > version.txt
+        - make static-package
         - make docker-push-latest-release
 
       deploy:
