@@ -85,6 +85,11 @@ func TestCommitsPushdown(t *testing.T) {
 	require.Len(rows, 1)
 }
 
+type commitAndParents struct {
+	hash    string
+	parents []string
+}
+
 func TestCommitsParents(t *testing.T) {
 	ctx, _, cleanup := setup(t)
 	defer cleanup()
@@ -94,41 +99,45 @@ func TestCommitsParents(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 9)
 
-	tests := []struct {
-		name    string
-		hash    string
-		parents []string
-	}{
+	var result []commitAndParents
+	for _, r := range rows {
+		c := commitAndParents{
+			hash: r[1].(string),
+		}
+
+		for _, x := range r[10].([]interface{}) {
+			c.parents = append(c.parents, x.(string))
+		}
+
+		result = append(result, c)
+	}
+
+	expected := []commitAndParents{
 		{
-			name: "test commits parents 1",
 			hash: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
 			parents: []string{
 				"918c48b83bd081e863dbe1b80f8998f058cd8294",
 			},
 		},
 		{
-			name: "test commits parents 2",
 			hash: "e8d3ffab552895c19b9fcf7aa264d277cde33881",
 			parents: []string{
 				"918c48b83bd081e863dbe1b80f8998f058cd8294",
 			},
 		},
 		{
-			name: "test commits parents 3",
 			hash: "918c48b83bd081e863dbe1b80f8998f058cd8294",
 			parents: []string{
 				"af2d6a6954d532f8ffb47615169c8fdf9d383a1a",
 			},
 		},
 		{
-			name: "test commits parents 4",
 			hash: "af2d6a6954d532f8ffb47615169c8fdf9d383a1a",
 			parents: []string{
 				"1669dce138d9b841a518c64b10914d88f5e488ea",
 			},
 		},
 		{
-			name: "test commits parents 5",
 			hash: "1669dce138d9b841a518c64b10914d88f5e488ea",
 			parents: []string{
 				"35e85108805c84807bc66a02d91535e1e24b38b9",
@@ -136,19 +145,16 @@ func TestCommitsParents(t *testing.T) {
 			},
 		},
 		{
-			name: "test commits parents 6",
 			hash: "35e85108805c84807bc66a02d91535e1e24b38b9",
 			parents: []string{
 				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
 			},
 		},
 		{
-			name:    "test commits parents 7",
 			hash:    "b029517f6300c2da0f4b651b8642506cd6aaf45d",
-			parents: []string{},
+			parents: nil,
 		},
 		{
-			name: "test commits parents 8",
 			hash: "a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69",
 			parents: []string{
 				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
@@ -156,7 +162,6 @@ func TestCommitsParents(t *testing.T) {
 			},
 		},
 		{
-			name: "test commits parents 9",
 			hash: "b8e471f58bcbca63b07bda20e428190409c2db47",
 			parents: []string{
 				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
@@ -164,14 +169,7 @@ func TestCommitsParents(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			hash := rows[i][1]
-			parents := rows[i][10]
-			require.Equal(t, test.hash, hash)
-			require.ElementsMatch(t, test.parents, parents)
-		})
-	}
+	require.ElementsMatch(t, expected, result)
 }
 
 func TestCommitsIndexKeyValueIter(t *testing.T) {

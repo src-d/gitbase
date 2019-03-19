@@ -26,9 +26,6 @@ type scoredLanguage struct {
 
 // Classify returns a sorted slice of possible languages sorted by decreasing language's probability
 func (c *classifier) Classify(content []byte, candidates map[string]float64) []string {
-	if len(content) == 0 {
-		return nil
-	}
 
 	var languages map[string]float64
 	if len(candidates) == 0 {
@@ -44,15 +41,23 @@ func (c *classifier) Classify(content []byte, candidates map[string]float64) []s
 		}
 	}
 
-	tokens := tokenizer.Tokenize(content)
+	empty := len(content) == 0
 	scoredLangs := make([]*scoredLanguage, 0, len(languages))
-	for language := range languages {
-		scoredLang := &scoredLanguage{
-			language: language,
-			score:    c.tokensLogProbability(tokens, language) + c.languagesLogProbabilities[language],
-		}
 
-		scoredLangs = append(scoredLangs, scoredLang)
+	var tokens []string
+	if !empty {
+		tokens = tokenizer.Tokenize(content)
+	}
+
+	for language := range languages {
+		score := c.languagesLogProbabilities[language]
+		if !empty {
+			score += c.tokensLogProbability(tokens, language)
+		}
+		scoredLangs = append(scoredLangs, &scoredLanguage{
+			language: language,
+			score:    score,
+		})
 	}
 
 	return sortLanguagesByScore(scoredLangs)

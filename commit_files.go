@@ -193,17 +193,18 @@ func (i *commitFilesRowIter) Next() (sql.Row, error) {
 }
 
 func (i *commitFilesRowIter) init() error {
-	var err error
 	if len(i.commitHashes) > 0 {
-		i.commits, err = NewCommitsByHashIter(i.repo, i.commitHashes)
+		i.commits = newCommitsByHashIter(i.repo, i.commitHashes)
 	} else {
-		i.commits, err = i.repo.
-			Log(&git.LogOptions{
-				All: true,
-			})
+		iter, err := newCommitIter(i.repo, i.skipGitErrors)
+		if err != nil {
+			return err
+		}
+
+		i.commits = iter
 	}
 
-	return err
+	return nil
 }
 
 func (i *commitFilesRowIter) nextFromIndex() (sql.Row, error) {

@@ -1,0 +1,15 @@
+language: go
+env:
+  global:
+    - LD_LIBRARY_PATH="/usr/local/lib":${LD_LIBRARY_PATH}
+    - GO111MODULE=on
+addons:
+  apt:
+    packages:
+      - libonig-dev
+
+jobs:
+  include:
+    - go: 1.11.x
+      script:
+        - go test -v --cover -race
