@@ -23,6 +23,7 @@ pipeline {
     stage('Run') {
       when { branch 'master' }
       steps {
+        sh 'apt-get install oniguruma-dev'
         sh '/bin/regression --complexity=2 --csv local:HEAD'
       }
     }
