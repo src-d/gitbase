@@ -41,11 +41,12 @@ func GetLanguage(filename string, content []byte) (language string) {
 }
 
 func firstLanguage(languages []string) string {
-	if len(languages) == 0 {
-		return OtherLanguage
+	for _, l := range languages {
+		if l != "" {
+			return l
+		}
 	}
-
-	return languages[0]
+	return OtherLanguage
 }
 
 // GetLanguageByModeline returns detected language. If there are more than one possibles languages
