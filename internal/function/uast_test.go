@@ -2,6 +2,8 @@ package function
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
 	"testing"
 
 	"gopkg.in/bblfsh/sdk.v2/uast"
@@ -210,17 +212,6 @@ func TestUASTExtract(t *testing.T) {
 			},
 		},
 		{
-			name: "key_" + uast.KeyPos,
-			key:  uast.KeyPos,
-			expected: []interface{}{
-				"Start: [Offset:28 Line:4 Col:5], End: [Offset:31 Line:4 Col:8]",
-				"Start: [Offset:47 Line:5 Col:9], End: [Offset:48 Line:5 Col:10]",
-				"Start: [Offset:51 Line:5 Col:13], End: [Offset:52 Line:5 Col:14]",
-				"Start: [Offset:60 Line:7 Col:7], End: [Offset:63 Line:7 Col:10]",
-				"Start: [Offset:54 Line:7 Col:1], End: [Offset:59 Line:7 Col:6]",
-			},
-		},
-		{
 			name: "key_ctx",
 			key:  "ctx",
 			expected: []interface{}{
@@ -250,6 +241,41 @@ func TestUASTExtract(t *testing.T) {
 			require.ElementsMatch(t, test.expected, foo)
 		})
 	}
+	expectedPos := []string{
+		`{"end":{"offset":31,"line":4,"col":8},"start":{"offset":28,"line":4,"col":5}}`,
+		`{"end":{"offset":48,"line":5,"col":10},"start":{"offset":47,"line":5,"col":9}}`,
+		`{"end":{"offset":52,"line":5,"col":14},"start":{"offset":51,"line":5,"col":13}}`,
+		`{"end":{"offset":63,"line":7,"col":10},"start":{"offset":60,"line":7,"col":7}}`,
+		`{"end":{"offset":59,"line":7,"col":6},"start":{"offset":54,"line":7,"col":1}}`,
+	}
+	t.Run("key_"+uast.KeyRoles, func(t *testing.T) {
+		row := sql.NewRow(filteredNodes["annotated"], uast.KeyPos)
+
+		fn := NewUASTExtract(
+			expression.NewGetField(0, sql.Blob, "", false),
+			expression.NewLiteral(uast.KeyPos, sql.Text),
+		)
+
+		pos, err := fn.Eval(ctx, row)
+		require.NoError(t, err)
+
+		arr, ok := pos.([]interface{})
+		require.True(t, ok)
+		for i, jsonstr := range expectedPos {
+			var exp, act uast.Positions
+
+			err = json.Unmarshal([]byte(jsonstr), &exp)
+			require.NoError(t, err)
+
+			str, ok := arr[i].(string)
+			require.True(t, ok)
+			err = json.Unmarshal([]byte(str), &act)
+			require.NoError(t, err)
+
+			require.True(t, reflect.DeepEqual(exp, act))
+		}
+	})
+
 }
 
 func TestUASTChildren(t *testing.T) {

@@ -2,6 +2,7 @@ package function
 
 import (
 	"crypto/sha1"
+	"encoding/json"
 	"fmt"
 	"hash"
 	"os"
@@ -559,24 +560,9 @@ func extractCommonProp(node nodes.Object, key string) []interface{} {
 
 func posToString(pos uast.Positions) string {
 	var b strings.Builder
-
-	start := pos.Start()
-	end := pos.End()
-
-	if start != nil {
-		fmt.Fprintf(&b, "Start: [Offset:%d Line:%d Col:%d]",
-			start.Offset, start.Line, start.Col)
+	if data, err := json.Marshal(pos); err == nil {
+		b.Write(data)
 	}
-
-	if pos.End() != nil {
-		if pos.Start() != nil {
-			fmt.Fprint(&b, ", ")
-		}
-
-		fmt.Fprintf(&b, "End: [Offset:%d Line:%d Col:%d]",
-			end.Offset, end.Line, end.Col)
-	}
-
 	return b.String()
 }
 
