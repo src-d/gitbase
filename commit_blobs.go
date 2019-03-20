@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 
-	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
@@ -103,6 +102,7 @@ func (t *commitBlobsTable) PartitionRows(
 			return &commitBlobsRowIter{
 				repo:          repo,
 				commits:       stringsToHashes(commits),
+				iter:          nil,
 				index:         indexValues,
 				skipGitErrors: shouldSkipErrors(ctx),
 			}, nil
@@ -216,16 +216,18 @@ func (i *commitBlobsRowIter) Next() (sql.Row, error) {
 }
 
 func (i *commitBlobsRowIter) init() error {
-	var err error
 	if len(i.commits) > 0 {
-		i.iter, err = NewCommitsByHashIter(i.repo, i.commits)
+		i.iter = newCommitsByHashIter(i.repo, i.commits)
 	} else {
-		i.iter, err = i.repo.Log(&git.LogOptions{
-			All: true,
-		})
+		iter, err := newCommitIter(i.repo, i.skipGitErrors)
+		if err != nil {
+			return err
+		}
+
+		i.iter = iter
 	}
 
-	return err
+	return nil
 }
 
 var commitBlobsCommitIdx = CommitBlobsSchema.IndexOf("commit_hash", CommitBlobsTableName)

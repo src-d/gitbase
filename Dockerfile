@@ -6,11 +6,14 @@ FROM golang:1.11-alpine as builder
 ENV GITBASE_REPO=github.com/src-d/gitbase
 ENV GITBASE_PATH=$GOPATH/src/$GITBASE_REPO
 
-RUN apk add --no-cache git
+RUN apk add --update --no-cache libxml2-dev git make bash gcc g++ curl oniguruma-dev oniguruma
 
 COPY . $GITBASE_PATH
 WORKDIR $GITBASE_PATH
-RUN go build -ldflags="-X main.version=$(cat version.txt || echo "undefined") -X main.build=$(date +"%m-%d-%Y_%H_%M_%S") -X main.commit=$(git rev-parse --short HEAD) -s -w" -o /bin/gitbase ./cmd/gitbase
+
+ENV GO_BUILD_ARGS="-o /bin/gitbase"
+ENV GO_BUILD_PATH="./cmd/gitbase"
+RUN make static-build
 
 #=================================
 # Stage 2: Start Gitbase Server

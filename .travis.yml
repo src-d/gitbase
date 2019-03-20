@@ -11,6 +11,8 @@ addons:
     packages:
     - gcc-6
     - g++-6
+    - libonig-dev
+
 
 before_install:
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
@@ -36,8 +38,7 @@ jobs:
       services: [docker]
 
       before_deploy:
-        - make packages
-        - echo "${TRAVIS_TAG}" > version.txt
+        - make static-package
         - make docker-push-latest-release
 
       deploy:
@@ -61,6 +62,7 @@ jobs:
 
       script:
         - brew update
+        - brew install oniguruma
         - make packages || echo "" # will fail because of docker being missing
         - if [ ! -f "build/gitbase_darwin_amd64/gitbase" ]; then echo "gitbase binary not generated" && exit 1; fi
         - cd build

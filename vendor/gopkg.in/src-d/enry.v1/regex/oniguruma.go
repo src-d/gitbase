@@ -3,7 +3,7 @@
 package regex
 
 import (
-	"github.com/moovweb/rubex"
+	rubex "github.com/src-d/go-oniguruma"
 )
 
 type EnryRegexp = *rubex.Regexp
