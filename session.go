@@ -96,9 +96,25 @@ type BblfshClient struct {
 	supportedLanguages []string
 }
 
+// FIXME: this is a temporary fix until bblfsh adds aliases to supported
+// languages. This should be removed once it is.
+var languageAliases = map[string]string{
+	"C#":    "csharp",
+	"JSX":   "JavaScript",
+	"C++":   "cpp",
+	"C":     "cpp",
+	"shell": "bash",
+}
+
 // IsLanguageSupported returns whether the language is supported in the bblfsh
 // server this client is connected to.
 func (c *BblfshClient) IsLanguageSupported(ctx context.Context, lang string) (bool, error) {
+	// FIXME: this is a temporary fix until bblfsh adds aliases to supported
+	// languages. This should be removed once it is.
+	if langName, ok := languageAliases[lang]; ok {
+		lang = langName
+	}
+
 	langs, err := c.SupportedLanguages(ctx)
 	if err != nil {
 		return false, err
@@ -138,6 +154,12 @@ func (c *BblfshClient) Parse(
 	lang string,
 	content []byte,
 ) (bblfsh.Node, string, error) {
+	// FIXME: this is a temporary fix until bblfsh adds aliases to supported
+	// languages. This should be removed once it is.
+	if langName, ok := languageAliases[lang]; ok {
+		lang = langName
+	}
+
 	return c.NewParseRequest().
 		Language(lang).
 		Content(string(content)).
