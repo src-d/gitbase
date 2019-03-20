@@ -30,11 +30,12 @@ static-package:
 	docker rm gitbase-temp
 
 # target used in the Dockerfile to build the static binary
-static-build: VERSION = $(shell git describe --exact-match --tags 2>/dev/null || dev-$(git rev-parse --short HEAD)$(test -n "`git status --porcelain`" && echo "-dirty" || true))
-static-build: LD_FLAGS += -linkmode external -extldflags '-static -lz'
+static-build: VERSION ?= $(shell git describe --exact-match --tags 2>/dev/null || "dev-$(git rev-parse --short HEAD)$(test -n "`git status --porcelain`" && echo "-dirty" || true)")
+static-build: LD_FLAGS += -linkmode external -extldflags '-static -lz' -s -w
 static-build: GO_BUILD_ARGS += -tags oniguruma
+static-build: GO_BUILD_PATH ?= github.com/src-d/gitbase/...
 static-build:
-	go install -v $(GO_BUILD_ARGS) github.com/src-d/gitbase/...
+	go build -ldflags="$(LD_FLAGS)" -v $(GO_BUILD_ARGS) $(GO_BUILD_PATH)
 
 ci-e2e: packages
 	go test ./e2e -gitbase-version="$(TRAVIS_TAG)" \
