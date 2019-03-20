@@ -270,7 +270,7 @@ func (i *commitIter) Next() (*object.Commit, error) {
 
 		commit, err := i.repo.CommitObject(hash)
 		if err != nil {
-			if i.skipGitErrors {
+			if i.skipGitErrors || err == plumbing.ErrObjectNotFound {
 				continue
 			}
 
