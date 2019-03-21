@@ -192,14 +192,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "go1"
-  digest = "1:b8b842b1c221e57f599be4e31421eb804da1bf81538e2e9b8c3073938ad8e690"
-  name = "github.com/moovweb/rubex"
-  packages = ["."]
-  pruneopts = ""
-  revision = "b3d9ff6ad7d9b14f94a91c8271cd9ad9e77132e5"
-
-[[projects]]
   branch = "master"
   digest = "1:563cb49ec2d3da93eb4a0f49ba5d0aca4d3edd09e668d23d0f6f71df73a7e534"
   name = "github.com/oliveagle/jsonpath"
@@ -218,6 +210,14 @@
   pruneopts = ""
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
   version = "v1.0.2"
+
+[[projects]]
+  branch = "master"
+  digest = "1:867d96f5b8ccd0e2bb6ec0dfda653a14c249e7d29d92095f245e8fbcb88ea027"
+  name = "github.com/pbnjay/memory"
+  packages = ["."]
+  pruneopts = ""
+  revision = "974d429e7ae40c89e7dcd41cfcc22a0bfbe42510"
 
 [[projects]]
   digest = "1:049b5bee78dfdc9628ee0e557219c41f683e5b06c5a5f20eaba0105ccc586689"
@@ -672,7 +672,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:f1dc8dd661130c9362c7e99d5b05450bebe60778bfc85dac991f05e8275d0459"
+  digest = "1:328cf8293a551847642352b4853f9b333e958fcfbf21fad4981866d5a8939c81"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -691,7 +691,7 @@
     "sql/plan",
   ]
   pruneopts = "NUT"
-  revision = "b32d2fdea095e2743d13f3ab4da5ae83aef55bc7"
+  revision = "0093a7562ad1cf31f179396dfa5be32893059dbb"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
