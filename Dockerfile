@@ -20,11 +20,10 @@ RUN make static-build
 #=================================
 FROM alpine:3.8
 
+RUN apk add --no-cache mysql-client
+
 RUN mkdir -p /opt/repos
 
-ENV GITBASE_USER=root
-ENV GITBASE_PASSWORD=""
-ENV GITBASE_REPOS=/opt/repos
 EXPOSE 3306
 
 ENV TINI_VERSION v0.18.0
@@ -32,12 +31,14 @@ ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-stati
 RUN chmod +x /tini
 ENTRYPOINT ["/tini", "--"]
 
+ENV GITBASE_USER=root
+ENV GITBASE_PASSWORD=""
+ENV GITBASE_REPOS=/opt/repos
+ENV MYSQL_HOST=127.0.0.1
+
 # copy build artifacts
 COPY --from=builder /bin/gitbase /bin/gitbase
+ADD init.sh ./init.sh
+RUN chmod +x ./init.sh
 
-CMD /bin/gitbase server -v \
-    --host=0.0.0.0 \
-    --port=3306 \
-    --user="$GITBASE_USER" \
-    --password="$GITBASE_PASSWORD" \
-    --directories="$GITBASE_REPOS"
+ENTRYPOINT ["./init.sh"]
