@@ -329,6 +329,23 @@ func TestIntegration(t *testing.T) {
 				{"Ignore List", int32(1)},
 			},
 		},
+		{
+			`
+			SELECT 
+				repository_id,
+				contributor_count 
+			FROM (
+				SELECT 
+					repository_id, 
+					COUNT(DISTINCT commit_author_email) AS contributor_count 
+				FROM commits 
+				GROUP BY repository_id
+			) AS q 
+			ORDER BY contributor_count DESC 
+			LIMIT 10
+			`,
+			[]sql.Row{{"worktree", int32(9)}},
+		},
 	}
 
 	runTests := func(t *testing.T) {
