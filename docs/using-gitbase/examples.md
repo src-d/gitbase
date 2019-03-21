@@ -6,105 +6,99 @@
 SELECT refs.repository_id
 FROM refs
 NATURAL JOIN commits
-WHERE commits.commit_author_name = 'Javi Fontan' AND refs.ref_name = 'HEAD';
+WHERE commits.commit_author_name = 'Johnny Bravo'
+  AND refs.ref_name = 'HEAD';
 ```
 
 ## Get all the HEAD references from all the repositories
 
 ```sql
-SELECT * FROM refs WHERE ref_name = 'HEAD';
+SELECT *
+FROM refs
+WHERE ref_name = 'HEAD';
 ```
 
 ## First commit on HEAD history for all repositories
 
 ```sql
-SELECT
-    file_path,
-    ref_commits.repository_id
-FROM
-    commit_files
-NATURAL JOIN
-    ref_commits
-WHERE
-    ref_commits.ref_name = 'HEAD'
-    AND ref_commits.history_index = 0;
+SELECT file_path,
+       ref_commits.repository_id
+FROM commit_files
+NATURAL JOIN ref_commits
+WHERE ref_commits.ref_name = 'HEAD'
+  AND ref_commits.history_index = 0;
 ```
 
 ## Commits that appear in more than one reference
 
 ```sql
-SELECT * FROM (
-    SELECT COUNT(c.commit_hash) AS num, c.commit_hash
-    FROM ref_commits r
-    INNER JOIN commits c
-        ON r.repository_id = c.repository_id AND r.commit_hash = c.commit_hash
-    GROUP BY c.commit_hash
-) t WHERE num > 1;
+SELECT *
+FROM
+  (SELECT COUNT(c.commit_hash) AS num,
+          c.commit_hash
+   FROM ref_commits r
+   NATURAL JOIN commits c
+   GROUP BY c.commit_hash) t
+WHERE num > 1;
 ```
 
 ##  Get the number of blobs per HEAD commit
 
 ```sql
-SELECT COUNT(c.commit_hash), c.commit_hash
-FROM ref_commits as r
-INNER JOIN commits c
-    ON r.ref_name = 'HEAD'
-    AND r.repository_id = c.repository_id
-    AND r.commit_hash = c.commit_hash
-INNER JOIN commit_blobs cb
-    ON cb.repository_id = c.repository_id AND cb.commit_hash = c.commit_hash
-GROUP BY c.commit_hash;
+SELECT COUNT(commit_hash),
+       commit_hash
+FROM ref_commits
+NATURAL JOIN commits
+NATURAL JOIN commit_blobs
+WHERE ref_name = 'HEAD'
+GROUP BY commit_hash;
 ```
 
-## Get commits per committer, per month in 2015
+## Get commits per committer, per year and month
 
 ```sql
-SELECT COUNT(*) as num_commits, month, repo_id, committer_email
-FROM (
-    SELECT
-        MONTH(committer_when) as month,
-        r.repository_id as repo_id,
-        committer_email
-    FROM ref_commits r
-    INNER JOIN commits c
-        ON YEAR(c.committer_when) = 2015
-        AND r.repository_id = c.repository_id
-        AND r.commit_hash = c.commit_hash
-    WHERE r.ref_name = 'HEAD'
-) as t
-GROUP BY committer_email, month, repo_id;
+SELECT YEAR,
+       MONTH,
+       repo_id,
+       committer_email,
+       COUNT(*) AS num_commits
+FROM
+  (SELECT YEAR(committer_when) AS YEAR,
+          MONTH(committer_when) AS MONTH,
+          repository_id AS repo_id,
+          committer_email
+   FROM ref_commits
+   NATURAL JOIN commits
+   WHERE ref_name = 'HEAD') AS t
+GROUP BY committer_email,
+         YEAR,
+         MONTH,
+         repo_id;
 ```
 
 ## Files from first 6 commits from HEAD references that contains some key and are not in vendor directory
 
 ```sql
-select
-    files.file_path,
-    ref_commits.repository_id,
-    files.blob_content
-FROM
-    files
-NATURAL JOIN
-    commit_files
-NATURAL JOIN
-    ref_commits
-WHERE
-    ref_commits.ref_name = 'HEAD'
-    AND ref_commits.history_index BETWEEN 0 AND 5
-    AND is_binary(blob_content) = false
-    AND files.file_path NOT REGEXP '^vendor.*'
-    AND (
-        blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
-        OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
-        OR blob_content REGEXP '(?i)github.*[\'\\"][0-9a-zA-Z]{35,40}[\'\\"]'
-        OR blob_content REGEXP 'AKIA[0-9A-Z]{16}'
-        OR blob_content REGEXP '(?i)reddit.*[\'\\"][0-9a-zA-Z]{14}[\'\\"]'
-        OR blob_content REGEXP '(?i)heroku.*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}'
-        OR blob_content REGEXP '.*-----BEGIN PRIVATE KEY-----.*'
-        OR blob_content REGEXP '.*-----BEGIN RSA PRIVATE KEY-----.*'
-        OR blob_content REGEXP '.*-----BEGIN DSA PRIVATE KEY-----.*'
-        OR blob_content REGEXP '.*-----BEGIN OPENSSH PRIVATE KEY-----.*'
-    );
+SELECT file_path,
+       repository_id,
+       blob_content
+FROM files
+NATURAL JOIN commit_files
+NATURAL JOIN ref_commits
+WHERE ref_name = 'HEAD'
+  AND ref_commits.history_index BETWEEN 0 AND 5
+  AND is_binary(blob_content) = FALSE
+  AND files.file_path NOT REGEXP '^vendor.*'
+  AND (blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
+       OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
+       OR blob_content REGEXP '(?i)github.*[\'\\"][0-9a-zA-Z]{35,40}[\'\\"]'
+       OR blob_content REGEXP 'AKIA[0-9A-Z]{16}'
+       OR blob_content REGEXP '(?i)reddit.*[\'\\"][0-9a-zA-Z]{14}[\'\\"]'
+       OR blob_content REGEXP '(?i)heroku.*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}'
+       OR blob_content REGEXP '.*-----BEGIN PRIVATE KEY-----.*'
+       OR blob_content REGEXP '.*-----BEGIN RSA PRIVATE KEY-----.*'
+       OR blob_content REGEXP '.*-----BEGIN DSA PRIVATE KEY-----.*'
+       OR blob_content REGEXP '.*-----BEGIN OPENSSH PRIVATE KEY-----.*');
 ```
 
 ## Create an index for columns on a table
@@ -137,70 +131,39 @@ First of all, you should check out the [bblfsh documentation](https://docs.sourc
 
 Also, you can take a look to all the UDFs and their signatures in the [functions section](/docs/using-gitbase/functions.md)
 
-## Retrieving UASTs with the UDF `uast`
+## Extract all import paths for every *Go* file on *HEAD* reference
 
 ```sql
-SELECT file_path, uast(blob_content, language(file_path)) FROM files;
+SELECT repository_id,
+       file_path,
+       uast_extract(uast(blob_content, LANGUAGE(file_path), '//uast:Import/Path'), "Value") AS imports
+FROM commit_files
+NATURAL JOIN refs
+NATURAL JOIN blobs
+WHERE ref_name = 'HEAD'
+  AND LANGUAGE(file_path) = 'Go'
+  AND ARRAY_LENGTH(imports) > 0;
 ```
 
-This function allows you to directly filter the retrieved UAST by performing a XPATH query on it:
+## Extracting all identifier names
 
 ```sql
-SELECT file_path, uast(blob_content, language(file_path), "//uast:FunctionGroup") FROM files;
-```
-
-This UDF will give you `semantic` UASTs by default. To get some other type see the UDF [`uast_mode`](#retrieving-different-kinds-of-uasts-using-uast_mode).
-
-## Retrieving different kinds of UASTs using `uast_mode`
-
-[bblfsh](https://docs.sourced.tech/babelfish) UAST modes: `semantic`, `annotated`, `native`
-
-```sql
-SELECT file_path, uast_mode("semantic", blob_content, language(file_path)) FROM files;
-
-SELECT file_path, uast_mode("annotated", blob_content, language(file_path)) FROM files;
-
-SELECT file_path, uast_mode("native", blob_content, language(file_path)) FROM files;
-```
-
-## Filtering UASTs by XPath queries
-
-```sql
-SELECT file_path, uast_xpath(uast(blob_content, language(file_path)), "//uast:Identifier") FROM files;
-
-SELECT file_path, uast_xpath(uast_mode("annotated", blob_content, language(file_path)), "//*[@role='Function']") FROM files;
-```
-
-## Extracting information from UAST nodes
-
-You can retrieve information from the UAST nodes either through the special selectors `@type`, `@token`, `@role`, `@pos`:
-
-```sql
-SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//uast:Block"), "@pos") FROM files;
-```
-
-or through a specific property:
-
-```sql
-SELECT file_path, uast_extract(uast(blob_content, language(file_path), "//uast:Identifier"), "Name") FROM files;
+SELECT file_path,
+       uast_extract(uast(blob_content, LANGUAGE(file_path), '//uast:Identifier'), "Name") name
+FROM commit_files
+NATURAL JOIN refs
+NATURAL JOIN blobs
+WHERE ref_name='HEAD' AND LANGUAGE(file_path) = 'Go';
 ```
 
 As result, you will get an array showing a list of the retrieved information. Each element in the list matches a node in the given sequence of nodes having a value for that property. It means that the length of the properties list may not be equal to the length of the given sequence of nodes:
 
 ```sh
 +-------------------------------------------------------------------------------------------------------------------+
-| file_path        | uast_extract(uast(files.blob_content, language(files.file_path), "//uast:Identifier"), "Name") |
+| file_path        | name                                                                                           |
 +-------------------+-----------------------------------------------------------------------------------------------+
 | _example/main.go | ["main","driver","NewDefault","sqle","createTestDatabase","AddDatabase","driver","auth"]       |
 +-------------------+-----------------------------------------------------------------------------------------------+
-```
-
-## Getting the children of a list of nodes
-
-The UDF `uast_children` will return a flattened array of the children nodes from all the nodes in the given array.
-
-```sql
-SELECT file_path, uast_children(uast(blob_content, language(file_path), "//uast:Alias")) FROM files;
 ```
 
 ## Monitor the progress of a query
@@ -210,33 +173,32 @@ You can monitor the progress of a gitbase query (either a regular query or an in
 Let's say we do the following query over a huge repository:
 
 ```sql
-SELECT language(file_path, blob_content) FROM files
+SELECT file_path, LANGUAGE(file_path) lang FROM commit_files;
 ```
 
 With this query we can monitor its progress:
 
 ```sql
-SHOW PROCESSLIST
+SHOW PROCESSLIST;
 ```
 
 We'll get the following output:
 
 ```
-+------+------+----------------+---------+---------+------+------------+-----------------------------------------------------+
-| Id   | User | Host           | db      | Command | Time | State      | Info                                                |
-+------+------+----------------+---------+---------+------+------------+-----------------------------------------------------+
-|    2 | root | 127.0.0.1:3306 | gitbase | query   |   36 | files(1/3) | select language(file_path, blob_content) from files |
-|   12 | root | 127.0.0.1:3306 | gitbase | query   |    0 | running    | show processlist                                    |
-+------+------+----------------+---------+---------+------+------------+-----------------------------------------------------+
-2 rows in set (0,00 sec)
++-----+------+-----------------+---------+---------+------+-------------------+--------------------------------------------------------------+
+| Id  | User | Host            | db      | Command | Time | State             | Info                                                         |
++-----+------+-----------------+---------+---------+------+-------------------+--------------------------------------------------------------+
+| 168 | root | 127.0.0.1:53514 | gitbase | query   |   36 | commit_files(8/9) | SELECT file_path, LANGUAGE(file_path) lang FROM commit_files |
+| 169 | root | 127.0.0.1:53514 | gitbase | query   |    0 | running           | show processlist                                             |
++-----+------+-----------------+---------+---------+------+-------------------+--------------------------------------------------------------+
 ```
 
 From this output, we can obtain some information about our query:
 - It's been running for 36 seconds.
-- It's only querying files table and has processed 1 out of 3 partitions.
+- It's querying commit_files table and has processed 8 out of 9 partitions.
 
 To kill a query that's currently running you can use the value in `Id`. If we were to kill the previous query, we would need to use the following query:
 
 ```sql
-KILL QUERY 2
+KILL QUERY 168;
 ```
