@@ -7,7 +7,7 @@ pipeline {
       nodeSelector 'srcd.host/type=jenkins-worker'
       containerTemplate {
         name 'regression-gitbase'
-        image 'srcd/regression-gitbase:v0.2.0'
+        image 'srcd/regression-gitbase:v0.2.1'
         ttyEnabled true
         command 'cat'
       }

@@ -5,6 +5,7 @@ Even though in each release performance improvements are included to make gitbas
 There are two ways to optimize a gitbase query:
 - Create an index for some parts.
 - Making sure the joined tables are squashed.
+- Making sure not squashed joins are performed in memory.
 
 ## Assessing performance bottlenecks
 
@@ -57,6 +58,24 @@ Some performance issues might not be obvious, but there are a few that really st
 
 - Joins not squashed. If you performed some joins between tables and instead of a `SquashedTable` node you see `Join` and `Table` nodes, it means the joins were not successfully squashed. There is a more detailed explanation about this in next sections of this document.
 - Indexes not used. If you can't see the indexes in your table nodes, it means somehow those indexes are not being used by the table. There is a more detailed explanation about this in next sections of this document.
+- Joins not squashed that are not being executed in memory. There is a more detailed explanation about this in the next sections of this document.
+
+## In-memory joins
+
+There are two modes in which gitbase can execute an inner join:
+
+- Multipass: it fully iterates the right side of the join one time for each row in the left side. This is really expensive, but avoids having to load one side fully in memory.
+- In-memory: loads the whole right side in memory and iterates the left side. Both sides are iterated exactly once, thus it makes the query much faster, but it has the disadvantage of potentially requiring a lot of memory.
+
+The default mode is multipass, unless the right side fits in memory (there's a more elaborate explanation about this below).
+
+In-memory joins can be enabled at the user request, either with the `EXPERIMENTAL_IN_MEMORY_JOIN=on` environment variable or executing `SET inmemory_joins = 1`. The last method only enables it for the current connection.
+
+Even if they are not globally enabled for all queries, there is an optimization that checks if the join could be performed in memory and if it can't, switches to multipass mode.
+As long as the whole gitbase server memory usage is under the 20% of all available physical (not counting other memory used by other processes) memory in the machine, the join will be performed in memory. When this limit is passed, the multipass mode will be used instead.
+20% is just a default value that can be changed using the `MAX_MEMORY_INNER_JOIN` environment variable to the maximum amount of bytes the gitbase server can be using before switching to multipass mode. It can also be changed per session using `SET max_memory_joins=<MAX BYTES>`.
+
+So, as a good rule of thumb, the right side of an inner join should always be the smaller one, because that way, it has bigger chances of being executed in memory and it will be faster.
 
 ## Indexes
 

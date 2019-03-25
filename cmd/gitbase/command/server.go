@@ -309,6 +309,9 @@ func (c *Server) addMatch(match string) error {
 	initDepth := strings.Count(root, string(os.PathSeparator))
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			if os.IsPermission(err) {
+				return filepath.SkipDir
+			}
 			return err
 		}
 

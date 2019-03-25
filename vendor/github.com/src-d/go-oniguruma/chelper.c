@@ -55,7 +55,14 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
     gettimeofday(&tim1, NULL);
 #endif
 
+#ifdef ONIG_DEBUG
+     fprintf(stderr, "regexp: %p, str_start: %p, str_end: %p, search_start: %p, search_end: %p, region: %p, option: %d\n", regex, str_start, str_end, search_start, search_end, region, option);
+#endif
     ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
+#ifdef ONIG_DEBUG
+     fprintf(stderr, "ret = onig_search: %d\n", ret);
+#endif
+
     if (ret < 0 && error_buffer != NULL) {
         error_msg_len = onig_error_code_to_str((unsigned char*)(error_buffer), ret, error_info);
         if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {

@@ -215,44 +215,50 @@ func newCommitIter(
 	}, nil
 }
 
-func (i *commitIter) loadNextRef() (skip bool, err error) {
-	if i.refs == nil {
-		return false, io.EOF
-	}
-
-	i.ref, err = i.refs.Next()
-	if err != nil {
-		if err == io.EOF {
-			return false, io.EOF
+func (i *commitIter) loadNextRef() (err error) {
+	for {
+		if i.refs == nil {
+			return io.EOF
 		}
 
-		if i.skipGitErrors {
-			return true, nil
+		i.ref, err = i.refs.Next()
+		if err != nil {
+			if err != io.EOF && i.skipGitErrors {
+				continue
+			}
+
+			return err
 		}
 
-		return false, err
+		if i.ref.Type() != plumbing.HashReference {
+			i.ref = nil
+			continue
+		}
+
+		obj, err := i.repo.Object(plumbing.AnyObject, i.ref.Hash())
+		if err != nil {
+			if i.skipGitErrors {
+				continue
+			}
+
+			return err
+		}
+
+		if obj.Type() != plumbing.CommitObject {
+			continue
+		}
+
+		i.queue = append(i.queue, i.ref.Hash())
+
+		return nil
 	}
-
-	if i.ref.Type() != plumbing.HashReference {
-		i.ref = nil
-		return true, nil
-	}
-
-	i.queue = append(i.queue, i.ref.Hash())
-
-	return false, nil
 }
 
 func (i *commitIter) Next() (*object.Commit, error) {
 	for {
 		if i.ref == nil {
-			skip, err := i.loadNextRef()
-			if err != nil {
+			if err := i.loadNextRef(); err != nil {
 				return nil, err
-			}
-
-			if skip {
-				continue
 			}
 		}
 
