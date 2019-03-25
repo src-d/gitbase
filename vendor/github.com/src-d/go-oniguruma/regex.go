@@ -201,6 +201,9 @@ func getCapture(b []byte, beg int, end int) []byte {
 }
 
 func (re *Regexp) match(b []byte, n int, offset int) bool {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	re.ClearMatchData()
 	if n == 0 {
 		b = []byte{0}
@@ -224,7 +227,7 @@ func (re *Regexp) findAll(b []byte, n int) (matches [][]int) {
 			matchData.indexes = append(matchData.indexes, make([]int32, length))
 		}
 		if match := re.find(b, n, offset); len(match) > 0 {
-			matchData.count += 1
+			matchData.count++
 			//move offset to the ending index of the current match and prepare to find the next non-overlapping match
 			offset = match[1]
 			//if match[0] == match[1], it means the current match does not advance the search. we need to exit the loop to avoid getting stuck here.
