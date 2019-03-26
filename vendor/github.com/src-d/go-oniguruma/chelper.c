@@ -56,11 +56,12 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
 #endif
 
 #ifdef ONIG_DEBUG
-     fprintf(stderr, "regexp: %p, str_start: %p, str_end: %p, search_start: %p, search_end: %p, region: %p, option: %d\n", regex, str_start, str_end, search_start, search_end, region, option);
+     fprintf(stderr, "onig_search(str_start: %s, str_end: %s, search_start: %s, search_end: %s, region.allocated: %d, region.numreg: %d, option: %d)\n",
+     str_start, str_end, search_start, search_end, (region ? region->allocated : 0), (region ? region->num_regs : 0), option);
 #endif
     ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
 #ifdef ONIG_DEBUG
-     fprintf(stderr, "ret = onig_search: %d\n", ret);
+     fprintf(stderr, "%d = onig_search(..., region.allocated: %d, region.numreg: %d, ...)\n", ret, (region ? region->allocated : 0), (region ? region->num_regs : 0));
 #endif
 
     if (ret < 0 && error_buffer != NULL) {
