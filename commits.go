@@ -230,12 +230,7 @@ func (i *commitIter) loadNextRef() (err error) {
 			return err
 		}
 
-		if i.ref.Type() != plumbing.HashReference {
-			i.ref = nil
-			continue
-		}
-
-		obj, err := i.repo.Object(plumbing.AnyObject, i.ref.Hash())
+		ignored, err := isIgnoredReference(i.repo.Repository, i.ref)
 		if err != nil {
 			if i.skipGitErrors {
 				continue
@@ -244,7 +239,7 @@ func (i *commitIter) loadNextRef() (err error) {
 			return err
 		}
 
-		if obj.Type() != plumbing.CommitObject {
+		if ignored {
 			continue
 		}
 

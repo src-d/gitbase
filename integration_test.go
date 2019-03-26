@@ -594,7 +594,7 @@ func TestMissingHeadRefs(t *testing.T) {
 
 	rows, err := sql.RowIterToRows(iter)
 	require.NoError(err)
-	require.Len(rows, 56)
+	require.Len(rows, 54)
 }
 
 func BenchmarkQueries(b *testing.B) {

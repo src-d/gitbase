@@ -474,7 +474,16 @@ func (i *squashRefIter) Advance() error {
 			}
 		}
 
-		if ref.Type() != plumbing.HashReference {
+		ignored, err := isIgnoredReference(i.repo.Repository, ref)
+		if err != nil {
+			if i.skipGitErrors {
+				continue
+			}
+
+			return err
+		}
+
+		if ignored {
 			continue
 		}
 
@@ -715,11 +724,16 @@ func (i *squashRepoRefsIter) Advance() error {
 			}
 		}
 
-		if ref.Type() != plumbing.HashReference {
-			logrus.WithFields(logrus.Fields{
-				"type": ref.Type(),
-				"ref":  ref.Name(),
-			}).Debug("ignoring reference, it's not a hash reference")
+		ignored, err := isIgnoredReference(i.repos.Repository().Repository, ref)
+		if err != nil {
+			if i.skipGitErrors {
+				continue
+			}
+
+			return err
+		}
+
+		if ignored {
 			continue
 		}
 
@@ -859,7 +873,16 @@ func (i *squashRemoteRefsIter) Advance() error {
 			}
 		}
 
-		if ref.Type() != plumbing.HashReference {
+		ignored, err := isIgnoredReference(i.Repository().Repository, ref)
+		if err != nil {
+			if i.skipGitErrors {
+				continue
+			}
+
+			return err
+		}
+
+		if ignored {
 			continue
 		}
 

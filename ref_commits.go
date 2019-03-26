@@ -306,7 +306,16 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 					return nil, err
 				}
 
-				if ref.Type() != plumbing.HashReference {
+				ignored, err := isIgnoredReference(i.repo.Repository, ref)
+				if err != nil {
+					if i.skipGitErrors {
+						continue
+					}
+
+					return nil, err
+				}
+
+				if ignored {
 					continue
 				}
 			} else {
