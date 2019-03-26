@@ -16,6 +16,7 @@ import (
 	"io"
 	"log"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"unicode/utf8"
@@ -178,7 +179,7 @@ func (re *Regexp) find(b []byte, n int, offset int) (match []int) {
 
 	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
 
-  if pos >= 0 {
+	if pos >= 0 {
 		if numCaptures <= 0 {
 			panic("cannot have 0 captures when processing a match")
 		}
@@ -212,6 +213,7 @@ func (re *Regexp) match(b []byte, n int, offset int) bool {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Recovered from C.SearchOnigRegex(%s, %d, %d): %v\n", string(b), n, offset, r)
+			debug.PrintStack()
 		}
 	}()
 
