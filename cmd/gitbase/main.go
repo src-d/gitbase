@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"runtime"
-	"runtime/debug"
-
 	"github.com/src-d/gitbase/cmd/gitbase/command"
 
 	"github.com/jessevdk/go-flags"
@@ -20,10 +17,6 @@ var (
 )
 
 func main() {
-	debug.SetPanicOnFault(true)
-
-	runtime.GOMAXPROCS(1)
-
 	parser := flags.NewNamedParser(name, flags.Default)
 	parser.UnknownOptionHandler = func(option string, arg flags.SplitArgument, args []string) ([]string, error) {
 		if option != "g" {
