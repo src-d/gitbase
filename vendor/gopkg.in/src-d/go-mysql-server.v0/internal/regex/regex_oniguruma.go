@@ -6,7 +6,7 @@ import (
 
 // Oniguruma holds a rubex regular expression Matcher.
 type Oniguruma struct {
-	reg *rubex.Regexp
+	reg *rubex.Regexp2
 }
 
 // Match implements Matcher interface.

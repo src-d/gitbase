@@ -7,7 +7,7 @@
 #include "chelper.h"
 
 
-int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex *regex, char **error_buffer) {
+int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **error_buffer) {
     int ret = ONIG_NORMAL;
     OnigErrorInfo einfo;
     int error_msg_len;
@@ -36,7 +36,7 @@ int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
     OnigUChar *search_start = (OnigUChar *)(str_start + offset);
     OnigUChar *search_end = str_end;
 
-    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+    ret = onig_search(&regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
 
     return ret;
 }
@@ -49,7 +49,7 @@ int MatchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
     OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
     OnigUChar *search_start = (OnigUChar *)(str_start + offset);
 
-    ret = onig_match(regex, str_start, str_end, search_start, region, ONIG_OPTION_NONE);
+    ret = onig_match(&regex, str_start, str_end, search_start, region, ONIG_OPTION_NONE);
 
     return ret;
 }
