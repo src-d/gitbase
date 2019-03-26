@@ -39,7 +39,7 @@ type NamedGroupInfo map[string]int
 type Regexp struct {
 	pattern        string
 	regex          C.OnigRegex
-	region         *C.OnigRegion
+	region         C.OnigRegion
 	encoding       C.OnigEncoding
 	errorInfo      *C.OnigErrorInfo
 	errorBuf       *C.char
@@ -101,10 +101,10 @@ func (re *Regexp) Free() {
 		C.onig_free(re.regex)
 		re.regex = nil
 	}
-	if re.region != nil {
-		C.onig_region_free(re.region, 1)
-		re.region = nil
-	}
+	// if re.region != nil {
+	// 	C.onig_region_free(re.region, 1)
+	// 	re.region = nil
+	// }
 	mutex.Unlock()
 	if re.errorInfo != nil {
 		C.free(unsafe.Pointer(re.errorInfo))
@@ -176,13 +176,13 @@ func (re *Regexp) find(b []byte, n int, offset int) (match []int) {
 	numCaptures := int32(0)
 	numCapturesPtr := unsafe.Pointer(&numCaptures)
 
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("Recovered from C.SearchOnigRegex(%s, %d, %d): %v\n", string(b), n, offset, r)
-		}
-	}()
+<<<<<<< HEAD
+	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
+=======
 
-	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
+	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
+
+>>>>>>> ed4a2479... Debug jenkins oniguruma (#758)
 	if pos >= 0 {
 		if numCaptures <= 0 {
 			panic("cannot have 0 captures when processing a match")
@@ -213,8 +213,21 @@ func (re *Regexp) match(b []byte, n int, offset int) bool {
 		b = []byte{0}
 	}
 	ptr := unsafe.Pointer(&b[0])
-	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, re.region, re.errorInfo, (*C.char)(nil), (*C.int)(nil), (*C.int)(nil)))
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Recovered from C.SearchOnigRegex(%s, %d, %d): %v\n", string(b), n, offset, r)
+		}
+	}()
+<<<<<<< HEAD
+	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(nil), (*C.int)(nil)))
 	return pos >= 0
+=======
+
+	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(nil), (*C.int)(nil)))
+
+  return pos >= 0
+>>>>>>> ed4a2479... Debug jenkins oniguruma (#758)
 }
 
 func (re *Regexp) findAll(b []byte, n int) (matches [][]int) {

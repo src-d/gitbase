@@ -7,7 +7,7 @@
 #include "chelper.h"
 
 int NewOnigRegex( char *pattern, int pattern_length, int option,
-                  OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
+                  OnigRegex *regex, OnigRegion *region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
     int ret = ONIG_NORMAL;
     int error_msg_len = 0;
 
@@ -23,7 +23,7 @@ int NewOnigRegex( char *pattern, int pattern_length, int option,
 
     memset(*error_buffer, 0, ONIG_MAX_ERROR_MESSAGE_LEN * sizeof(char));
 
-    *region = onig_region_new();
+    region = onig_region_new();
 
     ret = onig_new(regex, pattern_start, pattern_end, (OnigOptionType)(option), *encoding, OnigDefaultSyntax, *error_info);
 
@@ -45,9 +45,8 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
     struct timeval tim1, tim2;
     long t;
 #endif
-
     OnigUChar *str_start = (OnigUChar *) str;
-    OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
+    OnigUChar *str_end = (OnigUChar *) (str_start + str_length-1);
     OnigUChar *search_start = (OnigUChar *)(str_start + offset);
     OnigUChar *search_end = str_end;
 
@@ -56,31 +55,40 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
 #endif
 
 #ifdef ONIG_DEBUG
-     fprintf(stderr, "onig_search(...,  region.allocated: %d, region.numreg: %d, captures: %p)\n",
-     (region ? region->allocated : 0), (region ? region->num_regs : 0), captures);
+<<<<<<< HEAD
+     fprintf(stderr, "onig_search(str_length: %d,  region.allocated: %d, region.numreg: %d)\n",
+     str_length, (region ? region->allocated : 0), (region ? region->num_regs : 0));
 #endif
     ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
 #ifdef ONIG_DEBUG
-     fprintf(stderr, "%d = onig_search(..., region.allocated: %d, region.numreg: %d, captures: %p)\n", ret, (region ? region->allocated : 0), (region ? region->num_regs : 0), captures);
+     fprintf(stderr, "%d = onig_search(str_length: %d, region.allocated: %d, region.numreg: %d)\n", ret, str_length, (region ? region->allocated : 0), (region ? region->num_regs : 0));
+=======
+     fprintf(stderr, "onig_search(str_length: %d/%d,  region.allocated: %d, region.numreg: %d)\n",
+     str_length, strlen(str_start), (region ? region->allocated : 0), (region ? region->num_regs : 0));
+#endif
+    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
+#ifdef ONIG_DEBUG
+     fprintf(stderr, "%d = onig_search(str_length: %d/%d, region.allocated: %d, region.numreg: %d)\n", ret, str_length, strlen(str_start), (region ? region->allocated : 0), (region ? region->num_regs : 0));
+>>>>>>> ed4a2479... Debug jenkins oniguruma (#758)
 #endif
 
-    // if (ret < 0 && error_buffer != NULL) {
-    //     error_msg_len = onig_error_code_to_str((unsigned char*)(error_buffer), ret, error_info);
-    //     if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
-    //         error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
-    //     }
-    //     error_buffer[error_msg_len] = '\0';
-    // }
-    // else if (captures != NULL) {
-    //     int i;
-    //     int count = 0;
-    //     for (i = 0; i < region->num_regs; i++) {
-    //         captures[2*count] = region->beg[i];
-    //         captures[2*count+1] = region->end[i];
-    //         count ++;
-    //     }
-    //     *numCaptures = count;
-    // }
+    if (ret < 0 && error_buffer != NULL) {
+        error_msg_len = onig_error_code_to_str((unsigned char*)(error_buffer), ret, error_info);
+        if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
+            error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
+        }
+        error_buffer[error_msg_len] = '\0';
+    }
+    else if (captures != NULL) {
+        int i;
+        int count = 0;
+        for (i = 0; i < region->num_regs; i++) {
+            captures[2*count] = region->beg[i];
+            captures[2*count+1] = region->end[i];
+            count ++;
+        }
+        *numCaptures = count;
+    }
 
 #ifdef BENCHMARK_CHELP
     gettimeofday(&tim2, NULL);
