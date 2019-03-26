@@ -176,13 +176,7 @@ func (re *Regexp) find(b []byte, n int, offset int) (match []int) {
 	numCaptures := int32(0)
 	numCapturesPtr := unsafe.Pointer(&numCaptures)
 
-<<<<<<< HEAD
 	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
-=======
-
-	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
-
->>>>>>> ed4a2479... Debug jenkins oniguruma (#758)
 	if pos >= 0 {
 		if numCaptures <= 0 {
 			panic("cannot have 0 captures when processing a match")
@@ -219,15 +213,8 @@ func (re *Regexp) match(b []byte, n int, offset int) bool {
 			fmt.Printf("Recovered from C.SearchOnigRegex(%s, %d, %d): %v\n", string(b), n, offset, r)
 		}
 	}()
-<<<<<<< HEAD
 	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(nil), (*C.int)(nil)))
 	return pos >= 0
-=======
-
-	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(nil), (*C.int)(nil)))
-
-  return pos >= 0
->>>>>>> ed4a2479... Debug jenkins oniguruma (#758)
 }
 
 func (re *Regexp) findAll(b []byte, n int) (matches [][]int) {
