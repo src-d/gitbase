@@ -64,23 +64,23 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
      fprintf(stderr, "%d = onig_search(..., region.allocated: %d, region.numreg: %d, captures: %p)\n", ret, (region ? region->allocated : 0), (region ? region->num_regs : 0), captures);
 #endif
 
-    if (ret < 0 && error_buffer != NULL) {
-        error_msg_len = onig_error_code_to_str((unsigned char*)(error_buffer), ret, error_info);
-        if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
-            error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
-        }
-        error_buffer[error_msg_len] = '\0';
-    }
-    else if (captures != NULL) {
-        int i;
-        int count = 0;
-        for (i = 0; i < region->num_regs; i++) {
-            captures[2*count] = region->beg[i];
-            captures[2*count+1] = region->end[i];
-            count ++;
-        }
-        *numCaptures = count;
-    }
+    // if (ret < 0 && error_buffer != NULL) {
+    //     error_msg_len = onig_error_code_to_str((unsigned char*)(error_buffer), ret, error_info);
+    //     if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
+    //         error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
+    //     }
+    //     error_buffer[error_msg_len] = '\0';
+    // }
+    // else if (captures != NULL) {
+    //     int i;
+    //     int count = 0;
+    //     for (i = 0; i < region->num_regs; i++) {
+    //         captures[2*count] = region->beg[i];
+    //         captures[2*count+1] = region->end[i];
+    //         count ++;
+    //     }
+    //     *numCaptures = count;
+    // }
 
 #ifdef BENCHMARK_CHELP
     gettimeofday(&tim2, NULL);
