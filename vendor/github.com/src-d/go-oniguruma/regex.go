@@ -16,6 +16,7 @@ import (
 	"io"
 	"log"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"unicode/utf8"
@@ -212,6 +213,7 @@ func (re *Regexp) match(b []byte, n int, offset int) bool {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Recovered from C.SearchOnigRegex(%s, %d, %d): %v\n", string(b), n, offset, r)
+			debug.PrintStack()
 		}
 	}()
 
