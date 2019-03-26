@@ -185,7 +185,7 @@ type Regexp struct {
 
 // NewRegexp creates a new Regexp expression.
 func NewRegexp(left sql.Expression, right sql.Expression) *Regexp {
-	var cached = true
+	var cached = false
 	Inspect(right, func(e sql.Expression) bool {
 		if _, ok := e.(*GetField); ok {
 			cached = false
@@ -229,9 +229,9 @@ func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, err
 	}
 
 	var (
-		matcher  regex.Matcher
-		disposer regex.Disposer
-		right    interface{}
+		matcher regex.Matcher
+		// disposer regex.Disposer
+		right interface{}
 	)
 	// eval right and convert to text
 	if !re.cached || re.pool == nil {
@@ -245,9 +245,8 @@ func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, err
 		}
 	}
 	// for non-cached regex every time create a new matcher
-	re.cached = false
 	if !re.cached {
-		matcher, disposer, err = regex.New(regex.Default(), right.(string))
+		matcher, _, err = regex.New(regex.Default(), right.(string))
 	} else {
 		if re.pool == nil {
 			re.pool = &sync.Pool{
@@ -272,7 +271,7 @@ func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, err
 	ok := matcher.Match(left.(string))
 
 	if !re.cached {
-		disposer.Dispose()
+		// disposer.Dispose()
 	} else if re.pool != nil {
 		re.pool.Put(matcher)
 	}

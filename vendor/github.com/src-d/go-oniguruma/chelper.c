@@ -7,7 +7,7 @@
 #include "chelper.h"
 
 int NewOnigRegex( char *pattern, int pattern_length, int option,
-                  OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
+                  OnigRegex *regex, OnigRegion *region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
     int ret = ONIG_NORMAL;
     int error_msg_len = 0;
 
@@ -23,7 +23,7 @@ int NewOnigRegex( char *pattern, int pattern_length, int option,
 
     memset(*error_buffer, 0, ONIG_MAX_ERROR_MESSAGE_LEN * sizeof(char));
 
-    *region = onig_region_new();
+    region = onig_region_new();
 
     ret = onig_new(regex, pattern_start, pattern_end, (OnigOptionType)(option), *encoding, OnigDefaultSyntax, *error_info);
 
@@ -56,12 +56,12 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
 #endif
 
 #ifdef ONIG_DEBUG
-     fprintf(stderr, "onig_search(...,  region.allocated: %d, region.numreg: %d, captures: %p)\n",
-     (region ? region->allocated : 0), (region ? region->num_regs : 0), captures);
+     fprintf(stderr, "onig_search(str_length: %d/%d,  region.allocated: %d, region.numreg: %d)\n",
+     str_length, strlen(str_start), (region ? region->allocated : 0), (region ? region->num_regs : 0));
 #endif
     ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
 #ifdef ONIG_DEBUG
-     fprintf(stderr, "%d = onig_search(..., region.allocated: %d, region.numreg: %d, captures: %p)\n", ret, (region ? region->allocated : 0), (region ? region->num_regs : 0), captures);
+     fprintf(stderr, "%d = onig_search(str_length: %d/%d, region.allocated: %d, region.numreg: %d)\n", ret, str_length, strlen(str_start), (region ? region->allocated : 0), (region ? region->num_regs : 0));
 #endif
 
     if (ret < 0 && error_buffer != NULL) {
