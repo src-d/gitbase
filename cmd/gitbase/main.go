@@ -20,7 +20,6 @@ var (
 
 func main() {
 	debug.SetPanicOnFault(true)
-	debug.SetMaxThreads(1)
 	runtime.GOMAXPROCS(1)
 
 	parser := flags.NewNamedParser(name, flags.Default)
