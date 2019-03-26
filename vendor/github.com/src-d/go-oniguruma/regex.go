@@ -201,9 +201,6 @@ func getCapture(b []byte, beg int, end int) []byte {
 }
 
 func (re *Regexp) match(b []byte, n int, offset int) bool {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	re.ClearMatchData()
 	if n == 0 {
 		b = []byte{0}
