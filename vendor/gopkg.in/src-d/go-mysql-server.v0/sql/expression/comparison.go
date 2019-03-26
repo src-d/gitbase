@@ -245,6 +245,7 @@ func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, err
 		}
 	}
 	// for non-cached regex every time create a new matcher
+	re.cached = false
 	if !re.cached {
 		matcher, _, err = regex.New(regex.Default(), right.(string))
 	} else {
