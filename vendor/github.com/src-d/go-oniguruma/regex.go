@@ -175,6 +175,13 @@ func (re *Regexp) find(b []byte, n int, offset int) (match []int) {
 	capturesPtr := unsafe.Pointer(&(matchData.indexes[matchData.count][0]))
 	numCaptures := int32(0)
 	numCapturesPtr := unsafe.Pointer(&numCaptures)
+
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Recovered from C.SearchOnigRegex(%s, %d, %d): %v\n", string(b), n, offset, r)
+		}
+	}()
+
 	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
 	if pos >= 0 {
 		if numCaptures <= 0 {
