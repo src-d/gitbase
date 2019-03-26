@@ -6,8 +6,57 @@
 #endif
 #include "chelper.h"
 
+
+int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex *regex, char **error_buffer) {
+    int ret = ONIG_NORMAL;
+    OnigErrorInfo einfo;
+    int error_msg_len;
+
+    OnigUChar *pattern_start = (OnigUChar *) pattern;
+    OnigUChar *pattern_end = (OnigUChar *) (pattern + pattern_length);
+
+    ret = onig_new(regex, pattern_start, pattern_end, ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
+    if (ret != ONIG_NORMAL) {
+        (*error_buffer) = (char *)calloc(ONIG_MAX_ERROR_MESSAGE_LEN, sizeof(char));
+        error_msg_len = onig_error_code_to_str((OnigUChar *)(*error_buffer), ret, &einfo);
+        if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
+            error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
+        }
+        (*error_buffer)[error_msg_len] = '\0';
+    }
+    return ret;
+}
+
+int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
+    int ret = ONIG_MISMATCH;
+    OnigRegion *region = onig_region_new();
+
+    OnigUChar *str_start = (OnigUChar *) str;
+    OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
+    OnigUChar *search_start = (OnigUChar *)(str_start + offset);
+    OnigUChar *search_end = str_end;
+
+    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+
+    return ret;
+}
+
+int MatchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
+    int ret = ONIG_MISMATCH;
+    OnigRegion *region = onig_region_new();
+
+    OnigUChar *str_start = (OnigUChar *) str;
+    OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
+    OnigUChar *search_start = (OnigUChar *)(str_start + offset);
+
+    ret = onig_match(regex, str_start, str_end, search_start, region, ONIG_OPTION_NONE);
+
+    return ret;
+}
+
+
 int NewOnigRegex( char *pattern, int pattern_length, int option,
-                  OnigRegex *regex, OnigRegion *region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
+                  OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
     int ret = ONIG_NORMAL;
     int error_msg_len = 0;
 
@@ -23,7 +72,7 @@ int NewOnigRegex( char *pattern, int pattern_length, int option,
 
     memset(*error_buffer, 0, ONIG_MAX_ERROR_MESSAGE_LEN * sizeof(char));
 
-    region = onig_region_new();
+    *region = onig_region_new();
 
     ret = onig_new(regex, pattern_start, pattern_end, (OnigOptionType)(option), *encoding, OnigDefaultSyntax, *error_info);
 
@@ -45,6 +94,7 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
     struct timeval tim1, tim2;
     long t;
 #endif
+
     OnigUChar *str_start = (OnigUChar *) str;
     OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
     OnigUChar *search_start = (OnigUChar *)(str_start + offset);
@@ -54,15 +104,7 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
     gettimeofday(&tim1, NULL);
 #endif
 
-#ifdef ONIG_DEBUG
-     fprintf(stderr, "onig_search(str_length: %d,  region.allocated: %d, region.numreg: %d)\n",
-     str_length, (region ? region->allocated : 0), (region ? region->num_regs : 0));
-#endif
     ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
-#ifdef ONIG_DEBUG
-     fprintf(stderr, "%d = onig_search(str_length: %d, region.allocated: %d, region.numreg: %d)\n", ret, str_length, (region ? region->allocated : 0), (region ? region->num_regs : 0));
-#endif
-
     if (ret < 0 && error_buffer != NULL) {
         error_msg_len = onig_error_code_to_str((unsigned char*)(error_buffer), ret, error_info);
         if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {

@@ -1,7 +1,13 @@
 #include <oniguruma.h>
 
+extern int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex *regex, char **error_buffer);
+
+extern int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex);
+
+extern int MatchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex);
+
 extern int NewOnigRegex( char *pattern, int pattern_length, int option,
-                                  OnigRegex *regex, OnigRegion *region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer);
+                                  OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer);
 
 extern int SearchOnigRegex( void *str, int str_length, int offset, int option,
                                   OnigRegex regex, OnigRegion *region, OnigErrorInfo *error_info, char *error_buffer, int *captures, int *numCaptures);

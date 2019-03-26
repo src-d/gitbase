@@ -9,8 +9,6 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
-var MTX sync.Mutex
-
 // Comparer implements a comparison expression.
 type Comparer interface {
 	sql.Expression
@@ -187,7 +185,7 @@ type Regexp struct {
 
 // NewRegexp creates a new Regexp expression.
 func NewRegexp(left sql.Expression, right sql.Expression) *Regexp {
-	var cached = false
+	var cached = true
 	Inspect(right, func(e sql.Expression) bool {
 		if _, ok := e.(*GetField); ok {
 			cached = false
@@ -221,9 +219,6 @@ func (re *Regexp) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 }
 
 func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, error) {
-	MTX.Lock()
-	defer MTX.Unlock()
-
 	left, err := re.Left().Eval(ctx, row)
 	if err != nil || left == nil {
 		return nil, err
@@ -234,9 +229,9 @@ func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, err
 	}
 
 	var (
-		matcher regex.Matcher
-		// disposer regex.Disposer
-		right interface{}
+		matcher  regex.Matcher
+		disposer regex.Disposer
+		right    interface{}
 	)
 	// eval right and convert to text
 	if !re.cached || re.pool == nil {
@@ -251,7 +246,7 @@ func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, err
 	}
 	// for non-cached regex every time create a new matcher
 	if !re.cached {
-		matcher, _, err = regex.New(regex.Default(), right.(string))
+		matcher, disposer, err = regex.New(regex.Default(), right.(string))
 	} else {
 		if re.pool == nil {
 			re.pool = &sync.Pool{
@@ -276,7 +271,7 @@ func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, err
 	ok := matcher.Match(left.(string))
 
 	if !re.cached {
-		// disposer.Dispose()
+		disposer.Dispose()
 	} else if re.pool != nil {
 		re.pool.Put(matcher)
 	}

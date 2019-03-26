@@ -1,7 +1,7 @@
 package rubex
 
 /*
-#cgo CFLAGS: -I/usr/local/include -DONIG_DEBUG=1
+#cgo CFLAGS: -I/usr/local/include
 #cgo LDFLAGS: -L/usr/local/lib -lonig
 #include <stdlib.h>
 #include <oniguruma.h>
@@ -16,7 +16,6 @@ import (
 	"io"
 	"log"
 	"runtime"
-	"runtime/debug"
 	"strconv"
 	"sync"
 	"unicode/utf8"
@@ -40,12 +39,33 @@ type NamedGroupInfo map[string]int
 type Regexp struct {
 	pattern        string
 	regex          C.OnigRegex
-	region         C.OnigRegion
+	region         *C.OnigRegion
 	encoding       C.OnigEncoding
 	errorInfo      *C.OnigErrorInfo
 	errorBuf       *C.char
 	matchData      *MatchData
 	namedGroupInfo NamedGroupInfo
+}
+
+type Regexp2 struct {
+	pattern string
+	regex   C.OnigRegex
+}
+
+func NewRegexp2(pattern string) (re *Regexp, err error) {
+	re = &Regexp{pattern: pattern}
+	patternCharPtr := C.CString(pattern)
+	defer C.free(unsafe.Pointer(patternCharPtr))
+
+	var errorBuf *C.char
+	error_code := C.NewOnigRegex2(patternCharPtr, C.int(len(pattern)), &re.regex, &errorBuf)
+	if error_code != C.ONIG_NORMAL {
+		err = errors.New(C.GoString(re.errorBuf))
+	} else {
+		err = nil
+		runtime.SetFinalizer(re, (*Regexp).Free2)
+	}
+	return re, err
 }
 
 func NewRegexp(pattern string, option int) (re *Regexp, err error) {
@@ -72,6 +92,10 @@ func NewRegexp(pattern string, option int) (re *Regexp, err error) {
 	return re, err
 }
 
+func Compile2(str string) (*Regexp, error) {
+	return NewRegexp2(str)
+}
+
 func Compile(str string) (*Regexp, error) {
 	return NewRegexp(str, ONIG_OPTION_DEFAULT)
 }
@@ -96,8 +120,8 @@ func MustCompileWithOption(str string, option int) *Regexp {
 	return regexp
 }
 
-func (re *Regexp) Free() {
-	mutex.Lock()
+func (re *Regexp) Free2() {
+	// mutex.Lock()
 	if re.regex != nil {
 		C.onig_free(re.regex)
 		re.regex = nil
@@ -106,6 +130,27 @@ func (re *Regexp) Free() {
 	// 	C.onig_region_free(re.region, 1)
 	// 	re.region = nil
 	// }
+	// mutex.Unlock()
+	// if re.errorInfo != nil {
+	// 	C.free(unsafe.Pointer(re.errorInfo))
+	// 	re.errorInfo = nil
+	// }
+	// if re.errorBuf != nil {
+	// 	C.free(unsafe.Pointer(re.errorBuf))
+	// 	re.errorBuf = nil
+	// }
+}
+
+func (re *Regexp) Free() {
+	mutex.Lock()
+	if re.regex != nil {
+		C.onig_free(re.regex)
+		re.regex = nil
+	}
+	if re.region != nil {
+		C.onig_region_free(re.region, 1)
+		re.region = nil
+	}
 	mutex.Unlock()
 	if re.errorInfo != nil {
 		C.free(unsafe.Pointer(re.errorInfo))
@@ -176,10 +221,8 @@ func (re *Regexp) find(b []byte, n int, offset int) (match []int) {
 	capturesPtr := unsafe.Pointer(&(matchData.indexes[matchData.count][0]))
 	numCaptures := int32(0)
 	numCapturesPtr := unsafe.Pointer(&numCaptures)
-
-	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
-
-  if pos >= 0 {
+	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, re.region, re.errorInfo, (*C.char)(nil), (*C.int)(capturesPtr), (*C.int)(numCapturesPtr)))
+	if pos >= 0 {
 		if numCaptures <= 0 {
 			panic("cannot have 0 captures when processing a match")
 		}
@@ -203,21 +246,31 @@ func getCapture(b []byte, beg int, end int) []byte {
 	return b[beg:end]
 }
 
+func (re *Regexp) match2(b []byte, n int, offset int) bool {
+	if n == 0 {
+		b = []byte{0}
+	}
+	ptr := unsafe.Pointer(&b[0])
+	pos := int(C.SearchOnigRegex2((ptr), C.int(n), C.int(offset), re.regex))
+	return pos >= 0
+}
+
+func (re *Regexp) Match2(b []byte) bool {
+	return re.match2(b, len(b), 0)
+}
+
+func (re *Regexp) MatchString2(s string) bool {
+	b := []byte(s)
+	return re.Match2(b)
+}
+
 func (re *Regexp) match(b []byte, n int, offset int) bool {
 	re.ClearMatchData()
 	if n == 0 {
 		b = []byte{0}
 	}
 	ptr := unsafe.Pointer(&b[0])
-
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("Recovered from C.SearchOnigRegex(%s, %d, %d): %v\n", string(b), n, offset, r)
-			debug.PrintStack()
-		}
-	}()
-
-	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, &re.region, re.errorInfo, (*C.char)(nil), (*C.int)(nil), (*C.int)(nil)))
+	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), C.int(ONIG_OPTION_DEFAULT), re.regex, re.region, re.errorInfo, (*C.char)(nil), (*C.int)(nil), (*C.int)(nil)))
 	return pos >= 0
 }
 
@@ -235,7 +288,7 @@ func (re *Regexp) findAll(b []byte, n int) (matches [][]int) {
 			matchData.indexes = append(matchData.indexes, make([]int32, length))
 		}
 		if match := re.find(b, n, offset); len(match) > 0 {
-			matchData.count++
+			matchData.count += 1
 			//move offset to the ending index of the current match and prepare to find the next non-overlapping match
 			offset = match[1]
 			//if match[0] == match[1], it means the current match does not advance the search. we need to exit the loop to avoid getting stuck here.
