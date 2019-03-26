@@ -46,7 +46,7 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
     long t;
 #endif
     OnigUChar *str_start = (OnigUChar *) str;
-    OnigUChar *str_end = (OnigUChar *) (str_start + str_length-1);
+    OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
     OnigUChar *search_start = (OnigUChar *)(str_start + offset);
     OnigUChar *search_end = str_end;
 
