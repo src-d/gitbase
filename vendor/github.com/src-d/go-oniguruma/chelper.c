@@ -55,21 +55,12 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
 #endif
 
 #ifdef ONIG_DEBUG
-<<<<<<< HEAD
      fprintf(stderr, "onig_search(str_length: %d,  region.allocated: %d, region.numreg: %d)\n",
      str_length, (region ? region->allocated : 0), (region ? region->num_regs : 0));
 #endif
     ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
 #ifdef ONIG_DEBUG
      fprintf(stderr, "%d = onig_search(str_length: %d, region.allocated: %d, region.numreg: %d)\n", ret, str_length, (region ? region->allocated : 0), (region ? region->num_regs : 0));
-=======
-     fprintf(stderr, "onig_search(str_length: %d/%d,  region.allocated: %d, region.numreg: %d)\n",
-     str_length, strlen(str_start), (region ? region->allocated : 0), (region ? region->num_regs : 0));
-#endif
-    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, option);
-#ifdef ONIG_DEBUG
-     fprintf(stderr, "%d = onig_search(str_length: %d/%d, region.allocated: %d, region.numreg: %d)\n", ret, str_length, strlen(str_start), (region ? region->allocated : 0), (region ? region->num_regs : 0));
->>>>>>> ed4a2479... Debug jenkins oniguruma (#758)
 #endif
 
     if (ret < 0 && error_buffer != NULL) {

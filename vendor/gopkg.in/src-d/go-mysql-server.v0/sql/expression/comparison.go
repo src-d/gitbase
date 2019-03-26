@@ -9,6 +9,8 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
+var MTX sync.Mutex
+
 // Comparer implements a comparison expression.
 type Comparer interface {
 	sql.Expression
@@ -219,6 +221,9 @@ func (re *Regexp) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 }
 
 func (re *Regexp) compareRegexp(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	MTX.Lock()
+	defer MTX.Unlock()
+
 	left, err := re.Left().Eval(ctx, row)
 	if err != nil || left == nil {
 		return nil, err
