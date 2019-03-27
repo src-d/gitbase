@@ -67,9 +67,11 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
         }
         error_buffer[error_msg_len] = '\0';
 
-        printf("CompileAndMatch2 onig_new error: %d(%s)\npattern: %s\n", ret, error_buffer, pattern);
+        // printf("CompileAndMatch2 onig_new error: %d(%s)\npattern: %s\n", ret, error_buffer, pattern);
     } else {
-        // ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+        printf("CompileAndMatch2 pattern: %s\n", pattern);
+        ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+        printf("CompileAndMatch2 onig_search: %d\n", ret);
     }
 
     free(pattern_start);
