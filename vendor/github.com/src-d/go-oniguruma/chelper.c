@@ -41,12 +41,13 @@ int CompileAndMatch2(char *pattern, char *str) {
     OnigUChar *pattern_start = (pattern) ? (OnigUChar *) strdup(pattern) : NULL;
     OnigUChar *pattern_end = (OnigUChar *) (pattern + lenp);
 
+
     OnigRegion *region = onig_region_new();
     OnigUChar *str_start = (str) ? (OnigUChar *)strdup(str) : NULL;
     OnigUChar *str_end = (OnigUChar *) (str + lens);
     OnigUChar *search_start = (OnigUChar *)(str + offset);
     OnigUChar *search_end = str_end;
-
+    mtx_unlock(&mtx);
 
     ret = onig_new(&regex, pattern_start, pattern_end, ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
@@ -64,7 +65,7 @@ int CompileAndMatch2(char *pattern, char *str) {
         ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
         printf("CompileAndMatch2 onig_search: %d\n", ret);
     }
-    mtx_unlock(&mtx);
+
 
     // free(pattern_start);
     // free(pattern_end);
