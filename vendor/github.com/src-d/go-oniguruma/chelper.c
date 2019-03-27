@@ -77,7 +77,7 @@ int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
     int ret = ONIG_MISMATCH;
     OnigRegion *region = onig_region_new();
 
-    OnigUChar *str_start = clone(str);//(OnigUChar *) str;
+    OnigUChar *str_start = clone((OnigUChar *)str);
     OnigUChar *str_end = clone((OnigUChar *) (str_start + str_length));
     OnigUChar *search_start = clone((OnigUChar *)(str_start + offset));
     OnigUChar *search_end = clone(str_end);
@@ -128,6 +128,8 @@ int NewOnigRegex( char *pattern, int pattern_length, int option,
             error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
         }
         (*error_buffer)[error_msg_len] = '\0';
+
+        printf("onig_new error: %s\n",         (*error_buffer));
     }
     return ret;
 }
