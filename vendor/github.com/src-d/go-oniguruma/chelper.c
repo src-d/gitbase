@@ -36,7 +36,7 @@ int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
     OnigUChar *search_start = (OnigUChar *)(str_start + offset);
     OnigUChar *search_end = str_end;
 
-    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+    ret = 0;//onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
 
     return ret;
 }
