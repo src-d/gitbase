@@ -47,7 +47,7 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
 
     const char *p = "^vendor.*\0";
     int lenp = strlen(p);
-    const char *s = "notvendor\0";
+    const char *s = "vendor.me\0";
     int lens = strlen(s);
 
     OnigUChar *pattern_start = (OnigUChar *) p;
