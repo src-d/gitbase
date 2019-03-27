@@ -38,8 +38,8 @@ int CompileAndMatch(const char *p, const char *s) {
         return -1;
     }
 
-    const UChar* pattern = (const UChar* )strdup(p);
-    const UChar* str     = (const UChar* )strdup(s);
+    UChar* pattern = (UChar* )strdup(p);
+    UChar* str     = (UChar* )strdup(s);
 
     region = onig_region_new();
     ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
@@ -50,9 +50,9 @@ int CompileAndMatch(const char *p, const char *s) {
         goto out;
     }
 
-    end   = (const UChar *)(str + strlen((char* )str));
-    start = (const UChar *)str;
-    range = (const UChar *)end;
+    end   = (UChar *)(str + strlen((char* )str));
+    start = (UChar *)str;
+    range = (UChar *)end;
 
     ret = onig_search(reg, str, end, start, range, region, ONIG_OPTION_NONE);
     if (ret >= 0) {
