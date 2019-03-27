@@ -74,14 +74,14 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
         printf("CompileAndMatch2 onig_search: %d\n", ret);
     }
 
-    free(pattern_start);
-    free(pattern_end);
-    onig_region_free(region, 1);
-    free(str_start);
-    free(str_end);
-    free(search_start);
-    free(search_end);
-    onig_free(regex);
+    // free(pattern_start);
+    // free(pattern_end);
+    // onig_region_free(region, 1);
+    // free(str_start);
+    // free(str_end);
+    // free(search_start);
+    // free(search_end);
+    // onig_free(regex);
 
     return ret;
 }
