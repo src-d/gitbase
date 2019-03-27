@@ -26,57 +26,56 @@ void chelper_init() {
 // }
 
 
-int CompileAndMatch2(char *pattern, char *str) {
+int CompileAndMatch(const char *p, const char *s) {
     int ret = ONIG_NORMAL;
-    int offset = 0;
-    OnigErrorInfo einfo;
-    OnigRegex regex;
-    int error_msg_len;
-    char error_buffer[ONIG_MAX_ERROR_MESSAGE_LEN];
 
-    mtx_lock(&mtx);
-    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
+    const UChar *start, *range, *end;
+    regex_t* reg;
+    OnigErrorInfo einfo;
+    OnigRegion *region;
+
+    const UChar* pattern = (const UChar* )p;
+    const UChar* str     = (const UChar* )s;
+
+    OnigEncoding use_encs[] = { ONIG_ENCODING_ASCII };
     onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
 
-    int lenp = strlen(pattern);
-    int lens = strlen(str);
-
-    OnigUChar *pattern_start = (pattern) ? (OnigUChar *) strdup(pattern) : NULL;
-    OnigUChar *pattern_end = (OnigUChar *) (pattern + lenp);
-
-
-    OnigRegion *region = onig_region_new();
-    OnigUChar *str_start = (str) ? (OnigUChar *)strdup(str) : NULL;
-    OnigUChar *str_end = (OnigUChar *) (str + lens);
-    OnigUChar *search_start = (OnigUChar *)(str + offset);
-    OnigUChar *search_end = str_end;
-
-
-    ret = onig_new(&regex, pattern_start, pattern_end, ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
+    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_ASCII, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
-        memset(error_buffer, 0, ONIG_MAX_ERROR_MESSAGE_LEN * sizeof(char));
-        error_msg_len = onig_error_code_to_str((OnigUChar *)(error_buffer), ret, &einfo);
-        if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
-            error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
-        }
-        error_buffer[error_msg_len] = '\0';
-
-        // printf("CompileAndMatch2 onig_new error: %d(%s)\npattern: %s\n", ret, error_buffer, pattern);
-    } else {
-
-        printf("CompileAndMatch2 pattern: %s\n", pattern);
-        ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
-        printf("CompileAndMatch2 onig_search: %d\n", ret);
+        char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
+        onig_error_code_to_str((UChar* )msg, ret, &einfo);
+        fprintf(stderr, "ERROR: %s\n", msg);
+        return -1;
     }
 
+    region = onig_region_new();
 
-    // free(pattern_start);
-    // free(str_start);
-    // onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
-    // onig_free(regex);
+    end   = (const UChar *)(str + strlen((char* )str));
+    start = (const UChar *)str;
+    range = (const UChar *)end;
+
+    ret = onig_search(reg, str, end, start, range, region, ONIG_OPTION_NONE);
+    if (ret >= 0) {
+        int i;
+
+        fprintf(stderr, "match at %d\n", ret);
+        for (i = 0; i < region->num_regs; i++) {
+            fprintf(stderr, "%d: (%d-%d)\n", i, region->beg[i], region->end[i]);
+        }
+    }
+    else if (ret == ONIG_MISMATCH) {
+        fprintf(stderr, "search fail\n");
+    }
+    else { /* error */
+        char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
+        onig_error_code_to_str((UChar* )msg, ret);
+        fprintf(stderr, "ERROR: %s\n", msg);
+        return -1;
+    }
+
+    onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
+    onig_free(reg);
     onig_end();
-
-    mtx_unlock(&mtx);
 
     return ret;
 }

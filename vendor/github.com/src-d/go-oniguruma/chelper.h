@@ -2,7 +2,7 @@
 
 extern void chelper_init();
 
-extern int CompileAndMatch2(char *pattern, char *str);
+extern int CompileAndMatch(const char *p, const char *s);
 
 extern int NewOnigRegex( char *pattern, int pattern_length, int option,
                                   OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer);

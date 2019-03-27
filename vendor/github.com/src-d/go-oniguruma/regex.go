@@ -53,7 +53,6 @@ type Regexp struct {
 
 type Regexp2 struct {
 	pattern string
-	// regex   C.OnigRegex
 }
 
 func NewRegexp2(pattern string) (re *Regexp2, err error) {
@@ -112,27 +111,6 @@ func MustCompileWithOption(str string, option int) *Regexp {
 		panic("regexp: compiling " + str + ": " + error.Error())
 	}
 	return regexp
-}
-
-func (re *Regexp2) Free2() {
-	// mutex.Lock()
-	// if re.regex != nil {
-	// 	C.onig_free(re.regex)
-	// 	re.regex = nil
-	// }
-	// if re.region != nil {
-	// 	C.onig_region_free(re.region, 1)
-	// 	re.region = nil
-	// }
-	// mutex.Unlock()
-	// if re.errorInfo != nil {
-	// 	C.free(unsafe.Pointer(re.errorInfo))
-	// 	re.errorInfo = nil
-	// }
-	// if re.errorBuf != nil {
-	// 	C.free(unsafe.Pointer(re.errorBuf))
-	// 	re.errorBuf = nil
-	// }
 }
 
 func (re *Regexp) Free() {
@@ -241,7 +219,7 @@ func getCapture(b []byte, beg int, end int) []byte {
 }
 
 func (re *Regexp2) MatchString2(str string) bool {
-	pos := int(C.CompileAndMatch2(C.CString(re.pattern), C.CString(str)))
+	pos := int(C.CompileAndMatch(C.CString(re.pattern), C.CString(str)))
 	return pos >= 0
 	// b := []byte(s)
 	// return re.Match2(b)
