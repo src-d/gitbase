@@ -10,14 +10,10 @@
 int CompileAndMatch(const void *p, const void *s) {
     int ret = ONIG_NORMAL;
 
-    const UChar *start, *range, *end;
+    UChar *start, *range, *end;
     regex_t* reg;
     OnigErrorInfo einfo;
     OnigRegion *region;
-
-    if (!p || !s || strlen(p) == 0 || strlen(s) == 0) {
-        return -1;
-    }
 
     UChar* pattern = (UChar* )p;
     UChar* str     = (UChar* )s;
@@ -56,7 +52,10 @@ int CompileAndMatch(const void *p, const void *s) {
 
 out:
     onig_region_free(region, 1);
+    region = NULL;
+
     onig_free(reg);
+    reg = NULL;
 
     return ret;
 }

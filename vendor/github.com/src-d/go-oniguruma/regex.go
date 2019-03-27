@@ -2,7 +2,7 @@ package rubex
 
 /*
 #cgo CFLAGS: -I/usr/local/include
-#cgo LDFLAGS: -L/usr/local/lib -lonig -lpthread
+#cgo LDFLAGS: -L/usr/local/lib -lonig
 #include <stdlib.h>
 #include <oniguruma.h>
 #include "chelper.h"
@@ -222,19 +222,19 @@ func getCapture(b []byte, beg int, end int) []byte {
 }
 
 func (re *Regexp2) MatchString2(str string) bool {
-	var b1, b2 []rune
+	var b1, b2 []uint8
 
 	if len(re.pattern) == 0 {
-		b1 = []rune{0}
+		b1 = []uint8{0}
 	} else {
-		b1 = []rune(re.pattern)
+		b1 = []uint8(re.pattern)
 	}
 	pptr := unsafe.Pointer(&b1[0])
 
 	if len(str) == 0 {
-		b2 = []rune{0}
+		b2 = []uint8{0}
 	} else {
-		b2 = []rune(str)
+		b2 = []uint8(str)
 	}
 	pstr := unsafe.Pointer(&b2[0])
 
