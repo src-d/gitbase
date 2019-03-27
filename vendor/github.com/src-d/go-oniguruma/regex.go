@@ -240,8 +240,16 @@ func getCapture(b []byte, beg int, end int) []byte {
 	return b[beg:end]
 }
 
-func (re *Regexp2) MatchString2(s string) bool {
-	pos := int(C.CompileAndMatch2(C.CString(re.pattern), C.CString(s)))
+func (re *Regexp2) MatchString2(str string) bool {
+	p := []byte(re.pattern)
+	pp := make([]byte, len(p))
+	copy(pp, p)
+
+	s := []byte(str)
+	ss := make([]byte, len(s))
+	copy(ss, s)
+
+	pos := int(C.CompileAndMatch2(C.CString(string(pp)), C.CString(string(ss))))
 	return pos >= 0
 	// b := []byte(s)
 	// return re.Match2(b)
