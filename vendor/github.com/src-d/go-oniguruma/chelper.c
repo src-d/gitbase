@@ -13,8 +13,8 @@ mtx_t mtx;
 void chelper_init() {
     mtx_init(&mtx, mtx_plain);
 
-    // OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
-    // onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
+    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
+    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
 }
 
 // OnigUChar *clone(OnigUChar *str) {
@@ -38,23 +38,17 @@ int CompileAndMatch(const char *p, const char *s) {
         return -1;
     }
 
-    mtx_lock(&mtx);
     const UChar* pattern = (const UChar* )p;
     const UChar* str     = (const UChar* )s;
 
-    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
-    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
-
+    region = onig_region_new();
     ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret, &einfo);
         fprintf(stderr, "ERROR: %s\n", msg);
-        mtx_unlock(&mtx);
-        return -1;
+        goto out;
     }
-
-    region = onig_region_new();
 
     end   = (const UChar *)(str + strlen((char* )str));
     start = (const UChar *)str;
@@ -76,15 +70,14 @@ int CompileAndMatch(const char *p, const char *s) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret);
         fprintf(stderr, "ERROR: %s\n", msg);
-        mtx_unlock(&mtx);
-        return -1;
+        goto out;
     }
 
+out:
     onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
     onig_free(reg);
-    onig_end();
+    // onig_end();
 
-    mtx_unlock(&mtx);
     return ret;
 }
 
