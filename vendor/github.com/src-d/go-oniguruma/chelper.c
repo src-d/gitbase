@@ -65,16 +65,18 @@ int CompileAndMatch2(char *pattern, char *str) {
         ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
         printf("CompileAndMatch2 onig_search: %d\n", ret);
     }
-    mtx_unlock(&mtx);
 
-    // free(pattern_start);
+
+    free(pattern_start);
     // free(pattern_end);
-    // onig_region_free(region, 1);
-    // free(str_start);
+    onig_region_free(region, 1);
+    free(str_start);
     // free(str_end);
     // free(search_start);
     // free(search_end);
-    // onig_free(regex);
+    onig_free(regex);
+
+    mtx_unlock(&mtx);
 
     return ret;
 }
