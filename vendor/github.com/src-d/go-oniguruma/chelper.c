@@ -72,8 +72,8 @@ int CompileAndMatch2(char *pattern, char *str) {
 
     // free(pattern_start);
     // free(str_start);
-    onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
-    onig_free(regex);
+    // onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
+    // onig_free(regex);
     onig_end();
 
     mtx_unlock(&mtx);
