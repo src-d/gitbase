@@ -224,25 +224,22 @@ func getCapture(b []byte, beg int, end int) []byte {
 func (re *Regexp2) MatchString2(str string) bool {
 	var b1, b2 []byte
 
-	if len(str) == 0 {
+	if len(re.pattern) == 0 {
 		b1 = []byte{0}
 	} else {
-		b1 = []byte(str)
+		b1 = []byte(re.pattern)
 	}
+	pptr := unsafe.Pointer(&b1[0])
 
-	if len(re.pattern) == 0 {
+	if len(str) == 0 {
 		b2 = []byte{0}
 	} else {
-		b2 = []byte(re.pattern)
+		b2 = []byte(str)
 	}
-
-	pptr := unsafe.Pointer(&b1[0])
 	pstr := unsafe.Pointer(&b2[0])
 
 	pos := int(C.CompileAndMatch((pptr), (pstr)))
 	return pos >= 0
-	// b := []byte(s)
-	// return re.Match2(b)
 }
 
 func (re *Regexp) match(b []byte, n int, offset int) bool {
