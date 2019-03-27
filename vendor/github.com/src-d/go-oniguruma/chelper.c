@@ -34,6 +34,7 @@ int CompileAndMatch(const char *p, const char *s) {
     OnigErrorInfo einfo;
     OnigRegion *region;
 
+    mtx_lock(&mtx);
     const UChar* pattern = (const UChar* )p;
     const UChar* str     = (const UChar* )s;
 
@@ -45,6 +46,7 @@ int CompileAndMatch(const char *p, const char *s) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret, &einfo);
         fprintf(stderr, "ERROR: %s\n", msg);
+        mtx_unlock(&mtx);
         return -1;
     }
 
@@ -70,6 +72,7 @@ int CompileAndMatch(const char *p, const char *s) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret);
         fprintf(stderr, "ERROR: %s\n", msg);
+        mtx_unlock(&mtx);
         return -1;
     }
 
@@ -77,6 +80,7 @@ int CompileAndMatch(const char *p, const char *s) {
     onig_free(reg);
     onig_end();
 
+    mtx_unlock(&mtx);
     return ret;
 }
 
