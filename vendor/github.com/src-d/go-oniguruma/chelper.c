@@ -13,8 +13,8 @@ mtx_t mtx;
 void chelper_init() {
     mtx_init(&mtx, mtx_plain);
 
-    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
-    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
+    // OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
+    // onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
 }
 
 // OnigUChar *clone(OnigUChar *str) {
@@ -35,6 +35,9 @@ int CompileAndMatch2(char *pattern, char *str) {
     char error_buffer[ONIG_MAX_ERROR_MESSAGE_LEN];
 
     mtx_lock(&mtx);
+    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
+    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
+
     int lenp = strlen(pattern);
     int lens = strlen(str);
 
@@ -67,14 +70,11 @@ int CompileAndMatch2(char *pattern, char *str) {
     }
 
 
-    free(pattern_start);
-    // free(pattern_end);
-    // onig_region_free(region, 1);
-    free(str_start);
-    // free(str_end);
-    // free(search_start);
-    // free(search_end);
-    // onig_free(regex);
+    // free(pattern_start);
+    // free(str_start);
+    onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
+    onig_free(regex);
+    onig_end();
 
     mtx_unlock(&mtx);
 
