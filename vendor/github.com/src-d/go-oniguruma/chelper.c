@@ -37,7 +37,7 @@ int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **er
 }
 
 
-int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_length) {
+int CompileAndMatch2(char *pattern, char *str) {
     int ret = ONIG_NORMAL;
     int offset = 0;
     OnigErrorInfo einfo;
@@ -45,18 +45,16 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
     int error_msg_len;
     char error_buffer[ONIG_MAX_ERROR_MESSAGE_LEN];
 
-    const char *p = "^vendor.*\0";
-    int lenp = strlen(p);
-    const char *s = "vendor.me\0";
-    int lens = strlen(s);
+    int lenp = strlen(pattern);
+    int lens = strlen(str);
 
-    OnigUChar *pattern_start = (OnigUChar *) p;
-    OnigUChar *pattern_end = (OnigUChar *) (p + lenp);
+    OnigUChar *pattern_start = (OnigUChar *) pattern;
+    OnigUChar *pattern_end = (OnigUChar *) (pattern + lenp);
 
     OnigRegion *region = onig_region_new();
-    OnigUChar *str_start = (OnigUChar *)s;
-    OnigUChar *str_end = (OnigUChar *) (s + lens);
-    OnigUChar *search_start = (OnigUChar *)(s + offset);
+    OnigUChar *str_start = (OnigUChar *)str;
+    OnigUChar *str_end = (OnigUChar *) (str + lens);
+    OnigUChar *search_start = (OnigUChar *)(str + offset);
     OnigUChar *search_end = str_end;
 
 
