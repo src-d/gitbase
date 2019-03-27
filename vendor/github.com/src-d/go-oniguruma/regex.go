@@ -23,7 +23,7 @@ import (
 )
 
 func init() {
-	C.init()
+	C.chelper_init()
 }
 
 type strRange []int

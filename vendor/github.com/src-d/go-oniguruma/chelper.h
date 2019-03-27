@@ -1,6 +1,6 @@
 #include <oniguruma.h>
 
-extern void init();
+extern void chelper_init();
 
 extern int CompileAndMatch2(char *pattern, char *str);
 

@@ -10,17 +10,17 @@
 
 mtx_t mtx;
 
-void init() {
+void chelper_init() {
     mtx_init(&mtx, mtx_plain);
 }
 
-OnigUChar *clone(OnigUChar *str) {
-    if (NULL == str) {
-        return NULL;
-    }
+// OnigUChar *clone(OnigUChar *str) {
+//     if (NULL == str) {
+//         return NULL;
+//     }
 
-    return (OnigUChar *)strdup((const char *)str);
-}
+//     return (OnigUChar *)strdup((const char *)str);
+// }
 
 int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **error_buffer) {
     int ret = ONIG_NORMAL;
