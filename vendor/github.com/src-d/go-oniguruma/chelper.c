@@ -45,7 +45,7 @@ int CompileAndMatch(const char *p, const char *s) {
     UChar* str     = (UChar* )s;
 
     region = onig_region_new();
-    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
+    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_MULTILINE, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret, &einfo);
