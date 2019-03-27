@@ -47,30 +47,14 @@ type Regexp struct {
 	namedGroupInfo NamedGroupInfo
 }
 
-/*
-struct re_pattern_buffer;
-typedef struct re_pattern_buffer OnigRegexType;
-typedef OnigRegexType*  OnigRegex;
-*/
-
 type Regexp2 struct {
 	pattern string
-	regex   C.OnigRegex
+	// regex   C.OnigRegex
 }
 
 func NewRegexp2(pattern string) (re *Regexp2, err error) {
 	re = &Regexp2{pattern: pattern}
-	patternCharPtr := C.CString(pattern)
-	defer C.free(unsafe.Pointer(patternCharPtr))
 
-	var errorBuf *C.char
-	error_code := C.NewOnigRegex2(patternCharPtr, C.int(len(pattern)), &re.regex, &errorBuf)
-	if error_code != C.ONIG_NORMAL {
-		err = errors.New(C.GoString(errorBuf))
-	} else {
-		err = nil
-		runtime.SetFinalizer(re, (*Regexp2).Free2)
-	}
 	return re, err
 }
 
@@ -128,10 +112,10 @@ func MustCompileWithOption(str string, option int) *Regexp {
 
 func (re *Regexp2) Free2() {
 	// mutex.Lock()
-	if re.regex != nil {
-		C.onig_free(re.regex)
-		re.regex = nil
-	}
+	// if re.regex != nil {
+	// 	C.onig_free(re.regex)
+	// 	re.regex = nil
+	// }
 	// if re.region != nil {
 	// 	C.onig_region_free(re.region, 1)
 	// 	re.region = nil
@@ -253,11 +237,30 @@ func getCapture(b []byte, beg int, end int) []byte {
 }
 
 func (re *Regexp2) match2(b []byte, n int, offset int) bool {
+	var regex C.OnigRegex
+
+	patternCharPtr := C.CString(re.pattern)
+	defer C.free(unsafe.Pointer(patternCharPtr))
+
+	var err error
+	var errorBuf *C.char
+	error_code := C.NewOnigRegex2(patternCharPtr, C.int(len(re.pattern)), &regex, &errorBuf)
+	if error_code != C.ONIG_NORMAL {
+		err = errors.New(C.GoString(errorBuf))
+	} else {
+		err = nil
+		runtime.SetFinalizer(re, (*Regexp2).Free2)
+	}
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
 	if n == 0 {
 		b = []byte{0}
 	}
 	ptr := unsafe.Pointer(&b[0])
-	pos := int(C.SearchOnigRegex2((ptr), C.int(n), C.int(offset), re.regex))
+	pos := int(C.SearchOnigRegex2((ptr), C.int(n), C.int(offset), regex))
 	return pos >= 0
 }
 
