@@ -42,7 +42,8 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
     int offset = 0;
     OnigErrorInfo einfo;
     OnigRegex regex;
-
+    int error_msg_len;
+    char error_buffer[ONIG_MAX_ERROR_MESSAGE_LEN];
 
     OnigUChar *pattern_start = clone((OnigUChar *) pattern);
     OnigUChar *pattern_end = clone((OnigUChar *) (pattern + pattern_length));
@@ -54,11 +55,21 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
     OnigUChar *search_end = clone(str_end);
 
 
+    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
+    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
+
     ret = onig_new(&regex, pattern_start, pattern_end, ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
-        printf("CompileAndMatch2 onig_new error: %d\npattern: %s\n", ret, pattern);
+        memset(error_buffer, 0, ONIG_MAX_ERROR_MESSAGE_LEN * sizeof(char));
+        error_msg_len = onig_error_code_to_str((OnigUChar *)(error_buffer), ret, &einfo);
+        if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
+            error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
+        }
+        error_buffer[error_msg_len] = '\0';
+
+        printf("CompileAndMatch2 onig_new error: %d(%s)\npattern: %s\n", ret, error_buffer, pattern);
     } else {
-        ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+        // ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
     }
 
     free(pattern_start);
