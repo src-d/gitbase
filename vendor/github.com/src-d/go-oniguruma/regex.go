@@ -260,7 +260,7 @@ func (re *Regexp2) match2(b []byte, n int, offset int) bool {
 	pos := int(C.SearchOnigRegex2((ptr), C.int(n), C.int(offset), regex))
 
 	if regex != nil {
-		C.onig_free(re.regex)
+		C.onig_free(regex)
 		regex = nil
 	}
 
