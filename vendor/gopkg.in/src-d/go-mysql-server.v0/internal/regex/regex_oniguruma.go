@@ -17,7 +17,7 @@ func (r *Oniguruma) Match(s string) bool {
 // Dispose implements Disposer interface.
 // The function releases resources for oniguruma's precompiled regex
 func (r *Oniguruma) Dispose() {
-	r.reg.Free2()
+	// r.reg.Free2()
 }
 
 // NewOniguruma creates a new Matcher using oniguruma engine.
