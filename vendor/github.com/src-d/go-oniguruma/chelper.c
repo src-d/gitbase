@@ -27,16 +27,24 @@ int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **er
     return ret;
 }
 
+OnigUChar *clone(OnigUChar *str) {
+    if (NULL == str) {
+        return NULL;
+    }
+
+    return (OnigUChar *)strdup((const char *)str);
+}
+
 int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
     int ret = ONIG_MISMATCH;
     OnigRegion *region = onig_region_new();
 
-    OnigUChar *str_start = (OnigUChar *) str;
-    OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
-    OnigUChar *search_start = (OnigUChar *)(str_start + offset);
-    OnigUChar *search_end = str_end;
+    OnigUChar *str_start = clone(str);//(OnigUChar *) str;
+    OnigUChar *str_end = clone((OnigUChar *) (str_start + str_length));
+    OnigUChar *search_start = clone((OnigUChar *)(str_start + offset));
+    OnigUChar *search_end = clone(str_end);
 
-    ret = 0;//onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
 
     return ret;
 }
