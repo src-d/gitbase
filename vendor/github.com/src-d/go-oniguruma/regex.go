@@ -223,14 +223,18 @@ func (re *Regexp2) MatchString2(str string) bool {
 
 	if len(str) == 0 {
 		b1 = []byte{0}
+	} else {
+		b1 = []byte(str)
 	}
 
 	if len(re.pattern) == 0 {
 		b2 = []byte{0}
+	} else {
+		b2 = []byte(re.pattern)
 	}
 
 	pptr := unsafe.Pointer(&b1[0])
-	pstr := unsafe.Pointer(&b2[1])
+	pstr := unsafe.Pointer(&b2[0])
 
 	pos := int(C.CompileAndMatch((pptr), (pstr)))
 	return pos >= 0
