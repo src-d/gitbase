@@ -247,9 +247,6 @@ func (re *Regexp2) match2(b []byte, n int, offset int) bool {
 	error_code := C.NewOnigRegex2(patternCharPtr, C.int(len(re.pattern)), &regex, &errorBuf)
 	if error_code != C.ONIG_NORMAL {
 		err = errors.New(C.GoString(errorBuf))
-	} else {
-		err = nil
-		runtime.SetFinalizer(re, (*Regexp2).Free2)
 	}
 	if err != nil {
 		fmt.Println(err)
@@ -261,6 +258,12 @@ func (re *Regexp2) match2(b []byte, n int, offset int) bool {
 	}
 	ptr := unsafe.Pointer(&b[0])
 	pos := int(C.SearchOnigRegex2((ptr), C.int(n), C.int(offset), regex))
+
+	if regex != nil {
+		C.onig_free(re.regex)
+		regex = nil
+	}
+
 	return pos >= 0
 }
 
