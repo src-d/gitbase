@@ -22,27 +22,6 @@ void chelper_init() {
 //     return (OnigUChar *)strdup((const char *)str);
 // }
 
-int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **error_buffer) {
-    int ret = ONIG_NORMAL;
-    OnigErrorInfo einfo;
-    int error_msg_len;
-
-    OnigUChar *pattern_start = (OnigUChar *) pattern;
-    OnigUChar *pattern_end = (OnigUChar *) (pattern + pattern_length);
-
-    ret = onig_new(regex, pattern_start, pattern_end, ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
-    if (ret != ONIG_NORMAL) {
-        (*error_buffer) = (char *)calloc(ONIG_MAX_ERROR_MESSAGE_LEN, sizeof(char));
-        error_msg_len = onig_error_code_to_str((OnigUChar *)(*error_buffer), ret, &einfo);
-        if (error_msg_len >= ONIG_MAX_ERROR_MESSAGE_LEN) {
-            error_msg_len = ONIG_MAX_ERROR_MESSAGE_LEN - 1;
-        }
-        (*error_buffer)[error_msg_len] = '\0';
-    }
-    return ret;
-}
-
-
 int CompileAndMatch2(char *pattern, char *str) {
     int ret = ONIG_NORMAL;
     int offset = 0;
@@ -96,34 +75,6 @@ int CompileAndMatch2(char *pattern, char *str) {
 
     return ret;
 }
-
-int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
-    int ret = ONIG_MISMATCH;
-    OnigRegion *region = onig_region_new();
-
-    OnigUChar *str_start = clone((OnigUChar *)str);
-    OnigUChar *str_end = clone((OnigUChar *) (str_start + str_length));
-    OnigUChar *search_start = clone((OnigUChar *)(str_start + offset));
-    OnigUChar *search_end = clone(str_end);
-
-    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
-
-    return ret;
-}
-
-int MatchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {
-    int ret = ONIG_MISMATCH;
-    OnigRegion *region = onig_region_new();
-
-    OnigUChar *str_start = (OnigUChar *) str;
-    OnigUChar *str_end = (OnigUChar *) (str_start + str_length);
-    OnigUChar *search_start = (OnigUChar *)(str_start + offset);
-
-    ret = onig_match(regex, str_start, str_end, search_start, region, ONIG_OPTION_NONE);
-
-    return ret;
-}
-
 
 int NewOnigRegex( char *pattern, int pattern_length, int option,
                   OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
