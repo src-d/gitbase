@@ -34,14 +34,18 @@ int CompileAndMatch(const char *p, const char *s) {
     OnigErrorInfo einfo;
     OnigRegion *region;
 
+    if (!p || !s || strlen(p) == 0 || strlen(s) == 0) {
+        return -1;
+    }
+
     mtx_lock(&mtx);
     const UChar* pattern = (const UChar* )p;
     const UChar* str     = (const UChar* )s;
 
-    OnigEncoding use_encs[] = { ONIG_ENCODING_ASCII };
+    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
     onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
 
-    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_ASCII, ONIG_SYNTAX_DEFAULT, &einfo);
+    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret, &einfo);
