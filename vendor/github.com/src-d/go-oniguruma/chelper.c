@@ -34,7 +34,7 @@ int CompileAndMatch2(char *pattern, char *str) {
     int error_msg_len;
     char error_buffer[ONIG_MAX_ERROR_MESSAGE_LEN];
 
-    // mtx_lock(&mtx);
+    mtx_lock(&mtx);
     int lenp = strlen(pattern);
     int lens = strlen(str);
 
@@ -65,7 +65,7 @@ int CompileAndMatch2(char *pattern, char *str) {
         ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
         printf("CompileAndMatch2 onig_search: %d\n", ret);
     }
-    // mtx_unlock(&mtx);
+    mtx_unlock(&mtx);
 
     // free(pattern_start);
     // free(pattern_end);
