@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/src-d/gitbase/cmd/gitbase/command"
 
@@ -17,6 +18,8 @@ var (
 )
 
 func main() {
+	fmt.Println(runtime.GOARCH, runtime.GOMAXPROCS, runtime.GOOS)
+
 	parser := flags.NewNamedParser(name, flags.Default)
 	parser.UnknownOptionHandler = func(option string, arg flags.SplitArgument, args []string) ([]string, error) {
 		if option != "g" {

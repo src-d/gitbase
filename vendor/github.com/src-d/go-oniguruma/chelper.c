@@ -41,8 +41,8 @@ int CompileAndMatch(const char *p, const char *s) {
     OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
     onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
 
-    UChar* pattern = (UChar* )strdup(p);
-    UChar* str     = (UChar* )strdup(s);
+    UChar* pattern = (UChar* )p;
+    UChar* str     = (UChar* )s;
 
     region = onig_region_new();
     ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
@@ -79,10 +79,8 @@ int CompileAndMatch(const char *p, const char *s) {
 out:
     onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
     onig_free(reg);
-    free(pattern);
-    free(str);
 
-    // onig_end();
+    onig_end();
     mtx_unlock(&mtx);
 
     return ret;
