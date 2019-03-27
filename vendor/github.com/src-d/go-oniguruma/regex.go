@@ -219,7 +219,20 @@ func getCapture(b []byte, beg int, end int) []byte {
 }
 
 func (re *Regexp2) MatchString2(str string) bool {
-	pos := int(C.CompileAndMatch(C.CString(re.pattern), C.CString(str)))
+	var b1, b2 []byte
+
+	if len(str) == 0 {
+		b1 = []byte{0}
+	}
+
+	if len(re.pattern) == 0 {
+		b2 = []byte{0}
+	}
+
+	pptr := unsafe.Pointer(&b1[0])
+	pstr := unsafe.Pointer(&b2[1])
+
+	pos := int(C.CompileAndMatch((pptr), (pstr)))
 	return pos >= 0
 	// b := []byte(s)
 	// return re.Match2(b)

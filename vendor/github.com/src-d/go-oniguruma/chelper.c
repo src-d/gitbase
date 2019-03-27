@@ -25,7 +25,7 @@ void chelper_init() {
 // }
 
 
-int CompileAndMatch(const char *p, const char *s) {
+int CompileAndMatch(const void *p, const void *s) {
     int ret = ONIG_NORMAL;
 
     const UChar *start, *range, *end;
@@ -37,15 +37,11 @@ int CompileAndMatch(const char *p, const char *s) {
         return -1;
     }
 
-    mtx_lock(&mtx);
-    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
-    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
-
     UChar* pattern = (UChar* )p;
     UChar* str     = (UChar* )s;
 
     region = onig_region_new();
-    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_MULTILINE, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
+    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret, &einfo);
@@ -77,11 +73,8 @@ int CompileAndMatch(const char *p, const char *s) {
     }
 
 out:
-    onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
+    onig_region_free(region, 1);
     onig_free(reg);
-
-    onig_end();
-    mtx_unlock(&mtx);
 
     return ret;
 }
