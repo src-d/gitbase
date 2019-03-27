@@ -1,5 +1,7 @@
 #include <oniguruma.h>
 
+extern void init();
+
 extern int CompileAndMatch2(char *pattern, char *str);
 
 extern int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **error_buffer);

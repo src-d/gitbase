@@ -2,7 +2,7 @@ package rubex
 
 /*
 #cgo CFLAGS: -I/usr/local/include
-#cgo LDFLAGS: -L/usr/local/lib -lonig
+#cgo LDFLAGS: -L/usr/local/lib -lonig -lpthread
 #include <stdlib.h>
 #include <oniguruma.h>
 #include "chelper.h"
@@ -21,6 +21,10 @@ import (
 	"unicode/utf8"
 	"unsafe"
 )
+
+func init() {
+	C.init()
+}
 
 type strRange []int
 

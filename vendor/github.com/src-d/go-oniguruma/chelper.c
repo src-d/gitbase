@@ -5,8 +5,14 @@
 #include <sys/time.h>
 #endif
 #include "chelper.h"
+#include "tinycthread.h"
 
 
+mtx_t mtx;
+
+void init() {
+    mtx_init(&mtx, mtx_plain);
+}
 
 OnigUChar *clone(OnigUChar *str) {
     if (NULL == str) {
@@ -72,9 +78,11 @@ int CompileAndMatch2(char *pattern, char *str) {
 
         // printf("CompileAndMatch2 onig_new error: %d(%s)\npattern: %s\n", ret, error_buffer, pattern);
     } else {
-        printf("CompileAndMatch2 pattern: %s\n", pattern);
+        mtx_lock(&mtx);
+        printf("CompileAndMatch2 pattern: %s\nstr: %s\n", pattern, str);
         ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
         printf("CompileAndMatch2 onig_search: %d\n", ret);
+        mtx_unlock(&mtx);
     }
 
     // free(pattern_start);
