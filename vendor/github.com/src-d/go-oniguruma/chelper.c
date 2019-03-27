@@ -45,14 +45,19 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
     int error_msg_len;
     char error_buffer[ONIG_MAX_ERROR_MESSAGE_LEN];
 
-    OnigUChar *pattern_start = clone((OnigUChar *) pattern);
-    OnigUChar *pattern_end = clone((OnigUChar *) (pattern + pattern_length));
+    const char *p = "^vendor.*\0";
+    int lenp = strlen(p);
+    const char *s = "notvendor\0";
+    int lens = strlen(s);
+
+    OnigUChar *pattern_start = (OnigUChar *) p;
+    OnigUChar *pattern_end = (OnigUChar *) (p + lenp);
 
     OnigRegion *region = onig_region_new();
-    OnigUChar *str_start = clone((OnigUChar *)str);
-    OnigUChar *str_end = clone((OnigUChar *) (str_start + str_length));
-    OnigUChar *search_start = clone((OnigUChar *)(str_start + offset));
-    OnigUChar *search_end = clone(str_end);
+    OnigUChar *str_start = (OnigUChar *)s;
+    OnigUChar *str_end = (OnigUChar *) (s + lens);
+    OnigUChar *search_start = (OnigUChar *)(s + offset);
+    OnigUChar *search_end = str_end;
 
 
     OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
