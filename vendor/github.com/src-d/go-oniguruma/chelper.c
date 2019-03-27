@@ -13,8 +13,7 @@ mtx_t mtx;
 void chelper_init() {
     mtx_init(&mtx, mtx_plain);
 
-    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
-    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
+
 }
 
 // OnigUChar *clone(OnigUChar *str) {
@@ -28,7 +27,7 @@ void chelper_init() {
 
 int CompileAndMatch(const char *p, const char *s) {
     int ret = ONIG_NORMAL;
-    mtx_lock(&mtx);
+
     const UChar *start, *range, *end;
     regex_t* reg;
     OnigErrorInfo einfo;
@@ -37,6 +36,10 @@ int CompileAndMatch(const char *p, const char *s) {
     if (!p || !s || strlen(p) == 0 || strlen(s) == 0) {
         return -1;
     }
+
+    mtx_lock(&mtx);
+    OnigEncoding use_encs[] = { ONIG_ENCODING_UTF8 };
+    onig_initialize(use_encs, sizeof(use_encs)/sizeof(use_encs[0]));
 
     UChar* pattern = (UChar* )strdup(p);
     UChar* str     = (UChar* )strdup(s);
