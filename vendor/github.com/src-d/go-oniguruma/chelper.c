@@ -38,12 +38,12 @@ int CompileAndMatch2(char *pattern, char *str) {
     int lenp = strlen(pattern);
     int lens = strlen(str);
 
-    OnigUChar *pattern_start = pattern;//(pattern) ? (OnigUChar *) strdup(pattern) : NULL;
+    OnigUChar *pattern_start = (pattern) ? (OnigUChar *) strdup(pattern) : NULL;
     OnigUChar *pattern_end = (OnigUChar *) (pattern + lenp);
 
 
     OnigRegion *region = onig_region_new();
-    OnigUChar *str_start = str;//(str) ? (OnigUChar *)strdup(str) : NULL;
+    OnigUChar *str_start = (str) ? (OnigUChar *)strdup(str) : NULL;
     OnigUChar *str_end = (OnigUChar *) (str + lens);
     OnigUChar *search_start = (OnigUChar *)(str + offset);
     OnigUChar *search_end = str_end;
@@ -67,10 +67,10 @@ int CompileAndMatch2(char *pattern, char *str) {
     }
     mtx_unlock(&mtx);
 
-    // free(pattern_start);
+    free(pattern_start);
     // free(pattern_end);
     // onig_region_free(region, 1);
-    // free(str_start);
+    free(str_start);
     // free(str_end);
     // free(search_start);
     // free(search_end);
