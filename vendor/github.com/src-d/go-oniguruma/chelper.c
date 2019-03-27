@@ -5,24 +5,6 @@
 #include <sys/time.h>
 #endif
 #include "chelper.h"
-#include "tinycthread.h"
-
-
-mtx_t mtx;
-
-void chelper_init() {
-    mtx_init(&mtx, mtx_plain);
-
-
-}
-
-// OnigUChar *clone(OnigUChar *str) {
-//     if (NULL == str) {
-//         return NULL;
-//     }
-
-//     return (OnigUChar *)strdup((const char *)str);
-// }
 
 
 int CompileAndMatch(const void *p, const void *s) {
@@ -79,7 +61,7 @@ out:
     return ret;
 }
 
-int NewOnigRegex( char *pattern, int pattern_length, int option,
+int NewOnigRegex(const void *pattern, int pattern_length, int option,
                   OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer) {
     int ret = ONIG_NORMAL;
     int error_msg_len = 0;
@@ -112,7 +94,7 @@ int NewOnigRegex( char *pattern, int pattern_length, int option,
     return ret;
 }
 
-int SearchOnigRegex( void *str, int str_length, int offset, int option,
+int SearchOnigRegex(const void *str, int str_length, int offset, int option,
                   OnigRegex regex, OnigRegion *region, OnigErrorInfo *error_info, char *error_buffer, int *captures, int *numCaptures) {
     int ret = ONIG_MISMATCH;
     int error_msg_len = 0;
@@ -157,7 +139,7 @@ int SearchOnigRegex( void *str, int str_length, int offset, int option,
     return ret;
 }
 
-int MatchOnigRegex(void *str, int str_length, int offset, int option,
+int MatchOnigRegex(const void *str, int str_length, int offset, int option,
                   OnigRegex regex, OnigRegion *region) {
     int ret = ONIG_MISMATCH;
     int error_msg_len = 0;

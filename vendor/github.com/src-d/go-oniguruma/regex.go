@@ -22,10 +22,6 @@ import (
 	"unsafe"
 )
 
-func init() {
-	C.chelper_init()
-}
-
 type strRange []int
 
 const numMatchStartSize = 4
@@ -62,13 +58,20 @@ func NewRegexp2(pattern string) (re *Regexp2, err error) {
 }
 
 func NewRegexp(pattern string, option int) (re *Regexp, err error) {
+	var b []byte
+	n := len(pattern)
+	if n == 0 {
+		b = []byte{0}
+	} else {
+		b = []byte(pattern)
+	}
+	ptr := unsafe.Pointer(&b[0])
+
 	re = &Regexp{pattern: pattern}
-	patternCharPtr := C.CString(pattern)
-	defer C.free(unsafe.Pointer(patternCharPtr))
 
 	mutex.Lock()
 	defer mutex.Unlock()
-	error_code := C.NewOnigRegex(patternCharPtr, C.int(len(pattern)), C.int(option), &re.regex, &re.region, &re.encoding, &re.errorInfo, &re.errorBuf)
+	error_code := C.NewOnigRegex((ptr), C.int(n), C.int(option), &re.regex, &re.region, &re.encoding, &re.errorInfo, &re.errorBuf)
 	if error_code != C.ONIG_NORMAL {
 		err = errors.New(C.GoString(re.errorBuf))
 	} else {
