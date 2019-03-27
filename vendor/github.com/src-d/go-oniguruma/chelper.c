@@ -7,6 +7,15 @@
 #include "chelper.h"
 
 
+
+OnigUChar *clone(OnigUChar *str) {
+    if (NULL == str) {
+        return NULL;
+    }
+
+    return (OnigUChar *)strdup((const char *)str);
+}
+
 int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **error_buffer) {
     int ret = ONIG_NORMAL;
     OnigErrorInfo einfo;
@@ -27,12 +36,43 @@ int NewOnigRegex2(char *pattern, int pattern_length, OnigRegex* regex, char **er
     return ret;
 }
 
-OnigUChar *clone(OnigUChar *str) {
-    if (NULL == str) {
-        return NULL;
+
+int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_length) {
+    int ret = ONIG_NORMAL;
+    int offset = 0;
+    OnigErrorInfo einfo;
+    OnigRegex regex;
+
+
+    OnigUChar *pattern_start = clone((OnigUChar *) pattern);
+    OnigUChar *pattern_end = clone((OnigUChar *) (pattern + pattern_length));
+
+    OnigRegion *region = onig_region_new();
+    OnigUChar *str_start = clone((OnigUChar *)str);
+    OnigUChar *str_end = clone((OnigUChar *) (str_start + str_length));
+    OnigUChar *search_start = clone((OnigUChar *)(str_start + offset));
+    OnigUChar *search_end = clone(str_end);
+
+
+    ret = onig_new(&regex, pattern_start, pattern_end, ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
+    printf("CompileAndMatch2 onig_new: %d\n", ret);
+    if (ret != ONIG_NORMAL) {
+        fprintf(stderr, "CompileAndMatch2 error: %d\n", ret);
+        return ret;
     }
 
-    return (OnigUChar *)strdup((const char *)str);
+    ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
+    printf("CompileAndMatch2 onig_search: %d\n", ret);
+
+    // free(pattern_start);
+    // free(pattern_end);
+    // onig_region_free(region, 1);
+    // free(str_start);
+    // free(str_end);
+    // free(search_start);
+    // free(search_end);
+
+    return ret;
 }
 
 int SearchOnigRegex2(void *str, int str_length, int offset, OnigRegex regex) {

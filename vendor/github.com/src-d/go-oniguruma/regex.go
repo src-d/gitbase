@@ -271,8 +271,10 @@ func (re *Regexp2) Match2(b []byte) bool {
 }
 
 func (re *Regexp2) MatchString2(s string) bool {
-	b := []byte(s)
-	return re.Match2(b)
+	pos := int(C.CompileAndMatch2(C.CString(re.pattern), C.int(len(re.pattern)), C.CString(s), C.int(len(s))))
+	return pos >= 0
+	// b := []byte(s)
+	// return re.Match2(b)
 }
 
 func (re *Regexp) match(b []byte, n int, offset int) bool {
