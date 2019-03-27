@@ -28,7 +28,7 @@ void chelper_init() {
 
 int CompileAndMatch(const char *p, const char *s) {
     int ret = ONIG_NORMAL;
-
+    mtx_lock(&mtx);
     const UChar *start, *range, *end;
     regex_t* reg;
     OnigErrorInfo einfo;
@@ -38,8 +38,8 @@ int CompileAndMatch(const char *p, const char *s) {
         return -1;
     }
 
-    const UChar* pattern = (const UChar* )p;
-    const UChar* str     = (const UChar* )s;
+    const UChar* pattern = (const UChar* )strdup(p);
+    const UChar* str     = (const UChar* )strdup(s);
 
     region = onig_region_new();
     ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
@@ -76,7 +76,11 @@ int CompileAndMatch(const char *p, const char *s) {
 out:
     onig_region_free(region, 1 /* 1:free self, 0:free contents only */);
     onig_free(reg);
+    free(pattern);
+    free(str);
+
     // onig_end();
+    mtx_unlock(&mtx);
 
     return ret;
 }
