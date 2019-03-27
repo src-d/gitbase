@@ -240,40 +240,6 @@ func getCapture(b []byte, beg int, end int) []byte {
 	return b[beg:end]
 }
 
-func (re *Regexp2) match2(b []byte, n int, offset int) bool {
-	var regex C.OnigRegex
-
-	patternCharPtr := C.CString(re.pattern)
-	// defer C.free(unsafe.Pointer(patternCharPtr))
-
-	var err error
-	var errorBuf *C.char
-	error_code := C.NewOnigRegex(patternCharPtr, C.int(len(re.pattern)), &regex, &errorBuf)
-	if error_code != C.ONIG_NORMAL {
-		err = errors.New(C.GoString(errorBuf))
-	}
-	if err != nil {
-		fmt.Println(err)
-		return false
-	}
-
-	if n == 0 {
-		b = []byte{0}
-	}
-	ptr := unsafe.Pointer(&b[0])
-	pos := int(C.SearchOnigRegex((ptr), C.int(n), C.int(offset), regex))
-	// if regex != nil {
-	// 	C.onig_free(regex)
-	// 	regex = nil
-	// }
-
-	return pos >= 0
-}
-
-func (re *Regexp2) Match2(b []byte) bool {
-	return re.match2(b, len(b), 0)
-}
-
 func (re *Regexp2) MatchString2(s string) bool {
 	pos := int(C.CompileAndMatch2(C.CString(re.pattern), C.CString(s)))
 	return pos >= 0
