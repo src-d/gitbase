@@ -45,11 +45,11 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
 
 
     OnigUChar *pattern_start = clone((OnigUChar *) pattern);
-    OnigUChar *pattern_end = clone((OnigUChar *) (pattern + pattern_length-1));
+    OnigUChar *pattern_end = clone((OnigUChar *) (pattern + pattern_length));
 
     OnigRegion *region = onig_region_new();
     OnigUChar *str_start = clone((OnigUChar *)str);
-    OnigUChar *str_end = clone((OnigUChar *) (str_start + str_length-1));
+    OnigUChar *str_end = clone((OnigUChar *) (str_start + str_length));
     OnigUChar *search_start = clone((OnigUChar *)(str_start + offset));
     OnigUChar *search_end = clone(str_end);
 
@@ -61,13 +61,14 @@ int CompileAndMatch2(char *pattern, int pattern_length, char *str, int str_lengt
         ret = onig_search(regex, str_start, str_end, search_start, search_end, region, ONIG_OPTION_NONE);
     }
 
-    // free(pattern_start);
-    // free(pattern_end);
-    // onig_region_free(region, 1);
-    // free(str_start);
-    // free(str_end);
-    // free(search_start);
-    // free(search_end);
+    free(pattern_start);
+    free(pattern_end);
+    onig_region_free(region, 1);
+    free(str_start);
+    free(str_end);
+    free(search_start);
+    free(search_end);
+    onig_free(regex);
 
     return ret;
 }
