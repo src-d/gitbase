@@ -48,7 +48,11 @@ type Regexp struct {
 }
 
 func MatchString3(pattern, str []byte) bool {
-	pos := int(C.CompileAndMatch(unsafe.Pointer(&pattern[0]), unsafe.Pointer(&str[0])))
+	runtime.KeepAlive(pattern)
+	runtime.KeepAlive(str)
+	np, ns := len(pattern), len(str)
+
+	pos := int(C.CompileAndMatch(unsafe.Pointer(&pattern[0]), C.int(np), unsafe.Pointer(&str[0]), C.int(ns)))
 	return pos >= 0
 }
 
@@ -228,22 +232,22 @@ func getCapture(b []byte, beg int, end int) []byte {
 
 func (re *Regexp2) MatchString2(str string) bool {
 	var b1, b2 []uint8
-
-	if len(re.pattern) == 0 {
+	np, ns := len(re.pattern), len(str)
+	if np == 0 {
 		b1 = []uint8{0}
 	} else {
 		b1 = []uint8(re.pattern)
 	}
 	pptr := unsafe.Pointer(&b1[0])
 
-	if len(str) == 0 {
+	if ns == 0 {
 		b2 = []uint8{0}
 	} else {
 		b2 = []uint8(str)
 	}
 	pstr := unsafe.Pointer(&b2[0])
 
-	pos := int(C.CompileAndMatch(pptr, pstr))
+	pos := int(C.CompileAndMatch(pptr, C.int(np), pstr, C.int(ns)))
 	return pos >= 0
 }
 

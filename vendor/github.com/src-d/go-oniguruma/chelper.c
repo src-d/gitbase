@@ -7,7 +7,7 @@
 #include "chelper.h"
 
 
-int CompileAndMatch(const void *p, const void *s) {
+int CompileAndMatch(const void *p, int np, const void *s, int ns) {
     int ret = ONIG_NORMAL;
 
     UChar *start, *range, *end;
@@ -19,7 +19,7 @@ int CompileAndMatch(const void *p, const void *s) {
     UChar* str     = (UChar* )s;
 
     region = onig_region_new();
-    ret = onig_new(&reg, pattern, pattern + strlen((char* )pattern), ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
+    ret = onig_new(&reg, pattern, pattern + np, ONIG_OPTION_DEFAULT, ONIG_ENCODING_UTF8, ONIG_SYNTAX_DEFAULT, &einfo);
     if (ret != ONIG_NORMAL) {
         char msg[ONIG_MAX_ERROR_MESSAGE_LEN];
         onig_error_code_to_str((UChar* )msg, ret, &einfo);
@@ -27,7 +27,7 @@ int CompileAndMatch(const void *p, const void *s) {
         goto out;
     }
 
-    end   = (UChar *)(str + strlen((char* )str));
+    end   = (UChar *)(str + ns);
     start = (UChar *)str;
     range = (UChar *)end;
 

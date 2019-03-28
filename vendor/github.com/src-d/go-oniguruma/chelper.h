@@ -1,6 +1,6 @@
 #include <oniguruma.h>
 
-extern int CompileAndMatch(const void *p, const void *s);
+extern int CompileAndMatch(const void *p, int np, const void *s, int ns);
 
 extern int NewOnigRegex(const void *pattern, int pattern_length, int option, OnigRegex *regex, OnigRegion **region, OnigEncoding *encoding, OnigErrorInfo **error_info, char **error_buffer);
 
