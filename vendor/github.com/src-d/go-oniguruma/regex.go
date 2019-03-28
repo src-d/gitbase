@@ -47,6 +47,11 @@ type Regexp struct {
 	namedGroupInfo NamedGroupInfo
 }
 
+func MatchString3(pattern, str []byte) bool {
+	pos := int(C.CompileAndMatch(unsafe.Pointer(&pattern[0]), unsafe.Pointer(&str[0])))
+	return pos >= 0
+}
+
 type Regexp2 struct {
 	pattern string
 }

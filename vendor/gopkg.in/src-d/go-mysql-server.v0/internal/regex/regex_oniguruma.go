@@ -6,12 +6,25 @@ import (
 
 // Oniguruma holds a rubex regular expression Matcher.
 type Oniguruma struct {
-	reg *rubex.Regexp2
+	reg string
 }
 
 // Match implements Matcher interface.
 func (r *Oniguruma) Match(s string) bool {
-	return r.reg.MatchString2(s)
+	var b1, b2 []byte
+	if len(r.reg) == 0 {
+		b1 = []byte{0}
+	} else {
+		b1 = []byte(r.reg)
+	}
+
+	if len(s) == 0 {
+		b2 = []byte{0}
+	} else {
+		b2 = []byte(s)
+	}
+
+	return rubex.MatchString3(b1, b2)
 }
 
 // Dispose implements Disposer interface.
@@ -22,13 +35,13 @@ func (r *Oniguruma) Dispose() {
 
 // NewOniguruma creates a new Matcher using oniguruma engine.
 func NewOniguruma(re string) (Matcher, Disposer, error) {
-	reg, err := rubex.Compile2(re)
-	if err != nil {
-		return nil, nil, err
-	}
+	// reg, err := rubex.Compile2(re)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
 
 	r := Oniguruma{
-		reg: reg,
+		reg: re,
 	}
 	return &r, &r, nil
 }
