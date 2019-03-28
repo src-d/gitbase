@@ -48,8 +48,9 @@ type Regexp struct {
 }
 
 func MatchString3(pattern, str []byte) bool {
-	runtime.KeepAlive(pattern)
-	runtime.KeepAlive(str)
+	ncpu := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(ncpu)
+
 	np, ns := len(pattern), len(str)
 
 	pos := int(C.CompileAndMatch(unsafe.Pointer(&pattern[0]), C.int(np), unsafe.Pointer(&str[0]), C.int(ns)))
