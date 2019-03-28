@@ -303,7 +303,8 @@ func TestIntegration(t *testing.T) {
 			FROM
 				files
 			WHERE
-				language(file_path)="Go"
+				language(file_path) = "Go"
+			ORDER BY file_path ASC
 			LIMIT 1`,
 			[]sql.Row{
 				{"go/example.go", int32(1)},
@@ -427,6 +428,73 @@ func TestUastQueries(t *testing.T) {
 			rows, err := sql.RowIterToRows(iter)
 			require.NoError(err)
 			require.Len(rows, c.rows)
+		})
+	}
+}
+
+func TestUastParallelQueries(t *testing.T) {
+	engine, pool, cleanup := setup(t)
+	defer cleanup()
+
+	pengine := newBaseEngine(pool)
+
+	pengine.Catalog.RegisterFunctions(sqlfunction.Defaults)
+	pengine.Analyzer = analyzer.NewBuilder(engine.Catalog).
+		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
+		AddPostAnalyzeRule(rule.ParallelizeUASTProjectionsRule, rule.ParallelizeUASTProjections).
+		Build()
+
+	testCases := []string{
+		`SELECT uast_xpath(uast(blob_content, language(tree_entry_name, blob_content)), '//Identifier') as uast,
+			tree_entry_name
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'example.go'`,
+		`SELECT uast_xpath(uast_mode('semantic', blob_content, language(tree_entry_name, blob_content)), '//Identifier') as uast,
+			tree_entry_name
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'example.go'`,
+		`SELECT uast_xpath(uast_mode('annotated', blob_content, language(tree_entry_name, blob_content)), '//*[@roleIdentifier]') as uast,
+			tree_entry_name
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'example.go'`,
+		`SELECT uast_xpath(uast_mode('native', blob_content, language(tree_entry_name, blob_content)), '//*[@ast_type=\'FunctionDef\']') as uast,
+			tree_entry_name
+		FROM tree_entries te
+		INNER JOIN blobs b
+		ON b.blob_hash = te.blob_hash
+		WHERE te.tree_entry_name = 'example.go'`,
+	}
+
+	_ = testCases
+
+	var pid uint64
+	for _, query := range testCases {
+		pid++
+		t.Run(query, func(t *testing.T) {
+			require := require.New(t)
+
+			session := gitbase.NewSession(pool)
+			ctx := sql.NewContext(context.TODO(), sql.WithSession(session), sql.WithPid(pid))
+
+			_, iter, err := engine.Query(ctx, query)
+			require.NoError(err)
+
+			rows, err := sql.RowIterToRows(iter)
+			require.NoError(err)
+
+			_, piter, err := pengine.Query(ctx, query)
+			require.NoError(err)
+
+			prows, err := sql.RowIterToRows(piter)
+			require.NoError(err)
+
+			require.ElementsMatch(rows, prows)
 		})
 	}
 }

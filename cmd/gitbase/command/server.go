@@ -94,7 +94,11 @@ func NewDatabaseEngine(
 		ab = ab.AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins)
 	}
 
-	a := ab.Build()
+	a := ab.AddPostAnalyzeRule(
+		rule.ParallelizeUASTProjectionsRule,
+		rule.ParallelizeUASTProjections,
+	).Build()
+
 	engine := sqle.New(catalog, a, &sqle.Config{
 		VersionPostfix: version,
 		Auth:           userAuth,
