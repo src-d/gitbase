@@ -238,7 +238,7 @@ func (re *Regexp2) MatchString2(str string) bool {
 	}
 	pstr := unsafe.Pointer(&b2[0])
 
-	pos := int(C.CompileAndMatch(uintptr(pptr), uintptr(pstr)))
+	pos := int(C.CompileAndMatch(pptr, pstr))
 	return pos >= 0
 }
 
