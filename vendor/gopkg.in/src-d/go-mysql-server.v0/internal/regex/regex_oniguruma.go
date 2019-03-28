@@ -1,8 +1,6 @@
 package regex
 
 import (
-	"runtime"
-
 	rubex "github.com/src-d/go-oniguruma"
 )
 
@@ -13,9 +11,6 @@ type Oniguruma struct {
 
 // Match implements Matcher interface.
 func (r *Oniguruma) Match(s string) bool {
-	ncpu := runtime.GOMAXPROCS(1)
-	defer runtime.GOMAXPROCS(ncpu)
-
 	var b1, b2 []byte
 	if len(r.reg) == 0 {
 		b1 = []byte{0}
