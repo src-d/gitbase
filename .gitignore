@@ -20,6 +20,7 @@ _cgo_export.*
 _testmain.go
 
 main
+gitbase
 *.exe
 *.test
 *.prof
