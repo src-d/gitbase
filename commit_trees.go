@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
@@ -211,18 +212,16 @@ func (i *commitTreesRowIter) Next() (sql.Row, error) {
 }
 
 func (i *commitTreesRowIter) init() error {
+	var err error
 	if len(i.commitHashes) > 0 {
-		i.commits = newCommitsByHashIter(i.repo, i.commitHashes)
+		i.commits, err = NewCommitsByHashIter(i.repo, i.commitHashes)
 	} else {
-		iter, err := newCommitIter(i.repo, i.skipGitErrors)
-		if err != nil {
-			return err
-		}
-
-		i.commits = iter
+		i.commits, err = i.repo.Log(&git.LogOptions{
+			All: true,
+		})
 	}
 
-	return nil
+	return err
 }
 
 var commitTreesHashIdx = CommitTreesSchema.IndexOf("commit_hash", CommitTreesTableName)

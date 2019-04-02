@@ -8,7 +8,6 @@ import (
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 )
 
 type commitsTable struct {
@@ -114,18 +113,11 @@ func (r *commitsTable) PartitionRows(
 				), nil
 			}
 
-			var iter object.CommitIter
-			if len(hashes) > 0 {
-				iter = newCommitsByHashIter(repo, stringsToHashes(hashes))
-			} else {
-				var err error
-				iter, err = newCommitIter(repo, shouldSkipErrors(ctx))
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			return &commitRowIter{repo, iter, shouldSkipErrors(ctx)}, nil
+			return &commitIter{
+				repo:          repo,
+				hashes:        stringsToHashes(hashes),
+				skipGitErrors: shouldSkipErrors(ctx),
+			}, nil
 		},
 	)
 
@@ -158,151 +150,62 @@ func (r *commitsTable) IndexKeyValues(
 	)
 }
 
-type commitRowIter struct {
-	repo          *Repository
-	iter          object.CommitIter
-	skipGitErrors bool
-}
-
-func (i *commitRowIter) Next() (sql.Row, error) {
-	for {
-		c, err := i.iter.Next()
-		if err != nil {
-			if err == io.EOF {
-				return nil, io.EOF
-			}
-
-			if i.skipGitErrors {
-				continue
-			}
-			return nil, err
-		}
-
-		return commitToRow(i.repo.ID, c), nil
-	}
-}
-
-func (i *commitRowIter) Close() error {
-	i.iter.Close()
-	return nil
-}
-
 type commitIter struct {
 	repo          *Repository
+	iter          object.CommitIter
+	hashes        []plumbing.Hash
 	skipGitErrors bool
-	refs          storer.ReferenceIter
-	seen          map[plumbing.Hash]struct{}
-	ref           *plumbing.Reference
-	queue         []plumbing.Hash
 }
 
-func newCommitIter(
-	repo *Repository,
-	skipGitErrors bool,
-) (*commitIter, error) {
-	refs, err := repo.References()
-	if err != nil {
-		if !skipGitErrors {
-			return nil, err
-		}
+func (i *commitIter) init() error {
+	var err error
+	if len(i.hashes) > 0 {
+		i.iter, err = NewCommitsByHashIter(i.repo, i.hashes)
+	} else {
+		i.iter, err =
+			i.repo.Log(&git.LogOptions{
+				All: true,
+			})
 	}
 
-	return &commitIter{
-		skipGitErrors: skipGitErrors,
-		refs:          refs,
-		repo:          repo,
-		seen:          make(map[plumbing.Hash]struct{}),
-	}, nil
+	return err
 }
 
-func (i *commitIter) loadNextRef() (err error) {
+func (i *commitIter) Next() (sql.Row, error) {
 	for {
-		if i.refs == nil {
-			return io.EOF
+		if i.iter == nil {
+			if err := i.init(); err != nil {
+				if i.skipGitErrors {
+					return nil, io.EOF
+				}
+
+				return nil, err
+			}
 		}
 
-		i.ref, err = i.refs.Next()
+		o, err := i.iter.Next()
 		if err != nil {
 			if err != io.EOF && i.skipGitErrors {
 				continue
 			}
 
-			return err
-		}
-
-		if i.ref.Type() != plumbing.HashReference {
-			i.ref = nil
-			continue
-		}
-
-		obj, err := i.repo.Object(plumbing.AnyObject, i.ref.Hash())
-		if err != nil {
-			if i.skipGitErrors {
-				continue
-			}
-
-			return err
-		}
-
-		if obj.Type() != plumbing.CommitObject {
-			continue
-		}
-
-		i.queue = append(i.queue, i.ref.Hash())
-
-		return nil
-	}
-}
-
-func (i *commitIter) Next() (*object.Commit, error) {
-	for {
-		if i.ref == nil {
-			if err := i.loadNextRef(); err != nil {
-				return nil, err
-			}
-		}
-
-		if len(i.queue) == 0 {
-			i.ref = nil
-			continue
-		}
-
-		hash := i.queue[0]
-		i.queue = i.queue[1:]
-		if _, ok := i.seen[hash]; ok {
-			continue
-		}
-		i.seen[hash] = struct{}{}
-
-		commit, err := i.repo.CommitObject(hash)
-		if err != nil {
-			if i.skipGitErrors {
-				continue
-			}
-
 			return nil, err
 		}
 
-		i.queue = append(i.queue, commit.ParentHashes...)
-
-		return commit, nil
+		return commitToRow(i.repo.ID, o), nil
 	}
 }
 
-func (i *commitIter) Close() {
-	if i.refs != nil {
-		i.refs.Close()
-		i.refs = nil
+func (i *commitIter) Close() error {
+	if i.iter != nil {
+		i.iter.Close()
 	}
 
 	if i.repo != nil {
 		i.repo.Close()
-		i.repo = nil
 	}
-}
 
-func (i *commitIter) ForEach(cb func(*object.Commit) error) error {
-	return forEachCommit(i, cb)
+	return nil
 }
 
 func commitToRow(repoID string, c *object.Commit) sql.Row {
@@ -331,22 +234,74 @@ func getParentHashes(c *object.Commit) []interface{} {
 }
 
 type commitsByHashIter struct {
-	repo   *Repository
-	hashes []plumbing.Hash
-	pos    int
+	repo       *Repository
+	hashes     []plumbing.Hash
+	pos        int
+	commitIter object.CommitIter
 }
 
-func newCommitsByHashIter(
+// NewCommitsByHashIter creates a CommitIter that can use a list of hashes
+// to iterate. If the list is empty it scans all commits.
+func NewCommitsByHashIter(
 	repo *Repository,
 	hashes []plumbing.Hash,
-) *commitsByHashIter {
-	return &commitsByHashIter{
-		repo:   repo,
-		hashes: hashes,
+) (object.CommitIter, error) {
+	var commitIter object.CommitIter
+	var err error
+	if len(hashes) == 0 {
+		commitIter, err =
+			repo.Log(&git.LogOptions{
+				All: true,
+			})
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	return &commitsByHashIter{
+		repo:       repo,
+		hashes:     hashes,
+		commitIter: commitIter,
+	}, nil
 }
 
 func (i *commitsByHashIter) Next() (*object.Commit, error) {
+	if i.commitIter != nil {
+		return i.nextScan()
+	}
+
+	return i.nextList()
+}
+
+func (i *commitsByHashIter) ForEach(f func(*object.Commit) error) error {
+	for {
+		c, err := i.Next()
+		if err != nil {
+			return err
+		}
+
+		err = f(c)
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (i *commitsByHashIter) Close() {
+	if i.commitIter != nil {
+		i.commitIter.Close()
+	}
+
+	if i.repo != nil {
+		i.repo.Close()
+	}
+}
+
+func (i *commitsByHashIter) nextScan() (*object.Commit, error) {
+	return i.commitIter.Next()
+}
+
+func (i *commitsByHashIter) nextList() (*object.Commit, error) {
 	for {
 		if i.pos >= len(i.hashes) {
 			return nil, io.EOF
@@ -363,35 +318,6 @@ func (i *commitsByHashIter) Next() (*object.Commit, error) {
 		}
 
 		return commit, nil
-	}
-}
-
-func (i *commitsByHashIter) Close() {
-	if i.repo != nil {
-		i.repo.Close()
-		i.repo = nil
-	}
-}
-
-func (i *commitsByHashIter) ForEach(cb func(*object.Commit) error) error {
-	return forEachCommit(i, cb)
-}
-
-func forEachCommit(
-	iter object.CommitIter,
-	cb func(*object.Commit) error,
-) error {
-	for {
-		c, err := iter.Next()
-		if err == io.EOF {
-			iter.Close()
-			return nil
-		}
-
-		if err := cb(c); err != nil {
-			iter.Close()
-			return err
-		}
 	}
 }
 
