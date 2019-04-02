@@ -227,5 +227,8 @@ func (i *partitionedIndexKeyValueIter) Next() (sql.Partition, sql.IndexKeyValueI
 }
 
 func (i *partitionedIndexKeyValueIter) Close() error {
-	return i.partitions.Close()
+	if i.partitions != nil {
+		return i.partitions.Close()
+	}
+	return nil
 }
