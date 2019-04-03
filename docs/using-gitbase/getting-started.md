@@ -49,8 +49,6 @@ go get -u github.com/src-d/gitbase/...
 
 #### Oniguruma support
 
-**Note:** Oniguruma is enabled in the docker container and "static" linux binary.
-
 On linux and macOS you can choose to build gitbase with oniguruma support, resulting in faster results for queries using the `language` UDF.
 
 macOS:
