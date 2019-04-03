@@ -151,5 +151,8 @@ func (i *repositoriesRowIter) Next() (sql.Row, error) {
 
 func (i *repositoriesRowIter) Close() error {
 	i.visited = true
+	if i.repo != nil {
+		i.repo.Close()
+	}
 	return nil
 }

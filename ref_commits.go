@@ -306,7 +306,16 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 					return nil, err
 				}
 
-				if ref.Type() != plumbing.HashReference {
+				ignored, err := isIgnoredReference(i.repo.Repository, ref)
+				if err != nil {
+					if i.skipGitErrors {
+						continue
+					}
+
+					return nil, err
+				}
+
+				if ignored {
 					continue
 				}
 			} else {
@@ -361,11 +370,13 @@ func (i *refCommitsRowIter) Close() error {
 		i.refs.Close()
 	}
 
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	if i.index != nil {
 		return i.index.Close()
 	}
-
-	i.repo.Close()
 
 	return nil
 }
@@ -441,5 +452,11 @@ func (i *indexedCommitIter) Next() (*object.Commit, int, error) {
 		}
 
 		return c, frame.idx, nil
+	}
+}
+
+func (i *indexedCommitIter) Close() {
+	if i.repo != nil {
+		i.repo.Close()
 	}
 }

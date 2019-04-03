@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -299,7 +300,16 @@ func (i *refRowIter) next() (sql.Row, error) {
 			return nil, err
 		}
 
-		if o.Type() != plumbing.HashReference {
+		ignored, err := isIgnoredReference(i.repo.Repository, o)
+		if err != nil {
+			if i.skipGitErrors {
+				continue
+			}
+
+			return nil, err
+		}
+
+		if ignored {
 			continue
 		}
 
@@ -320,11 +330,13 @@ func (i *refRowIter) Close() error {
 		i.iter.Close()
 	}
 
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	if i.index != nil {
 		return i.index.Close()
 	}
-
-	i.repo.Close()
 
 	return nil
 }
@@ -337,4 +349,17 @@ func referenceToRow(repositoryID string, c *plumbing.Reference) sql.Row {
 		c.Name().String(),
 		hash,
 	)
+}
+
+func isIgnoredReference(repo *git.Repository, ref *plumbing.Reference) (bool, error) {
+	if ref.Type() != plumbing.HashReference {
+		return true, nil
+	}
+
+	obj, err := repo.Object(plumbing.AnyObject, ref.Hash())
+	if err != nil {
+		return false, err
+	}
+
+	return obj.Type() != plumbing.CommitObject, nil
 }
