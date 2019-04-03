@@ -361,11 +361,13 @@ func (i *refCommitsRowIter) Close() error {
 		i.refs.Close()
 	}
 
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	if i.index != nil {
 		return i.index.Close()
 	}
-
-	i.repo.Close()
 
 	return nil
 }
@@ -441,5 +443,11 @@ func (i *indexedCommitIter) Next() (*object.Commit, int, error) {
 		}
 
 		return c, frame.idx, nil
+	}
+}
+
+func (i *indexedCommitIter) Close() {
+	if i.repo != nil {
+		i.repo.Close()
 	}
 }
