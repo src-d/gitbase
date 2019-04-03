@@ -330,11 +330,13 @@ func (i *refRowIter) Close() error {
 		i.iter.Close()
 	}
 
+	if i.repo != nil {
+		i.repo.Close()
+	}
+
 	if i.index != nil {
 		return i.index.Close()
 	}
-
-	i.repo.Close()
 
 	return nil
 }

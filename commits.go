@@ -3,7 +3,6 @@ package gitbase
 import (
 	"io"
 
-	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -409,10 +408,7 @@ func newCommitsKeyValueIter(
 		return nil, err
 	}
 
-	commits, err :=
-		repo.Log(&git.LogOptions{
-			All: true,
-		})
+	commits, err := newCommitIter(repo, false)
 	if err != nil {
 		return nil, err
 	}

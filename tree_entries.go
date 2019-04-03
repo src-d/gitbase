@@ -239,9 +239,9 @@ func (i *treeEntriesRowIter) Close() error {
 	if i.iter != nil {
 		i.iter.Close()
 	}
-
-	i.repo.Close()
-
+	if i.repo != nil {
+		i.repo.Close()
+	}
 	return nil
 }
 
