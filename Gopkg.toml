@@ -77,8 +77,8 @@
   version = "0.10.0"
 
 [[override]]
-  name = "github.com/moovweb/rubex"
-  branch = "go1"
+  name = "github.com/src-d/go-oniguruma"
+  version = "1.0.0"
 
 [prune]
   [[prune.project]]
