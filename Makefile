@@ -1,6 +1,7 @@
 # Package configuration
 PROJECT = gitbase
 COMMANDS = cmd/gitbase
+GO_BUILD_ARGS += -tags mysql_go_regex
 
 # Including ci Makefile
 CI_REPOSITORY ?= https://github.com/src-d/ci.git
@@ -32,7 +33,7 @@ static-package:
 # target used in the Dockerfile to build the static binary
 static-build: VERSION ?= $(shell git describe --exact-match --tags 2>/dev/null || "dev-$(git rev-parse --short HEAD)$(test -n "`git status --porcelain`" && echo "-dirty" || true)")
 static-build: LD_FLAGS += -linkmode external -extldflags '-static -lz' -s -w
-static-build: GO_BUILD_ARGS += -tags oniguruma
+static-build: GO_BUILD_ARGS += -tags mysql_go_regex
 static-build: GO_BUILD_PATH ?= github.com/src-d/gitbase/...
 static-build:
 	go build -ldflags="$(LD_FLAGS)" -v $(GO_BUILD_ARGS) $(GO_BUILD_PATH)
