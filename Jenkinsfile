@@ -29,7 +29,7 @@ pipeline {
     stage('PR-run') {
       when { changeRequest target: 'master' }
       steps {
-        sh '/bin/regression --complexity=0 local:HEAD'
+        sh '/bin/regression --complexity=0 remote:master local:HEAD'
       }
     }
     stage('Plot') {
