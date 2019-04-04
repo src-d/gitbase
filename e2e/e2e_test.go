@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 
 	path, err := exec.LookPath(*bin)
 	if err != nil {
-		fmt.Println("gitbase-bin not provided")
+		fmt.Println("gitbase-bin not provided:", err)
 		if *mustRun {
 			os.Exit(1)
 		} else {
