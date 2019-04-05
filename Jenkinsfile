@@ -26,6 +26,12 @@ pipeline {
         sh '/bin/regression --complexity=2 --csv local:HEAD'
       }
     }
+    stage('PR-run') {
+      when { changeRequest target: 'master' }
+      steps {
+        sh '/bin/regression --complexity=0 remote:master local:HEAD'
+      }
+    }
     stage('Plot') {
       when { branch 'master' }
       steps {
