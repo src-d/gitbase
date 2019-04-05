@@ -305,32 +305,19 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 					i.repo.Close()
 					return nil, err
 				}
-
-				ignored, err := isIgnoredReference(i.repo.Repository, ref)
-				if err != nil {
-					if i.skipGitErrors {
-						continue
-					}
-
-					return nil, err
-				}
-
-				if ignored {
-					continue
-				}
 			} else {
 				ref = plumbing.NewHashReference(plumbing.ReferenceName("HEAD"), i.head.Hash())
 				i.head = nil
 			}
 
 			i.ref = ref
-			if !i.shouldVisitRef(ref) {
+			if !i.shouldVisitRef(ref) || isIgnoredReference(ref) {
 				continue
 			}
 
 			commit, err := resolveCommit(i.repo, ref.Hash())
 			if err != nil {
-				if i.skipGitErrors {
+				if errInvalidCommit.Is(err) || i.skipGitErrors {
 					continue
 				}
 

@@ -489,16 +489,7 @@ func (i *squashRefIter) Advance() error {
 			}
 		}
 
-		ignored, err := isIgnoredReference(i.repo.Repository, ref)
-		if err != nil {
-			if i.skipGitErrors {
-				continue
-			}
-
-			return err
-		}
-
-		if ignored {
+		if isIgnoredReference(ref) {
 			continue
 		}
 
@@ -743,16 +734,7 @@ func (i *squashRepoRefsIter) Advance() error {
 			}
 		}
 
-		ignored, err := isIgnoredReference(i.repos.Repository().Repository, ref)
-		if err != nil {
-			if i.skipGitErrors {
-				continue
-			}
-
-			return err
-		}
-
-		if ignored {
+		if isIgnoredReference(ref) {
 			continue
 		}
 
@@ -890,16 +872,7 @@ func (i *squashRemoteRefsIter) Advance() error {
 			}
 		}
 
-		ignored, err := isIgnoredReference(i.Repository().Repository, ref)
-		if err != nil {
-			if i.skipGitErrors {
-				continue
-			}
-
-			return err
-		}
-
-		if ignored {
+		if isIgnoredReference(ref) {
 			continue
 		}
 
@@ -1010,7 +983,7 @@ func (i *squashRefRefCommitsIter) Advance() error {
 					"error": err,
 				}).Error("unable to get commit")
 
-				if i.skipGitErrors {
+				if errInvalidCommit.Is(err) || i.skipGitErrors {
 					continue
 				}
 
@@ -1116,7 +1089,7 @@ func (i *squashRefHeadRefCommitsIter) Advance() error {
 				"error": err,
 			}).Error("unable to get commit")
 
-			if i.skipGitErrors {
+			if errInvalidCommit.Is(err) || i.skipGitErrors {
 				continue
 			}
 

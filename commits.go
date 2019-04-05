@@ -229,20 +229,9 @@ func (i *commitIter) loadNextRef() (err error) {
 			return err
 		}
 
-		ignored, err := isIgnoredReference(i.repo.Repository, i.ref)
-		if err != nil {
-			if i.skipGitErrors {
-				continue
-			}
-
-			return err
-		}
-
-		if ignored {
+		if isIgnoredReference(i.ref) {
 			continue
 		}
-
-		i.queue = append(i.queue, i.ref.Hash())
 
 		return nil
 	}
@@ -250,25 +239,40 @@ func (i *commitIter) loadNextRef() (err error) {
 
 func (i *commitIter) Next() (*object.Commit, error) {
 	for {
+		var commit *object.Commit
+		var err error
+
 		if i.ref == nil {
 			if err := i.loadNextRef(); err != nil {
 				return nil, err
 			}
+
+			if _, ok := i.seen[i.ref.Hash()]; ok {
+				continue
+			}
+			i.seen[i.ref.Hash()] = struct{}{}
+
+			commit, err = resolveCommit(i.repo, i.ref.Hash())
+			if errInvalidCommit.Is(err) {
+				i.ref = nil
+				continue
+			}
+		} else {
+			if len(i.queue) == 0 {
+				i.ref = nil
+				continue
+			}
+
+			hash := i.queue[0]
+			i.queue = i.queue[1:]
+			if _, ok := i.seen[hash]; ok {
+				continue
+			}
+			i.seen[hash] = struct{}{}
+
+			commit, err = i.repo.CommitObject(hash)
 		}
 
-		if len(i.queue) == 0 {
-			i.ref = nil
-			continue
-		}
-
-		hash := i.queue[0]
-		i.queue = i.queue[1:]
-		if _, ok := i.seen[hash]; ok {
-			continue
-		}
-		i.seen[hash] = struct{}{}
-
-		commit, err := i.repo.CommitObject(hash)
 		if err != nil {
 			if i.skipGitErrors {
 				continue
