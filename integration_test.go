@@ -51,14 +51,14 @@ func TestIntegration(t *testing.T) {
 				ON c.blob_hash = b.blob_hash
 			GROUP BY c.commit_hash`,
 			[]sql.Row{
-				{int32(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
-				{int32(3), "35e85108805c84807bc66a02d91535e1e24b38b9"},
-				{int32(9), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
-				{int32(8), "918c48b83bd081e863dbe1b80f8998f058cd8294"},
-				{int32(3), "a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69"},
-				{int32(6), "af2d6a6954d532f8ffb47615169c8fdf9d383a1a"},
-				{int32(2), "b029517f6300c2da0f4b651b8642506cd6aaf45d"},
-				{int32(3), "b8e471f58bcbca63b07bda20e428190409c2db47"},
+				{int64(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
+				{int64(3), "35e85108805c84807bc66a02d91535e1e24b38b9"},
+				{int64(9), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
+				{int64(8), "918c48b83bd081e863dbe1b80f8998f058cd8294"},
+				{int64(3), "a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69"},
+				{int64(6), "af2d6a6954d532f8ffb47615169c8fdf9d383a1a"},
+				{int64(2), "b029517f6300c2da0f4b651b8642506cd6aaf45d"},
+				{int64(3), "b8e471f58bcbca63b07bda20e428190409c2db47"},
 			},
 		},
 		{
@@ -98,7 +98,7 @@ func TestIntegration(t *testing.T) {
 				LIMIT 1
 			) repo_years
 			GROUP BY first_commit_year`,
-			[]sql.Row{{int32(1), int32(2015)}},
+			[]sql.Row{{int64(1), int32(2015)}},
 		},
 		{
 			`SELECT COUNT(*) as num_commits, month, repo_id, committer_email
@@ -113,9 +113,9 @@ func TestIntegration(t *testing.T) {
 			) as t
 			GROUP BY committer_email, month, repo_id`,
 			[]sql.Row{
-				{int32(6), int32(3), "worktree", "mcuadros@gmail.com"},
-				{int32(1), int32(4), "worktree", "mcuadros@gmail.com"},
-				{int32(1), int32(3), "worktree", "daniel@lordran.local"},
+				{int64(6), int32(3), "worktree", "mcuadros@gmail.com"},
+				{int64(1), int32(4), "worktree", "mcuadros@gmail.com"},
+				{int64(1), int32(3), "worktree", "daniel@lordran.local"},
 			},
 		},
 		{
@@ -127,14 +127,14 @@ func TestIntegration(t *testing.T) {
 				GROUP BY c.commit_hash
 			) t WHERE num > 1`,
 			[]sql.Row{
-				{int32(3), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
-				{int32(4), "918c48b83bd081e863dbe1b80f8998f058cd8294"},
-				{int32(4), "af2d6a6954d532f8ffb47615169c8fdf9d383a1a"},
-				{int32(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
-				{int32(4), "a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69"},
-				{int32(4), "b8e471f58bcbca63b07bda20e428190409c2db47"},
-				{int32(4), "35e85108805c84807bc66a02d91535e1e24b38b9"},
-				{int32(4), "b029517f6300c2da0f4b651b8642506cd6aaf45d"},
+				{int64(3), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5"},
+				{int64(4), "918c48b83bd081e863dbe1b80f8998f058cd8294"},
+				{int64(4), "af2d6a6954d532f8ffb47615169c8fdf9d383a1a"},
+				{int64(4), "1669dce138d9b841a518c64b10914d88f5e488ea"},
+				{int64(4), "a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69"},
+				{int64(4), "b8e471f58bcbca63b07bda20e428190409c2db47"},
+				{int64(4), "35e85108805c84807bc66a02d91535e1e24b38b9"},
+				{int64(4), "b029517f6300c2da0f4b651b8642506cd6aaf45d"},
 			},
 		},
 		{
@@ -145,7 +145,7 @@ func TestIntegration(t *testing.T) {
 				WHERE refs.ref_name = 'HEAD'
 				GROUP BY refs.repository_id`,
 			[]sql.Row{
-				{int32(9), "worktree"},
+				{int64(9), "worktree"},
 			},
 		},
 		{
@@ -154,15 +154,15 @@ func TestIntegration(t *testing.T) {
 			NATURAL JOIN files f
 			GROUP BY c.commit_hash`,
 			[]sql.Row{
-				{"b8e471f58bcbca63b07bda20e428190409c2db47", int32(3)},
-				{"b029517f6300c2da0f4b651b8642506cd6aaf45d", int32(2)},
-				{"af2d6a6954d532f8ffb47615169c8fdf9d383a1a", int32(6)},
-				{"a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69", int32(3)},
-				{"918c48b83bd081e863dbe1b80f8998f058cd8294", int32(8)},
-				{"1669dce138d9b841a518c64b10914d88f5e488ea", int32(4)},
-				{"35e85108805c84807bc66a02d91535e1e24b38b9", int32(3)},
-				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", int32(9)},
-				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5", int32(9)},
+				{"b8e471f58bcbca63b07bda20e428190409c2db47", int64(3)},
+				{"b029517f6300c2da0f4b651b8642506cd6aaf45d", int64(2)},
+				{"af2d6a6954d532f8ffb47615169c8fdf9d383a1a", int64(6)},
+				{"a5b8b09e2f8fcb0bb99d3ccb0958157b40890d69", int64(3)},
+				{"918c48b83bd081e863dbe1b80f8998f058cd8294", int64(8)},
+				{"1669dce138d9b841a518c64b10914d88f5e488ea", int64(4)},
+				{"35e85108805c84807bc66a02d91535e1e24b38b9", int64(3)},
+				{"e8d3ffab552895c19b9fcf7aa264d277cde33881", int64(9)},
+				{"6ecf0ef2c2dffb796033e5a02219af86ec6584e5", int64(9)},
 			},
 		},
 		{
@@ -325,26 +325,26 @@ func TestIntegration(t *testing.T) {
 			ORDER  BY repository_count DESC
 			`,
 			[]sql.Row{
-				{"Text", int32(1)},
-				{"Ignore List", int32(1)},
+				{"Text", int64(1)},
+				{"Ignore List", int64(1)},
 			},
 		},
 		{
 			`
-			SELECT 
+			SELECT
 				repository_id,
-				contributor_count 
+				contributor_count
 			FROM (
-				SELECT 
-					repository_id, 
-					COUNT(DISTINCT commit_author_email) AS contributor_count 
-				FROM commits 
+				SELECT
+					repository_id,
+					COUNT(DISTINCT commit_author_email) AS contributor_count
+				FROM commits
 				GROUP BY repository_id
-			) AS q 
-			ORDER BY contributor_count DESC 
+			) AS q
+			ORDER BY contributor_count DESC
 			LIMIT 10
 			`,
-			[]sql.Row{{"worktree", int32(9)}},
+			[]sql.Row{{"worktree", int64(9)}},
 		},
 	}
 
