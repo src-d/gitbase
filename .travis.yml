@@ -38,8 +38,8 @@ jobs:
       services: [docker]
 
       before_deploy:
-        - make static-package
         - make docker-push-latest-release
+        - make static-package
 
       deploy:
         provider: releases
