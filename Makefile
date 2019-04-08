@@ -35,7 +35,7 @@ static-build: VERSION ?= $(shell git describe --exact-match --tags 2>/dev/null |
 static-build: LD_FLAGS += -linkmode external -extldflags '-static -lz' -s -w
 static-build: GO_BUILD_PATH ?= github.com/src-d/gitbase/...
 static-build:
-	go build -ldflags="$(LD_FLAGS)" -v  $(GO_BUILD_PATH)
+	go build $(GO_BUILD_ARGS) -ldflags="$(LD_FLAGS)" -v  $(GO_BUILD_PATH)
 
 ci-e2e: packages
 	go test ./e2e -gitbase-version="$(TRAVIS_TAG)" \
