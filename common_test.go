@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-billy-siva.v4"
+	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
@@ -241,6 +241,41 @@ func testTableIndexIterClosed(t *testing.T, table sql.IndexableTable) {
 
 	iter.Close()
 	require.True(closed.Check())
+}
+
+func testTableIterators(t *testing.T, table sql.IndexableTable, columns []string) {
+	t.Helper()
+
+	require := require.New(t)
+	ctx, closed := setupSivaCloseRepos(t, "_testdata")
+
+	rows, _ := tableToRows(ctx, table)
+	expected := len(rows)
+
+	iter, err := table.IndexKeyValues(ctx, columns)
+	require.NoError(err)
+	actual := 0
+	for {
+		_, i, err := iter.Next()
+		if err != nil {
+			require.Equal(io.EOF, err)
+			break
+		}
+		for {
+			_, _, err := i.Next()
+			if err != nil {
+				require.Equal(io.EOF, err)
+				break
+			}
+			actual++
+		}
+
+		i.Close()
+	}
+	iter.Close()
+	require.True(closed.Check())
+
+	require.EqualValues(expected, actual)
 }
 
 func testTableIterClosed(t *testing.T, table sql.IndexableTable) {

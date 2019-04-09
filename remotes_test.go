@@ -150,6 +150,7 @@ func TestRemotesIndexIterClosed(t *testing.T) {
 	testTableIndexIterClosed(t, new(remotesTable))
 }
 
-func TestRemotesIterClosed(t *testing.T) {
-	testTableIterClosed(t, new(remotesTable))
+func TestRemotesIterators(t *testing.T) {
+	// columns names just for debugging
+	testTableIterators(t, new(remotesTable), []string{"remote_name", "remote_push_url"})
 }
