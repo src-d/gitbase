@@ -140,3 +140,8 @@ func TestReferencesIndexIterClosed(t *testing.T) {
 func TestReferencesIterClosed(t *testing.T) {
 	testTableIterClosed(t, new(referencesTable))
 }
+
+func TestReferencesIterators(t *testing.T) {
+	// columns names just for debugging
+	testTableIterators(t, new(referencesTable), []string{"ref_name", "commit_hash"})
+}
