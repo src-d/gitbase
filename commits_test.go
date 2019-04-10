@@ -304,3 +304,8 @@ func TestCommitsIndexIterClosed(t *testing.T) {
 func TestCommitsIterClosed(t *testing.T) {
 	testTableIterClosed(t, new(commitsTable))
 }
+
+func TestCommitsIterators(t *testing.T) {
+	// columns names just for debugging
+	testTableIterators(t, new(commitsTable), []string{"commit_hash", "commit_author_email"})
+}

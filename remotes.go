@@ -144,28 +144,25 @@ type remotesRowIter struct {
 }
 
 func (i *remotesRowIter) Next() (sql.Row, error) {
-	if i.remotePos >= len(i.remotes) {
-		return nil, io.EOF
-	}
-
-	remote := i.remotes[i.remotePos]
-	config := remote.Config()
-
-	if i.urlPos >= len(config.URLs) || i.urlPos >= len(config.Fetch) {
-		i.remotePos++
+	for {
 		if i.remotePos >= len(i.remotes) {
 			return nil, io.EOF
 		}
 
-		remote = i.remotes[i.remotePos]
-		config = remote.Config()
-		i.urlPos = 0
+		remote := i.remotes[i.remotePos]
+		config := remote.Config()
+
+		if i.urlPos >= len(config.URLs) && i.urlPos >= len(config.Fetch) {
+			i.remotePos++
+			i.urlPos = 0
+			continue
+		}
+
+		row := remoteToRow(i.repo.ID, config, i.urlPos)
+		i.urlPos++
+
+		return row, nil
 	}
-
-	row := remoteToRow(i.repo.ID, config, i.urlPos)
-	i.urlPos++
-
-	return row, nil
 }
 
 func (i *remotesRowIter) Close() error {
@@ -177,13 +174,23 @@ func (i *remotesRowIter) Close() error {
 }
 
 func remoteToRow(repoID string, config *config.RemoteConfig, pos int) sql.Row {
+	var url interface{}
+	if pos < len(config.URLs) {
+		url = config.URLs[pos]
+	}
+
+	var fetch interface{}
+	if pos < len(config.Fetch) {
+		fetch = config.Fetch[pos].String()
+	}
+
 	return sql.NewRow(
 		repoID,
 		config.Name,
-		config.URLs[pos],
-		config.URLs[pos],
-		config.Fetch[pos].String(),
-		config.Fetch[pos].String(),
+		url,
+		url,
+		fetch,
+		fetch,
 	)
 }
 
@@ -256,7 +263,8 @@ func (i *remotesKeyValueIter) Next() ([]interface{}, []byte, error) {
 		}
 
 		cfg := i.remotes[i.pos].Config()
-		if i.urlPos >= len(cfg.URLs) {
+		if i.urlPos >= len(cfg.URLs) && i.urlPos >= len(cfg.Fetch) {
+			i.urlPos = 0
 			i.pos++
 			continue
 		}
