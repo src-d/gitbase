@@ -174,12 +174,12 @@ func (i *remotesRowIter) Close() error {
 }
 
 func remoteToRow(repoID string, config *config.RemoteConfig, pos int) sql.Row {
-	url := ""
+	var url interface{}
 	if pos < len(config.URLs) {
 		url = config.URLs[pos]
 	}
 
-	fetch := ""
+	var fetch interface{}
 	if pos < len(config.Fetch) {
 		fetch = config.Fetch[pos].String()
 	}
