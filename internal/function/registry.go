@@ -3,13 +3,13 @@ package function
 import "gopkg.in/src-d/go-mysql-server.v0/sql"
 
 // Functions for gitbase queries.
-var Functions = sql.Functions{
-	"is_tag":        sql.Function1(NewIsTag),
-	"is_remote":     sql.Function1(NewIsRemote),
-	"language":      sql.FunctionN(NewLanguage),
-	"uast":          sql.FunctionN(NewUAST),
-	"uast_mode":     sql.Function3(NewUASTMode),
-	"uast_xpath":    sql.Function2(NewUASTXPath),
-	"uast_extract":  sql.Function2(NewUASTExtract),
-	"uast_children": sql.Function1(NewUASTChildren),
+var Functions = []sql.Function{
+	sql.Function1{Name: "is_tag", Fn: NewIsTag},
+	sql.Function1{Name: "is_remote", Fn: NewIsRemote},
+	sql.FunctionN{Name: "language", Fn: NewLanguage},
+	sql.FunctionN{Name: "uast", Fn: NewUAST},
+	sql.Function3{Name: "uast_mode", Fn: NewUASTMode},
+	sql.Function2{Name: "uast_xpath", Fn: NewUASTXPath},
+	sql.Function2{Name: "uast_extract", Fn: NewUASTExtract},
+	sql.Function1{Name: "uast_children", Fn: NewUASTChildren},
 }

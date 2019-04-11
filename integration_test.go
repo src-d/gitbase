@@ -21,7 +21,6 @@ import (
 	"gopkg.in/src-d/go-mysql-server.v0/auth"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
-	sqlfunction "gopkg.in/src-d/go-mysql-server.v0/sql/expression/function"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 )
 
@@ -956,12 +955,9 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 
 func newSquashEngine(pool *gitbase.RepositoryPool) *sqle.Engine {
 	engine := newBaseEngine(pool)
-
-	engine.Catalog.RegisterFunctions(sqlfunction.Defaults)
 	engine.Analyzer = analyzer.NewBuilder(engine.Catalog).
 		AddPostAnalyzeRule(rule.SquashJoinsRule, rule.SquashJoins).
 		Build()
-
 	return engine
 }
 
@@ -971,6 +967,6 @@ func newBaseEngine(pool *gitbase.RepositoryPool) *sqle.Engine {
 	engine := command.NewDatabaseEngine(au, "test", 0, false)
 
 	engine.AddDatabase(foo)
-	engine.Catalog.RegisterFunctions(function.Functions)
+	engine.Catalog.MustRegister(function.Functions...)
 	return engine
 }
