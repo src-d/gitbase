@@ -7,16 +7,21 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/BurntSushi/toml"
 	git "gopkg.in/src-d/go-git.v4"
 )
 
-const lockFile = "Gopkg.lock"
+const (
+	lockFile      = "Gopkg.lock"
+	goMysqlServer = "gopkg.in/src-d/go-mysql-server.v0"
+)
 
 type project struct {
 	Name     string
@@ -44,7 +49,7 @@ func main() {
 		err error
 	)
 
-	flag.StringVar(&prj, "p", "gopkg.in/src-d/go-mysql-server.v0", "project name (e.g.: gopkg.in/src-d/go-mysql-server.v0)")
+	flag.StringVar(&prj, "p", goMysqlServer, "project name (e.g.: gopkg.in/src-d/go-mysql-server.v0)")
 	flag.StringVar(&newRev, "r", "", "revision (by default the latest allowed by Gopkg.toml)")
 	flag.Parse()
 
@@ -81,9 +86,14 @@ func main() {
 		}
 	}
 
-	err = ensure(prj)
-	if err != nil {
+	if err = ensure(prj); err != nil {
 		return
+	}
+
+	if prj == goMysqlServer {
+		if err = importDocs(); err != nil {
+			return
+		}
 	}
 
 	if newRev == "" {
@@ -189,4 +199,118 @@ func ensure(prj string) error {
 	}
 
 	return nil
+}
+
+var docsToCopy = []struct {
+	from   []string
+	to     []string
+	blocks []string
+}{
+	{
+		from: []string{"SUPPORTED.md"},
+		to:   []string{"docs", "using-gitbase", "supported-syntax.md"},
+	},
+	{
+		from: []string{"SUPPORTED_CLIENTS.md"},
+		to:   []string{"docs", "using-gitbase", "supported-clients.md"},
+	},
+	{
+		from:   []string{"README.md"},
+		to:     []string{"docs", "using-gitbase", "functions.md"},
+		blocks: []string{"FUNCTIONS"},
+	},
+	{
+		from:   []string{"README.md"},
+		to:     []string{"docs", "using-gitbase", "configuration.md"},
+		blocks: []string{"CONFIG"},
+	},
+}
+
+func importDocs() error {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	dirs := strings.Split(goMysqlServer, "/")
+	goMysqlServerPath := filepath.Join(append([]string{pwd, "vendor"}, dirs...)...)
+
+	for _, c := range docsToCopy {
+		src := filepath.Join(append([]string{goMysqlServerPath}, c.from...)...)
+		dst := filepath.Join(append([]string{pwd}, c.to...)...)
+
+		if len(c.blocks) == 0 {
+			if err := copyFile(src, dst); err != nil {
+				return err
+			}
+		} else {
+			if err := copyFileBlocks(src, dst, c.blocks); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	fout, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer fout.Close()
+
+	fin, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer fin.Close()
+
+	_, err = io.Copy(fout, fin)
+	return err
+}
+
+func copyFileBlocks(src, dst string, blocks []string) error {
+	fout, err := ioutil.ReadFile(dst)
+	if err != nil {
+		return err
+	}
+
+	fin, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	for _, b := range blocks {
+		open := []byte(fmt.Sprintf("<!-- BEGIN %s -->", b))
+		close := []byte(fmt.Sprintf("<!-- END %s -->", b))
+
+		outOpenIdx := bytes.Index(fout, open)
+		outCloseIdx := bytes.Index(fout, close)
+		inOpenIdx := bytes.Index(fin, open)
+		inCloseIdx := bytes.Index(fin, close)
+
+		if outOpenIdx < 0 || outCloseIdx < 0 {
+			return fmt.Errorf("block %q not found on %s", b, dst)
+		}
+
+		if inOpenIdx < 0 || inCloseIdx < 0 {
+			return fmt.Errorf("block %q not found on %s", b, src)
+		}
+
+		var newOut []byte
+		newOut = append(newOut, fout[:outOpenIdx]...)
+		newOut = append(newOut, []byte(strings.TrimSpace(string(fin[inOpenIdx:inCloseIdx+len(close)])))...)
+		newOut = append(newOut, fout[outCloseIdx+len(close):]...)
+
+		fout = newOut
+	}
+
+	f, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.Write(fout)
+	return err
 }
