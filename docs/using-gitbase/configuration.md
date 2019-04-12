@@ -19,6 +19,20 @@
 | `GITBASE_MAX_UAST_BLOB_SIZE`          | Max size of blobs to send to be parsed by bblfsh. Default: 5242880 (5MB)                                                    |
 | `GITBASE_LOG_LEVEL`          | minimum logging level to show, use `fatal` to suppress most messages. Default: `info` |
 
+## Configuration from `go-mysql-server`
+
+<!-- BEGIN CONFIG -->
+| Name | Type | Description |
+|:-----|:-----|:------------|
+|`INMEMORY_JOINS`|environment|If set it will perform all joins in memory. Default is off.|
+|`inmemory_joins`|session|If set it will perform all joins in memory. Default is off. This has precedence over `INMEMORY_JOINS`.|
+|`MAX_MEMORY_INNER_JOIN`|environment|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in inner joins. Default is the 20% of all available physical memory.|
+|`max_memory_joins`|session|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in inner joins. Default is the 20% of all available physical memory. This has precedence over `MAX_MEMORY_INNER_JOIN`.|
+|`DEBUG_ANALYZER`|environment|If set, the analyzer will print debug messages. Default is off.|
+|`PILOSA_INDEX_THREADS`|environment|Number of threads used in index creation. Default is the number of cores available in the machine.|
+|`pilosa_index_threads`|environment|Number of threads used in index creation. Default is the number of cores available in the machine. This has precedence over `PILOSA_INDEX_THREADS`.|
+<!-- END CONFIG -->
+
 ### Jaeger tracing variables
 
 *Extracted from https://github.com/jaegertracing/jaeger-client-go/blob/master/README.md*

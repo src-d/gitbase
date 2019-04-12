@@ -219,7 +219,7 @@ func (c *Server) buildDatabase() error {
 	c.engine.Catalog.SetCurrentDatabase(c.Name)
 	logrus.WithField("db", c.Name).Debug("registered database to catalog")
 
-	c.engine.Catalog.RegisterFunctions(function.Functions)
+	c.engine.Catalog.MustRegister(function.Functions...)
 	logrus.Debug("registered all available functions in catalog")
 
 	if err := c.registerDrivers(); err != nil {

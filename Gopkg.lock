@@ -672,7 +672,7 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:fc7e1e0d958879bb0eb442e61c264ed214077ed15e00f472998955578ab2c887"
+  digest = "1:dd08673c079d096ae0cd2169b8edf2d35866bb1a7b96a1d95cdd85d48873bbb7"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
@@ -690,8 +690,8 @@
     "sql/parse",
     "sql/plan",
   ]
-  pruneopts = "NUT"
-  revision = "3dd441325d1731821eff0495fbf63747c258b8ff"
+  pruneopts = "UT"
+  revision = "bb5fe96ff756e5b25ec53c68c92d92c108832a65"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
@@ -801,7 +801,6 @@
     "gopkg.in/src-d/go-mysql-server.v0/sql",
     "gopkg.in/src-d/go-mysql-server.v0/sql/analyzer",
     "gopkg.in/src-d/go-mysql-server.v0/sql/expression",
-    "gopkg.in/src-d/go-mysql-server.v0/sql/expression/function",
     "gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa",
     "gopkg.in/src-d/go-mysql-server.v0/sql/parse",
     "gopkg.in/src-d/go-mysql-server.v0/sql/plan",
