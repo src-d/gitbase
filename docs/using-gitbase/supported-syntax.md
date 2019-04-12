@@ -50,6 +50,7 @@
 - USE
 - SHOW DATABASES
 - SHOW WARNINGS
+- INTERVALS
 
 ## Index expressions
 - CREATE INDEX (an index can be created using either column names or a single arbitrary expression).
@@ -67,8 +68,8 @@
 - OR
 
 ## Arithmetic expressions
-- \+
-- \-
+- \+ (including between dates and intervals)
+- \- (including between dates and intervals)
 - \*
 - \\
 - <<
@@ -109,10 +110,15 @@
 - LN
 - LOG2
 - LOG10
+- SLEEP
+- TO_BASE64
+- FROM_BASE64
 
 ## Time functions
+- DATE
 - DAY
 - WEEKDAY
+- DAYOFMONTH
 - DAYOFWEEK
 - DAYOFYEAR
 - HOUR
@@ -120,4 +126,7 @@
 - MONTH
 - SECOND
 - YEAR
+- YEARWEEK
 - NOW
+- DATE_ADD
+- DATE_SUB

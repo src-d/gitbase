@@ -68,7 +68,11 @@ We support and actively test against certain third-party clients to ensure compa
 |`CONCAT_WS(sep, ...)`|Concatenate any group of fields into a single string. The first argument is the separator for the rest of the arguments. The separator is added between the strings to be concatenated. The separator can be a string, as can the rest of the arguments. If the separator is NULL, the result is NULL.|
 |`CONNECTION_ID()`|Return the current connection ID.|
 |`COUNT(expr)`| Returns a count of the number of non-NULL values of expr in the rows retrieved by a SELECT statement.|
-|`DAY(date)`|Returns the day of the given date.|
+|`DATE_ADD(date, interval)`|Adds the interval to the given date.|
+|`DATE_SUB(date, interval)`|Subtracts the interval from the given date.|
+|`DAY(date)`|Synonym for DAYOFMONTH().|
+|`DATE(date)`|Returns the date part of the given date.|
+|`DAYOFMONTH(date)`|Return the day of the month (0-31).|
 |`DAYOFWEEK(date)`|Returns the day of the week of the given date.|
 |`DAYOFYEAR(date)`|Returns the day of the year of the given date.|
 |`FLOOR(number)`|Return the largest integer value that is less than or equal to `number`.|
@@ -98,16 +102,20 @@ We support and actively test against certain third-party clients to ensure compa
 |`RPAD(str, len, padstr)`|Returns the string str, right-padded with the string padstr to a length of len characters.|
 |`RTRIM(str)`|Returns the string str with trailing space characters removed.|
 |`SECOND(date)`|Returns the seconds of the given date.|
+|`SLEEP(seconds)`|Wait for the specified number of seconds (can be fractional).|
 |`SOUNDEX(str)`|Returns the soundex of a string.|
 |`SPLIT(str,sep)`|Receives a string and a separator and returns the parts of the string split by the separator as a JSON array of strings.|
 |`SQRT(X)`|Returns the square root of a nonnegative number X.|
 |`SUBSTR(str, pos, [len])`|Return a substring from the provided string starting at `pos` with a length of `len` characters. If no `len` is provided, all characters from `pos` until the end will be taken.|
 |`SUBSTRING(str, pos, [len])`|Return a substring from the provided string starting at `pos` with a length of `len` characters. If no `len` is provided, all characters from `pos` until the end will be taken.|
 |`SUM(expr)`|Returns the sum of expr in all rows.|
+|`TO_BASE64(str)`|Encodes the string str in base64 format.|
+|`FROM_BASE64(str)`|Decodes the base64-encoded string str.|
 |`TRIM(str)`|Returns the string str with all spaces removed.|
 |`UPPER(str)`|Returns the string str with all characters in upper case.|
 |`WEEKDAY(date)`|Returns the weekday of the given date.|
 |`YEAR(date)`|Returns the year of the given date.|
+|`YEARWEEK(date, mode)`|Returns year and week for a date. The year in the result may be different from the year in the date argument for the first and the last week of the year.|
 <!-- END FUNCTIONS -->
 
 ## Configuration
