@@ -1,0 +1,10 @@
+/bin
+*.sw?
+GTAGS
+GPATH
+GRTAGS
+
+Gopkg.lock
+vendor/
+gocloc
+dist/

@@ -1,0 +1,22 @@
+language: go
+
+go:
+  - 1.x
+  - tip
+
+install:
+  - go get -u github.com/golang/dep/cmd/dep
+  - dep ensure
+  - go get -u golang.org/x/tools/cmd/goimports
+  - go get -v
+
+script:
+  - diff <(goimports -d *.go cmd/gocloc/main.go examples/*) <(printf "")
+  - go test -v ./
+
+deploy:
+  - provider: script
+    skip_cleanup: true
+    script: curl -sL https://git.io/goreleaser | bash
+    on:
+      tags: true
