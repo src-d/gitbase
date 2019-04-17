@@ -7,6 +7,7 @@ var Functions = []sql.Function{
 	sql.Function1{Name: "is_tag", Fn: NewIsTag},
 	sql.Function1{Name: "is_remote", Fn: NewIsRemote},
 	sql.FunctionN{Name: "language", Fn: NewLanguage},
+	sql.FunctionN{Name: "loc", Fn: NewLOC},
 	sql.FunctionN{Name: "uast", Fn: NewUAST},
 	sql.Function3{Name: "uast_mode", Fn: NewUASTMode},
 	sql.Function2{Name: "uast_xpath", Fn: NewUASTXPath},
