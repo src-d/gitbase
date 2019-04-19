@@ -42,7 +42,7 @@ FROM
 WHERE num > 1;
 ```
 
-##  Get the number of blobs per HEAD commit
+## Get the number of blobs per HEAD commit
 
 ```sql
 SELECT COUNT(commit_hash),
@@ -74,6 +74,22 @@ GROUP BY committer_email,
          YEAR,
          MONTH,
          repo_id;
+```
+
+## Report of line count per file from HEAD references 
+
+```sql
+SELECT
+    LANGUAGE(file_path, blob_content) as lang,
+    SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Code')) as code,
+    SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Comments')) as comments,
+    SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Blanks')) as blanks,
+    COUNT(1) as files
+FROM commit_files
+NATURAL JOIN refs
+NATURAL JOIN blobs
+WHERE ref_name='HEAD'
+GROUP BY lang;
 ```
 
 ## Files from first 6 commits from HEAD references that contains some key and are not in vendor directory

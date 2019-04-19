@@ -14,7 +14,7 @@ To make some common tasks easier for the user, there are some functions to inter
 |`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes                                                                |
 |`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes                                       |
 |`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array              |
-
+|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines |
 ## Standard functions
 
 These are all functions that are available because they are implemented in `go-mysql-server`, used by gitbase.
