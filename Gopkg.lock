@@ -120,6 +120,14 @@
   version = "v0.5.0"
 
 [[projects]]
+  digest = "1:2aeb7538d4b293b12da44c23a405f2652a05795361e871e2458b696e542f5768"
+  name = "github.com/hhatto/gocloc"
+  packages = ["."]
+  pruneopts = ""
+  revision = "250384e5268aee438f53d37f8641075d441b029c"
+  version = "v0.2.1"
+
+[[projects]]
   branch = "master"
   digest = "1:95abc4eba158a39873bd4fabdee576d0ae13826b550f8b710881d80ae4093a0f"
   name = "github.com/jbenet/go-context"
@@ -764,6 +772,7 @@
     "github.com/BurntSushi/toml",
     "github.com/go-sql-driver/mysql",
     "github.com/hashicorp/golang-lru",
+    "github.com/hhatto/gocloc",
     "github.com/jessevdk/go-flags",
     "github.com/opentracing/opentracing-go",
     "github.com/sirupsen/logrus",
