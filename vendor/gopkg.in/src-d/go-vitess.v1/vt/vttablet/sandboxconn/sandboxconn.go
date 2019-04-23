@@ -27,6 +27,7 @@ import (
 	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/queryservice"
 
+	binlogdatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/binlogdata"
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
 	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
 	vtrpcpb "gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
@@ -152,7 +153,7 @@ func (sbc *SandboxConn) ExecuteBatch(ctx context.Context, target *querypb.Target
 }
 
 // StreamExecute is part of the QueryService interface.
-func (sbc *SandboxConn) StreamExecute(ctx context.Context, target *querypb.Target, query string, bindVars map[string]*querypb.BindVariable, options *querypb.ExecuteOptions, callback func(*sqltypes.Result) error) error {
+func (sbc *SandboxConn) StreamExecute(ctx context.Context, target *querypb.Target, query string, bindVars map[string]*querypb.BindVariable, transactionID int64, options *querypb.ExecuteOptions, callback func(*sqltypes.Result) error) error {
 	sbc.ExecCount.Add(1)
 	bv := make(map[string]*querypb.BindVariable)
 	for k, v := range bindVars {
@@ -354,7 +355,16 @@ func (sbc *SandboxConn) StreamHealth(ctx context.Context, callback func(*querypb
 
 // UpdateStream is part of the QueryService interface.
 func (sbc *SandboxConn) UpdateStream(ctx context.Context, target *querypb.Target, position string, timestamp int64, callback func(*querypb.StreamEvent) error) error {
-	// FIXME(alainjobart) implement, use in vtgate tests.
+	return fmt.Errorf("Not implemented in test")
+}
+
+// VStream is part of the QueryService interface.
+func (sbc *SandboxConn) VStream(ctx context.Context, target *querypb.Target, startPos string, filter *binlogdatapb.Filter, send func([]*binlogdatapb.VEvent) error) error {
+	return fmt.Errorf("Not implemented in test")
+}
+
+// VStreamRows is part of the QueryService interface.
+func (sbc *SandboxConn) VStreamRows(ctx context.Context, target *querypb.Target, query string, lastpk *querypb.QueryResult, send func(*binlogdatapb.VStreamRowsResponse) error) error {
 	return fmt.Errorf("Not implemented in test")
 }
 

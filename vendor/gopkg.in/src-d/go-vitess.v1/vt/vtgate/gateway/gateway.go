@@ -20,17 +20,16 @@ package gateway
 
 import (
 	"flag"
-	"fmt"
 	"time"
 
 	"golang.org/x/net/context"
+	"gopkg.in/src-d/go-vitess.v1/flagutil"
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/discovery"
 	"gopkg.in/src-d/go-vitess.v1/vt/srvtopo"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/queryservice"
 
-	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
 	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
 )
 
@@ -40,7 +39,16 @@ import (
 var (
 	implementation       = flag.String("gateway_implementation", "discoverygateway", "The implementation of gateway")
 	initialTabletTimeout = flag.Duration("gateway_initial_tablet_timeout", 30*time.Second, "At startup, the gateway will wait up to that duration to get one tablet per keyspace/shard/tablettype")
+
+	// KeyspacesToWatch - if provided this specifies which keyspaces should be
+	// visible to a vtgate. By default the vtgate will allow access to any
+	// keyspace.
+	KeyspacesToWatch flagutil.StringListValue
 )
+
+func init() {
+	flag.Var(&KeyspacesToWatch, "keyspaces_to_watch", "Specifies which keyspaces this vtgate should have access to while routing queries or accessing the vschema")
+}
 
 // A Gateway is the query processing module for each shard,
 // which is used by ScatterConn.
@@ -117,54 +125,4 @@ func WaitForTablets(gw Gateway, tabletTypesToWait []topodatapb.TabletType) error
 		// Nothing to do here, the caller will log.Fatalf.
 	}
 	return err
-}
-
-// StreamHealthFromTargetStatsListener responds to a StreamHealth
-// streaming RPC using a srvtopo.TargetStatsListener implementation.
-func StreamHealthFromTargetStatsListener(ctx context.Context, l srvtopo.TargetStatsListener, callback func(*querypb.StreamHealthResponse) error) error {
-	// Subscribe to the TargetStatsListener aggregate stats.
-	id, entries, c, err := l.Subscribe()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Unsubscribe so we don't receive more updates, and
-		// drain the channel.
-		l.Unsubscribe(id)
-		for range c {
-		}
-	}()
-
-	// Send all current entries.
-	for _, e := range entries {
-		shr := &querypb.StreamHealthResponse{
-			Target: e.Target,
-			TabletExternallyReparentedTimestamp: e.TabletExternallyReparentedTimestamp,
-			AggregateStats:                      e.Stats,
-		}
-		if err := callback(shr); err != nil {
-			return err
-		}
-	}
-
-	// Now listen for updates, or the end of the connection.
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case e, ok := <-c:
-			if !ok {
-				// Channel is closed, should never happen.
-				return fmt.Errorf("channel closed")
-			}
-			shr := &querypb.StreamHealthResponse{
-				Target: e.Target,
-				TabletExternallyReparentedTimestamp: e.TabletExternallyReparentedTimestamp,
-				AggregateStats:                      e.Stats,
-			}
-			if err := callback(shr); err != nil {
-				return err
-			}
-		}
-	}
 }

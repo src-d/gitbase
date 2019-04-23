@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2018 Pilosa Corp. All rights reserved.
+// Copyright 2017 Pilosa Corp.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
 )
 
 // NewTestCluster returns a cluster with n nodes and uses a mod-based hasher.
@@ -56,15 +57,15 @@ func NewTestCluster(n int) *cluster {
 // NewTestURI is a test URI creator that intentionally swallows errors.
 func NewTestURI(scheme, host string, port uint16) URI {
 	uri := defaultURI()
-	uri.setScheme(scheme)
-	uri.setHost(host)
+	_ = uri.setScheme(scheme)
+	_ = uri.setHost(host)
 	uri.SetPort(port)
 	return *uri
 }
 
 func NewTestURIFromHostPort(host string, port uint16) URI {
 	uri := defaultURI()
-	uri.setHost(host)
+	_ = uri.setHost(host)
 	uri.SetPort(port)
 	return *uri
 }
@@ -211,7 +212,7 @@ func (t *ClusterCluster) addCluster(i int, saveTopology bool) (*cluster, error) 
 	t.common.Nodes = append(t.common.Nodes, node)
 
 	// create node-specific temp directory
-	path, err := ioutil.TempDir("", fmt.Sprintf("pilosa-cluster-node-%d-", i))
+	path, err := ioutil.TempDir(*TempDir, fmt.Sprintf("pilosa-cluster-node-%d-", i))
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +235,9 @@ func (t *ClusterCluster) addCluster(i int, saveTopology bool) (*cluster, error) 
 	// add nodes
 	if saveTopology {
 		for _, n := range t.common.Nodes {
-			c.addNode(n)
+			if err := c.addNode(n); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -313,7 +316,10 @@ func (b bcast) SendSync(m Message) error {
 		// Apply the send message to all nodes (except the coordinator).
 		for _, c := range b.t.Clusters {
 			if c != b.c {
-				c.mergeClusterStatus(obj)
+				err := c.mergeClusterStatus(obj)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		b.t.mu.RLock()
@@ -337,7 +343,7 @@ func (bcast) SendAsync(Message) error {
 	return nil
 }
 
-// SendTo is a test implemenetation of Broadcaster SendTo method.
+// SendTo is a test implementation of Broadcaster SendTo method.
 func (b bcast) SendTo(to *Node, m Message) error {
 	switch obj := m.(type) {
 	case *ResizeInstruction:
@@ -347,7 +353,26 @@ func (b bcast) SendTo(to *Node, m Message) error {
 		}
 	case *ResizeInstructionComplete:
 		coord := b.t.clusterByID(to.ID)
-		go coord.markResizeInstructionComplete(obj)
+		// this used to be async, but that prevented us from checking
+		// its error status...
+		return coord.markResizeInstructionComplete(obj)
+	case *ClusterStatus:
+		// Apply the send message to the node.
+		for _, c := range b.t.Clusters {
+			if c.Node.ID == to.ID {
+				err := c.mergeClusterStatus(obj)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		b.t.mu.RLock()
+		if obj.State == ClusterStateNormal && b.t.resizing {
+			close(b.t.resizeDone)
+		}
+		b.t.mu.RUnlock()
+	default:
+		panic(fmt.Sprintf("message not handled:\n%#v\n", obj))
 	}
 	return nil
 }
@@ -371,8 +396,24 @@ func (t *ClusterCluster) FollowResizeInstruction(instr *ResizeInstruction) error
 		destCluster := t.clusterByID(instrNode.ID)
 
 		// Sync the schema received in the resize instruction.
-		if err := destCluster.holder.applySchema(instr.Schema); err != nil {
+		if err := destCluster.holder.applySchema(instr.NodeStatus.Schema); err != nil {
 			return err
+		}
+
+		// Sync available shards.
+		for _, is := range instr.NodeStatus.Indexes {
+			for _, fs := range is.Fields {
+				f := destCluster.holder.Field(is.Name, fs.Name)
+
+				// if we don't know about a field locally, log an error because
+				// fields should be created and synced prior to shard creation
+				if f == nil {
+					continue
+				}
+				if err := f.AddRemoteAvailableShards(fs.AvailableShards); err != nil {
+					return errors.Wrap(err, "adding remote available shards")
+				}
+			}
 		}
 
 		for _, src := range instr.Sources {

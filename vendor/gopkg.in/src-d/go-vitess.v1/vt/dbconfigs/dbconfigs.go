@@ -100,6 +100,8 @@ func registerBaseFlags() {
 	flag.StringVar(&baseConfig.SslCaPath, "db_ssl_ca_path", "", "connection ssl ca path")
 	flag.StringVar(&baseConfig.SslCert, "db_ssl_cert", "", "connection ssl certificate")
 	flag.StringVar(&baseConfig.SslKey, "db_ssl_key", "", "connection ssl key")
+	flag.StringVar(&baseConfig.ServerName, "db_server_name", "", "server name of the DB we are connecting to.")
+
 }
 
 // The flags will change the global singleton
@@ -124,6 +126,7 @@ func registerPerUserFlags(dbc *userConfig, userKey string) {
 	flag.StringVar(&dbc.param.SslCaPath, "db-config-"+userKey+"-ssl-ca-path", "", "deprecated: use db_ssl_ca_path")
 	flag.StringVar(&dbc.param.SslCert, "db-config-"+userKey+"-ssl-cert", "", "deprecated: use db_ssl_cert")
 	flag.StringVar(&dbc.param.SslKey, "db-config-"+userKey+"-ssl-key", "", "deprecated: use db_ssl_key")
+	flag.StringVar(&dbc.param.ServerName, "db-config-"+userKey+"-server_name", "", "deprecated: use db_server_name")
 
 	flag.StringVar(&dbc.param.DeprecatedDBName, "db-config-"+userKey+"-dbname", "", "deprecated: dbname does not need to be explicitly configured")
 
@@ -234,26 +237,23 @@ func HasConnectionParams() bool {
 // is used to initialize the per-user conn params.
 func Init(defaultSocketFile string) (*DBConfigs, error) {
 	// The new base configs, if set, supersede legacy settings.
-	if HasConnectionParams() {
-		for _, uc := range dbConfigs.userConfigs {
+	for _, uc := range dbConfigs.userConfigs {
+		if HasConnectionParams() {
 			uc.param.Host = baseConfig.Host
 			uc.param.Port = baseConfig.Port
 			uc.param.UnixSocket = baseConfig.UnixSocket
-			uc.param.Charset = baseConfig.Charset
-			uc.param.Flags = baseConfig.Flags
-			if uc.useSSL {
-				uc.param.SslCa = baseConfig.SslCa
-				uc.param.SslCaPath = baseConfig.SslCaPath
-				uc.param.SslCert = baseConfig.SslCert
-				uc.param.SslKey = baseConfig.SslKey
-			}
+		} else if uc.param.UnixSocket == "" && uc.param.Host == "" {
+			uc.param.UnixSocket = defaultSocketFile
 		}
-	} else {
-		// Use supplied socket value if conn parameters are not specified.
-		for _, uc := range dbConfigs.userConfigs {
-			if uc.param.UnixSocket == "" && uc.param.Host == "" {
-				uc.param.UnixSocket = defaultSocketFile
-			}
+
+		uc.param.Charset = baseConfig.Charset
+		uc.param.Flags = baseConfig.Flags
+		if uc.useSSL {
+			uc.param.SslCa = baseConfig.SslCa
+			uc.param.SslCaPath = baseConfig.SslCaPath
+			uc.param.SslCert = baseConfig.SslCert
+			uc.param.SslKey = baseConfig.SslKey
+			uc.param.ServerName = baseConfig.ServerName
 		}
 	}
 

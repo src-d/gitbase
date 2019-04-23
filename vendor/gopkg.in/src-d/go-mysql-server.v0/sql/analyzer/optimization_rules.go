@@ -1,7 +1,7 @@
 package analyzer
 
 import (
-	errors "gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
@@ -33,7 +33,7 @@ func optimizeDistinct(ctx *sql.Context, a *Analyzer, node sql.Node) (sql.Node, e
 	defer span.Finish()
 
 	a.Log("optimize distinct, node of type: %T", node)
-	if node, ok := node.(*plan.Distinct); ok {
+	if n, ok := node.(*plan.Distinct); ok {
 		var isSorted bool
 		_, _ = node.TransformUp(func(node sql.Node) (sql.Node, error) {
 			a.Log("checking for optimization in node of type: %T", node)
@@ -45,7 +45,7 @@ func optimizeDistinct(ctx *sql.Context, a *Analyzer, node sql.Node) (sql.Node, e
 
 		if isSorted {
 			a.Log("distinct optimized for ordered output")
-			return plan.NewOrderedDistinct(node.Child), nil
+			return plan.NewOrderedDistinct(n.Child), nil
 		}
 	}
 

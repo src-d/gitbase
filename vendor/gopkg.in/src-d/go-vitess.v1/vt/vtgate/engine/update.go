@@ -19,6 +19,7 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"gopkg.in/src-d/go-vitess.v1/jsonutil"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
@@ -42,6 +43,9 @@ type Update struct {
 	// Keyspace specifies the keyspace to send the query to.
 	Keyspace *vindexes.Keyspace
 
+	// TargetDestination specifies the destination to send the query to.
+	TargetDestination key.Destination
+
 	// Query specifies the query to be executed.
 	Query string
 
@@ -63,6 +67,9 @@ type Update struct {
 	// Option to override the standard behavior and allow a multi-shard update
 	// to use single round trip autocommit.
 	MultiShardAutocommit bool
+
+	// QueryTimeout contains the optional timeout (in milliseconds) to apply to this query
+	QueryTimeout int
 }
 
 // MarshalJSON serializes the Update into a JSON representation.
@@ -85,6 +92,7 @@ func (upd *Update) MarshalJSON() ([]byte, error) {
 		Table                string                          `json:",omitempty"`
 		OwnedVindexQuery     string                          `json:",omitempty"`
 		MultiShardAutocommit bool                            `json:",omitempty"`
+		QueryTimeout         int                             `json:",omitempty"`
 	}{
 		Opcode:               upd.Opcode,
 		Keyspace:             upd.Keyspace,
@@ -95,6 +103,7 @@ func (upd *Update) MarshalJSON() ([]byte, error) {
 		Table:                tname,
 		OwnedVindexQuery:     upd.OwnedVindexQuery,
 		MultiShardAutocommit: upd.MultiShardAutocommit,
+		QueryTimeout:         upd.QueryTimeout,
 	}
 	return jsonutil.MarshalNoEscape(marshalUpdate)
 }
@@ -115,12 +124,18 @@ const (
 	// UpdateScatter is for routing a scattered
 	// update statement.
 	UpdateScatter
+	// UpdateByDestination is to route explicitly to a given
+	// target destination. Is used when the query explicitly sets a target destination:
+	// in the clause:
+	// e.g: UPDATE `keyspace[-]`.x1 SET foo=1
+	UpdateByDestination
 )
 
 var updName = map[UpdateOpcode]string{
-	UpdateUnsharded: "UpdateUnsharded",
-	UpdateEqual:     "UpdateEqual",
-	UpdateScatter:   "UpdateScatter",
+	UpdateUnsharded:     "UpdateUnsharded",
+	UpdateEqual:         "UpdateEqual",
+	UpdateScatter:       "UpdateScatter",
+	UpdateByDestination: "UpdateByDestination",
 }
 
 // MarshalJSON serializes the UpdateOpcode as a JSON string.
@@ -136,6 +151,11 @@ func (upd *Update) RouteType() string {
 
 // Execute performs a non-streaming exec.
 func (upd *Update) Execute(vcursor VCursor, bindVars map[string]*querypb.BindVariable, wantfields bool) (*sqltypes.Result, error) {
+	if upd.QueryTimeout != 0 {
+		cancel := vcursor.SetContextTimeout(time.Duration(upd.QueryTimeout) * time.Millisecond)
+		defer cancel()
+	}
+
 	switch upd.Opcode {
 	case UpdateUnsharded:
 		return upd.execUpdateUnsharded(vcursor, bindVars)
@@ -143,6 +163,8 @@ func (upd *Update) Execute(vcursor VCursor, bindVars map[string]*querypb.BindVar
 		return upd.execUpdateEqual(vcursor, bindVars)
 	case UpdateScatter:
 		return upd.execUpdateByDestination(vcursor, bindVars, key.DestinationAllShards{})
+	case UpdateByDestination:
+		return upd.execUpdateByDestination(vcursor, bindVars, upd.TargetDestination)
 	default:
 		// Unreachable.
 		return nil, fmt.Errorf("unsupported opcode: %v", upd)

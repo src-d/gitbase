@@ -43,12 +43,14 @@ const (
 	KsTestSharded             = "TestSharded"
 	KsTestUnsharded           = "TestUnsharded"
 	KsTestUnshardedServedFrom = "TestUnshardedServedFrom"
+	KsTestBadVSchema          = "TestXBadVSchema"
 )
 
 func init() {
 	ksToSandbox = make(map[string]*sandbox)
 	createSandbox(KsTestSharded)
 	createSandbox(KsTestUnsharded)
+	createSandbox(KsTestBadVSchema)
 	tabletconn.RegisterDialer("sandbox", sandboxDialer)
 	flag.Set("tablet_protocol", "sandbox")
 }
@@ -233,8 +235,8 @@ func newSandboxForCells(cells []string) *sandboxTopo {
 }
 
 // GetTopoServer is part of the srvtopo.Server interface
-func (sct *sandboxTopo) GetTopoServer() *topo.Server {
-	return sct.topoServer
+func (sct *sandboxTopo) GetTopoServer() (*topo.Server, error) {
+	return sct.topoServer, nil
 }
 
 // GetSrvKeyspaceNames is part of the srvtopo.Server interface.
@@ -251,6 +253,9 @@ func (sct *sandboxTopo) GetSrvKeyspaceNames(ctx context.Context, cell string) ([
 // GetSrvKeyspace is part of the srvtopo.Server interface.
 func (sct *sandboxTopo) GetSrvKeyspace(ctx context.Context, cell, keyspace string) (*topodatapb.SrvKeyspace, error) {
 	sand := getSandbox(keyspace)
+	if sand == nil {
+		return nil, fmt.Errorf("topo error GetSrvKeyspace")
+	}
 	sand.sandmu.Lock()
 	defer sand.sandmu.Unlock()
 	if sand.SrvKeyspaceCallback != nil {

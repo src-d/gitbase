@@ -32,6 +32,7 @@ import (
 	"gopkg.in/src-d/go-vitess.v1/vt/vtgate/vindexes"
 
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
+	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
 )
 
 var _ Primitive = (*Route)(nil)
@@ -49,6 +50,10 @@ type Route struct {
 	// TargetDestination specifies an explicit target destination to send the query to.
 	// This bypases the core of the v3 engine.
 	TargetDestination key.Destination
+
+	// TargetTabletType specifies an explicit target destination tablet type
+	// this is only used in conjunction with TargetDestination
+	TargetTabletType topodatapb.TabletType
 
 	// Query specifies the query to be executed.
 	Query string
@@ -76,6 +81,24 @@ type Route struct {
 
 	// ScatterErrorsAsWarnings is true if results should be returned even if some shards have an error
 	ScatterErrorsAsWarnings bool
+}
+
+// NewSimpleRoute creates a Route with the bare minimum of parameters.
+func NewSimpleRoute(opcode RouteOpcode, keyspace *vindexes.Keyspace) *Route {
+	return &Route{
+		Opcode:   opcode,
+		Keyspace: keyspace,
+	}
+}
+
+// NewRoute creates a Route.
+func NewRoute(opcode RouteOpcode, keyspace *vindexes.Keyspace, query, fieldQuery string) *Route {
+	return &Route{
+		Opcode:     opcode,
+		Keyspace:   keyspace,
+		Query:      query,
+		FieldQuery: fieldQuery,
+	}
 }
 
 // OrderbyParams specifies the parameters for ordering.

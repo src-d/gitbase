@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"golang.org/x/net/context"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
 )
@@ -72,7 +73,7 @@ func (zs *Server) Watch(ctx context.Context, filePath string) (*topo.WatchData, 
 				}
 
 				if event.Err != nil {
-					c <- &topo.WatchData{Err: fmt.Errorf("received a non-OK event for %v: %v", zkPath, event.Err)}
+					c <- &topo.WatchData{Err: vterrors.Wrapf(event.Err, "received a non-OK event for %v", zkPath)}
 					return
 				}
 

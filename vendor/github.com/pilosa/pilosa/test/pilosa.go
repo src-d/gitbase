@@ -22,12 +22,14 @@ import (
 	gohttp "net/http"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pilosa/pilosa"
+	"github.com/pilosa/pilosa/encoding/proto"
 	"github.com/pilosa/pilosa/http"
 	"github.com/pilosa/pilosa/server"
 	"github.com/pkg/errors"
@@ -69,7 +71,7 @@ func newCommand(opts ...server.CommandOption) *Command {
 	m.Config.DataDir = path
 	m.Config.Bind = "http://localhost:0"
 	m.Config.Cluster.Disabled = true
-	m.Config.Translation.MapSize = 100000
+	m.Config.Translation.MapSize = 140000
 
 	if testing.Verbose() {
 		m.Command.Stdout = os.Stdout
@@ -185,6 +187,49 @@ func (m *Command) Query(index, rawQuery, query string) (string, error) {
 	return resp.Body, nil
 }
 
+func (m *Command) QueryProtobuf(indexName string, query string) (*pilosa.QueryResponse, error) {
+	var ser proto.Serializer
+	queryReq := &pilosa.QueryRequest{
+		Index: indexName,
+		Query: query,
+	}
+	body, err := ser.Marshal(queryReq)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := gohttp.NewRequest(
+		"POST",
+		fmt.Sprintf("%s/index/%s/query", m.URL(), indexName),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	req.Header.Set("Accept", "application/x-protobuf")
+
+	resp, err := gohttp.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	buf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &pilosa.QueryResponse{}
+	err = ser.Unmarshal(buf, response)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
 // RecalculateCaches is deprecated. Use MustRecalculateCaches.
 func (m *Command) RecalculateCaches() error {
 	resp := MustDo("POST", fmt.Sprintf("%s/recalculate-caches", m.URL()), "")
@@ -196,6 +241,79 @@ func (m *Command) RecalculateCaches() error {
 
 // Cluster represents a Pilosa cluster (multiple Command instances)
 type Cluster []*Command
+
+// Query executes an API.Query through one of the cluster's node's API. It fails
+// the test if there is an error.
+func (c Cluster) Query(t testing.TB, index, query string) pilosa.QueryResponse {
+	if len(c) == 0 {
+		t.Fatal("must have at least one node in cluster to query")
+	}
+
+	return c[0].MustQuery(t, &pilosa.QueryRequest{Index: index, Query: query})
+}
+
+func (c Cluster) ImportBits(t testing.TB, index, field string, rowcols [][2]uint64) {
+	byShard := make(map[uint64][][2]uint64)
+	for _, rowcol := range rowcols {
+		shard := rowcol[1] / pilosa.ShardWidth
+		byShard[shard] = append(byShard[shard], rowcol)
+	}
+
+	for shard, bits := range byShard {
+		rowIDs := make([]uint64, len(bits))
+		colIDs := make([]uint64, len(bits))
+		for i, bit := range bits {
+			rowIDs[i] = bit[0]
+			colIDs[i] = bit[1]
+		}
+		nodes, err := c[0].API.ShardNodes(context.Background(), index, shard)
+		if err != nil {
+			t.Fatalf("getting shard nodes: %v", err)
+		}
+		// TODO won't be necessary to do all nodes once that works hits
+		for _, node := range nodes {
+			for _, com := range c {
+				if com.API.Node().ID != node.ID {
+					continue
+				}
+				err := com.API.Import(context.Background(), &pilosa.ImportRequest{
+					Index:     index,
+					Field:     field,
+					Shard:     shard,
+					RowIDs:    rowIDs,
+					ColumnIDs: colIDs,
+				})
+				if err != nil {
+					t.Fatalf("importing data: %v", err)
+				}
+			}
+		}
+	}
+}
+
+// CreateField creates the index (if necessary) and field specified.
+func (c Cluster) CreateField(t testing.TB, index string, iopts pilosa.IndexOptions, field string, fopts ...pilosa.FieldOption) *pilosa.Field {
+	idx, err := c[0].API.CreateIndex(context.Background(), index, iopts)
+	if err != nil && !strings.Contains(err.Error(), "index already exists") {
+		t.Fatalf("creating index: %v", err)
+	} else if err != nil { // index exists
+		idx, err = c[0].API.Index(context.Background(), index)
+		if err != nil {
+			t.Fatalf("getting index: %v", err)
+		}
+	}
+	if idx.Options() != iopts {
+		t.Logf("existing index options:\n%v\ndon't match given opts:\n%v\n in pilosa/test.Cluster.CreateField", idx.Options(), iopts)
+	}
+
+	f, err := c[0].API.CreateField(context.Background(), index, field, fopts...)
+	// we'll assume the field doesn't exist because checking if the options
+	// match seems painful.
+	if err != nil {
+		t.Fatalf("creating field: %v", err)
+	}
+	return f
+}
 
 // Start runs a Cluster
 func (c Cluster) Start() error {
@@ -305,6 +423,17 @@ func MustDo(method, urlStr string, body string) *httpResponse {
 	}
 
 	return &httpResponse{Response: resp, Body: string(buf)}
+}
+
+func CheckGroupBy(t *testing.T, expected, results []pilosa.GroupCount) {
+	if len(results) != len(expected) {
+		t.Fatalf("number of groupings mismatch:\n got:%+v\nwant:%+v\n", results, expected)
+	}
+	for i, result := range results {
+		if !reflect.DeepEqual(expected[i], result) {
+			t.Fatalf("unexpected result at %d: \n got:%+v\nwant:%+v\n", i, result, expected[i])
+		}
+	}
 }
 
 // httpResponse is a wrapper for http.Response that holds the Body as a string.

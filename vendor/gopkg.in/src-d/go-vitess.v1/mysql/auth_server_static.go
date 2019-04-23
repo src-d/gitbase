@@ -20,23 +20,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
+	"gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 )
 
 var (
 	mysqlAuthServerStaticFile   = flag.String("mysql_auth_server_static_file", "", "JSON File to read the users/passwords from.")
 	mysqlAuthServerStaticString = flag.String("mysql_auth_server_static_string", "", "JSON representation of the users/passwords config.")
-	mysqlAuthRotationTime       = flag.Duration("mysql_auth_rotation_time", 300*time.Second, "Cooldown period before reloading json config.")
 )
 
 const (
@@ -54,8 +53,7 @@ type AuthServerStatic struct {
 	// This mutex helps us prevent data races between the multiple updates of Entries.
 	mu sync.Mutex
 	// Entries contains the users, passwords and user data.
-	Entries          map[string][]*AuthServerStaticEntry
-	LastAuthRotation time.Time
+	Entries map[string][]*AuthServerStaticEntry
 }
 
 // AuthServerStaticEntry stores the values for a given user.
@@ -75,6 +73,7 @@ type AuthServerStaticEntry struct {
 	Password            string
 	UserData            string
 	SourceHost          string
+	Groups              []string
 }
 
 // InitAuthServerStatic Handles initializing the AuthServerStatic if necessary.
@@ -116,15 +115,11 @@ func RegisterAuthServerStaticFromParams(file, str string) {
 	}
 	authServerStatic.installSignalHandlers()
 
-	authServerStatic.LastAuthRotation = time.Now()
-
 	// And register the server.
 	RegisterAuthServerImpl("static", authServerStatic)
 }
 
 func (a *AuthServerStatic) loadConfigFromParams(file, str string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	jsonConfig := []byte(str)
 	if file != "" {
 		data, err := ioutil.ReadFile(file)
@@ -135,13 +130,15 @@ func (a *AuthServerStatic) loadConfigFromParams(file, str string) {
 		jsonConfig = data
 	}
 
-	entries := make(map[string][]*AuthServerStaticEntry) // clear old entries
+	entries := make(map[string][]*AuthServerStaticEntry)
 	if err := parseConfig(jsonConfig, &entries); err != nil {
 		log.Errorf("Error parsing auth server config: %v", err)
 		return
 	}
 
+	a.mu.Lock()
 	a.Entries = entries
+	a.mu.Unlock()
 }
 
 func (a *AuthServerStatic) installSignalHandlers() {
@@ -152,15 +149,16 @@ func (a *AuthServerStatic) installSignalHandlers() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP)
 	go func() {
-		for {
-			<-sigChan
+		for range sigChan {
 			a.loadConfigFromParams(*mysqlAuthServerStaticFile, "")
 		}
 	}()
 }
 
 func parseConfig(jsonConfig []byte, config *map[string][]*AuthServerStaticEntry) error {
-	if err := json.Unmarshal(jsonConfig, config); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(jsonConfig))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(config); err != nil {
 		// Couldn't parse, will try to parse with legacy config
 		return parseLegacyConfig(jsonConfig, config)
 	}
@@ -170,22 +168,23 @@ func parseConfig(jsonConfig []byte, config *map[string][]*AuthServerStaticEntry)
 func parseLegacyConfig(jsonConfig []byte, config *map[string][]*AuthServerStaticEntry) error {
 	// legacy config doesn't have an array
 	legacyConfig := make(map[string]*AuthServerStaticEntry)
-	err := json.Unmarshal(jsonConfig, &legacyConfig)
-	if err == nil {
-		log.Warningf("Config parsed using legacy configuration. Please update to the latest format: {\"user\":[{\"Password\": \"xxx\"}, ...]}")
-		for key, value := range legacyConfig {
-			(*config)[key] = append((*config)[key], value)
-		}
-		return nil
+	decoder := json.NewDecoder(bytes.NewReader(jsonConfig))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&legacyConfig); err != nil {
+		return err
 	}
-	return err
+	log.Warningf("Config parsed using legacy configuration. Please update to the latest format: {\"user\":[{\"Password\": \"xxx\"}, ...]}")
+	for key, value := range legacyConfig {
+		(*config)[key] = append((*config)[key], value)
+	}
+	return nil
 }
 
 func validateConfig(config map[string][]*AuthServerStaticEntry) error {
 	for _, entries := range config {
 		for _, entry := range entries {
 			if entry.SourceHost != "" && entry.SourceHost != localhostName {
-				return fmt.Errorf("Invalid SourceHost found (only localhost is supported): %v", entry.SourceHost)
+				return vterrors.Errorf(vtrpc.Code_INVALID_ARGUMENT, "invalid SourceHost found (only localhost is supported): %v", entry.SourceHost)
 			}
 		}
 	}
@@ -204,37 +203,29 @@ func (a *AuthServerStatic) Salt() ([]byte, error) {
 
 // ValidateHash is part of the AuthServer interface.
 func (a *AuthServerStatic) ValidateHash(salt []byte, user string, authResponse []byte, remoteAddr net.Addr) (Getter, error) {
-	// If enough time has elpased (default is 5 minutes), reload the auth file/string
-	if time.Now().Sub(a.LastAuthRotation) > *mysqlAuthRotationTime {
-		a.loadConfigFromParams(*mysqlAuthServerStaticFile, *mysqlAuthServerStaticString)
-		a.LastAuthRotation = time.Now()
-	}
-
-	// We lock after the call to loadConfigFromParams since we lock and unlock the mutex within loadConfig.
-	// This avoids deadlocking, but a cleaner approach could be used.
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	// Find the entry.
 	entries, ok := a.Entries[user]
+	a.mu.Unlock()
 
 	if !ok {
-		return &StaticUserData{""}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
+		return &StaticUserData{}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
 	}
 
 	for _, entry := range entries {
 		if entry.MysqlNativePassword != "" {
 			isPass := isPassScrambleMysqlNativePassword(authResponse, salt, entry.MysqlNativePassword)
 			if matchSourceHost(remoteAddr, entry.SourceHost) && isPass {
-				return &StaticUserData{entry.UserData}, nil
+				return &StaticUserData{entry.UserData, entry.Groups}, nil
+			}
+		} else {
+			computedAuthResponse := ScramblePassword(salt, []byte(entry.Password))
+			// Validate the password.
+			if matchSourceHost(remoteAddr, entry.SourceHost) && bytes.Equal(authResponse, computedAuthResponse) {
+				return &StaticUserData{entry.UserData, entry.Groups}, nil
 			}
 		}
-		computedAuthResponse := ScramblePassword(salt, []byte(entry.Password))
-		// Validate the password.
-		if matchSourceHost(remoteAddr, entry.SourceHost) && bytes.Compare(authResponse, computedAuthResponse) == 0 {
-			return &StaticUserData{entry.UserData}, nil
-		}
 	}
-	return &StaticUserData{""}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
+	return &StaticUserData{}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
 }
 
 // Negotiate is part of the AuthServer interface.
@@ -242,27 +233,25 @@ func (a *AuthServerStatic) ValidateHash(salt []byte, user string, authResponse [
 // We only recognize MysqlClearPassword and MysqlDialog here.
 func (a *AuthServerStatic) Negotiate(c *Conn, user string, remoteAddr net.Addr) (Getter, error) {
 	// Finish the negotiation.
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	password, err := AuthServerNegotiateClearOrDialog(c, a.Method)
 	if err != nil {
 		return nil, err
 	}
 
-	// Find the entry.
-
+	a.mu.Lock()
 	entries, ok := a.Entries[user]
+	a.mu.Unlock()
 
 	if !ok {
-		return &StaticUserData{""}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
+		return &StaticUserData{}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
 	}
 	for _, entry := range entries {
 		// Validate the password.
 		if matchSourceHost(remoteAddr, entry.SourceHost) && entry.Password == password {
-			return &StaticUserData{entry.UserData}, nil
+			return &StaticUserData{entry.UserData, entry.Groups}, nil
 		}
 	}
-	return &StaticUserData{""}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
+	return &StaticUserData{}, NewSQLError(ERAccessDeniedError, SSAccessDeniedError, "Access denied for user '%v'", user)
 }
 
 func matchSourceHost(remoteAddr net.Addr, targetSourceHost string) bool {
@@ -279,12 +268,13 @@ func matchSourceHost(remoteAddr net.Addr, targetSourceHost string) bool {
 	return false
 }
 
-// StaticUserData holds the username
+// StaticUserData holds the username and groups
 type StaticUserData struct {
-	value string
+	username string
+	groups   []string
 }
 
-// Get returns the wrapped username
+// Get returns the wrapped username and groups
 func (sud *StaticUserData) Get() *querypb.VTGateCallerID {
-	return &querypb.VTGateCallerID{Username: sud.value}
+	return &querypb.VTGateCallerID{Username: sud.username, Groups: sud.groups}
 }

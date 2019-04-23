@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -32,6 +31,7 @@ import (
 
 	"gopkg.in/src-d/go-vitess.v1/acl"
 	"gopkg.in/src-d/go-vitess.v1/cache"
+	"gopkg.in/src-d/go-vitess.v1/mysql"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/stats"
 	"gopkg.in/src-d/go-vitess.v1/vt/callerid"
@@ -41,6 +41,7 @@ import (
 	"gopkg.in/src-d/go-vitess.v1/vt/sqlparser"
 	"gopkg.in/src-d/go-vitess.v1/vt/srvtopo"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo/topoproto"
+	"gopkg.in/src-d/go-vitess.v1/vt/topotools"
 	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 	"gopkg.in/src-d/go-vitess.v1/vt/vtgate/engine"
 	"gopkg.in/src-d/go-vitess.v1/vt/vtgate/planbuilder"
@@ -49,7 +50,6 @@ import (
 
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
 	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
-	vschemapb "gopkg.in/src-d/go-vitess.v1/vt/proto/vschema"
 	vtgatepb "gopkg.in/src-d/go-vitess.v1/vt/proto/vtgate"
 	vtrpcpb "gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
 )
@@ -274,7 +274,7 @@ func (e *Executor) handleExec(ctx context.Context, safeSession *SafeSession, sql
 		logStats.SQL = sql
 		logStats.BindVariables = bindVars
 		result, err := e.destinationExec(ctx, safeSession, sql, bindVars, dest, destKeyspace, destTabletType, logStats)
-		logStats.ExecuteTime = time.Now().Sub(execStart)
+		logStats.ExecuteTime = time.Since(execStart)
 		queriesRouted.Add("ShardDirect", int64(logStats.ShardQueries))
 		return result, err
 	}
@@ -337,8 +337,13 @@ func (e *Executor) handleDDL(ctx context.Context, safeSession *SafeSession, sql 
 		execStart := time.Now()
 		logStats.PlanTime = execStart.Sub(logStats.StartTime)
 		switch ddl.Action {
-		case sqlparser.CreateVindexStr, sqlparser.AddColVindexStr, sqlparser.DropColVindexStr:
-			err := e.handleVindexDDL(ctx, safeSession, dest, destKeyspace, destTabletType, ddl, logStats)
+		case sqlparser.CreateVindexStr,
+			sqlparser.AddVschemaTableStr,
+			sqlparser.DropVschemaTableStr,
+			sqlparser.AddColVindexStr,
+			sqlparser.DropColVindexStr:
+
+			err := e.handleVSchemaDDL(ctx, safeSession, dest, destKeyspace, destTabletType, ddl, logStats)
 			logStats.ExecuteTime = time.Since(execStart)
 			return &sqltypes.Result{}, err
 		default:
@@ -365,7 +370,7 @@ func (e *Executor) handleDDL(ctx context.Context, safeSession *SafeSession, sql 
 	return result, err
 }
 
-func (e *Executor) handleVindexDDL(ctx context.Context, safeSession *SafeSession, dest key.Destination, destKeyspace string, destTabletType topodatapb.TabletType, ddl *sqlparser.DDL, logStats *LogStats) error {
+func (e *Executor) handleVSchemaDDL(ctx context.Context, safeSession *SafeSession, dest key.Destination, destKeyspace string, destTabletType topodatapb.TabletType, ddl *sqlparser.DDL, logStats *LogStats) error {
 	vschema := e.vm.GetCurrentSrvVschema()
 	if vschema == nil {
 		return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vschema not loaded")
@@ -385,129 +390,20 @@ func (e *Executor) handleVindexDDL(ctx context.Context, safeSession *SafeSession
 	if ksName == "" {
 		ksName = destKeyspace
 	}
-
 	if ksName == "" {
 		return errNoKeyspace
 	}
 
-	ks, _ := vschema.Keyspaces[ksName]
-	if ks == nil {
-		ks = new(vschemapb.Keyspace)
-		vschema.Keyspaces[ksName] = ks
+	ks := vschema.Keyspaces[ksName]
+	ks, err := topotools.ApplyVSchemaDDL(ksName, ks, ddl)
+
+	if err != nil {
+		return err
 	}
 
-	if ks.Tables == nil {
-		ks.Tables = map[string]*vschemapb.Table{}
-	}
+	vschema.Keyspaces[ksName] = ks
 
-	if ks.Vindexes == nil {
-		ks.Vindexes = map[string]*vschemapb.Vindex{}
-	}
-
-	var tableName string
-	var table *vschemapb.Table
-	if !ddl.Table.IsEmpty() {
-		tableName = ddl.Table.Name.String()
-		table, _ = ks.Tables[tableName]
-	}
-
-	switch ddl.Action {
-	case sqlparser.CreateVindexStr:
-		name := ddl.VindexSpec.Name.String()
-		if _, ok := ks.Vindexes[name]; ok {
-			return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vindex %s already exists in keyspace %s", name, destKeyspace)
-		}
-		owner, params := ddl.VindexSpec.ParseParams()
-		ks.Vindexes[name] = &vschemapb.Vindex{
-			Type:   ddl.VindexSpec.Type.String(),
-			Params: params,
-			Owner:  owner,
-		}
-
-		return e.vm.UpdateVSchema(ctx, destKeyspace, vschema)
-	case sqlparser.AddColVindexStr:
-		// Support two cases:
-		//
-		// 1. The vindex type / params / owner are specified. If the
-		//    named vindex doesn't exist, create it. If it does exist,
-		//    require the parameters to match.
-		//
-		// 2. The vindex type is not specified. Make sure the vindex
-		//    already exists.
-		spec := ddl.VindexSpec
-		name := spec.Name.String()
-		if !spec.Type.IsEmpty() {
-			owner, params := spec.ParseParams()
-			if vindex, ok := ks.Vindexes[name]; ok {
-				if vindex.Type != spec.Type.String() {
-					return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vindex %s defined with type %s not %s", name, vindex.Type, spec.Type.String())
-				}
-				if vindex.Owner != owner {
-					return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vindex %s defined with owner %s not %s", name, vindex.Owner, owner)
-				}
-				if (len(vindex.Params) != 0 || len(params) != 0) && !reflect.DeepEqual(vindex.Params, params) {
-					return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vindex %s defined with different parameters", name)
-				}
-			} else {
-				ks.Vindexes[name] = &vschemapb.Vindex{
-					Type:   spec.Type.String(),
-					Params: params,
-					Owner:  owner,
-				}
-			}
-		} else {
-			if _, ok := ks.Vindexes[name]; !ok {
-				return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vindex %s does not exist in keyspace %s", name, destKeyspace)
-			}
-		}
-
-		// If this is the first vindex being defined on the table, create
-		// the empty table record
-		if table == nil {
-			table = &vschemapb.Table{
-				ColumnVindexes: make([]*vschemapb.ColumnVindex, 0, 4),
-			}
-		}
-
-		// Make sure there isn't already a vindex with the same name on
-		// this table.
-		for _, vindex := range table.ColumnVindexes {
-			if vindex.Name == name {
-				return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vindex %s already defined on table %s", name, tableName)
-			}
-		}
-
-		columns := make([]string, len(ddl.VindexCols), len(ddl.VindexCols))
-		for i, col := range ddl.VindexCols {
-			columns[i] = col.String()
-		}
-		table.ColumnVindexes = append(table.ColumnVindexes, &vschemapb.ColumnVindex{
-			Name:    name,
-			Columns: columns,
-		})
-		ks.Tables[tableName] = table
-
-		return e.vm.UpdateVSchema(ctx, destKeyspace, vschema)
-	case sqlparser.DropColVindexStr:
-		spec := ddl.VindexSpec
-		name := spec.Name.String()
-		if table == nil {
-			return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "table %s.%s not defined in vschema", ksName, tableName)
-		}
-
-		for i, colVindex := range table.ColumnVindexes {
-			if colVindex.Name == name {
-				table.ColumnVindexes = append(table.ColumnVindexes[:i], table.ColumnVindexes[i+1:]...)
-				if len(table.ColumnVindexes) == 0 {
-					delete(ks.Tables, tableName)
-				}
-				return e.vm.UpdateVSchema(ctx, destKeyspace, vschema)
-			}
-		}
-		return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vindex %s not defined in table %s.%s", name, ksName, tableName)
-	}
-
-	return vterrors.Errorf(vtrpcpb.Code_INTERNAL, "unexpected vindex ddl operation %s", ddl.Action)
+	return e.vm.UpdateVSchema(ctx, ksName, vschema)
 }
 
 func (e *Executor) handleBegin(ctx context.Context, safeSession *SafeSession, sql string, bindVars map[string]*querypb.BindVariable, destTabletType topodatapb.TabletType, logStats *LogStats) (*sqltypes.Result, error) {
@@ -725,7 +621,7 @@ func (e *Executor) handleSet(ctx context.Context, safeSession *SafeSession, sql 
 			if !ok {
 				return nil, vterrors.Errorf(vtrpcpb.Code_INVALID_ARGUMENT, "unexpected value type for wait_timeout: %T", v)
 			}
-		case "net_write_timeout", "net_read_timeout", "lc_messages", "collation_connection":
+		case "sql_mode", "net_write_timeout", "net_read_timeout", "lc_messages", "collation_connection":
 			log.Warningf("Ignored inapplicable SET %v = %v", k, v)
 			warnings.Add("IgnoredSet", 1)
 		case "charset", "names":
@@ -791,12 +687,95 @@ func (e *Executor) handleShow(ctx context.Context, safeSession *SafeSession, sql
 			}
 			return e.handleOther(ctx, safeSession, sql, bindVars, dest, keyspaces[0], destTabletType, logStats)
 		}
+	// for STATUS, return empty result set
+	case sqlparser.KeywordString(sqlparser.STATUS):
+		return &sqltypes.Result{
+			Fields:       buildVarCharFields("Variable_name", "Value"),
+			Rows:         make([][]sqltypes.Value, 0, 2),
+			RowsAffected: 0,
+		}, nil
+	// for ENGINES, we want to return just InnoDB
+	case sqlparser.KeywordString(sqlparser.ENGINES):
+		rows := make([][]sqltypes.Value, 0, 6)
+		row := buildVarCharRow(
+			"InnoDB",
+			"DEFAULT",
+			"Supports transactions, row-level locking, and foreign keys",
+			"YES",
+			"YES",
+			"YES")
+		rows = append(rows, row)
+		return &sqltypes.Result{
+			Fields:       buildVarCharFields("Engine", "Support", "Comment", "Transactions", "XA", "Savepoints"),
+			Rows:         rows,
+			RowsAffected: 1,
+		}, nil
+	// for PLUGINS, return InnoDb + mysql_native_password
+	case sqlparser.KeywordString(sqlparser.PLUGINS):
+		rows := make([][]sqltypes.Value, 0, 5)
+		row := buildVarCharRow(
+			"InnoDB",
+			"ACTIVE",
+			"STORAGE ENGINE",
+			"NULL",
+			"GPL")
+		rows = append(rows, row)
+		return &sqltypes.Result{
+			Fields:       buildVarCharFields("Name", "Status", "Type", "Library", "License"),
+			Rows:         rows,
+			RowsAffected: 1,
+		}, nil
+	// CHARSET & CHARACTER SET return utf8mb4 & utf8
+	case sqlparser.KeywordString(sqlparser.CHARSET):
+		fields := buildVarCharFields("Charset", "Description", "Default collation")
+		maxLenField := &querypb.Field{Name: "Maxlen", Type: sqltypes.Int32}
+		fields = append(fields, maxLenField)
+		rows := make([][]sqltypes.Value, 0, 4)
+		row0 := buildVarCharRow(
+			"utf8",
+			"UTF-8 Unicode",
+			"utf8_general_ci")
+		row0 = append(row0, sqltypes.NewInt32(3))
+		row1 := buildVarCharRow(
+			"utf8mb4",
+			"UTF-8 Unicode",
+			"utf8mb4_general_ci")
+		row1 = append(row1, sqltypes.NewInt32(4))
+		rows = append(rows, row0, row1)
+		return &sqltypes.Result{
+			Fields:       fields,
+			Rows:         rows,
+			RowsAffected: 2,
+		}, nil
+	case "create table":
+		if destKeyspace == "" && show.HasTable() {
+			// For "show create table", if there isn't a targeted keyspace already
+			// we can either get a keyspace from the statement or potentially from
+			// the vschema.
+
+			if !show.Table.Qualifier.IsEmpty() {
+				// Explicit keyspace was passed. Use that for targeting but remove from the query itself.
+				destKeyspace = show.Table.Qualifier.String()
+				show.Table.Qualifier = sqlparser.NewTableIdent("")
+				sql = sqlparser.String(show)
+			} else {
+				// No keyspace was indicated. Try to find one using the vschema.
+				tbl, err := e.VSchema().FindTable("", show.Table.Name.String())
+				if err == nil {
+					destKeyspace = tbl.Keyspace.Name
+				}
+			}
+		}
 	case sqlparser.KeywordString(sqlparser.TABLES):
 		if show.ShowTablesOpt != nil && show.ShowTablesOpt.DbName != "" {
+			if destKeyspace == "" {
+				// Change "show tables from <keyspace>" to "show tables" directed to that keyspace.
+				destKeyspace = show.ShowTablesOpt.DbName
+			}
 			show.ShowTablesOpt.DbName = ""
 		}
 		sql = sqlparser.String(show)
-	case sqlparser.KeywordString(sqlparser.DATABASES), sqlparser.KeywordString(sqlparser.VITESS_KEYSPACES):
+	case sqlparser.KeywordString(sqlparser.DATABASES), sqlparser.KeywordString(sqlparser.SCHEMAS), sqlparser.KeywordString(sqlparser.VITESS_KEYSPACES):
 		keyspaces, err := e.resolver.resolver.GetAllKeyspaces(ctx)
 		if err != nil {
 			return nil, err
@@ -870,7 +849,7 @@ func (e *Executor) handleShow(ctx context.Context, safeSession *SafeSession, sql
 			Rows:         rows,
 			RowsAffected: uint64(len(rows)),
 		}, nil
-	case sqlparser.KeywordString(sqlparser.VSCHEMA_TABLES):
+	case "vschema tables":
 		if destKeyspace == "" {
 			return nil, errNoKeyspace
 		}
@@ -895,7 +874,7 @@ func (e *Executor) handleShow(ctx context.Context, safeSession *SafeSession, sql
 			Rows:         rows,
 			RowsAffected: uint64(len(rows)),
 		}, nil
-	case sqlparser.KeywordString(sqlparser.VINDEXES):
+	case "vschema vindexes":
 		vschema := e.vm.GetCurrentSrvVschema()
 		if vschema == nil {
 			return nil, vterrors.Errorf(vtrpcpb.Code_INTERNAL, "vschema not loaded")
@@ -957,7 +936,7 @@ func (e *Executor) handleShow(ctx context.Context, safeSession *SafeSession, sql
 		}
 		sort.Strings(ksNames)
 		for _, ksName := range ksNames {
-			ks, _ := vschema.Keyspaces[ksName]
+			ks := vschema.Keyspaces[ksName]
 
 			vindexNames := make([]string, 0, len(ks.Vindexes))
 			for name := range ks.Vindexes {
@@ -965,7 +944,7 @@ func (e *Executor) handleShow(ctx context.Context, safeSession *SafeSession, sql
 			}
 			sort.Strings(vindexNames)
 			for _, vindexName := range vindexNames {
-				vindex, _ := ks.Vindexes[vindexName]
+				vindex := ks.Vindexes[vindexName]
 
 				params := make([]string, 0, 4)
 				for k, v := range vindex.GetParams() {
@@ -986,7 +965,7 @@ func (e *Executor) handleShow(ctx context.Context, safeSession *SafeSession, sql
 			{Name: "Type", Type: sqltypes.Uint16},
 			{Name: "Message", Type: sqltypes.VarChar},
 		}
-		rows := make([][]sqltypes.Value, 0, 0)
+		rows := make([][]sqltypes.Value, 0)
 
 		if safeSession.Warnings != nil {
 			for _, warning := range safeSession.Warnings {
@@ -1066,7 +1045,7 @@ func (e *Executor) handleOther(ctx context.Context, safeSession *SafeSession, sq
 }
 
 func (e *Executor) handleComment(sql string) (*sqltypes.Result, error) {
-	_, sql = sqlparser.ExtractMysqlComment(sql)
+	_, _ = sqlparser.ExtractMysqlComment(sql)
 	// Not sure if this is a good idea.
 	return &sqltypes.Result{}, nil
 }
@@ -1419,7 +1398,12 @@ func (e *Executor) VSchemaStats() *VSchemaStats {
 func buildVarCharFields(names ...string) []*querypb.Field {
 	fields := make([]*querypb.Field, len(names))
 	for i, v := range names {
-		fields[i] = &querypb.Field{Name: v, Type: sqltypes.VarChar}
+		fields[i] = &querypb.Field{
+			Name:    v,
+			Type:    sqltypes.VarChar,
+			Charset: mysql.CharacterSetUtf8,
+			Flags:   uint32(querypb.MySqlFlag_NOT_NULL_FLAG),
+		}
 	}
 	return fields
 }

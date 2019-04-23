@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
-
 	"gopkg.in/src-d/go-vitess.v1/mysql"
 	"gopkg.in/src-d/go-vitess.v1/mysql/fakesqldb"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
@@ -213,7 +212,7 @@ func (tc *splitCloneTestCase) setUpWithConcurrency(v3 bool, concurrency, writeQu
 			},
 		}
 		sourceRdonly.FakeMysqlDaemon.CurrentMasterPosition = mysql.Position{
-			GTIDSet: mysql.MariadbGTID{Domain: 12, Server: 34, Sequence: 5678},
+			GTIDSet: mysql.MariadbGTIDSet{mysql.MariadbGTID{Domain: 12, Server: 34, Sequence: 5678}},
 		}
 		sourceRdonly.FakeMysqlDaemon.ExpectedExecuteSuperQueryList = []string{
 			"STOP SLAVE",
@@ -291,6 +290,11 @@ func (tc *splitCloneTestCase) tearDown() {
 
 	for _, ft := range tc.tablets {
 		ft.StopActionLoop(tc.t)
+		ft.RPCServer.Stop()
+		ft.FakeMysqlDaemon.Close()
+		ft.Agent = nil
+		ft.RPCServer = nil
+		ft.FakeMysqlDaemon = nil
 	}
 	tc.leftMasterFakeDb.VerifyAllExecutedOrFail()
 	tc.leftReplicaFakeDb.VerifyAllExecutedOrFail()
@@ -330,8 +334,8 @@ func newTestQueryService(t *testing.T, target querypb.Target, shqs *fakes.Stream
 		fields = v3Fields
 	}
 	return &testQueryService{
-		t:      t,
-		target: target,
+		t:                        t,
+		target:                   target,
 		StreamHealthQueryService: shqs,
 		shardIndex:               shardIndex,
 		shardCount:               shardCount,
@@ -342,7 +346,7 @@ func newTestQueryService(t *testing.T, target querypb.Target, shqs *fakes.Stream
 	}
 }
 
-func (sq *testQueryService) StreamExecute(ctx context.Context, target *querypb.Target, sql string, bindVariables map[string]*querypb.BindVariable, options *querypb.ExecuteOptions, callback func(reply *sqltypes.Result) error) error {
+func (sq *testQueryService) StreamExecute(ctx context.Context, target *querypb.Target, sql string, bindVariables map[string]*querypb.BindVariable, transactionID int64, options *querypb.ExecuteOptions, callback func(reply *sqltypes.Result) error) error {
 	// Custom parsing of the query we expect.
 	// Example: SELECT `id`, `msg`, `keyspace_id` FROM table1 WHERE id>=180 AND id<190 ORDER BY id
 	min := math.MinInt32
@@ -522,7 +526,7 @@ func TestSplitCloneV2_Offline(t *testing.T) {
 
 	// Run the vtworker command.
 	if err := runCommand(t, tc.wi, tc.wi.wr, tc.defaultWorkerArgs); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%+v", err)
 	}
 }
 
@@ -1033,7 +1037,7 @@ func TestSplitCloneV2_NoMasterAvailable(t *testing.T) {
 
 			select {
 			case <-ctx.Done():
-				t.Fatalf("timed out waiting for vtworker to retry due to NoMasterAvailable: %v", ctx.Err())
+				panic(fmt.Errorf("timed out waiting for vtworker to retry due to NoMasterAvailable: %v", ctx.Err()))
 			case <-time.After(10 * time.Millisecond):
 				// Poll constantly.
 			}

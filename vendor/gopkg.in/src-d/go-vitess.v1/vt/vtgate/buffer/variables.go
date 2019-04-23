@@ -16,7 +16,9 @@ limitations under the License.
 
 package buffer
 
-import "gopkg.in/src-d/go-vitess.v1/stats"
+import (
+	"gopkg.in/src-d/go-vitess.v1/stats"
+)
 
 // This file contains all status variables which can be used to monitor the
 // buffer.

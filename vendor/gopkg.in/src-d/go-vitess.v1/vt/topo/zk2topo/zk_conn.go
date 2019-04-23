@@ -31,7 +31,6 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 	"golang.org/x/net/context"
 
-	"gopkg.in/src-d/go-vitess.v1/netutil"
 	"gopkg.in/src-d/go-vitess.v1/sync2"
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 )
@@ -58,6 +57,7 @@ var (
 	certPath = flag.String("topo_zk_tls_cert", "", "the cert to use to connect to the zk topo server, requires topo_zk_tls_key, enables TLS")
 	keyPath  = flag.String("topo_zk_tls_key", "", "the key to use to connect to the zk topo server, enables TLS")
 	caPath   = flag.String("topo_zk_tls_ca", "", "the server ca to use to validate servers when connecting to the zk topo server")
+	authFile = flag.String("topo_zk_auth_file", "", "auth to use when connecting to the zk topo server, file contents should be <scheme>:<auth>, e.g., digest:user:pass")
 )
 
 // Time returns a time.Time from a ZK int64 milliseconds since Epoch time.
@@ -196,6 +196,14 @@ func (c *ZkConn) SetACL(ctx context.Context, path string, aclv []zk.ACL, version
 	})
 }
 
+// AddAuth is part of the Conn interface.
+func (c *ZkConn) AddAuth(ctx context.Context, scheme string, auth []byte) error {
+	return c.withRetry(ctx, func(conn *zk.Conn) error {
+		err := conn.AddAuth(scheme, auth)
+		return err
+	})
+}
+
 // Close is part of the Conn interface.
 func (c *ZkConn) Close() error {
 	c.mu.Lock()
@@ -272,8 +280,32 @@ func (c *ZkConn) getConn(ctx context.Context) (*zk.Conn, error) {
 		}
 		c.conn = conn
 		go c.handleSessionEvents(conn, events)
+		c.maybeAddAuth(ctx)
 	}
 	return c.conn, nil
+}
+
+// maybeAddAuth calls AddAuth if the `-topo_zk_auth_file` flag was specified
+func (c *ZkConn) maybeAddAuth(ctx context.Context) {
+	if *authFile == "" {
+		return
+	}
+	authInfoBytes, err := ioutil.ReadFile(*authFile)
+	if err != nil {
+		log.Errorf("failed to read topo_zk_auth_file: %v", err)
+		return
+	}
+	authInfo := string(authInfoBytes)
+	authInfoParts := strings.SplitN(authInfo, ":", 2)
+	if len(authInfoParts) != 2 {
+		log.Errorf("failed to parse topo_zk_auth_file contents, expected format <scheme>:<auth> but saw: %s", authInfo)
+		return
+	}
+	err = c.conn.AddAuth(authInfoParts[0], []byte(authInfoParts[1]))
+	if err != nil {
+		log.Errorf("failed to add auth from topo_zk_auth_file: %v", err)
+		return
+	}
 }
 
 // handleSessionEvents is processing events from the session channel.
@@ -307,11 +339,7 @@ func (c *ZkConn) handleSessionEvents(conn *zk.Conn, session <-chan zk.Event) {
 
 // dialZk dials the server, and waits until connection.
 func dialZk(ctx context.Context, addr string) (*zk.Conn, <-chan zk.Event, error) {
-	servers, err := resolveZkAddr(addr)
-	if err != nil {
-		return nil, nil, err
-	}
-
+	servers := strings.Split(addr, ",")
 	options := zk.WithDialer(net.DialTimeout)
 	// If TLS is enabled use a TLS enabled dialer option
 	if *certPath != "" && *keyPath != "" {
@@ -375,27 +403,4 @@ func dialZk(ctx context.Context, addr string) (*zk.Conn, <-chan zk.Event, error)
 			}
 		}
 	}
-}
-
-// resolveZkAddr takes a comma-separated list of host:port addresses,
-// and resolves the host to replace it with the IP address.
-// If a resolution fails, the host is skipped.
-// If no host can be resolved, an error is returned.
-// This is different from the Zookeeper library, that insists on resolving
-// *all* hosts successfully before it starts.
-func resolveZkAddr(zkAddr string) ([]string, error) {
-	parts := strings.Split(zkAddr, ",")
-	resolved := make([]string, 0, len(parts))
-	for _, part := range parts {
-		// The Zookeeper client cannot handle IPv6 addresses before version 3.4.x.
-		if r, err := netutil.ResolveIPv4Addrs(part); err != nil {
-			log.Warningf("cannot resolve %v, will not use it: %v", part, err)
-		} else {
-			resolved = append(resolved, r...)
-		}
-	}
-	if len(resolved) == 0 {
-		return nil, fmt.Errorf("no valid address found in %v", zkAddr)
-	}
-	return resolved, nil
 }

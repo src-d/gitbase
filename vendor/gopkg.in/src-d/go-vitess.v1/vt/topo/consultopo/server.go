@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/consul/api"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
@@ -66,12 +67,12 @@ func getClientCreds() (creds map[string]*ClientAuthCred, err error) {
 
 	data, err := ioutil.ReadFile(*consulAuthClientStaticFile)
 	if err != nil {
-		err = fmt.Errorf("Failed to read consul_auth_static_file file: %v", err)
+		err = vterrors.Wrapf(err, "Failed to read consul_auth_static_file file")
 		return creds, err
 	}
 
 	if err := json.Unmarshal(data, &creds); err != nil {
-		err = fmt.Errorf(fmt.Sprintf("Error parsing consul_auth_static_file: %v", err))
+		err = vterrors.Wrapf(err, fmt.Sprintf("Error parsing consul_auth_static_file"))
 		return creds, err
 	}
 	return creds, nil

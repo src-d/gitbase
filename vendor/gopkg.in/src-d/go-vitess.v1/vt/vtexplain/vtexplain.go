@@ -24,6 +24,7 @@ import (
 	"flag"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/src-d/go-vitess.v1/jsonutil"
@@ -102,7 +103,7 @@ func (tq *TabletQuery) MarshalJSON() ([]byte, error) {
 	// Convert Bindvars to strings for nicer output
 	bindVars := make(map[string]string)
 	for k, v := range tq.BindVars {
-		var b bytes.Buffer
+		var b strings.Builder
 		sqlparser.EncodeValue(&b, v)
 		bindVars[k] = b.String()
 	}
@@ -173,6 +174,9 @@ func Init(vSchemaStr, sqlSchema string, opts *Options) error {
 func Stop() {
 	// Cleanup all created fake dbs.
 	if explainTopo != nil {
+		for _, conn := range explainTopo.TabletConns {
+			conn.tsv.StopService()
+		}
 		for _, conn := range explainTopo.TabletConns {
 			conn.db.Close()
 		}
@@ -252,8 +256,11 @@ func Run(sql string) ([]*Explain, error) {
 		}
 
 		if sql != "" {
-			// Reset the global time simulator for each query
-			batchTime = sync2.NewBatcher(*batchInterval)
+			// Reset the global time simulator unless there's an open transaction
+			// in the session from the previous staement.
+			if vtgateSession == nil || vtgateSession.GetInTransaction() == false {
+				batchTime = sync2.NewBatcher(*batchInterval)
+			}
 			log.V(100).Infof("explain %s", sql)
 			e, err := explain(sql)
 			if err != nil {
@@ -324,7 +331,7 @@ func ExplainsAsText(explains []*Explain) string {
 		fmt.Fprintf(&b, "\n")
 	}
 	fmt.Fprintf(&b, "----------------------------------------------------------------------\n")
-	return string(b.Bytes())
+	return b.String()
 }
 
 // ExplainsAsJSON returns a json representation of the explains

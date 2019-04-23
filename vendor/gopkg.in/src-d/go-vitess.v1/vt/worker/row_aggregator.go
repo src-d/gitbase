@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/context"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 
 	"gopkg.in/src-d/go-vitess.v1/sqlescape"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
@@ -124,7 +125,7 @@ func (ra *RowAggregator) Flush() error {
 	select {
 	case ra.insertChannel <- ra.buffer.String():
 	case <-ra.ctx.Done():
-		return fmt.Errorf("failed to flush RowAggregator and send the query to a writer thread channel: %v", ra.ctx.Err())
+		return vterrors.Wrap(ra.ctx.Err(), "failed to flush RowAggregator and send the query to a writer thread channel")
 	}
 
 	// Update our statistics.

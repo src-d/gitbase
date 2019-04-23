@@ -236,17 +236,23 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:4609595bf31d5611bc5d85cc1a427c23f10ec45030ffd3bc65c78b6892da0e84"
+  digest = "1:32869b810fb239cdb13b21ef65eeda45220ec806f7544d12b0693a6921d1b0ec"
   name = "github.com/pilosa/pilosa"
   packages = [
     ".",
     "internal",
+    "logger",
     "lru",
     "pql",
     "roaring",
+    "shardwidth",
+    "stats",
+    "syswrap",
+    "tracing",
   ]
   pruneopts = ""
-  revision = "f62dbc00b96f596a1f2ef8b4e87ba8ec847eda37"
+  revision = "e0a9fd72b784fb105ba1d5abcb36bffe32cf2edc"
+  version = "v1.3.0"
 
 [[projects]]
   digest = "1:7365acd48986e205ccb8652cc746f09c8b7876030d53710ea6ef7d0bd0dcd7ca"
@@ -680,12 +686,13 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:dd08673c079d096ae0cd2169b8edf2d35866bb1a7b96a1d95cdd85d48873bbb7"
+  digest = "1:8bc8497f4285a51b44633be2eedf7805f75d2664886325edce86ff44021ad62b"
   name = "gopkg.in/src-d/go-mysql-server.v0"
   packages = [
     ".",
     "auth",
     "internal/regex",
+    "internal/similartext",
     "mem",
     "server",
     "sql",
@@ -699,7 +706,7 @@
     "sql/plan",
   ]
   pruneopts = "UT"
-  revision = "bb5fe96ff756e5b25ec53c68c92d92c108832a65"
+  revision = "cb312768e257cb41e669331551e29e8a081e85b5"
 
 [[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
@@ -710,7 +717,7 @@
   version = "v1.3.0"
 
 [[projects]]
-  digest = "1:645540beda67a91c7cc9a70a4b89b3c56dcd58687e4f7d8b61c5ece82008a624"
+  digest = "1:137f35cf7ab6d7c137562df8ee0ed6bd88a04474fc7e876e2bb656d619db89bc"
   name = "gopkg.in/src-d/go-vitess.v1"
   packages = [
     "bucketpool",
@@ -738,8 +745,8 @@
     "vt/vttls",
   ]
   pruneopts = ""
-  revision = "1e9f4dc23649eb12a326229787a0acd02fac8b50"
-  version = "v1.4.0"
+  revision = "cbf4bd2a094dd99c2adc1e5f52d9f526cda626df"
+  version = "v1.6.0"
 
 [[projects]]
   digest = "1:83aacdc3b7d95550b004ce34f9fe68dc50628aa3d2f4e99b5970876b8bb2b1f0"

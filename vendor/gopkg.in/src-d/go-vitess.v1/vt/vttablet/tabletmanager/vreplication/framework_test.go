@@ -18,56 +18,125 @@ package vreplication
 
 import (
 	"flag"
+	"fmt"
+	"os"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
 
+	"gopkg.in/src-d/go-vitess.v1/mysql"
+	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/vt/binlog/binlogplayer"
 	"gopkg.in/src-d/go-vitess.v1/vt/grpcclient"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
-	"gopkg.in/src-d/go-vitess.v1/vt/topo/memorytopo"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/queryservice"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/queryservice/fakes"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/tabletconn"
+	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/tabletserver/vstreamer"
+	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/tabletserver/vstreamer/testenv"
 
 	binlogdatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/binlogdata"
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
 	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
 )
 
-const (
-	testCell     = "cell"
-	testKeyspace = "ks"
-	testShard    = "0"
+var (
+	playerEngine    *Engine
+	streamerEngine  *vstreamer.Engine
+	env             *testenv.Env
+	globalFBC       = &fakeBinlogClient{}
+	vrepldb         = "vrepl"
+	globalDBQueries = make(chan string, 1000)
 )
 
-// This file provides support functions for tests.
-// It's capable of creating a single unsharded keyspace
-// and allows you to add various tablet types.
+func init() {
+	tabletconn.RegisterDialer("test", func(tablet *topodatapb.Tablet, failFast grpcclient.FailFast) (queryservice.QueryService, error) {
+		return &fakeTabletConn{
+			QueryService: fakes.ErrorQueryService,
+			tablet:       tablet,
+		}, nil
+	})
+	flag.Set("tablet_protocol", "test")
+
+	binlogplayer.RegisterClientFactory("test", func() binlogplayer.Client { return globalFBC })
+	flag.Set("binlog_player_protocol", "test")
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse() // Do not remove this comment, import into google3 depends on it
+
+	exitCode := func() int {
+		var err error
+		env, err = testenv.Init()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v", err)
+			return 1
+		}
+		defer env.Close()
+
+		// engines cannot be initialized in testenv because it introduces
+		// circular dependencies.
+		streamerEngine = vstreamer.NewEngine(env.SrvTopo, env.SchemaEngine)
+		streamerEngine.InitDBConfig(env.Dbcfgs)
+		streamerEngine.Open(env.KeyspaceName, env.Cells[0])
+		defer streamerEngine.Close()
+
+		if err := env.Mysqld.ExecuteSuperQuery(context.Background(), fmt.Sprintf("create database %s", vrepldb)); err != nil {
+			fmt.Fprintf(os.Stderr, "%v", err)
+			return 1
+		}
+
+		if err := env.Mysqld.ExecuteSuperQuery(context.Background(), "set @@global.innodb_lock_wait_timeout=1"); err != nil {
+			fmt.Fprintf(os.Stderr, "%v", err)
+			return 1
+		}
+
+		playerEngine = NewEngine(env.TopoServ, env.Cells[0], env.Mysqld, realDBClientFactory, vrepldb)
+		if err := playerEngine.Open(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "%v", err)
+			return 1
+		}
+		defer playerEngine.Close()
+
+		if err := env.Mysqld.ExecuteSuperQueryList(context.Background(), binlogplayer.CreateVReplicationTable()); err != nil {
+			fmt.Fprintf(os.Stderr, "%v", err)
+			return 1
+		}
+
+		if err := env.Mysqld.ExecuteSuperQueryList(context.Background(), CreateCopyState); err != nil {
+			fmt.Fprintf(os.Stderr, "%v", err)
+			return 1
+		}
+
+		return m.Run()
+	}()
+	os.Exit(exitCode)
+}
+
+func resetBinlogClient() {
+	globalFBC = &fakeBinlogClient{}
+}
 
 //--------------------------------------
 // Topos and tablets
 
-func createTopo() *topo.Server {
-	ts := memorytopo.NewServer(testCell)
-	ctx := context.Background()
-	if err := ts.CreateKeyspace(ctx, testKeyspace, &topodatapb.Keyspace{}); err != nil {
-		panic(err)
-	}
-	if err := ts.CreateShard(ctx, testKeyspace, testShard); err != nil {
-		panic(err)
-	}
-	return ts
-}
-
-func addTablet(ts *topo.Server, id int, shard string, tabletType topodatapb.TabletType, serving, healthy bool) *topodatapb.Tablet {
+func addTablet(id int, shard string, tabletType topodatapb.TabletType, serving, healthy bool) *topodatapb.Tablet {
 	t := newTablet(id, shard, tabletType, serving, healthy)
-	if err := ts.CreateTablet(context.Background(), t); err != nil {
+	if err := env.TopoServ.CreateTablet(context.Background(), t); err != nil {
 		panic(err)
 	}
 	return t
+}
+
+func deleteTablet(t *topodatapb.Tablet) {
+	env.TopoServ.DeleteTablet(context.Background(), t.Alias)
+	// This is not automatically removed from shard replication, which results in log spam.
+	topo.DeleteTabletReplicationData(context.Background(), env.TopoServ, t)
 }
 
 func newTablet(id int, shard string, tabletType topodatapb.TabletType, serving, healthy bool) *topodatapb.Tablet {
@@ -85,11 +154,11 @@ func newTablet(id int, shard string, tabletType topodatapb.TabletType, serving, 
 	}
 	return &topodatapb.Tablet{
 		Alias: &topodatapb.TabletAlias{
-			Cell: testCell,
+			Cell: env.Cells[0],
 			Uid:  uint32(id),
 		},
-		Keyspace: testKeyspace,
-		Shard:    testShard,
+		Keyspace: env.KeyspaceName,
+		Shard:    env.ShardName,
 		KeyRange: kr,
 		Type:     tabletType,
 		Tags: map[string]string{
@@ -132,6 +201,30 @@ func (ftc *fakeTabletConn) StreamHealth(ctx context.Context, callback func(*quer
 	return nil
 }
 
+// VStream directly calls into the pre-initialized engine.
+func (ftc *fakeTabletConn) VStream(ctx context.Context, target *querypb.Target, startPos string, filter *binlogdatapb.Filter, send func([]*binlogdatapb.VEvent) error) error {
+	return streamerEngine.Stream(ctx, startPos, filter, send)
+}
+
+// streamRowsHook allows you to do work just before VStreamRows is dispatched.
+var streamRowsHook func(ctx context.Context)
+
+// VStreamRows directly calls into the pre-initialized engine.
+func (ftc *fakeTabletConn) VStreamRows(ctx context.Context, target *querypb.Target, query string, lastpk *querypb.QueryResult, send func(*binlogdatapb.VStreamRowsResponse) error) error {
+	if streamRowsHook != nil {
+		streamRowsHook(ctx)
+	}
+	var row []sqltypes.Value
+	if lastpk != nil {
+		r := sqltypes.Proto3ToResult(lastpk)
+		if len(r.Rows) != 1 {
+			return fmt.Errorf("unexpected lastpk input: %v", lastpk)
+		}
+		row = r.Rows[0]
+	}
+	return streamerEngine.StreamRows(ctx, query, row, send)
+}
+
 //--------------------------------------
 // Binlog Client to TabletManager
 
@@ -143,11 +236,6 @@ type fakeBinlogClient struct {
 	lastTables   []string
 	lastKeyRange *topodatapb.KeyRange
 	lastCharset  *binlogdatapb.Charset
-}
-
-func newFakeBinlogClient() *fakeBinlogClient {
-	globalFBC = &fakeBinlogClient{}
-	return globalFBC
 }
 
 func (fbc *fakeBinlogClient) Dial(tablet *topodatapb.Tablet) error {
@@ -198,37 +286,192 @@ func (t *btStream) Recv() (*binlogdatapb.BinlogTransaction, error) {
 	return nil, t.ctx.Err()
 }
 
-func expectFBCRequest(t *testing.T, fbc *fakeBinlogClient, tablet *topodatapb.Tablet, pos string, tables []string, kr *topodatapb.KeyRange) {
+func expectFBCRequest(t *testing.T, tablet *topodatapb.Tablet, pos string, tables []string, kr *topodatapb.KeyRange) {
 	t.Helper()
-	if !proto.Equal(tablet, fbc.lastTablet) {
-		t.Errorf("Request tablet: %v, want %v", fbc.lastTablet, tablet)
+	if !proto.Equal(tablet, globalFBC.lastTablet) {
+		t.Errorf("Request tablet: %v, want %v", globalFBC.lastTablet, tablet)
 	}
-	if pos != fbc.lastPos {
-		t.Errorf("Request pos: %v, want %v", fbc.lastPos, pos)
+	if pos != globalFBC.lastPos {
+		t.Errorf("Request pos: %v, want %v", globalFBC.lastPos, pos)
 	}
-	if !reflect.DeepEqual(tables, fbc.lastTables) {
-		t.Errorf("Request tables: %v, want %v", fbc.lastTables, tables)
+	if !reflect.DeepEqual(tables, globalFBC.lastTables) {
+		t.Errorf("Request tables: %v, want %v", globalFBC.lastTables, tables)
 	}
-	if !proto.Equal(kr, fbc.lastKeyRange) {
-		t.Errorf("Request KeyRange: %v, want %v", fbc.lastKeyRange, kr)
+	if !proto.Equal(kr, globalFBC.lastKeyRange) {
+		t.Errorf("Request KeyRange: %v, want %v", globalFBC.lastKeyRange, kr)
 	}
 }
 
 //--------------------------------------
-// init
+// DBCLient wrapper
 
-// globalFBC is set by newFakeBinlogClient, which is then returned by the client factory below.
-var globalFBC *fakeBinlogClient
+func realDBClientFactory() binlogplayer.DBClient {
+	return &realDBClient{}
+}
 
-func init() {
-	tabletconn.RegisterDialer("test", func(tablet *topodatapb.Tablet, failFast grpcclient.FailFast) (queryservice.QueryService, error) {
-		return &fakeTabletConn{
-			QueryService: fakes.ErrorQueryService,
-			tablet:       tablet,
-		}, nil
-	})
-	flag.Set("tablet_protocol", "test")
+type realDBClient struct {
+	conn  *mysql.Conn
+	nolog bool
+}
 
-	binlogplayer.RegisterClientFactory("test", func() binlogplayer.Client { return globalFBC })
-	flag.Set("binlog_player_protocol", "test")
+func (dbc *realDBClient) DBName() string {
+	return vrepldb
+}
+
+func (dbc *realDBClient) Connect() error {
+	app := env.Dbcfgs.AppWithDB()
+	app.DbName = vrepldb
+	conn, err := mysql.Connect(context.Background(), app)
+	if err != nil {
+		return err
+	}
+	dbc.conn = conn
+	return nil
+}
+
+func (dbc *realDBClient) Begin() error {
+	_, err := dbc.ExecuteFetch("begin", 10000)
+	return err
+}
+
+func (dbc *realDBClient) Commit() error {
+	_, err := dbc.ExecuteFetch("commit", 10000)
+	return err
+}
+
+func (dbc *realDBClient) Rollback() error {
+	_, err := dbc.ExecuteFetch("rollback", 10000)
+	return err
+}
+
+func (dbc *realDBClient) Close() {
+	dbc.conn.Close()
+	dbc.conn = nil
+}
+
+func (dbc *realDBClient) ExecuteFetch(query string, maxrows int) (*sqltypes.Result, error) {
+	if strings.HasPrefix(query, "use") {
+		return nil, nil
+	}
+	qr, err := dbc.conn.ExecuteFetch(query, 10000, true)
+	if !strings.HasPrefix(query, "select") && !strings.HasPrefix(query, "set") && !dbc.nolog {
+		globalDBQueries <- query
+	}
+	return qr, err
+}
+
+func expectDBClientQueries(t *testing.T, queries []string) {
+	t.Helper()
+	failed := false
+	for i, query := range queries {
+		if failed {
+			t.Errorf("no query received, expecting %s", query)
+			continue
+		}
+		var got string
+		select {
+		case got = <-globalDBQueries:
+			var match bool
+			if query[0] == '/' {
+				result, err := regexp.MatchString(query[1:], got)
+				if err != nil {
+					panic(err)
+				}
+				match = result
+			} else {
+				match = (got == query)
+			}
+			if !match {
+				t.Errorf("query:\n%q, does not match query %d:\n%q", got, i, query)
+			}
+		case <-time.After(5 * time.Second):
+			t.Errorf("no query received, expecting %s", query)
+			failed = true
+		}
+	}
+	for {
+		select {
+		case got := <-globalDBQueries:
+			t.Errorf("unexpected query: %s", got)
+		default:
+			return
+		}
+	}
+}
+
+// expectNontxQueries disregards transactional statements like begin and commit.
+// It also disregards updates to _vt.vreplication.
+func expectNontxQueries(t *testing.T, queries []string) {
+	t.Helper()
+	failed := false
+	for i, query := range queries {
+		if failed {
+			t.Errorf("no query received, expecting %s", query)
+			continue
+		}
+		var got string
+	retry:
+		select {
+		case got = <-globalDBQueries:
+			if got == "begin" || got == "commit" || strings.Contains(got, "_vt.vreplication") {
+				goto retry
+			}
+			var match bool
+			if query[0] == '/' {
+				result, err := regexp.MatchString(query[1:], got)
+				if err != nil {
+					panic(err)
+				}
+				match = result
+			} else {
+				match = (got == query)
+			}
+			if !match {
+				t.Errorf("query:\n%q, does not match query %d:\n%q", got, i, query)
+			}
+		case <-time.After(5 * time.Second):
+			t.Errorf("no query received, expecting %s", query)
+			failed = true
+		}
+	}
+	for {
+		select {
+		case got := <-globalDBQueries:
+			if got == "begin" || got == "commit" || got == "rollback" || strings.Contains(got, "_vt.vreplication") {
+				continue
+			}
+			t.Errorf("unexpected query: %s", got)
+		default:
+			return
+		}
+	}
+}
+
+func expectData(t *testing.T, table string, values [][]string) {
+	t.Helper()
+
+	var query string
+	if len(strings.Split(table, ".")) == 1 {
+		query = fmt.Sprintf("select * from %s.%s", vrepldb, table)
+	} else {
+		query = fmt.Sprintf("select * from %s", table)
+	}
+	qr, err := env.Mysqld.FetchSuperQuery(context.Background(), query)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if len(values) != len(qr.Rows) {
+		t.Fatalf("row counts don't match: %v, want %v", qr.Rows, values)
+	}
+	for i, row := range values {
+		if len(row) != len(qr.Rows[i]) {
+			t.Fatalf("Too few columns, result: %v, row: %d, want: %v", qr.Rows[i], i, row)
+		}
+		for j, val := range row {
+			if got := qr.Rows[i][j].ToString(); got != val {
+				t.Errorf("Mismatch at (%d, %d): %v, want %s", i, j, qr.Rows[i][j], val)
+			}
+		}
+	}
 }

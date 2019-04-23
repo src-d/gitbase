@@ -17,6 +17,8 @@ limitations under the License.
 package worker
 
 import (
+	"context"
+
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
@@ -39,4 +41,5 @@ type ResultReader interface {
 	// It returns the next result on the stream.
 	// It will return io.EOF if the stream ended.
 	Next() (*sqltypes.Result, error)
+	Close(ctx context.Context)
 }

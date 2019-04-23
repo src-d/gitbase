@@ -150,11 +150,6 @@ func doTestMultiResult(t *testing.T, disableClientDeprecateEOF bool) {
 	expectNoError(t, err)
 	defer conn.Close()
 
-	connParams.DisableClientDeprecateEOF = false
-
-	expectFlag(t, "Negotiated ClientDeprecateEOF flag", (conn.Capabilities&mysql.CapabilityClientDeprecateEOF) != 0, !disableClientDeprecateEOF)
-	defer conn.Close()
-
 	qr, more, err := conn.ExecuteFetchMulti("select 1 from dual; set autocommit=1; select 1 from dual", 10, true)
 	expectNoError(t, err)
 	expectFlag(t, "ExecuteMultiFetch(multi result)", more, true)
@@ -225,7 +220,7 @@ func doTestMultiResult(t *testing.T, disableClientDeprecateEOF bool) {
 	expectFlag(t, "ReadQueryResult(2)", more, false)
 	expectRows(t, "ReadQueryResult(2)", qr, 1)
 
-	result, err = conn.ExecuteFetch("drop table a", 10, true)
+	_, err = conn.ExecuteFetch("drop table a", 10, true)
 	if err != nil {
 		t.Fatalf("drop table failed: %v", err)
 	}

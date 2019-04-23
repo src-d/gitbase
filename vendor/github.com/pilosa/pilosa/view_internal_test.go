@@ -17,11 +17,14 @@ package pilosa
 import (
 	"io/ioutil"
 	"testing"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // mustOpenView returns a new instance of View with a temporary path.
 func mustOpenView(index, field, name string) *view {
-	path, err := ioutil.TempDir("", "pilosa-view-")
+	path, err := ioutil.TempDir(*TempDir, "pilosa-view-")
 	if err != nil {
 		panic(err)
 	}
@@ -72,4 +75,43 @@ func TestView_DeleteFragment(t *testing.T) {
 	} else if fragment == fragment2 {
 		t.Fatal("failed to create new fragment")
 	}
+}
+
+// Ensure that simultaneous attempts to grab a new fragment don't clash even
+// if the broadcast operation takes a bit of time.
+func TestView_CreateFragmentRace(t *testing.T) {
+	var creates errgroup.Group
+	v := mustOpenView("i", "f", "v")
+	defer v.close()
+
+	// Use a broadcaster which intentionally fails.
+	v.broadcaster = delayBroadcaster{delay: 10 * time.Millisecond}
+
+	shard := uint64(0)
+
+	creates.Go(func() error {
+		_, err := v.CreateFragmentIfNotExists(shard)
+		return err
+	})
+	creates.Go(func() error {
+		_, err := v.CreateFragmentIfNotExists(shard)
+		return err
+	})
+	err := creates.Wait()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// delayBroadcaster is a nopBroadcaster with a configurable delay.
+type delayBroadcaster struct {
+	nopBroadcaster
+	delay time.Duration
+}
+
+// SendSync is an implementation of Broadcaster SendSync which delays for a
+// specified interval before succeeding.
+func (d delayBroadcaster) SendSync(Message) error {
+	time.Sleep(d.delay)
+	return nil
 }

@@ -22,15 +22,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	gohttp "net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	gohttp "net/http"
-
 	"github.com/pilosa/pilosa"
+	"github.com/pilosa/pilosa/encoding/proto"
 	"github.com/pilosa/pilosa/http"
 	"github.com/pilosa/pilosa/server"
 	"github.com/pilosa/pilosa/test"
@@ -56,8 +56,34 @@ func TestHandler_Endpoints(t *testing.T) {
 		h.ServeHTTP(w, test.MustNewHTTPRequest("GET", "/info", nil))
 		if w.Code != gohttp.StatusOK {
 			t.Fatalf("unexpected status code: %d", w.Code)
-		} else if body := w.Body.String(); body != fmt.Sprintf("{\"shardWidth\":%d}\n", pilosa.ShardWidth) {
-			t.Fatalf("unexpected body: %s", body)
+		}
+		var details map[string]interface{}
+		body := w.Body.Bytes()
+		err := json.Unmarshal(body, &details)
+		if err != nil {
+			t.Fatalf("error unmarshalling json body [%s]: %v", body, err)
+		}
+		sw := details["shardWidth"]
+		if sw == nil {
+			t.Fatalf("no shardWidth in json body [%s]", body)
+		}
+		var n float64
+		var ok bool
+		if n, ok = sw.(float64); !ok {
+			t.Fatalf("shardWidth not float64 (%T) in json body [%s]", sw, body)
+		}
+		if uint64(n) != pilosa.ShardWidth {
+			t.Fatalf("incorrect shard width: got %d, expected %d", uint64(n), pilosa.ShardWidth)
+		}
+		count := details["cpuPhysicalCores"]
+		if count == nil {
+			t.Fatalf("no cpuPhysicalCores in json body [%s]", body)
+		}
+		if n, ok = count.(float64); !ok {
+			t.Fatalf("cpuPhysicalCores not float64 (%T) in json body [%s]", count, body)
+		}
+		if int(n) == 0 {
+			t.Fatal("cpu count should not be 0")
 		}
 	})
 
@@ -82,18 +108,33 @@ func TestHandler_Endpoints(t *testing.T) {
 		h.ServeHTTP(w, test.MustNewHTTPRequest("GET", "/schema", nil))
 		if w.Code != gohttp.StatusOK {
 			t.Fatalf("unexpected status code: %d", w.Code)
-		} else if body := w.Body.String(); body != `{"indexes":[{"name":"i0","fields":[{"name":"f0"},{"name":"f1","views":[{"name":"standard"}]}]},{"name":"i1","fields":[{"name":"f0","views":[{"name":"standard"}]}]}]}`+"\n" {
-		} else if body := w.Body.String(); body != `{"indexes":[{"name":"i0","fields":[{"name":"f0","options":{"cacheType":"ranked","cacheSize":50000}},{"name":"f1","options":{"cacheType":"ranked","cacheSize":50000},"views":[{"name":"standard"}]}]},{"name":"i1","fields":[{"name":"f0","options":{"cacheType":"ranked","cacheSize":50000},"views":[{"name":"standard"}]}]}]}`+"\n" {
-			t.Fatalf("unexpected body: %s", body)
+		}
+		body := w.Body.String()
+		target := fmt.Sprintf(`{"indexes":[{"name":"i0","options":{"keys":false,"trackExistence":false},"fields":[{"name":"f0","options":{"type":"set","cacheType":"ranked","cacheSize":50000,"keys":false}},{"name":"f1","options":{"type":"set","cacheType":"ranked","cacheSize":50000,"keys":false}}],"shardWidth":%d},{"name":"i1","options":{"keys":false,"trackExistence":false},"fields":[{"name":"f0","options":{"type":"set","cacheType":"ranked","cacheSize":50000,"keys":false}}],"shardWidth":%[1]d}]}
+`, pilosa.ShardWidth)
+		if body != target {
+			t.Fatalf("%s != %s", target, body)
 		}
 	})
 
 	t.Run("ImportRoaring", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		roaringData, _ := hex.DecodeString("3B3001000100000900010000000100010009000100")
-		req := test.MustNewHTTPRequest("POST", "/index/i0/field/f1/import-roaring/0", bytes.NewBuffer(roaringData))
-		req.Header.Set("Content-Type", "application/x-binary")
-		h.ServeHTTP(w, req)
+		msg := pilosa.ImportRoaringRequest{
+			Clear: false,
+			Views: map[string][]byte{
+				"": roaringData,
+			},
+		}
+		ser := proto.Serializer{}
+		data, err := ser.Marshal(&msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		httpReq := test.MustNewHTTPRequest("POST", "/index/i0/field/f1/import-roaring/0", bytes.NewBuffer(data))
+		httpReq.Header.Set("Content-Type", "application/x-protobuf")
+		httpReq.Header.Set("Accept", "application/x-protobuf")
+		h.ServeHTTP(w, httpReq)
 		resp, err := cmd.API.Query(context.Background(), &pilosa.QueryRequest{Index: "i0", Query: "TopN(f1)"})
 		if err != nil {
 			t.Fatalf("querying: %v", err)
@@ -111,9 +152,21 @@ func TestHandler_Endpoints(t *testing.T) {
 		}
 		w := httptest.NewRecorder()
 		roaringData, _ := hex.DecodeString("3B3001000100000900010000000100010009000100")
-		req := test.MustNewHTTPRequest("POST", "/index/i0/field/int-field/import-roaring/0", bytes.NewBuffer(roaringData))
-		req.Header.Set("Content-Type", "application/x-binary")
-		h.ServeHTTP(w, req)
+		msg := pilosa.ImportRoaringRequest{
+			Clear: false,
+			Views: map[string][]byte{
+				"": roaringData,
+			},
+		}
+		ser := proto.Serializer{}
+		data, err := ser.Marshal(&msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		httpReq := test.MustNewHTTPRequest("POST", "/index/i0/field/int-field/import-roaring/0", bytes.NewBuffer(data))
+		httpReq.Header.Set("Content-Type", "application/x-protobuf")
+		httpReq.Header.Set("Accept", "application/x-protobuf")
+		h.ServeHTTP(w, httpReq)
 		if w.Code != gohttp.StatusBadRequest {
 			t.Fatalf("unexpected status code: %d", w.Code)
 		}
@@ -196,6 +249,8 @@ func TestHandler_Endpoints(t *testing.T) {
 			t.Fatalf("unexpected status code: %d", w.Code)
 		} else if body := w.Body.String(); body != `{"results":[2]}`+"\n" {
 			t.Fatalf("unexpected body: %q", body)
+		} else if w.Header().Get("Content-Type") != "application/json" {
+			t.Fatalf("unexpected header: %q", w.Header().Get("Content-Type"))
 		}
 
 	})
@@ -234,6 +289,8 @@ func TestHandler_Endpoints(t *testing.T) {
 			t.Fatal(err)
 		} else if rt, ok := resp.Results[0].(uint64); !ok || rt != 3 {
 			t.Fatalf("unexpected response type: %#v", resp.Results[0])
+		} else if w.Header().Get("Content-Type") != "application/protobuf" {
+			t.Fatalf("unexpected header: %q", w.Header().Get("Content-Type"))
 		}
 	})
 
@@ -242,7 +299,7 @@ func TestHandler_Endpoints(t *testing.T) {
 		h.ServeHTTP(w, test.MustNewHTTPRequest("POST", "/index/i0/query", strings.NewReader("Row(f0=30)")))
 		if w.Code != gohttp.StatusOK {
 			t.Fatalf("unexpected status code: %d", w.Code)
-		} else if body := w.Body.String(); body != `{"results":[{"attrs":{},"columns":[1048577,1048578,3145732]}]}`+"\n" {
+		} else if body := w.Body.String(); body != fmt.Sprintf(`{"results":[{"attrs":{},"columns":[%d,%d,%d]}]}`, pilosa.ShardWidth+1, pilosa.ShardWidth+2, 3*pilosa.ShardWidth+4)+"\n" {
 			t.Fatalf("unexpected body: %s", body)
 		}
 	})
@@ -259,10 +316,11 @@ func TestHandler_Endpoints(t *testing.T) {
 	t.Run("ColumnAttrs_JSON", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, test.MustNewHTTPRequest("POST", "/index/i0/query?columnAttrs=true", strings.NewReader("Row(f0=30)")))
+		exp := fmt.Sprintf(`{"results":[{"attrs":{"a":"b","c":1,"d":true},"columns":[%[1]d,%[2]d,%[3]d]}],"columnAttrs":[{"id":%[1]d,"attrs":{"x":"y"}},{"id":%[2]d,"attrs":{"y":123,"z":false}}]}`, pilosa.ShardWidth+1, pilosa.ShardWidth+2, 3*pilosa.ShardWidth+4) + "\n"
 		if w.Code != gohttp.StatusOK {
 			t.Fatalf("unexpected status code: %d. body: %s", w.Code, w.Body.String())
-		} else if body := w.Body.String(); body != `{"results":[{"attrs":{"a":"b","c":1,"d":true},"columns":[1048577,1048578,3145732]}],"columnAttrs":[{"id":1048577,"attrs":{"x":"y"}},{"id":1048578,"attrs":{"y":123,"z":false}}]}`+"\n" {
-			t.Fatalf("unexpected body: %s", body)
+		} else if body := w.Body.String(); body != exp {
+			t.Fatalf("unexpected body: \n%s\ngot:\n%s", body, exp)
 		}
 	})
 
@@ -390,6 +448,14 @@ func TestHandler_Endpoints(t *testing.T) {
 			t.Fatal(err)
 		} else if s := resp.Err.Error(); s != `executing: map reduce: field not found` {
 			t.Fatalf("unexpected error: %s", s)
+		}
+	})
+
+	t.Run("Query empty", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, test.MustNewHTTPRequest("POST", "/index/i0/query", strings.NewReader("")))
+		if body := w.Body.String(); body != `{"results":[]}`+"\n" {
+			t.Fatalf("unexpected body: %q", body)
 		}
 	})
 
@@ -624,9 +690,9 @@ func TestHandler_Endpoints(t *testing.T) {
 		r = test.MustNewHTTPRequest("POST", "/index/idx1", strings.NewReader(""))
 		h.ServeHTTP(w, r)
 		if w.Code != gohttp.StatusConflict {
-			t.Fatalf("unexpected status code: %d", w.Code)
-		} else if w.Body.String() != `{"success":false,"error":{"message":"index already exists"}}`+"\n" {
-			t.Fatalf("unexpected body: %q", w.Body.String())
+			t.Errorf("unexpected status code: %d", w.Code)
+		} else if w.Body.String() != `{"success":false,"error":{"message":"creating index: index already exists"}}`+"\n" {
+			t.Errorf("unexpected body: %q", w.Body.String())
 		}
 
 		// create field
@@ -644,9 +710,9 @@ func TestHandler_Endpoints(t *testing.T) {
 		r = test.MustNewHTTPRequest("POST", "/index/idx1/field/fld1", strings.NewReader(""))
 		h.ServeHTTP(w, r)
 		if w.Code != gohttp.StatusConflict {
-			t.Fatalf("unexpected status code: %d", w.Code)
-		} else if w.Body.String() != `{"success":false,"error":{"message":"field already exists"}}`+"\n" {
-			t.Fatalf("unexpected body: %q", w.Body.String())
+			t.Errorf("unexpected status code: %d", w.Code)
+		} else if w.Body.String() != `{"success":false,"error":{"message":"creating field: field already exists"}}`+"\n" {
+			t.Errorf("unexpected body: %q", w.Body.String())
 		}
 
 		// delete field
@@ -664,9 +730,9 @@ func TestHandler_Endpoints(t *testing.T) {
 		r = test.MustNewHTTPRequest("DELETE", "/index/idx1/field/fld1", strings.NewReader(""))
 		h.ServeHTTP(w, r)
 		if w.Code != gohttp.StatusNotFound {
-			t.Fatalf("unexpected status code: %d", w.Code)
-		} else if w.Body.String() != `{"success":false,"error":{"message":"field not found"}}`+"\n" {
-			t.Fatalf("unexpected body: %q", w.Body.String())
+			t.Errorf("unexpected status code: %d", w.Code)
+		} else if w.Body.String() != `{"success":false,"error":{"message":"deleting field: field not found"}}`+"\n" {
+			t.Errorf("unexpected body: %q", w.Body.String())
 		}
 
 		// delete index
@@ -684,9 +750,94 @@ func TestHandler_Endpoints(t *testing.T) {
 		r = test.MustNewHTTPRequest("DELETE", "/index/idx1", strings.NewReader(""))
 		h.ServeHTTP(w, r)
 		if w.Code != gohttp.StatusNotFound {
+			t.Errorf("unexpected status code: %d", w.Code)
+		} else if w.Body.String() != `{"success":false,"error":{"message":"deleting index: index not found"}}`+"\n" {
+			t.Errorf("unexpected body: %q", w.Body.String())
+		}
+	})
+
+	t.Run("translate keys", func(t *testing.T) {
+		// create index
+		w := httptest.NewRecorder()
+		r := test.MustNewHTTPRequest("POST", "/index/i1-tr", strings.NewReader(`{"options":{"keys":true}}`))
+		h.ServeHTTP(w, r)
+		if w.Code != gohttp.StatusOK {
 			t.Fatalf("unexpected status code: %d", w.Code)
-		} else if w.Body.String() != `{"success":false,"error":{"message":"index not found"}}`+"\n" {
+		} else if w.Body.String() != `{"success":true}`+"\n" {
 			t.Fatalf("unexpected body: %q", w.Body.String())
+		}
+
+		// create field
+		w = httptest.NewRecorder()
+		r = test.MustNewHTTPRequest("POST", "/index/i1-tr/field/f1", strings.NewReader(`{"options":{"keys":true}}`))
+		h.ServeHTTP(w, r)
+		if w.Code != gohttp.StatusOK {
+			t.Fatalf("unexpected status code: %d", w.Code)
+		} else if w.Body.String() != `{"success":true}`+"\n" {
+			t.Fatalf("unexpected body: %q", w.Body.String())
+		}
+
+		// set some bits
+		w = httptest.NewRecorder()
+		r = test.MustNewHTTPRequest("POST", "/index/i1-tr/query", strings.NewReader(`Set("col1", f1="row1")`))
+		h.ServeHTTP(w, r)
+		if w.Code != gohttp.StatusOK {
+			t.Fatalf("unexpected status code: %d", w.Code)
+		}
+
+		// Generate request body for translate column keys request
+		reqBody, err := cmd.API.Serializer.Marshal(&pilosa.TranslateKeysRequest{
+			Index: "i1-tr",
+			Keys:  []string{"col1", "col2", "col3"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Generate protobuf request.
+		w = httptest.NewRecorder()
+		r = test.MustNewHTTPRequest("POST", "/internal/translate/keys", bytes.NewReader(reqBody))
+		r.Header.Set("Content-Type", "application/x-protobuf")
+		r.Header.Set("Accept", "application/x-protobuf")
+		h.ServeHTTP(w, r)
+		if w.Code != gohttp.StatusOK {
+			t.Fatalf("unexpected status code: %d", w.Code)
+		}
+		target := []uint64{1, 2, 3}
+		resp := pilosa.TranslateKeysResponse{}
+		err = cmd.API.Serializer.Unmarshal(w.Body.Bytes(), &resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(target, resp.IDs) {
+			t.Fatalf("%v != %v", target, resp.IDs)
+		}
+
+		// Generate request body for translate row keys request
+		reqBody, err = cmd.API.Serializer.Marshal(&pilosa.TranslateKeysRequest{
+			Index: "i1-tr",
+			Field: "f1",
+			Keys:  []string{"row1", "row2"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Generate protobuf request.
+		w = httptest.NewRecorder()
+		r = test.MustNewHTTPRequest("POST", "/internal/translate/keys", bytes.NewReader(reqBody))
+		r.Header.Set("Content-Type", "application/x-protobuf")
+		r.Header.Set("Accept", "application/x-protobuf")
+		h.ServeHTTP(w, r)
+		if w.Code != gohttp.StatusOK {
+			t.Fatalf("unexpected status code: %d", w.Code)
+		}
+		target = []uint64{1, 2}
+		resp = pilosa.TranslateKeysResponse{}
+		err = cmd.API.Serializer.Unmarshal(w.Body.Bytes(), &resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(target, resp.IDs) {
+			t.Fatalf("%v != %v", target, resp.IDs)
 		}
 	})
 }
@@ -695,7 +846,10 @@ func TestClusterTranslator(t *testing.T) {
 	cluster := make(test.Cluster, 2)
 	cluster[0] = test.NewCommandNode(true)
 	cluster[0].Config.Gossip.Port = "0"
-	cluster[0].Start()
+	err := cluster[0].Start()
+	if err != nil {
+		t.Fatalf("starting cluster 1: %v", err)
+	}
 	httpTranslateStore := http.NewTranslateStore(cluster[0].URL())
 	cluster[1] = test.NewCommandNode(false,
 		server.OptCommandServerOptions(
@@ -704,7 +858,10 @@ func TestClusterTranslator(t *testing.T) {
 	)
 	cluster[1].Config.Gossip.Port = "0"
 	cluster[1].Config.Gossip.Seeds = []string{cluster[0].GossipAddress()}
-	cluster[1].Start()
+	err = cluster[1].Start()
+	if err != nil {
+		t.Fatalf("starting cluster 1: %v", err)
+	}
 
 	test.MustDo("POST", cluster[0].URL()+"/index/i0", "{\"options\": {\"keys\": true}}")
 	test.MustDo("POST", cluster[0].URL()+"/index/i0/field/f0", "{\"options\": {\"keys\": true}}")

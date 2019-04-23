@@ -2,48 +2,87 @@ version: 2
 defaults: &defaults
   working_directory: /go/src/github.com/pilosa/pilosa
   docker:
-    - image: circleci/golang:1.10
+    - image: circleci/golang:1.12
+  environment:
+    GO111MODULE: "on"
 fast-checkout: &fast-checkout
   attach_workspace:
     at: .
 jobs:
-  build:
+  setup:
     <<: *defaults
     steps:
       - checkout
       - restore_cache:
           keys:
-            - vendor-cache-{{ checksum "Gopkg.lock" }}
-      - run: "[ -d vendor ] || make vendor"
+            - mod-cache-{{ checksum "go.sum" }}
+      - run: "go mod download"
       - save_cache:
-          key: vendor-cache-{{ checksum "Gopkg.lock" }}
+          key: mod-cache-{{ checksum "go.sum" }}
           paths:
-            - vendor
+            - /go/pkg/mod/
       - persist_to_workspace:
           root: .
           paths: "*"
+  check-license-headers:
+    <<: *defaults
+    steps:
+      - *fast-checkout
+      - run: make check-license-headers
   linter:
     <<: *defaults
     steps:
       - *fast-checkout
-      - run: go get -u github.com/alecthomas/gometalinter
-      - run: gometalinter --install
-      - run: go get github.com/remyoudompheng/go-misc/deadcode
-      - run: make gometalinter
-  test-golang-1.10: &base-test
+      - run: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s v1.13.2
+      - run: sudo cp bin/golangci-lint /usr/local/bin/
+      - run: make golangci-lint
+  test-build-arm:
+    <<: *defaults
+    steps:
+      - *fast-checkout
+      - run: make build GOOS=linux GOARCH=arm GOARM=5
+      - run: make build GOOS=linux GOARCH=arm GOARM=6
+      - run: make build GOOS=linux GOARCH=arm GOARM=7
+      - run: make build GOOS=linux GOARCH=arm64
+  test-golang-1.12: &base-test
     <<: *defaults
     steps:
       - *fast-checkout
       - run: sudo apt-get install lsof
       - run: make test
-  test-golang-1.11-rc:
-    <<: *base-test
-    docker:
-      - image: circleci/golang:1.11-rc
-  test-golang-1.10-386:
+  test-golang-1.12-shard22: &base-test
+    <<: *defaults
+    steps:
+      - *fast-checkout
+      - run: sudo apt-get install lsof
+      - run: make test SHARD_WIDTH=22
+  test-golang-1.12-race:
+    <<: *defaults
+    steps:
+      - *fast-checkout
+      - run: sudo apt-get install lsof
+      - run:
+          command: make test TESTFLAGS="-race -v -timeout=30m"
+          no_output_timeout: 30m
+  test-golang-1.12-386:
     <<: *base-test
     environment:
+      GO111MODULE: "on"
       GOARCH: 386
+  test-golang-1.11:
+    <<: *defaults
+    docker:
+      - image: circleci/golang:1.11
+    steps:
+      - *fast-checkout
+      - run: sudo apt-get install lsof
+      - run: make test
+  cluster-tests:
+    <<: *defaults
+    steps:
+      - *fast-checkout
+      - setup_remote_docker
+      - run: make clustertests-build
   prerelease:
     <<: *base-test
     steps:
@@ -86,27 +125,41 @@ workflows:
   version: 2
   test:
     jobs:
-      - build
+      - setup
       - linter:
           requires:
-            - build
-      - test-golang-1.10:
+            - setup
+      - check-license-headers:
           requires:
-            - build
-      - test-golang-1.11-rc:
+            - setup
+      - test-build-arm:
           requires:
-            - build
-      - test-golang-1.10-386:
+            - setup
+      - test-golang-1.12:
           requires:
-            - build
+            - setup
+      - test-golang-1.12-race:
+          requires:
+            - setup
+      - test-golang-1.12-386:
+          requires:
+            - setup
+      - test-golang-1.11:
+          requires:
+            - setup
+      - cluster-tests:
+          requires:
+            - setup
       - prerelease:
           requires:
             - linter
-            - test-golang-1.10
+            - check-license-headers
+            - test-golang-1.12
       - release:
           requires:
             - linter
-            - test-golang-1.10
+            - check-license-headers
+            - test-golang-1.12
           filters:
             tags:
               only: /^v.*/
@@ -118,4 +171,5 @@ workflows:
       - dockerhub-upload:
           requires:
             - linter
-            - test-golang-1.10
+            - check-license-headers
+            - test-golang-1.12
