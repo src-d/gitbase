@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	errors "gopkg.in/src-d/go-errors.v1"
+	"gopkg.in/src-d/go-errors.v1"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
@@ -12,7 +12,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 
 	"gopkg.in/src-d/go-billy-siva.v4"
-	billy "gopkg.in/src-d/go-billy.v4"
+	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/idxfile"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/objfile"
@@ -244,10 +244,6 @@ func newRepoObjectDecoder(
 	}
 
 	packfile := packfile.NewPackfile(idx, fs, packf)
-	if err != nil {
-		_ = packf.Close()
-		return nil, err
-	}
 
 	return &repoObjectDecoder{
 		repo:      repo.ID(),

@@ -90,18 +90,21 @@ func (r *commitsTable) PartitionRows(
 		r.filters,
 		r.handledColumns(),
 		func(selectors selectors) (sql.RowIter, error) {
-			hashes, err := selectors.textValues("commit_hash")
+			var hashes []string
+			hashes, err = selectors.textValues("commit_hash")
 			if err != nil {
 				return nil, err
 			}
 
 			if r.index != nil {
-				indexValues, err := r.index.Values(p)
+				var indexValues sql.IndexValueIter
+				indexValues, err = r.index.Values(p)
 				if err != nil {
 					return nil, err
 				}
 
-				s, err := getSession(ctx)
+				var s *Session
+				s, err = getSession(ctx)
 				if err != nil {
 					return nil, err
 				}
@@ -243,7 +246,7 @@ func (i *commitIter) Next() (*object.Commit, error) {
 		var err error
 
 		if i.ref == nil {
-			if err := i.loadNextRef(); err != nil {
+			if err = i.loadNextRef(); err != nil {
 				return nil, err
 			}
 

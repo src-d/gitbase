@@ -84,12 +84,14 @@ func (r *referencesTable) PartitionRows(
 		r.filters,
 		r.handledColumns(),
 		func(selectors selectors) (sql.RowIter, error) {
-			hashes, err := selectors.textValues("commit_hash")
+			var hashes []string
+			hashes, err = selectors.textValues("commit_hash")
 			if err != nil {
 				return nil, err
 			}
 
-			names, err := selectors.textValues("ref_name")
+			var names []string
+			names, err = selectors.textValues("ref_name")
 			if err != nil {
 				return nil, err
 			}

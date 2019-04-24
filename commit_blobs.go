@@ -78,7 +78,8 @@ func (t *commitBlobsTable) PartitionRows(
 		t.filters,
 		t.handledColumns(),
 		func(selectors selectors) (sql.RowIter, error) {
-			repos, err := selectors.textValues("repository_id")
+			var repos []string
+			repos, err = selectors.textValues("repository_id")
 			if err != nil {
 				return nil, err
 			}
@@ -87,7 +88,8 @@ func (t *commitBlobsTable) PartitionRows(
 				return noRows, nil
 			}
 
-			commits, err := selectors.textValues("commit_hash")
+			var commits []string
+			commits, err = selectors.textValues("commit_hash")
 			if err != nil {
 				return nil, err
 			}

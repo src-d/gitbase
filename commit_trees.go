@@ -79,7 +79,8 @@ func (t *commitTreesTable) PartitionRows(
 		t.filters,
 		t.handledColumns(),
 		func(selectors selectors) (sql.RowIter, error) {
-			repos, err := selectors.textValues("repository_id")
+			var repos []string
+			repos, err = selectors.textValues("repository_id")
 			if err != nil {
 				return nil, err
 			}
@@ -88,7 +89,8 @@ func (t *commitTreesTable) PartitionRows(
 				return noRows, nil
 			}
 
-			hashes, err := selectors.textValues("commit_hash")
+			var hashes []string
+			hashes, err = selectors.textValues("commit_hash")
 			if err != nil {
 				return nil, err
 			}
