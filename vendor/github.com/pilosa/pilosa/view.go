@@ -21,9 +21,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/pilosa/pilosa/logger"
 	"github.com/pilosa/pilosa/pql"
 	"github.com/pilosa/pilosa/roaring"
+	"github.com/pilosa/pilosa/stats"
 	"github.com/pkg/errors"
 )
 
@@ -49,10 +52,11 @@ type view struct {
 	// Fragments by shard.
 	fragments map[uint64]*fragment
 
-	broadcaster  broadcaster
-	stats        StatsClient
-	rowAttrStore AttrStore
-	logger       Logger
+	broadcaster    broadcaster
+	stats          stats.StatsClient
+	rowAttrStore   AttrStore
+	logger         logger.Logger
+	shardValidator func(uint64) bool
 }
 
 // newView returns a new instance of View.
@@ -69,9 +73,10 @@ func newView(path, index, field, name string, fieldOptions FieldOptions) *view {
 
 		fragments: make(map[uint64]*fragment),
 
-		broadcaster: NopBroadcaster,
-		stats:       NopStatsClient,
-		logger:      NopLogger,
+		broadcaster:    NopBroadcaster,
+		stats:          stats.NopStatsClient,
+		logger:         logger.NopLogger,
+		shardValidator: defaultShardValidator,
 	}
 }
 
@@ -129,6 +134,10 @@ func (v *view) openFragments() error {
 		if err != nil {
 			continue
 		}
+		//skip shard if not owned
+		if !v.shardValidator(shard) {
+			continue
+		}
 
 		frag := v.newFragment(v.fragmentPath(shard), shard)
 		if err := frag.Open(); err != nil {
@@ -164,7 +173,7 @@ func (v *view) availableShards() *roaring.Bitmap {
 
 	b := roaring.NewBitmap()
 	for shard := range v.fragments {
-		b.Add(shard) // ignore error, no writer attached
+		_, _ = b.Add(shard) // ignore error, no writer attached
 	}
 	return b
 }
@@ -178,10 +187,8 @@ func (v *view) fragmentPath(shard uint64) string {
 func (v *view) Fragment(shard uint64) *fragment {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
-	return v.fragment(shard)
+	return v.fragments[shard]
 }
-
-func (v *view) fragment(shard uint64) *fragment { return v.fragments[shard] }
 
 // allFragments returns a list of all fragments in the view.
 func (v *view) allFragments() []*fragment {
@@ -206,10 +213,6 @@ func (v *view) recalculateCaches() {
 func (v *view) CreateFragmentIfNotExists(shard uint64) (*fragment, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return v.createFragmentIfNotExists(shard)
-}
-
-func (v *view) createFragmentIfNotExists(shard uint64) (*fragment, error) {
 	// Find fragment in cache first.
 	if frag := v.fragments[shard]; frag != nil {
 		return frag, nil
@@ -222,17 +225,31 @@ func (v *view) createFragmentIfNotExists(shard uint64) (*fragment, error) {
 	}
 	frag.RowAttrStore = v.rowAttrStore
 
-	// Broadcast a message that a new max shard was just created.
-	if err := v.broadcaster.SendSync(&CreateShardMessage{
-		Index: v.index,
-		Field: v.field,
-		Shard: shard,
-	}); err != nil {
-		return nil, errors.Wrap(err, "sending createshard message")
+	v.fragments[shard] = frag
+	broadcastChan := make(chan struct{})
+
+	go func() {
+		msg := &CreateShardMessage{
+			Index: v.index,
+			Field: v.field,
+			Shard: shard,
+		}
+		// Broadcast a message that a new max shard was just created.
+		err := v.broadcaster.SendSync(msg)
+		if err != nil {
+			v.logger.Printf("broadcasting create shard: %v", err)
+		}
+		close(broadcastChan)
+	}()
+
+	// We want to wait until the broadcast is complete, but what if it
+	// takes a really long time? So we time out.
+	select {
+	case <-broadcastChan:
+	case <-time.After(50 * time.Millisecond):
+		v.logger.Debugf("broadcasting create shard took >50ms")
 	}
 
-	// Save to lookup.
-	v.fragments[shard] = frag
 	return frag, nil
 }
 
@@ -252,8 +269,7 @@ func (v *view) newFragment(path string, shard uint64) *fragment {
 
 // deleteFragment removes the fragment from the view.
 func (v *view) deleteFragment(shard uint64) error {
-
-	fragment := v.fragments[shard]
+	fragment := v.Fragment(shard)
 	if fragment == nil {
 		return ErrFragmentNotFound
 	}
@@ -307,8 +323,8 @@ func (v *view) setBit(rowID, columnID uint64) (changed bool, err error) {
 // clearBit clears a bit within the view.
 func (v *view) clearBit(rowID, columnID uint64) (changed bool, err error) {
 	shard := columnID / ShardWidth
-	frag, found := v.fragments[shard]
-	if !found {
+	frag := v.Fragment(shard)
+	if frag == nil {
 		return false, nil
 	}
 	return frag.clearBit(rowID, columnID)

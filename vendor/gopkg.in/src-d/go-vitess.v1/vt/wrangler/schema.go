@@ -151,7 +151,7 @@ func (wr *Wrangler) ValidateSchemaShard(ctx context.Context, keyspace, shard str
 
 	// get schema from the master, or error
 	if !si.HasMaster() {
-		return fmt.Errorf("No master in shard %v/%v", keyspace, shard)
+		return fmt.Errorf("no master in shard %v/%v", keyspace, shard)
 	}
 	log.Infof("Gathering schema for master %v", topoproto.TabletAliasString(si.MasterAlias))
 	masterSchema, err := wr.GetSchema(ctx, si.MasterAlias, nil, excludeTables, includeViews)
@@ -179,7 +179,7 @@ func (wr *Wrangler) ValidateSchemaShard(ctx context.Context, keyspace, shard str
 	}
 	wg.Wait()
 	if er.HasErrors() {
-		return fmt.Errorf("Schema diffs: %v", er.Error().Error())
+		return fmt.Errorf("schema diffs: %v", er.Error().Error())
 	}
 	return nil
 }
@@ -195,7 +195,7 @@ func (wr *Wrangler) ValidateSchemaKeyspace(ctx context.Context, keyspace string,
 
 	// corner cases
 	if len(shards) == 0 {
-		return fmt.Errorf("No shards in keyspace %v", keyspace)
+		return fmt.Errorf("no shards in keyspace %v", keyspace)
 	}
 	sort.Strings(shards)
 	if len(shards) == 1 {
@@ -208,7 +208,7 @@ func (wr *Wrangler) ValidateSchemaKeyspace(ctx context.Context, keyspace string,
 		return fmt.Errorf("GetShard(%v, %v) failed: %v", keyspace, shards[0], err)
 	}
 	if !si.HasMaster() {
-		return fmt.Errorf("No master in shard %v/%v", keyspace, shards[0])
+		return fmt.Errorf("no master in shard %v/%v", keyspace, shards[0])
 	}
 	referenceAlias := si.MasterAlias
 	log.Infof("Gathering schema for reference master %v", topoproto.TabletAliasString(referenceAlias))
@@ -245,7 +245,7 @@ func (wr *Wrangler) ValidateSchemaKeyspace(ctx context.Context, keyspace string,
 		}
 
 		if !si.HasMaster() {
-			er.RecordError(fmt.Errorf("No master in shard %v/%v", keyspace, shard))
+			er.RecordError(fmt.Errorf("no master in shard %v/%v", keyspace, shard))
 			continue
 		}
 
@@ -262,7 +262,7 @@ func (wr *Wrangler) ValidateSchemaKeyspace(ctx context.Context, keyspace string,
 	}
 	wg.Wait()
 	if er.HasErrors() {
-		return fmt.Errorf("Schema diffs: %v", er.Error().Error())
+		return fmt.Errorf("schema diffs: %v", er.Error().Error())
 	}
 	return nil
 }
@@ -379,17 +379,21 @@ func (wr *Wrangler) copyShardMetadata(ctx context.Context, srcTabletAlias *topod
 		return nil
 	}
 
-	sql = "SELECT name, value FROM _vt.shard_metadata"
+	// TODO: 100 may be too low here for row limit
+	sql = "SELECT db_name, name, value FROM _vt.shard_metadata"
 	dataProto, err := wr.ExecuteFetchAsDba(ctx, srcTabletAlias, sql, 100, false, false)
 	if err != nil {
 		return fmt.Errorf("ExecuteFetchAsDba(%v, %v, 100, false, false) failed: %v", srcTabletAlias, sql, err)
 	}
 	data := sqltypes.Proto3ToResult(dataProto)
 	for _, row := range data.Rows {
-		name := row[0]
-		value := row[1]
+		dbName := row[0]
+		name := row[1]
+		value := row[2]
 		queryBuf := bytes.Buffer{}
-		queryBuf.WriteString("INSERT INTO _vt.shard_metadata (name, value) VALUES (")
+		queryBuf.WriteString("INSERT INTO _vt.shard_metadata (db_name, name, value) VALUES (")
+		dbName.EncodeSQL(&queryBuf)
+		queryBuf.WriteByte(',')
 		name.EncodeSQL(&queryBuf)
 		queryBuf.WriteByte(',')
 		value.EncodeSQL(&queryBuf)

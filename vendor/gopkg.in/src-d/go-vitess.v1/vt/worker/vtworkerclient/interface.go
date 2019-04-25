@@ -19,11 +19,12 @@ package vtworkerclient
 
 import (
 	"flag"
-	"fmt"
 
 	"golang.org/x/net/context"
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 	"gopkg.in/src-d/go-vitess.v1/vt/logutil"
+	"gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 )
 
 // protocol specifices which RPC client implementation should be used.
@@ -67,7 +68,7 @@ func UnregisterFactoryForTest(name string) {
 func New(addr string) (Client, error) {
 	factory, ok := factories[*protocol]
 	if !ok {
-		return nil, fmt.Errorf("unknown vtworker client protocol: %v", *protocol)
+		return nil, vterrors.Errorf(vtrpc.Code_INVALID_ARGUMENT, "unknown vtworker client protocol: %v", *protocol)
 	}
 	return factory(addr)
 }

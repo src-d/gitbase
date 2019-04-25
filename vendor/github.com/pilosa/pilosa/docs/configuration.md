@@ -36,6 +36,17 @@ The config file is in the [toml format](https://github.com/toml-lang/toml) and h
 
 ### All Options
 
+#### Advertise
+
+* Description: Address advertised by the server to other nodes in the cluster and to clients via the `/status` endpoint. Host defaults to the IP address represented by `bind` and port to 10101. If `bind` is set to `0.0.0.0` and `advertise` is not specified, then Pilosa will try to determine a reasonable, external IP address to use for `advertise`.
+* Flag: `--advertise="192.168.1.100:10101"`
+* Env: `PILOSA_BIND="192.168.1.100:10101"`
+* Config:
+
+    ```toml
+    advertise = 192.168.1.100:10101
+    ```
+
 #### Anti Entropy Interval
 
 * Description: Interval at which the cluster will run its anti-entropy routine which ensures that all replicas of each fragment are in sync.
@@ -50,7 +61,7 @@ The config file is in the [toml format](https://github.com/toml-lang/toml) and h
 
 #### Bind
 
-* Description: host:port on which the Pilosa server will listen for requests. Host defaults to localhost and port to 10101.
+* Description: host:port on which the Pilosa server will listen for requests. Host defaults to localhost and port to 10101. If `bind` is set to `0.0.0.0` then Pilosa will listen on all available interfaces.
 * Flag: `--bind="localhost:10101"`
 * Env: `PILOSA_BIND="localhost:10101"`
 * Config:
@@ -104,6 +115,26 @@ The config file is in the [toml format](https://github.com/toml-lang/toml) and h
     verbose = true
     ```
 
+#### Max Map Count
+
+* Description: Maximum number of active memory maps Pilosa will use for fragment
+  files (actual total usage may be slightly higher). Best practice is to set
+  this ~10% lower than your system's maximum map count (obtained via `sysctl
+  vm.max_map_count` on Linux). If you plan on having lots of fragments per host,
+  it's a good idea to raise both the system's max map count, and Pilosa's. The
+  number of fragments is a function of the number of shards, fields, and time
+  quantums. Using, for example, YMDH time quantum fields with a wide range of
+  timestamps will create lots of fragments. When Pilosa exhausts the
+  max-map-count it falls back to reading files directly into memory. This can be
+  a bit slower, and cause slower restarts, but is generally fine.
+  * Flag: `--max-map-count=1000000`
+  * Env: `PILOSA_MAX_MAP_COUNT=1000000`
+  * Config:
+
+      ```toml
+      max-map-count = 1000000
+      ```
+
 #### Max Writes Per Request
 
 * Description: Maximum number of mutating commands allowed per request. This includes Set, Clear, SetRowAttrs, and SetColumnAttrs.
@@ -113,6 +144,43 @@ The config file is in the [toml format](https://github.com/toml-lang/toml) and h
 
     ```toml
     max-writes-per-request = 5000
+    ```
+
+#### Max File Count
+
+* Description: A soft limit on the maximum number of files that Pilosa will keep
+  open simultaneously. When past this limit, Pilosa will only keep files open
+  for as long as it needs to write updates. This will negatively affect
+  performance in cases where Pilosa is doing lots of small updates.
+* Flag: `--max-file-count=1000000`
+* Env: `PILOSA_MAX_FILE_COUNT=1000000`
+* Config:
+    ```toml
+    max-file-count = 1000000
+    ```
+
+#### Gossip Advertise Host
+
+* Description: Host on which memberlist should advertise. Defaults to `advertise` host.
+* Flag: `--gossip.advertise-host=192.168.1.100`
+* Env: `PILOSA_GOSSIP_ADVERTISE_HOST=192.168.1.100
+* Config:
+
+    ```toml
+    [gossip]
+      advertise-host = 192.168.1.100
+    ```
+
+#### Gossip Advertise Port
+
+* Description: Port on which memberlist should advertise. Defaults to `advertise` port.
+* Flag: `--gossip.advertise-port=15001`
+* Env: `PILOSA_GOSSIP_ADVERTISE_PORT=15001`
+* Config:
+
+    ```toml
+    [gossip]
+      advertise-port = 15001
     ```
 
 #### Gossip Port
@@ -307,6 +375,68 @@ The config file is in the [toml format](https://github.com/toml-lang/toml) and h
     skip-verify = true
     ```
 
+#### Tracing Sampler Type
+
+* Description: Jaeger sampler type (const, probabilistic, ratelimiting, or remote)
+* Flag: `tracing.sampler-type`
+* Env: `PILOSA_TRACING_SAMPLER_TYPE`
+* Config:
+
+    ```toml
+    [tracing]
+    sampler-type = "remote"
+    ```
+
+#### Tracing Sampler Parameter
+
+* Description: Jaeger sampler parameter (number)
+* Flag: `tracing.sampler-param`
+* Env: `PILOSA_TRACING_SAMPLER_PARAM`
+* Config:
+
+    ```toml
+    [tracing]
+    sampler-param = 0.001
+    ```
+
+#### Tracing Agent Host/Port
+
+* Description: Jaeger agent host:port
+* Flag: `tracing.agent-host-port`
+* Env: `PILOSA_TRACING_AGENT_HOST_PORT`
+* Config:
+
+    ```toml
+    [tracing]
+    agent-host-port = "localhost:6831"
+    ```
+
+#### Profile Block Rate
+
+* Description: Block Rate is passed directly to Go's
+  [runtime.SetBlockProfileRate](https://golang.org/pkg/runtime/#SetBlockProfileRate). Goroutine blocking events will be sampled at 1
+  per `rate` nanoseconds. A value of "1" samples every event, and 0 disables
+  profiling.
+* Flag: `--profile.block-rate=10000000`
+* Env: `PILOSA_PROFILE_BLOCK_RATE=10000000`
+* Config:
+   ```toml
+   [profile]
+   block-rate = 10000000
+   ```
+
+#### Profile Mutex Fraction
+
+* Description: Mutex Fraction is passed directly to Go's
+  [runtime.SetMutexProfileFraction](https://golang.org/pkg/runtime/#SetMutexProfileFraction). 1/`fraction` of events will be sampled. 
+* Flag: `--profile.mutex-fraction=100`
+* Env: `PILOSA_PROFILE_MUTEX_FRACTION=100`
+* Config:
+   ```toml
+   [profile]
+   mutex-fraction = 100
+   ```
+
 #### Translation Map Size
 
 * Description: Size in bytes of mmap to allocate for key translation
@@ -330,7 +460,7 @@ A three node cluster running on different hosts could be minimally configured as
     
     [gossip]
       port = 12000
-      seed = "node0.pilosa.com:12000"
+      seeds = ["node0.pilosa.com:12000"]
 
     [cluster]
       replicas = 1
@@ -343,7 +473,7 @@ A three node cluster running on different hosts could be minimally configured as
     
     [gossip]
       port = 12000
-      seed = "node0.pilosa.com:12000"
+      seeds = ["node0.pilosa.com:12000"]
 
     [cluster]
       replicas = 1
@@ -356,7 +486,7 @@ A three node cluster running on different hosts could be minimally configured as
     
     [gossip]
       port = 12000
-      seed = "node0.pilosa.com:12000"
+      seeds = ["node0.pilosa.com:12000"]
 
     [cluster]
       replicas = 1
@@ -374,7 +504,7 @@ The same cluster which uses HTTPS instead of HTTP can be configured as follows. 
 
     [gossip]
       port = 12000
-      seed = "node0.pilosa.com:12000"
+      seeds = ["node0.pilosa.com:12000"]
       key = "/home/pilosa/private/gossip.key32"
 
     [cluster]
@@ -392,7 +522,7 @@ The same cluster which uses HTTPS instead of HTTP can be configured as follows. 
 
     [gossip]
       port = 12000
-      seed = "node0.pilosa.com:12000"
+      seeds = ["node0.pilosa.com:12000"]
       key = "/home/pilosa/private/gossip.key32"
 
     [cluster]
@@ -410,7 +540,7 @@ The same cluster which uses HTTPS instead of HTTP can be configured as follows. 
 
     [gossip]
       port = 12000
-      seed = "node0.pilosa.com:12000"
+      seeds = ["node0.pilosa.com:12000"]
       key = "/home/pilosa/private/gossip.key32"
 
     [cluster]
@@ -432,7 +562,7 @@ You can run a cluster on the same host using the configuration above with a few 
 
     [gossip]
       port = 12000
-      seed = "localhost:12000"
+      seeds = ["localhost:12000"]
       key = "/home/pilosa/private/gossip.key32"
 
     [cluster]
@@ -450,7 +580,7 @@ You can run a cluster on the same host using the configuration above with a few 
 
     [gossip]
       port = 12001
-      seed = "localhost:12000"
+      seeds = ["localhost:12000"]
       key = "/home/pilosa/private/gossip.key32"
 
     [cluster]
@@ -468,7 +598,7 @@ You can run a cluster on the same host using the configuration above with a few 
 
     [gossip]
       port = 12002
-      seed = "localhost:12000"
+      seeds = ["localhost:12000"]
       key = "/home/pilosa/private/gossip.key32"
 
     [cluster]

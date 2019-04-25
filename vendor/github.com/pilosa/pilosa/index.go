@@ -25,7 +25,9 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pilosa/pilosa/internal"
+	"github.com/pilosa/pilosa/logger"
 	"github.com/pilosa/pilosa/roaring"
+	"github.com/pilosa/pilosa/stats"
 	"github.com/pkg/errors"
 )
 
@@ -48,10 +50,11 @@ type Index struct {
 	// Column attribute storage and cache.
 	columnAttrs AttrStore
 
-	broadcaster broadcaster
-	Stats       StatsClient
+	broadcaster    broadcaster
+	Stats          stats.StatsClient
+	shardValidator func(uint64) bool
 
-	logger Logger
+	logger logger.Logger
 }
 
 // NewIndex returns a new instance of Index.
@@ -70,8 +73,9 @@ func NewIndex(path, name string) (*Index, error) {
 		columnAttrs:  nopStore,
 
 		broadcaster:    NopBroadcaster,
-		Stats:          NopStatsClient,
-		logger:         NopLogger,
+		Stats:          stats.NopStatsClient,
+		logger:         logger.NopLogger,
+		shardValidator: defaultShardValidator,
 		trackExistence: true,
 	}, nil
 }
@@ -151,7 +155,7 @@ func (i *Index) openFields() error {
 
 		fld, err := i.newField(i.fieldPath(filepath.Base(fi.Name())), filepath.Base(fi.Name()))
 		if err != nil {
-			return ErrName
+			return errors.Wrapf(ErrName, "'%s'", fi.Name())
 		}
 		if err := fld.Open(); err != nil {
 			return fmt.Errorf("open field: name=%s, err=%s", fld.Name(), err)
@@ -401,6 +405,7 @@ func (i *Index) newField(path, name string) (*Field, error) {
 	f.Stats = i.Stats.WithTags(fmt.Sprintf("field:%s", name))
 	f.broadcaster = i.broadcaster
 	f.rowAttrStore = i.newAttrStore(filepath.Join(f.path, ".data"))
+	f.shardValidator = i.shardValidator
 	return f, nil
 }
 
@@ -451,9 +456,10 @@ func (p indexSlice) Less(i, j int) bool { return p[i].Name() < p[j].Name() }
 
 // IndexInfo represents schema information for an index.
 type IndexInfo struct {
-	Name    string       `json:"name"`
-	Options IndexOptions `json:"options"`
-	Fields  []*FieldInfo `json:"fields"`
+	Name       string       `json:"name"`
+	Options    IndexOptions `json:"options"`
+	Fields     []*FieldInfo `json:"fields"`
+	ShardWidth uint64       `json:"shardWidth"`
 }
 
 type indexInfoSlice []*IndexInfo

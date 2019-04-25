@@ -29,6 +29,7 @@ import (
 	"golang.org/x/net/context"
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 	automationpb "gopkg.in/src-d/go-vitess.v1/vt/proto/automation"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 )
 
 type schedulerState int32
@@ -82,11 +83,11 @@ func NewScheduler() (*Scheduler, error) {
 		registeredClusterOperations:    defaultClusterOperations,
 		idGenerator:                    IDGenerator{},
 		toBeScheduledClusterOperations: make(chan ClusterOperationInstance, 10),
-		state:                     stateNotRunning,
-		taskCreator:               defaultTaskCreator,
-		pendingOpsWg:              &sync.WaitGroup{},
-		activeClusterOperations:   make(map[string]ClusterOperationInstance),
-		finishedClusterOperations: make(map[string]ClusterOperationInstance),
+		state:                          stateNotRunning,
+		taskCreator:                    defaultTaskCreator,
+		pendingOpsWg:                   &sync.WaitGroup{},
+		activeClusterOperations:        make(map[string]ClusterOperationInstance),
+		finishedClusterOperations:      make(map[string]ClusterOperationInstance),
 	}
 
 	return s, nil
@@ -149,7 +150,7 @@ clusterOpLoop:
 				// Make sure all new tasks do not miss any required parameters.
 				err := s.validateTaskContainers(newTaskContainers)
 				if err != nil {
-					err = fmt.Errorf("Task: %v (%v/%v) emitted a new task which is not valid. Error: %v", taskProto.Name, clusterOp.Id, taskProto.Id, err)
+					err = vterrors.Wrapf(err, "task: %v (%v/%v) emitted a new task which is not valid. Error: %v", taskProto.Name, clusterOp.Id, taskProto.Id, err)
 					log.Error(err)
 					MarkTaskFailed(taskProto, output, err)
 					clusterOp.Error = err.Error()
@@ -311,7 +312,7 @@ func (s *Scheduler) EnqueueClusterOperation(ctx context.Context, req *automation
 		return nil, fmt.Errorf("scheduler is not running. State: %v", s.state)
 	}
 
-	if s.registeredClusterOperations[req.Name] != true {
+	if !s.registeredClusterOperations[req.Name] {
 		return nil, fmt.Errorf("no ClusterOperation with name: %v is registered", req.Name)
 	}
 

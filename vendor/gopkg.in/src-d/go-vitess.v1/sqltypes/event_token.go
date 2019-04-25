@@ -16,7 +16,9 @@ limitations under the License.
 
 package sqltypes
 
-import querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
+import (
+	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
+)
 
 // EventTokenMinimum returns an event token that is guaranteed to
 // happen before both provided EventToken objects. Note it doesn't

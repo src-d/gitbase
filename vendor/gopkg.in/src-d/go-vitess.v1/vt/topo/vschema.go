@@ -17,10 +17,10 @@ limitations under the License.
 package topo
 
 import (
-	"fmt"
 	"path"
 
 	"golang.org/x/net/context"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 
 	"github.com/golang/protobuf/proto"
 	vschemapb "gopkg.in/src-d/go-vitess.v1/vt/proto/vschema"
@@ -60,7 +60,7 @@ func (ts *Server) GetVSchema(ctx context.Context, keyspace string) (*vschemapb.K
 	var vs vschemapb.Keyspace
 	err = proto.Unmarshal(data, &vs)
 	if err != nil {
-		return nil, fmt.Errorf("bad vschema data (%v): %q", err, data)
+		return nil, vterrors.Wrapf(err, "bad vschema data: %q", data)
 	}
 	return &vs, nil
 }

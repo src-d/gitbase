@@ -17,9 +17,11 @@ limitations under the License.
 package discovery
 
 import (
+	"context"
 	"testing"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
+	"gopkg.in/src-d/go-vitess.v1/vt/topo/memorytopo"
 
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
 	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
@@ -27,19 +29,32 @@ import (
 
 // TestTabletStatsCache tests the functionality of the TabletStatsCache class.
 func TestTabletStatsCache(t *testing.T) {
-	defer topo.UpdateCellsToRegionsForTests(map[string]string{})
-	topo.UpdateCellsToRegionsForTests(map[string]string{
-		"cell":  "region1",
-		"cell1": "region1",
-		"cell2": "region2",
-	})
+	ts := memorytopo.NewServer("cell", "cell1", "cell2")
+
+	cellsAlias := &topodatapb.CellsAlias{
+		Cells: []string{"cell", "cell1"},
+	}
+
+	ts.CreateCellsAlias(context.Background(), "region1", cellsAlias)
+
+	defer ts.DeleteCellsAlias(context.Background(), "region1")
+
+	cellsAlias = &topodatapb.CellsAlias{
+		Cells: []string{"cell2"},
+	}
+
+	ts.CreateCellsAlias(context.Background(), "region2", cellsAlias)
+
+	defer ts.DeleteCellsAlias(context.Background(), "region2")
 
 	// We want to unit test TabletStatsCache without a full-blown
 	// HealthCheck object, so we can't call NewTabletStatsCache.
 	// So we just construct this object here.
 	tsc := &TabletStatsCache{
-		cell:    "cell",
-		entries: make(map[string]map[string]map[topodatapb.TabletType]*tabletStatsCacheEntry),
+		cell:        "cell",
+		ts:          ts,
+		entries:     make(map[string]map[string]map[topodatapb.TabletType]*tabletStatsCacheEntry),
+		cellAliases: make(map[string]string),
 	}
 
 	// empty

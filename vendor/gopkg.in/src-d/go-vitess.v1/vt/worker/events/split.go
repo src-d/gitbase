@@ -16,7 +16,9 @@ limitations under the License.
 
 package events
 
-import base "gopkg.in/src-d/go-vitess.v1/vt/events"
+import (
+	base "gopkg.in/src-d/go-vitess.v1/vt/events"
+)
 
 // SplitClone is an event that describes a single step in a horizontal
 // split clone.

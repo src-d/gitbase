@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 
+	binlogdatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/binlogdata"
 	querypb "gopkg.in/src-d/go-vitess.v1/vt/proto/query"
 )
 
@@ -77,7 +78,7 @@ type QueryService interface {
 
 	// Query execution
 	Execute(ctx context.Context, target *querypb.Target, sql string, bindVariables map[string]*querypb.BindVariable, transactionID int64, options *querypb.ExecuteOptions) (*sqltypes.Result, error)
-	StreamExecute(ctx context.Context, target *querypb.Target, sql string, bindVariables map[string]*querypb.BindVariable, options *querypb.ExecuteOptions, callback func(*sqltypes.Result) error) error
+	StreamExecute(ctx context.Context, target *querypb.Target, sql string, bindVariables map[string]*querypb.BindVariable, transactionID int64, options *querypb.ExecuteOptions, callback func(*sqltypes.Result) error) error
 	ExecuteBatch(ctx context.Context, target *querypb.Target, queries []*querypb.BoundQuery, asTransaction bool, transactionID int64, options *querypb.ExecuteOptions) ([]sqltypes.Result, error)
 
 	// Combo methods, they also return the transactionID from the
@@ -98,6 +99,12 @@ type QueryService interface {
 
 	// UpdateStream streams updates from the provided position or timestamp.
 	UpdateStream(ctx context.Context, target *querypb.Target, position string, timestamp int64, callback func(*querypb.StreamEvent) error) error
+
+	// VStream streams VReplication events based on the specified filter.
+	VStream(ctx context.Context, target *querypb.Target, startPos string, filter *binlogdatapb.Filter, send func([]*binlogdatapb.VEvent) error) error
+
+	// VStreamRows streams rows of a table from the specified starting point.
+	VStreamRows(ctx context.Context, target *querypb.Target, query string, lastpk *querypb.QueryResult, send func(*binlogdatapb.VStreamRowsResponse) error) error
 
 	// StreamHealth streams health status.
 	StreamHealth(ctx context.Context, callback func(*querypb.StreamHealthResponse) error) error
@@ -133,7 +140,30 @@ func ExecuteWithStreamer(ctx context.Context, conn QueryService, target *querypb
 	}
 	go func() {
 		defer close(rs.done)
-		rs.err = conn.StreamExecute(ctx, target, sql, bindVariables, options, func(qr *sqltypes.Result) error {
+		rs.err = conn.StreamExecute(ctx, target, sql, bindVariables, 0, options, func(qr *sqltypes.Result) error {
+			select {
+			case <-ctx.Done():
+				return io.EOF
+			case rs.ch <- qr:
+			}
+			return nil
+		})
+		if rs.err == nil {
+			rs.err = io.EOF
+		}
+	}()
+	return rs
+}
+
+// ExecuteWithTransactionalStreamer does the same thing as ExecuteWithStreamer, but inside a transaction
+func ExecuteWithTransactionalStreamer(ctx context.Context, conn QueryService, target *querypb.Target, sql string, bindVariables map[string]*querypb.BindVariable, transactionID int64, options *querypb.ExecuteOptions) sqltypes.ResultStream {
+	rs := &resultStreamer{
+		done: make(chan struct{}),
+		ch:   make(chan *sqltypes.Result),
+	}
+	go func() {
+		defer close(rs.done)
+		rs.err = conn.StreamExecute(ctx, target, sql, bindVariables, transactionID, options, func(qr *sqltypes.Result) error {
 			select {
 			case <-ctx.Done():
 				return io.EOF

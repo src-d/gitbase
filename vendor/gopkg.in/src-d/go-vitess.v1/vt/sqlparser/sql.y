@@ -75,6 +75,7 @@ func skipToEnd(yylex interface{}) {
   expr          Expr
   exprs         Exprs
   boolVal       BoolVal
+  sqlVal        *SQLVal
   colTuple      ColTuple
   values        Values
   valTuple      ValTuple
@@ -95,7 +96,7 @@ func skipToEnd(yylex interface{}) {
   TableSpec  *TableSpec
   columnType    ColumnType
   colKeyOpt     ColumnKeyOption
-  optVal        *SQLVal
+  optVal        Expr
   LengthScaleOption LengthScaleOption
   columnDefinition *ColumnDefinition
   indexDefinition *IndexDefinition
@@ -180,7 +181,7 @@ func skipToEnd(yylex interface{}) {
 %token <bytes> NULLX AUTO_INCREMENT APPROXNUM SIGNED UNSIGNED ZEROFILL
 
 // Supported SHOW tokens
-%token <bytes> COLLATION DATABASES TABLES VITESS_KEYSPACES VITESS_SHARDS VITESS_TABLETS VSCHEMA_TABLES VITESS_TARGET FULL PROCESSLIST COLUMNS FIELDS
+%token <bytes> COLLATION DATABASES SCHEMAS TABLES VITESS_KEYSPACES VITESS_SHARDS VITESS_TABLETS VSCHEMA VSCHEMA_TABLES VITESS_TARGET FULL PROCESSLIST COLUMNS FIELDS ENGINES PLUGINS
 
 // SET tokens
 %token <bytes> NAMES CHARSET GLOBAL SESSION ISOLATION LEVEL READ WRITE ONLY REPEATABLE COMMITTED UNCOMMITTED SERIALIZABLE
@@ -193,6 +194,7 @@ func skipToEnd(yylex interface{}) {
 %token <bytes> CONVERT CAST
 %token <bytes> SUBSTR SUBSTRING
 %token <bytes> GROUP_CONCAT SEPARATOR
+%token <bytes> TIMESTAMPADD TIMESTAMPDIFF
 
 // Match
 %token <bytes> MATCH AGAINST BOOLEAN LANGUAGE WITH QUERY EXPANSION
@@ -228,7 +230,7 @@ func skipToEnd(yylex interface{}) {
 %type <str> compare
 %type <ins> insert_data
 %type <expr> value value_expression num_val
-%type <expr> function_call_keyword function_call_nonkeyword function_call_generic function_call_conflict
+%type <expr> function_call_keyword function_call_nonkeyword function_call_generic function_call_conflict func_datetime_precision
 %type <str> is_suffix
 %type <colTuple> col_tuple
 %type <exprs> expression_list
@@ -273,7 +275,8 @@ func skipToEnd(yylex interface{}) {
 %type <convertType> convert_type
 %type <columnType> column_type
 %type <columnType> int_type decimal_type numeric_type time_type char_type spatial_type
-%type <optVal> length_opt column_default_opt column_comment_opt on_update_opt
+%type <sqlVal> length_opt column_comment_opt
+%type <optVal> column_default_opt on_update_opt
 %type <str> charset_opt collate_opt
 %type <boolVal> unsigned_opt zero_fill_opt
 %type <LengthScaleOption> float_length_opt decimal_length_opt
@@ -570,14 +573,6 @@ create_statement:
   {
     $$ = &DDL{Action: CreateStr, Table: $5.ToViewName()}
   }
-| CREATE VINDEX sql_id vindex_type_opt vindex_params_opt
-  {
-    $$ = &DDL{Action: CreateVindexStr, VindexSpec: &VindexSpec{
-        Name: $3,
-        Type: $4,
-        Params: $5,
-    }}
-  }
 | CREATE DATABASE not_exists_opt ID ddl_skip_to_end
   {
     $$ = &DBDDL{Action: CreateStr, DBName: string($4)}
@@ -707,6 +702,14 @@ numeric_type:
 
 int_type:
   BIT
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+| BOOL
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+| BOOLEAN
   {
     $$ = ColumnType{Type: string($1)}
   }
@@ -972,46 +975,18 @@ column_default_opt:
   {
     $$ = nil
   }
-| DEFAULT STRING
+| DEFAULT value_expression
   {
-    $$ = NewStrVal($2)
-  }
-| DEFAULT INTEGRAL
-  {
-    $$ = NewIntVal($2)
-  }
-| DEFAULT FLOAT
-  {
-    $$ = NewFloatVal($2)
-  }
-| DEFAULT NULL
-  {
-    $$ = NewValArg($2)
-  }
-| DEFAULT CURRENT_TIMESTAMP
-  {
-    $$ = NewValArg($2)
-  }
-| DEFAULT CURRENT_TIMESTAMP '(' ')'
-  {
-    $$ = NewValArg($2)
-  }
-| DEFAULT BIT_LITERAL
-  {
-    $$ = NewBitVal($2)
+    $$ = $2
   }
 
 on_update_opt:
   {
     $$ = nil
   }
-| ON UPDATE CURRENT_TIMESTAMP
+| ON UPDATE function_call_nonkeyword
 {
-  $$ = NewValArg($3)
-}
-| ON UPDATE CURRENT_TIMESTAMP '(' ')'
-{
-  $$ = NewValArg($3)
+  $$ = $3
 }
 
 auto_increment_opt:
@@ -1300,29 +1275,6 @@ alter_statement:
   {
     $$ = &DDL{Action: AlterStr, Table: $4}
   }
-| ALTER ignore_opt TABLE table_name ADD VINDEX sql_id '(' column_list ')' vindex_type_opt vindex_params_opt
-  {
-    $$ = &DDL{
-        Action: AddColVindexStr,
-        Table: $4,
-        VindexSpec: &VindexSpec{
-            Name: $7,
-            Type: $11,
-            Params: $12,
-        },
-        VindexCols: $9,
-      }
-  }
-| ALTER ignore_opt TABLE table_name DROP VINDEX sql_id
-  {
-    $$ = &DDL{
-        Action: DropColVindexStr,
-        Table: $4,
-        VindexSpec: &VindexSpec{
-            Name: $7,
-        },
-      }
-  }
 | ALTER ignore_opt TABLE table_name RENAME to_opt table_name
   {
     // Change this to a rename statement
@@ -1340,6 +1292,51 @@ alter_statement:
 | ALTER ignore_opt TABLE table_name partition_operation
   {
     $$ = &DDL{Action: AlterStr, Table: $4, PartitionSpec: $5}
+  }
+| ALTER VSCHEMA CREATE VINDEX sql_id vindex_type_opt vindex_params_opt
+  {
+    $$ = &DDL{Action: CreateVindexStr, VindexSpec: &VindexSpec{
+        Name: $5,
+        Type: $6,
+        Params: $7,
+    }}
+  }
+| ALTER VSCHEMA DROP VINDEX sql_id
+  {
+    $$ = &DDL{Action: DropVindexStr, VindexSpec: &VindexSpec{
+        Name: $5,
+    }}
+  }
+| ALTER VSCHEMA ADD TABLE table_name
+  {
+    $$ = &DDL{Action: AddVschemaTableStr, Table: $5}
+  }
+| ALTER VSCHEMA DROP TABLE table_name
+  {
+    $$ = &DDL{Action: DropVschemaTableStr, Table: $5}
+  }
+| ALTER VSCHEMA ON table_name ADD VINDEX sql_id '(' column_list ')' vindex_type_opt vindex_params_opt
+  {
+    $$ = &DDL{
+        Action: AddColVindexStr,
+        Table: $4,
+        VindexSpec: &VindexSpec{
+            Name: $7,
+            Type: $11,
+            Params: $12,
+        },
+        VindexCols: $9,
+      }
+  }
+| ALTER VSCHEMA ON table_name DROP VINDEX sql_id
+  {
+    $$ = &DDL{
+        Action: DropColVindexStr,
+        Table: $4,
+        VindexSpec: &VindexSpec{
+            Name: $7,
+        },
+      }
   }
 
 alter_object_type:
@@ -1450,9 +1447,14 @@ show_statement:
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
+/* SHOW CHARACTER SET and SHOW CHARSET are equivalent */
 | SHOW CHARACTER SET ddl_skip_to_end
   {
-    $$ = &Show{Type: string($2) + " " + string($3)}
+    $$ = &Show{Type: CharsetStr}
+  }
+| SHOW CHARSET ddl_skip_to_end
+  {
+    $$ = &Show{Type: string($2)}
   }
 | SHOW CREATE DATABASE ddl_skip_to_end
   {
@@ -1467,9 +1469,9 @@ show_statement:
   {
     $$ = &Show{Type: string($2) + " " + string($3)}
   }
-| SHOW CREATE TABLE ddl_skip_to_end
+| SHOW CREATE TABLE table_name
   {
-    $$ = &Show{Type: string($2) + " " + string($3)}
+    $$ = &Show{Type: string($2) + " " + string($3), Table: $4}
   }
 | SHOW CREATE TRIGGER ddl_skip_to_end
   {
@@ -1483,11 +1485,23 @@ show_statement:
   {
     $$ = &Show{Type: string($2)}
   }
+| SHOW SCHEMAS ddl_skip_to_end
+  {
+    $$ = &Show{Type: string($2)}
+  }
+| SHOW ENGINES
+  {
+    $$ = &Show{Type: string($2)}
+  }
 | SHOW INDEX ddl_skip_to_end
   {
     $$ = &Show{Type: string($2)}
   }
 | SHOW KEYS ddl_skip_to_end
+  {
+    $$ = &Show{Type: string($2)}
+  }
+| SHOW PLUGINS
   {
     $$ = &Show{Type: string($2)}
   }
@@ -1522,10 +1536,6 @@ show_statement:
   {
     $$ = &Show{Scope: $2, Type: string($3)}
   }
-| SHOW VINDEXES
-  {
-    $$ = &Show{Type: string($2)}
-  }
 | SHOW COLLATION
   {
     $$ = &Show{Type: string($2)}
@@ -1535,10 +1545,6 @@ show_statement:
     // Cannot dereference $4 directly, or else the parser stackcannot be pooled. See yyParsePooled
     showCollationFilterOpt := $4
     $$ = &Show{Type: string($2), ShowCollationFilterOpt: &showCollationFilterOpt}
-  }
-| SHOW VINDEXES ON table_name
-  {
-    $$ = &Show{Type: string($2), OnTable: $4}
   }
 | SHOW VITESS_KEYSPACES
   {
@@ -1556,9 +1562,17 @@ show_statement:
   {
     $$ = &Show{Type: string($2)}
   }
-| SHOW VSCHEMA_TABLES
+| SHOW VSCHEMA TABLES
   {
-    $$ = &Show{Type: string($2)}
+    $$ = &Show{Type: string($2) + " " + string($3)}
+  }
+| SHOW VSCHEMA VINDEXES
+  {
+    $$ = &Show{Type: string($2) + " " + string($3)}
+  }
+| SHOW VSCHEMA VINDEXES ON table_name
+  {
+    $$ = &Show{Type: string($2) + " " + string($3), OnTable: $5}
   }
 | SHOW WARNINGS
   {
@@ -2510,46 +2524,90 @@ function_call_keyword:
   Dedicated grammar rules are needed because of the special syntax
 */
 function_call_nonkeyword:
-  CURRENT_TIMESTAMP func_datetime_precision_opt
+  CURRENT_TIMESTAMP func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("current_timestamp")}
   }
-| UTC_TIMESTAMP func_datetime_precision_opt
+| UTC_TIMESTAMP func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("utc_timestamp")}
   }
-| UTC_TIME func_datetime_precision_opt
+| UTC_TIME func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("utc_time")}
   }
-| UTC_DATE func_datetime_precision_opt
+/* doesn't support fsp */
+| UTC_DATE func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("utc_date")}
   }
   // now
-| LOCALTIME func_datetime_precision_opt
+| LOCALTIME func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("localtime")}
   }
   // now
-| LOCALTIMESTAMP func_datetime_precision_opt
+| LOCALTIMESTAMP func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("localtimestamp")}
   }
   // curdate
-| CURRENT_DATE func_datetime_precision_opt
+/* doesn't support fsp */
+| CURRENT_DATE func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("current_date")}
   }
   // curtime
-| CURRENT_TIME func_datetime_precision_opt
+| CURRENT_TIME func_datetime_opt
   {
     $$ = &FuncExpr{Name:NewColIdent("current_time")}
   }
+// these functions can also be called with an optional argument
+|  CURRENT_TIMESTAMP func_datetime_precision
+  {
+    $$ = &CurTimeFuncExpr{Name:NewColIdent("current_timestamp"), Fsp:$2}
+  }
+| UTC_TIMESTAMP func_datetime_precision
+  {
+    $$ = &CurTimeFuncExpr{Name:NewColIdent("utc_timestamp"), Fsp:$2}
+  }
+| UTC_TIME func_datetime_precision
+  {
+    $$ = &CurTimeFuncExpr{Name:NewColIdent("utc_time"), Fsp:$2}
+  }
+  // now
+| LOCALTIME func_datetime_precision
+  {
+    $$ = &CurTimeFuncExpr{Name:NewColIdent("localtime"), Fsp:$2}
+  }
+  // now
+| LOCALTIMESTAMP func_datetime_precision
+  {
+    $$ = &CurTimeFuncExpr{Name:NewColIdent("localtimestamp"), Fsp:$2}
+  }
+  // curtime
+| CURRENT_TIME func_datetime_precision
+  {
+    $$ = &CurTimeFuncExpr{Name:NewColIdent("current_time"), Fsp:$2}
+  }
+| TIMESTAMPADD openb sql_id ',' value_expression ',' value_expression closeb
+  {
+    $$ = &TimestampFuncExpr{Name:string("timestampadd"), Unit:$3.String(), Expr1:$5, Expr2:$7}
+  }
+| TIMESTAMPDIFF openb sql_id ',' value_expression ',' value_expression closeb
+  {
+    $$ = &TimestampFuncExpr{Name:string("timestampdiff"), Unit:$3.String(), Expr1:$5, Expr2:$7}
+  }
 
-func_datetime_precision_opt:
+func_datetime_opt:
   /* empty */
 | openb closeb
+
+func_datetime_precision:
+  openb value_expression closeb
+  {
+    $$ = $2
+  }
 
 /*
   Function calls using non reserved keywords with *normal* syntax forms. Because
@@ -3210,6 +3268,8 @@ reserved_keyword:
 | STRAIGHT_JOIN
 | TABLE
 | THEN
+| TIMESTAMPADD
+| TIMESTAMPDIFF
 | TO
 | TRUE
 | UNION
@@ -3240,6 +3300,7 @@ non_reserved_keyword:
 | BIT
 | BLOB
 | BOOL
+| BOOLEAN
 | CASCADE
 | CHAR
 | CHARACTER
@@ -3254,6 +3315,7 @@ non_reserved_keyword:
 | DECIMAL
 | DOUBLE
 | DUPLICATE
+| ENGINES
 | ENUM
 | EXPANSION
 | FLOAT_TYPE
@@ -3292,6 +3354,7 @@ non_reserved_keyword:
 | ONLY
 | OPTIMIZE
 | PARTITION
+| PLUGINS
 | POINT
 | POLYGON
 | PRIMARY
@@ -3305,6 +3368,7 @@ non_reserved_keyword:
 | REPEATABLE
 | RESTRICT
 | ROLLBACK
+| SCHEMAS
 | SESSION
 | SERIALIZABLE
 | SHARE
@@ -3336,6 +3400,7 @@ non_reserved_keyword:
 | VITESS_KEYSPACES
 | VITESS_SHARDS
 | VITESS_TABLETS
+| VSCHEMA
 | VSCHEMA_TABLES
 | VITESS_TARGET
 | WARNINGS

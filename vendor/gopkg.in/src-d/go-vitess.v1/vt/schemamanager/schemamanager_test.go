@@ -59,7 +59,7 @@ func TestSchemaManagerControllerOpenFail(t *testing.T) {
 
 	err := Run(ctx, controller, newFakeExecutor(t))
 	if err != errControllerOpen {
-		t.Fatalf("controller.Open fail, shoud get error: %v, but get error: %v",
+		t.Fatalf("controller.Open fail, should get error: %v, but get error: %v",
 			errControllerOpen, err)
 	}
 }
@@ -70,7 +70,7 @@ func TestSchemaManagerControllerReadFail(t *testing.T) {
 	ctx := context.Background()
 	err := Run(ctx, controller, newFakeExecutor(t))
 	if err != errControllerRead {
-		t.Fatalf("controller.Read fail, shoud get error: %v, but get error: %v",
+		t.Fatalf("controller.Read fail, should get error: %v, but get error: %v",
 			errControllerRead, err)
 	}
 	if !controller.onReadFailTriggered {
@@ -189,7 +189,7 @@ func TestSchemaManagerExecutorFail(t *testing.T) {
 	ctx := context.Background()
 	err := Run(ctx, controller, executor)
 
-	if err == nil || !strings.Contains(err.Error(), "Schema change failed") {
+	if err == nil || !strings.Contains(err.Error(), "schema change failed") {
 		t.Fatalf("schema change should fail, but got err: %v", err)
 	}
 }
@@ -315,6 +315,29 @@ func newFakeTopo(t *testing.T) *topo.Server {
 		}); err != nil {
 			t.Fatalf("UpdateShardFields failed: %v", err)
 		}
+	}
+	if err := ts.CreateKeyspace(ctx, "unsharded_keyspace", &topodatapb.Keyspace{}); err != nil {
+		t.Fatalf("CreateKeyspace failed: %v", err)
+	}
+	if err := ts.CreateShard(ctx, "unsharded_keyspace", "0"); err != nil {
+		t.Fatalf("CreateShard(%v) failed: %v", "0", err)
+	}
+	tablet := &topodatapb.Tablet{
+		Alias: &topodatapb.TabletAlias{
+			Cell: "test_cell",
+			Uid:  uint32(4),
+		},
+		Keyspace: "test_keyspace",
+		Shard:    "0",
+	}
+	if err := ts.CreateTablet(ctx, tablet); err != nil {
+		t.Fatalf("CreateTablet failed: %v", err)
+	}
+	if _, err := ts.UpdateShardFields(ctx, "unsharded_keyspace", "0", func(si *topo.ShardInfo) error {
+		si.Shard.MasterAlias = tablet.Alias
+		return nil
+	}); err != nil {
+		t.Fatalf("UpdateShardFields failed: %v", err)
 	}
 	return ts
 }

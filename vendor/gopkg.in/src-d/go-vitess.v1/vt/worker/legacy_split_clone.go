@@ -206,7 +206,7 @@ func (scw *LegacySplitCloneWorker) Run(ctx context.Context) error {
 	cerr := scw.cleaner.CleanUp(scw.wr)
 	if cerr != nil {
 		if err != nil {
-			scw.wr.Logger().Errorf("CleanUp failed in addition to job error: %v", cerr)
+			scw.wr.Logger().Errorf2(cerr, "CleanUp failed in addition to job error")
 		} else {
 			err = cerr
 		}
@@ -222,7 +222,7 @@ func (scw *LegacySplitCloneWorker) Run(ctx context.Context) error {
 	}
 	if scw.healthCheck != nil {
 		if err := scw.healthCheck.Close(); err != nil {
-			scw.wr.Logger().Errorf("HealthCheck.Close() failed: %v", err)
+			scw.wr.Logger().Errorf2(err, "HealthCheck.Close() failed")
 		}
 	}
 
@@ -290,7 +290,12 @@ func (scw *LegacySplitCloneWorker) init(ctx context.Context) error {
 
 	// one side should have served types, the other one none,
 	// figure out wich is which, then double check them all
-	if len(os.Left[0].ServedTypes) > 0 {
+
+	leftServingTypes, err := scw.wr.TopoServer().GetShardServingTypes(ctx, os.Left[0])
+	if err != nil {
+		return fmt.Errorf("cannot get shard serving cells for: %v", os.Left[0])
+	}
+	if len(leftServingTypes) > 0 {
 		scw.sourceShards = os.Left
 		scw.destinationShards = os.Right
 	} else {
@@ -311,13 +316,29 @@ func (scw *LegacySplitCloneWorker) init(ctx context.Context) error {
 	servingTypes := []topodatapb.TabletType{topodatapb.TabletType_MASTER, topodatapb.TabletType_REPLICA, topodatapb.TabletType_RDONLY}
 	for _, st := range servingTypes {
 		for _, si := range scw.sourceShards {
-			if si.GetServedType(st) == nil {
+			shardServingTypes, err := scw.wr.TopoServer().GetShardServingTypes(ctx, si)
+			if err != nil {
+				return fmt.Errorf("failed to get ServingTypes for source shard %v/%v", si.Keyspace(), si.ShardName())
+
+			}
+			found := false
+			for _, shardServingType := range shardServingTypes {
+				if shardServingType == st {
+					found = true
+				}
+			}
+			if !found {
 				return fmt.Errorf("source shard %v/%v is not serving type %v", si.Keyspace(), si.ShardName(), st)
 			}
 		}
 	}
 	for _, si := range scw.destinationShards {
-		if len(si.ServedTypes) > 0 {
+		shardServingTypes, err := scw.wr.TopoServer().GetShardServingTypes(ctx, si)
+		if err != nil {
+			return fmt.Errorf("failed to get ServingTypes for destination shard %v/%v", si.Keyspace(), si.ShardName())
+
+		}
+		if len(shardServingTypes) > 0 {
 			return fmt.Errorf("destination shard %v/%v is serving some types", si.Keyspace(), si.ShardName())
 		}
 	}
@@ -424,7 +445,7 @@ func (scw *LegacySplitCloneWorker) copy(ctx context.Context) error {
 	scw.setState(WorkerStateCloneOffline)
 	start := time.Now()
 	defer func() {
-		statsStateDurationsNs.Set(string(WorkerStateCloneOffline), time.Now().Sub(start).Nanoseconds())
+		statsStateDurationsNs.Set(string(WorkerStateCloneOffline), time.Since(start).Nanoseconds())
 	}()
 
 	// get source schema from the first shard
@@ -594,10 +615,13 @@ func (scw *LegacySplitCloneWorker) copy(ctx context.Context) error {
 	}
 
 	for _, si := range scw.destinationShards {
+		keyspaceAndShard := topoproto.KeyspaceShardString(si.Keyspace(), si.ShardName())
+		dbName := scw.destinationDbNames[keyspaceAndShard]
+
 		destinationWaitGroup.Add(1)
 		go func(keyspace, shard string, kr *topodatapb.KeyRange) {
 			defer destinationWaitGroup.Done()
-			scw.wr.Logger().Infof("Making and populating vreplication table")
+			scw.wr.Logger().Infof("Making and populating vreplication table for %v/%v", keyspace, shard)
 
 			exc := newExecutor(scw.wr, scw.tsc, nil, keyspace, shard, 0)
 			for shardIndex, src := range scw.sourceShards {
@@ -606,10 +630,12 @@ func (scw *LegacySplitCloneWorker) copy(ctx context.Context) error {
 					Shard:    src.ShardName(),
 					KeyRange: kr,
 				}
-				qr, err := exc.vreplicationExec(ctx, binlogplayer.CreateVReplication("LegacySplitClone", bls, sourcePositions[shardIndex], scw.maxTPS, throttler.ReplicationLagModuleDisabled, time.Now().Unix()))
+				qr, err := exc.vreplicationExec(ctx, binlogplayer.CreateVReplication("LegacySplitClone", bls, sourcePositions[shardIndex], scw.maxTPS, throttler.ReplicationLagModuleDisabled, time.Now().Unix(), dbName))
 				if err != nil {
 					processError("vreplication queries failed: %v", err)
 					break
+				} else {
+					scw.wr.Logger().Infof("Created replication for tablet %v/%v: %v, db: %v, pos: %v, uid: %v", keyspace, shard, bls, dbName, sourcePositions[shardIndex], uint32(qr.InsertID))
 				}
 				if err := scw.wr.SourceShardAdd(ctx, keyspace, shard, uint32(qr.InsertID), src.Keyspace(), src.ShardName(), src.Shard.KeyRange, nil); err != nil {
 					processError("could not add source shard: %v", err)

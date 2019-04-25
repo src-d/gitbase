@@ -17,11 +17,11 @@ limitations under the License.
 package zk2topo
 
 import (
-	"fmt"
 	"path"
 
 	"github.com/samuel/go-zookeeper/zk"
 	"golang.org/x/net/context"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
@@ -56,7 +56,7 @@ func (zs *Server) Lock(ctx context.Context, dirPath, contents string) (topo.Lock
 		case context.Canceled:
 			errToReturn = topo.NewError(topo.Interrupted, nodePath)
 		default:
-			errToReturn = fmt.Errorf("failed to obtain action lock: %v %v", nodePath, err)
+			errToReturn = vterrors.Wrapf(err, "failed to obtain action lock: %v", nodePath)
 		}
 
 		// Regardless of the reason, try to cleanup.

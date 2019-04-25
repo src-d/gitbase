@@ -56,6 +56,10 @@ func TestBackupRestore(t *testing.T) {
 	db.AddQueryPattern(`SET @@session\.sql_log_bin = .*`, &sqltypes.Result{})
 	db.AddQueryPattern(`CREATE TABLE IF NOT EXISTS _vt\.shard_metadata .*`, &sqltypes.Result{})
 	db.AddQueryPattern(`CREATE TABLE IF NOT EXISTS _vt\.local_metadata .*`, &sqltypes.Result{})
+	db.AddQueryPattern(`ALTER TABLE _vt\.local_metadata .*`, &sqltypes.Result{})
+	db.AddQueryPattern(`ALTER TABLE _vt\.shard_metadata .*`, &sqltypes.Result{})
+	db.AddQueryPattern(`UPDATE _vt\.local_metadata SET db_name=.*`, &sqltypes.Result{})
+	db.AddQueryPattern(`UPDATE _vt\.shard_metadata SET db_name=.*`, &sqltypes.Result{})
 	db.AddQueryPattern(`INSERT INTO _vt\.local_metadata .*`, &sqltypes.Result{})
 
 	// Initialize our temp dirs
@@ -98,10 +102,12 @@ func TestBackupRestore(t *testing.T) {
 	sourceTablet.FakeMysqlDaemon.ReadOnly = true
 	sourceTablet.FakeMysqlDaemon.Replicating = true
 	sourceTablet.FakeMysqlDaemon.CurrentMasterPosition = mysql.Position{
-		GTIDSet: mysql.MariadbGTID{
-			Domain:   2,
-			Server:   123,
-			Sequence: 457,
+		GTIDSet: mysql.MariadbGTIDSet{
+			mysql.MariadbGTID{
+				Domain:   2,
+				Server:   123,
+				Sequence: 457,
+			},
 		},
 	}
 	sourceTablet.FakeMysqlDaemon.ExpectedExecuteSuperQueryList = []string{
@@ -138,10 +144,12 @@ func TestBackupRestore(t *testing.T) {
 	destTablet.FakeMysqlDaemon.ReadOnly = true
 	destTablet.FakeMysqlDaemon.Replicating = true
 	destTablet.FakeMysqlDaemon.CurrentMasterPosition = mysql.Position{
-		GTIDSet: mysql.MariadbGTID{
-			Domain:   2,
-			Server:   123,
-			Sequence: 457,
+		GTIDSet: mysql.MariadbGTIDSet{
+			mysql.MariadbGTID{
+				Domain:   2,
+				Server:   123,
+				Sequence: 457,
+			},
 		},
 	}
 	destTablet.FakeMysqlDaemon.ExpectedExecuteSuperQueryList = []string{

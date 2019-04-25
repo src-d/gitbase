@@ -81,6 +81,14 @@ func (Serializer) Unmarshal(buf []byte, m pilosa.Message) error {
 		}
 		decodeDeleteFieldMessage(msg, mt)
 		return nil
+	case *pilosa.DeleteAvailableShardMessage:
+		msg := &internal.DeleteAvailableShardMessage{}
+		err := proto.Unmarshal(buf, msg)
+		if err != nil {
+			return errors.Wrap(err, "unmarshaling DeleteAvailableShardMessage")
+		}
+		decodeDeleteAvailableShardMessage(msg, mt)
+		return nil
 	case *pilosa.CreateViewMessage:
 		msg := &internal.CreateViewMessage{}
 		err := proto.Unmarshal(buf, msg)
@@ -209,6 +217,14 @@ func (Serializer) Unmarshal(buf []byte, m pilosa.Message) error {
 		}
 		decodeImportValueRequest(msg, mt)
 		return nil
+	case *pilosa.ImportRoaringRequest:
+		msg := &internal.ImportRoaringRequest{}
+		err := proto.Unmarshal(buf, msg)
+		if err != nil {
+			return errors.Wrap(err, "unmarshaling ImportRoaringRequest")
+		}
+		decodeImportRoaringRequest(msg, mt)
+		return nil
 	case *pilosa.ImportResponse:
 		msg := &internal.ImportResponse{}
 		err := proto.Unmarshal(buf, msg)
@@ -233,6 +249,22 @@ func (Serializer) Unmarshal(buf []byte, m pilosa.Message) error {
 		}
 		decodeBlockDataResponse(msg, mt)
 		return nil
+	case *pilosa.TranslateKeysRequest:
+		msg := &internal.TranslateKeysRequest{}
+		err := proto.Unmarshal(buf, msg)
+		if err != nil {
+			return errors.Wrap(err, "unmarshaling TranslateKeysRequest")
+		}
+		decodeTranslateKeysRequest(msg, mt)
+		return nil
+	case *pilosa.TranslateKeysResponse:
+		msg := &internal.TranslateKeysResponse{}
+		err := proto.Unmarshal(buf, msg)
+		if err != nil {
+			return errors.Wrap(err, "unmarshaling TranslateKeysResponse")
+		}
+		decodeTranslateKeysResponse(msg, mt)
+		return nil
 	default:
 		panic(fmt.Sprintf("unhandled pilosa.Message of type %T: %#v", mt, m))
 	}
@@ -250,6 +282,8 @@ func encodeToProto(m pilosa.Message) proto.Message {
 		return encodeCreateFieldMessage(mt)
 	case *pilosa.DeleteFieldMessage:
 		return encodeDeleteFieldMessage(mt)
+	case *pilosa.DeleteAvailableShardMessage:
+		return encodeDeleteAvailableShardMessage(mt)
 	case *pilosa.CreateViewMessage:
 		return encodeCreateViewMessage(mt)
 	case *pilosa.DeleteViewMessage:
@@ -282,12 +316,18 @@ func encodeToProto(m pilosa.Message) proto.Message {
 		return encodeImportRequest(mt)
 	case *pilosa.ImportValueRequest:
 		return encodeImportValueRequest(mt)
+	case *pilosa.ImportRoaringRequest:
+		return encodeImportRoaringRequest(mt)
 	case *pilosa.ImportResponse:
 		return encodeImportResponse(mt)
 	case *pilosa.BlockDataRequest:
 		return encodeBlockDataRequest(mt)
 	case *pilosa.BlockDataResponse:
 		return encodeBlockDataResponse(mt)
+	case *pilosa.TranslateKeysRequest:
+		return encodeTranslateKeysRequest(mt)
+	case *pilosa.TranslateKeysResponse:
+		return encodeTranslateKeysResponse(mt)
 	}
 	return nil
 }
@@ -338,6 +378,22 @@ func encodeImportValueRequest(m *pilosa.ImportValueRequest) *internal.ImportValu
 	}
 }
 
+func encodeImportRoaringRequest(m *pilosa.ImportRoaringRequest) *internal.ImportRoaringRequest {
+	views := make([]*internal.ImportRoaringRequestView, len(m.Views))
+	i := 0
+	for viewName, viewData := range m.Views {
+		views[i] = &internal.ImportRoaringRequestView{
+			Name: viewName,
+			Data: viewData,
+		}
+		i += 1
+	}
+	return &internal.ImportRoaringRequest{
+		Clear: m.Clear,
+		Views: views,
+	}
+}
+
 func encodeQueryRequest(m *pilosa.QueryRequest) *internal.QueryRequest {
 	return &internal.QueryRequest{
 		Query:           m.Query,
@@ -374,6 +430,15 @@ func encodeQueryResponse(m *pilosa.QueryResponse) *internal.QueryResponse {
 		case bool:
 			pb.Results[i].Type = queryResultTypeBool
 			pb.Results[i].Changed = result
+		case pilosa.RowIDs:
+			pb.Results[i].Type = queryResultTypeRowIDs
+			pb.Results[i].RowIDs = result
+		case []pilosa.GroupCount:
+			pb.Results[i].Type = queryResultTypeGroupCounts
+			pb.Results[i].GroupCounts = encodeGroupCounts(result)
+		case pilosa.RowIdentifiers:
+			pb.Results[i].Type = queryResultTypeRowIdentifiers
+			pb.Results[i].RowIdentifiers = encodeRowIdentifiers(result)
 		case nil:
 			pb.Results[i].Type = queryResultTypeNil
 		}
@@ -392,7 +457,7 @@ func encodeResizeInstruction(m *pilosa.ResizeInstruction) *internal.ResizeInstru
 		Node:          encodeNode(m.Node),
 		Coordinator:   encodeNode(m.Coordinator),
 		Sources:       encodeResizeSources(m.Sources),
-		Schema:        encodeSchema(m.Schema),
+		NodeStatus:    encodeNodeStatus(m.NodeStatus),
 		ClusterStatus: encodeClusterStatus(m.ClusterStatus),
 	}
 }
@@ -487,6 +552,7 @@ func encodeNode(n *pilosa.Node) *internal.Node {
 		ID:            n.ID,
 		URI:           encodeURI(n.URI),
 		IsCoordinator: n.IsCoordinator,
+		State:         n.State,
 	}
 }
 
@@ -546,6 +612,14 @@ func encodeDeleteFieldMessage(m *pilosa.DeleteFieldMessage) *internal.DeleteFiel
 	return &internal.DeleteFieldMessage{
 		Index: m.Index,
 		Field: m.Field,
+	}
+}
+
+func encodeDeleteAvailableShardMessage(m *pilosa.DeleteAvailableShardMessage) *internal.DeleteAvailableShardMessage {
+	return &internal.DeleteAvailableShardMessage{
+		Index:   m.Index,
+		Field:   m.Field,
+		ShardID: m.ShardID,
 	}
 }
 
@@ -641,6 +715,20 @@ func encodeRecalculateCaches(*pilosa.RecalculateCaches) *internal.RecalculateCac
 	return &internal.RecalculateCaches{}
 }
 
+func encodeTranslateKeysResponse(response *pilosa.TranslateKeysResponse) *internal.TranslateKeysResponse {
+	return &internal.TranslateKeysResponse{
+		IDs: response.IDs,
+	}
+}
+
+func encodeTranslateKeysRequest(request *pilosa.TranslateKeysRequest) *internal.TranslateKeysRequest {
+	return &internal.TranslateKeysRequest{
+		Index: request.Index,
+		Field: request.Field,
+		Keys:  request.Keys,
+	}
+}
+
 func decodeResizeInstruction(ri *internal.ResizeInstruction, m *pilosa.ResizeInstruction) {
 	m.JobID = ri.JobID
 	m.Node = &pilosa.Node{}
@@ -649,8 +737,8 @@ func decodeResizeInstruction(ri *internal.ResizeInstruction, m *pilosa.ResizeIns
 	decodeNode(ri.Coordinator, m.Coordinator)
 	m.Sources = make([]*pilosa.ResizeSource, len(ri.Sources))
 	decodeResizeSources(ri.Sources, m.Sources)
-	m.Schema = &pilosa.Schema{}
-	decodeSchema(ri.Schema, m.Schema)
+	m.NodeStatus = &pilosa.NodeStatus{}
+	decodeNodeStatus(ri.NodeStatus, m.NodeStatus)
 	m.ClusterStatus = &pilosa.ClusterStatus{}
 	decodeClusterStatus(ri.ClusterStatus, m.ClusterStatus)
 }
@@ -734,6 +822,7 @@ func decodeNode(node *internal.Node, m *pilosa.Node) {
 	m.ID = node.ID
 	decodeURI(node.URI, &m.URI)
 	m.IsCoordinator = node.IsCoordinator
+	m.State = node.State
 }
 
 func decodeURI(i *internal.URI, m *pilosa.URI) {
@@ -773,6 +862,12 @@ func decodeCreateFieldMessage(pb *internal.CreateFieldMessage, m *pilosa.CreateF
 func decodeDeleteFieldMessage(pb *internal.DeleteFieldMessage, m *pilosa.DeleteFieldMessage) {
 	m.Index = pb.Index
 	m.Field = pb.Field
+}
+
+func decodeDeleteAvailableShardMessage(pb *internal.DeleteAvailableShardMessage, m *pilosa.DeleteAvailableShardMessage) {
+	m.Index = pb.Index
+	m.Field = pb.Field
+	m.ShardID = pb.ShardID
 }
 
 func decodeCreateViewMessage(pb *internal.CreateViewMessage, m *pilosa.CreateViewMessage) {
@@ -881,6 +976,15 @@ func decodeImportValueRequest(pb *internal.ImportValueRequest, m *pilosa.ImportV
 	m.Values = pb.Values
 }
 
+func decodeImportRoaringRequest(pb *internal.ImportRoaringRequest, m *pilosa.ImportRoaringRequest) {
+	views := map[string][]byte{}
+	for _, view := range pb.Views {
+		views[view.Name] = view.Data
+	}
+	m.Clear = pb.Clear
+	m.Views = views
+}
+
 func decodeImportResponse(pb *internal.ImportResponse, m *pilosa.ImportResponse) {
 	m.Err = pb.Err
 }
@@ -908,7 +1012,6 @@ func decodeQueryResponse(pb *internal.QueryResponse, m *pilosa.QueryResponse) {
 	}
 	m.Results = make([]interface{}, len(pb.Results))
 	decodeQueryResults(pb.Results, m.Results)
-
 }
 
 func decodeColumnAttrSets(pb []*internal.ColumnAttrSet, m []*pilosa.ColumnAttrSet) {
@@ -930,6 +1033,16 @@ func decodeQueryResults(pb []*internal.QueryResult, m []interface{}) {
 	}
 }
 
+func decodeTranslateKeysRequest(pb *internal.TranslateKeysRequest, m *pilosa.TranslateKeysRequest) {
+	m.Index = pb.Index
+	m.Field = pb.Field
+	m.Keys = pb.Keys
+}
+
+func decodeTranslateKeysResponse(pb *internal.TranslateKeysResponse, m *pilosa.TranslateKeysResponse) {
+	m.IDs = pb.IDs
+}
+
 // QueryResult types.
 const (
 	queryResultTypeNil uint32 = iota
@@ -938,6 +1051,9 @@ const (
 	queryResultTypeValCount
 	queryResultTypeUint64
 	queryResultTypeBool
+	queryResultTypeRowIDs
+	queryResultTypeGroupCounts
+	queryResultTypeRowIdentifiers
 )
 
 func decodeQueryResult(pb *internal.QueryResult) interface{} {
@@ -954,6 +1070,12 @@ func decodeQueryResult(pb *internal.QueryResult) interface{} {
 		return pb.Changed
 	case queryResultTypeNil:
 		return nil
+	case queryResultTypeRowIDs:
+		return pilosa.RowIDs(pb.RowIDs)
+	case queryResultTypeRowIdentifiers:
+		return decodeRowIdentifiers(pb.RowIdentifiers)
+	case queryResultTypeGroupCounts:
+		return decodeGroupCounts(pb.GroupCounts)
 	}
 	panic(fmt.Sprintf("unknown type: %d", pb.Type))
 }
@@ -1002,6 +1124,38 @@ func decodeAttr(attr *internal.Attr) (key string, value interface{}) {
 	default:
 		return attr.Key, nil
 	}
+}
+
+func decodeRowIdentifiers(a *internal.RowIdentifiers) *pilosa.RowIdentifiers {
+	return &pilosa.RowIdentifiers{
+		Rows: a.Rows,
+		Keys: a.Keys,
+	}
+}
+
+func decodeGroupCounts(a []*internal.GroupCount) []pilosa.GroupCount {
+	other := make([]pilosa.GroupCount, len(a))
+	for i := range a {
+		other[i] = pilosa.GroupCount{
+			Group: decodeFieldRows(a[i].Group),
+			Count: a[i].Count,
+		}
+	}
+	return other
+}
+
+func decodeFieldRows(a []*internal.FieldRow) []pilosa.FieldRow {
+	other := make([]pilosa.FieldRow, len(a))
+	for i := range a {
+		fr := a[i]
+		other[i].Field = fr.Field
+		if fr.RowKey == "" {
+			other[i].RowID = fr.RowID
+		} else {
+			other[i].RowKey = fr.RowKey
+		}
+	}
+	return other
 }
 
 func decodePairs(a []*internal.Pair) []pilosa.Pair {
@@ -1053,6 +1207,44 @@ func encodeRow(r *pilosa.Row) *internal.Row {
 		Keys:    r.Keys,
 		Attrs:   encodeAttrs(r.Attrs),
 	}
+}
+
+func encodeRowIdentifiers(r pilosa.RowIdentifiers) *internal.RowIdentifiers {
+	return &internal.RowIdentifiers{
+		Rows: r.Rows,
+		Keys: r.Keys,
+		//Attrs:   encodeAttrs(r.Attrs),
+	}
+}
+
+func encodeGroupCounts(counts []pilosa.GroupCount) []*internal.GroupCount {
+	result := make([]*internal.GroupCount, len(counts))
+	for i := range counts {
+		result[i] = &internal.GroupCount{
+			Group: encodeFieldRows(counts[i].Group),
+			Count: counts[i].Count,
+		}
+	}
+	return result
+}
+
+func encodeFieldRows(a []pilosa.FieldRow) []*internal.FieldRow {
+	other := make([]*internal.FieldRow, len(a))
+	for i := range a {
+		fr := a[i]
+		if fr.RowKey == "" {
+			other[i] = &internal.FieldRow{
+				Field: fr.Field,
+				RowID: fr.RowID,
+			}
+		} else {
+			other[i] = &internal.FieldRow{
+				Field:  fr.Field,
+				RowKey: fr.RowKey,
+			}
+		}
+	}
+	return other
 }
 
 func encodePairs(a pilosa.Pairs) []*internal.Pair {

@@ -17,11 +17,11 @@ limitations under the License.
 package topo
 
 import (
-	"fmt"
 	"path"
 
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 
 	"gopkg.in/src-d/go-vitess.v1/trace"
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
@@ -179,7 +179,7 @@ func (ts *Server) UpdateShardReplicationFields(ctx context.Context, cell, keyspa
 		case err == nil:
 			// Use any data we got.
 			if err = proto.Unmarshal(data, sr); err != nil {
-				return fmt.Errorf("bad ShardReplication data %v", err)
+				return vterrors.Wrap(err, "bad ShardReplication data")
 			}
 		default:
 			return err
@@ -236,7 +236,7 @@ func (ts *Server) GetShardReplication(ctx context.Context, cell, keyspace, shard
 
 	sr := &topodatapb.ShardReplication{}
 	if err = proto.Unmarshal(data, sr); err != nil {
-		return nil, fmt.Errorf("bad ShardReplication data %v", err)
+		return nil, vterrors.Wrap(err, "bad ShardReplication data")
 	}
 
 	return NewShardReplicationInfo(sr, cell, keyspace, shard), nil

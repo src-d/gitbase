@@ -16,7 +16,9 @@ limitations under the License.
 
 package events
 
-import topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
+import (
+	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
+)
 
 // TabletChange is an event that describes changes to a tablet's topo record.
 // It is triggered when the CURRENT process changes ANY tablet's record.

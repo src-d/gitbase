@@ -85,10 +85,10 @@ func TestMain_SendReceiveMessage(t *testing.T) {
 	}
 
 	// Write data on first node.
-	if _, err := m0.Query("i", "", `
+	if _, err := m0.Query("i", "", fmt.Sprintf(`
             Set(1, f=1)
-            Set(2400000, f=1)
-        `); err != nil {
+            Set(%d, f=1)
+        `, 2*pilosa.ShardWidth+1)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -206,6 +206,16 @@ func TestClusterResize_AddNode(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// exp is the expected result for the Row queries that follow.
+		exp := `{"results":[{"attrs":{},"columns":[1,1300000]}]}` + "\n"
+
+		// Verify the data exists on the single node.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+
 		// Configure node1
 		m1 := test.NewCommandNode(false)
 		m1.Config.Gossip.Port = "0"
@@ -220,6 +230,18 @@ func TestClusterResize_AddNode(t *testing.T) {
 			t.Fatalf("unexpected node0 cluster state: %s", m0.API.State())
 		} else if !checkClusterState(m1, pilosa.ClusterStateNormal, 1000) {
 			t.Fatalf("unexpected node1 cluster state: %s", m1.API.State())
+		}
+
+		// Verify the data exists on both nodes.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+		if res, err := m1.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
 		}
 	})
 	t.Run("SkippedShard", func(t *testing.T) {
@@ -247,6 +269,16 @@ func TestClusterResize_AddNode(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		// exp is the expected result for the Row queries that follow.
+		exp := `{"results":[{"attrs":{},"columns":[1,2400000]}]}` + "\n"
+
+		// Verify the data exists on the single node.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+
 		// Configure node1
 		m1 := test.NewCommandNode(false)
 		m1.Config.Gossip.Port = "0"
@@ -261,6 +293,201 @@ func TestClusterResize_AddNode(t *testing.T) {
 			t.Fatalf("unexpected node0 cluster state: %s", m0.API.State())
 		} else if !checkClusterState(m1, pilosa.ClusterStateNormal, 1000) {
 			t.Fatalf("unexpected node1 cluster state: %s", m1.API.State())
+		}
+
+		// Verify the data exists on both nodes.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+		if res, err := m1.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+	})
+}
+
+// Ensure that adding a node correctly resizes the cluster.
+func TestClusterResize_AddNodeConcurrentIndex(t *testing.T) {
+	t.Run("WithIndex", func(t *testing.T) {
+		// Configure node0
+		m0 := test.MustRunCluster(t, 1)[0]
+		defer m0.Close()
+
+		seed := m0.GossipAddress()
+
+		// Create a client for each node.
+		client0 := m0.Client()
+
+		// Create indexes and fields on one node.
+		if err := client0.CreateIndex(context.Background(), "i", pilosa.IndexOptions{}); err != nil && err != pilosa.ErrIndexExists {
+			t.Fatal(err)
+		} else if err := client0.CreateField(context.Background(), "i", "f"); err != nil {
+			t.Fatal(err)
+		}
+
+		errc := make(chan error)
+		go func() {
+			_, err := m0.API.CreateIndex(context.Background(), "blah", pilosa.IndexOptions{})
+			errc <- err
+		}()
+
+		// Configure node1
+		m1 := test.NewCommandNode(false)
+		m1.Config.Gossip.Port = "0"
+		m1.Config.Gossip.Seeds = []string{seed}
+		err := m1.Start()
+		if err != nil {
+			t.Fatalf("starting second main: %v", err)
+		}
+		defer m1.Close()
+
+		if !checkClusterState(m0, pilosa.ClusterStateNormal, 1000) {
+			t.Fatalf("unexpected node0 cluster state: %s", m0.API.State())
+		} else if !checkClusterState(m1, pilosa.ClusterStateNormal, 1000) {
+			t.Fatalf("unexpected node1 cluster state: %s", m1.API.State())
+		}
+
+		if err := <-errc; err != nil {
+			t.Fatalf("error from index creation: %v", err)
+		}
+	})
+	t.Run("ContinuousShards", func(t *testing.T) {
+		// Configure node0
+		m0 := test.MustRunCluster(t, 1)[0]
+		defer m0.Close()
+
+		seed := m0.GossipAddress()
+
+		// Create a client for each node.
+		client0 := m0.Client()
+
+		// Create indexes and fields on one node.
+		if err := client0.CreateIndex(context.Background(), "i", pilosa.IndexOptions{}); err != nil && err != pilosa.ErrIndexExists {
+			t.Fatal(err)
+		} else if err := client0.CreateField(context.Background(), "i", "f"); err != nil {
+			t.Fatal(err)
+		}
+
+		// Write data on first node.
+		if _, err := m0.Query("i", "", `
+				Set(1, f=1)
+				Set(1300000, f=1)
+			`); err != nil {
+			t.Fatal(err)
+		}
+
+		// exp is the expected result for the Row queries that follow.
+		exp := `{"results":[{"attrs":{},"columns":[1,1300000]}]}` + "\n"
+
+		// Verify the data exists on the single node.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+
+		// Configure node1
+		m1 := test.NewCommandNode(false)
+		m1.Config.Gossip.Port = "0"
+		m1.Config.Gossip.Seeds = []string{seed}
+		err := m1.Start()
+		if err != nil {
+			t.Fatalf("starting second main: %v", err)
+		}
+		errc := make(chan error, 1)
+		go func() {
+			_, err := m0.API.CreateIndex(context.Background(), "blah", pilosa.IndexOptions{})
+			errc <- err
+		}()
+		defer m1.Close()
+
+		if !checkClusterState(m0, pilosa.ClusterStateNormal, 1000) {
+			t.Fatalf("unexpected node0 cluster state: %s", m0.API.State())
+		} else if !checkClusterState(m1, pilosa.ClusterStateNormal, 1000) {
+			t.Fatalf("unexpected node1 cluster state: %s", m1.API.State())
+		}
+
+		// Verify the data exists on both nodes.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+		if res, err := m1.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+	})
+	t.Run("SkippedShard", func(t *testing.T) {
+		// Configure node0
+		m0 := test.MustRunCluster(t, 1)[0]
+		defer m0.Close()
+
+		seed := m0.GossipAddress()
+
+		// Create a client for each node.
+		client0 := m0.Client()
+
+		// Create indexes and fields on one node.
+		if err := client0.CreateIndex(context.Background(), "i", pilosa.IndexOptions{}); err != nil && err != pilosa.ErrIndexExists {
+			t.Fatal(err)
+		} else if err := client0.CreateField(context.Background(), "i", "f"); err != nil {
+			t.Fatal(err)
+		}
+
+		// Write data on first node. Note that no data is placed on shard 1.
+		if _, err := m0.Query("i", "", `
+				Set(1, f=1)
+				Set(2400000, f=1)
+			`); err != nil {
+			t.Fatal(err)
+		}
+
+		// exp is the expected result for the Row queries that follow.
+		exp := `{"results":[{"attrs":{},"columns":[1,2400000]}]}` + "\n"
+
+		// Verify the data exists on the single node.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+
+		// Configure node1
+		m1 := test.NewCommandNode(false)
+		m1.Config.Gossip.Port = "0"
+		m1.Config.Gossip.Seeds = []string{seed}
+		errc := make(chan error, 1)
+		go func() {
+			_, err := m0.API.CreateIndex(context.Background(), "blah", pilosa.IndexOptions{})
+			errc <- err
+		}()
+		err := m1.Start()
+		if err != nil {
+			t.Fatalf("starting second main: %v", err)
+		}
+		defer m1.Close()
+
+		if !checkClusterState(m0, pilosa.ClusterStateNormal, 1000) {
+			t.Fatalf("unexpected node0 cluster state: %s", m0.API.State())
+		} else if !checkClusterState(m1, pilosa.ClusterStateNormal, 1000) {
+			t.Fatalf("unexpected node1 cluster state: %s", m1.API.State())
+		}
+
+		// Verify the data exists on both nodes.
+		if res, err := m0.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
+		}
+		if res, err := m1.Query("i", "", `Row(f=1)`); err != nil {
+			t.Fatal(err)
+		} else if res != exp {
+			t.Fatalf("unexpected result: %s", res)
 		}
 	})
 }
@@ -355,7 +582,7 @@ func TestClusterResize_RemoveNode(t *testing.T) {
 		nodeID := mustNodeID(m0.URL())
 		resp := test.MustDo("POST", m0.URL()+fmt.Sprintf("/cluster/resize/remove-node"), fmt.Sprintf(`{"id": "%s"}`, nodeID))
 
-		expBody := "removing node: calling node leave: coordinator cannot be removed; first, make a different node the new coordinator."
+		expBody := "removing node: calling node leave: coordinator cannot be removed; first, make a different node the new coordinator"
 		if resp.StatusCode != http.StatusInternalServerError {
 			t.Fatalf("expected StatusCode %d but got %d", http.StatusInternalServerError, resp.StatusCode)
 		} else if strings.TrimSpace(resp.Body) != expBody {

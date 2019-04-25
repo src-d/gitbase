@@ -56,6 +56,11 @@ When importing large datasets remember it is much faster to pre sort the data by
 pilosa import --sort -i project -f stargazer project-stargazer.csv
 ```
 
+We recommend importing data using official Pilosa client libraries. You can find the corresponding documentation at:
+* [Go client imports documentation](https://github.com/pilosa/go-pilosa/blob/master/docs/imports-exports.md)
+* [Java client imports documentation](https://github.com/pilosa/java-pilosa/blob/master/docs/imports.md)
+* [Python client imports documentation](https://github.com/pilosa/python-pilosa/blob/master/docs/imports.md)
+
 ##### Importing Integer Values
 
 If you are using [integer](../data-model/#bsi-range-encoding) field values, the CSV file should be in the format `Column,Value`.
@@ -81,6 +86,18 @@ For example, importing a file with the following contents will result in columns
 <div class="note">
     <p>Note that you must first create a field. View <a href="../api-reference/#create-field">Create Field</a> for more details. The `-e` flag can create the necessary schema when using a field of type "set".</p>
 </div>
+
+#### Clearing Data via Import
+
+By using the `--clear` flag with the import command, Pilosa will clear the values provided in the import payload.
+
+For example, importing a file with the following contents along with the `--clear` flag will result in data being cleared from row 0, column 9; row 1, columns 2 and 8; and row 3, column 12. Clearing a value that doesn't exists is allowed.
+```
+0,9
+1,2
+1,8
+3,12
+```
 
 #### Exporting
 
@@ -271,13 +288,13 @@ Each Pilosa cluster is configured by default to share anonymous usage details wi
 - **NumViews:** Number of views in the Cluster.
 - **OpenFiles:** Open file handle count.
 - **GoRoutines:** Go routine count.
- 
+
 You can opt-out of the Pilosa diagnostics reporting by setting the command line configuration option `--metric.diagnostics=false`, the `PILOSA_METRIC_DIAGNOSTICS` environment variable, or the TOML configuration file `[metric]` `diagnostics` option.
 
 ### Metrics
 
 Pilosa can be configured to emit metrics pertaining to its internal processes in one of two formats: Expvar or StatsD. Metric recording is disabled by default.
-The metrics configuration options are: 
+The metrics configuration options are:
 
   - [Host](../configuration/#metric-host): specify host that receives metric events
   - [Poll Interval](../configuration/#metric-poll-interval): specify polling interval for runtime metrics
@@ -311,7 +328,7 @@ We currently track the following events
 - **Xor:** Count of Xor queries.
 - **Not:** Count of Not queries.
 - **Count:** Count of Count queries.
-- **Range:** Count of Range queries.
+- **Range:** Count of ranged Row queries.
 - **Snapshot:** Event count when the snapshot process is triggered.
 - **BlockRepair:** Count of data blocks that were out of sync and repaired.
 - **GarbageCollection:** Event count when garbage collection occurs.

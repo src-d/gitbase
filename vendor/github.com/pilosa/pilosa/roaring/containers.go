@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2018 Pilosa Corp. All rights reserved.
+// Copyright 2017 Pilosa Corp.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,17 +46,17 @@ func (sc *sliceContainers) Put(key uint64, c *Container) {
 
 }
 
-func (sc *sliceContainers) PutContainerValues(key uint64, containerType byte, n int, mapped bool) {
+func (sc *sliceContainers) PutContainerValues(key uint64, typ byte, n int, mapped bool) {
 	i := search64(sc.keys, key)
 	if i < 0 {
 		c := NewContainer()
-		c.containerType = containerType
+		c.typ = typ
 		c.n = int32(n)
 		c.mapped = mapped
 		sc.insertAt(key, c, -i-1)
 	} else {
 		c := sc.containers[i]
-		c.containerType = containerType
+		c.typ = typ
 		c.n = int32(n)
 		c.mapped = mapped
 	}
@@ -64,6 +64,7 @@ func (sc *sliceContainers) PutContainerValues(key uint64, containerType byte, n 
 }
 
 func (sc *sliceContainers) Remove(key uint64) {
+	statsHit("sliceContainers/Remove")
 	i := search64(sc.keys, key)
 	if i < 0 {
 		return
@@ -73,6 +74,7 @@ func (sc *sliceContainers) Remove(key uint64) {
 
 }
 func (sc *sliceContainers) insertAt(key uint64, c *Container, i int) {
+	statsHit("sliceContainers/insertAt")
 	sc.keys = append(sc.keys, 0)
 	copy(sc.keys[i+1:], sc.keys[i:])
 	sc.keys[i] = key
@@ -152,6 +154,12 @@ func (sc *sliceContainers) seek(key uint64) (int, bool) {
 func (sc *sliceContainers) Iterator(key uint64) (citer ContainerIterator, found bool) {
 	i, found := sc.seek(key)
 	return &sliceIterator{e: sc, i: i}, found
+}
+
+func (sc *sliceContainers) Repair() {
+	for _, c := range sc.containers {
+		c.Repair()
+	}
 }
 
 type sliceIterator struct {

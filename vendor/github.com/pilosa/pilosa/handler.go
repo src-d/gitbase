@@ -1,3 +1,17 @@
+// Copyright 2017 Pilosa Corp.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package pilosa
 
 import (
@@ -45,18 +59,19 @@ type QueryResponse struct {
 
 // MarshalJSON marshals QueryResponse into a JSON-encoded byte slice
 func (resp *QueryResponse) MarshalJSON() ([]byte, error) {
-	var output struct {
-		Results        []interface{}    `json:"results,omitempty"`
-		ColumnAttrSets []*ColumnAttrSet `json:"columnAttrs,omitempty"`
-		Err            string           `json:"error,omitempty"`
-	}
-	output.Results = resp.Results
-	output.ColumnAttrSets = resp.ColumnAttrSets
-
 	if resp.Err != nil {
-		output.Err = resp.Err.Error()
+		return json.Marshal(struct {
+			Err string `json:"error"`
+		}{Err: resp.Err.Error()})
 	}
-	return json.Marshal(output)
+
+	return json.Marshal(struct {
+		Results        []interface{}    `json:"results"`
+		ColumnAttrSets []*ColumnAttrSet `json:"columnAttrs,omitempty"`
+	}{
+		Results:        resp.Results,
+		ColumnAttrSets: resp.ColumnAttrSets,
+	})
 }
 
 type Handler interface {
@@ -96,6 +111,11 @@ type ImportRequest struct {
 	Timestamps []int64
 }
 
+type ImportRoaringRequest struct {
+	Clear bool
+	Views map[string][]byte
+}
+
 type ImportResponse struct {
 	Err string
 }
@@ -111,4 +131,14 @@ type BlockDataRequest struct {
 type BlockDataResponse struct {
 	RowIDs    []uint64
 	ColumnIDs []uint64
+}
+
+type TranslateKeysRequest struct {
+	Index string
+	Field string
+	Keys  []string
+}
+
+type TranslateKeysResponse struct {
+	IDs []uint64
 }

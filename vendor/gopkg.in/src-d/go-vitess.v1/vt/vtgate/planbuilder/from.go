@@ -17,7 +17,6 @@ limitations under the License.
 package planbuilder
 
 import (
-	"errors"
 	"fmt"
 
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
@@ -94,8 +93,9 @@ func (pb *primitiveBuilder) processAliasedTable(tableExpr *sqlparser.AliasedTabl
 
 		subroute, ok := spb.bldr.(*route)
 		if !ok {
-			pb.bldr, pb.st = newSubquery(tableExpr.As, spb.bldr)
-			return nil
+			var err error
+			pb.bldr, pb.st, err = newSubquery(tableExpr.As, spb.bldr)
+			return err
 		}
 
 		// Since a route is more versatile than a subquery, we
@@ -149,15 +149,12 @@ func (pb *primitiveBuilder) buildTablePrimitive(tableExpr *sqlparser.AliasedTabl
 			return err
 		}
 		rb, st := newRoute(sel, nil, nil)
-		rb.ERoute = &engine.Route{
-			Opcode:   engine.SelectDBA,
-			Keyspace: ks,
-		}
+		rb.ERoute = engine.NewSimpleRoute(engine.SelectDBA, ks)
 		pb.bldr, pb.st = rb, st
 		return nil
 	}
 
-	table, vindex, _, _, destTarget, err := pb.vschema.FindTableOrVindex(tableName)
+	table, vindex, _, destTableType, destTarget, err := pb.vschema.FindTableOrVindex(tableName)
 	if err != nil {
 		return err
 	}
@@ -172,27 +169,20 @@ func (pb *primitiveBuilder) buildTablePrimitive(tableExpr *sqlparser.AliasedTabl
 	_ = st.AddVindexTable(alias, table, rb)
 
 	if !table.Keyspace.Sharded {
-		rb.ERoute = &engine.Route{
-			Opcode:   engine.SelectUnsharded,
-			Keyspace: table.Keyspace,
-		}
+		rb.ERoute = engine.NewSimpleRoute(engine.SelectUnsharded, table.Keyspace)
 		return nil
 	}
 	if table.Pinned == nil {
-		rb.ERoute = &engine.Route{
-			Opcode:            engine.SelectScatter,
-			Keyspace:          table.Keyspace,
-			TargetDestination: destTarget,
-		}
+		rb.ERoute = engine.NewSimpleRoute(engine.SelectScatter, table.Keyspace)
+		rb.ERoute.TargetDestination = destTarget
+		rb.ERoute.TargetTabletType = destTableType
+
 		return nil
 	}
 	// Pinned tables have their keyspace ids already assigned.
 	// Use the Binary vindex, which is the identity function
 	// for keyspace id. Currently only dual tables are pinned.
-	eRoute := &engine.Route{
-		Opcode:   engine.SelectEqualUnique,
-		Keyspace: table.Keyspace,
-	}
+	eRoute := engine.NewSimpleRoute(engine.SelectEqualUnique, table.Keyspace)
 	eRoute.Vindex, _ = vindexes.NewBinary("binary", nil)
 	eRoute.Values = []sqltypes.PlanValue{{Value: sqltypes.MakeTrusted(sqltypes.VarBinary, table.Pinned)}}
 	rb.ERoute = eRoute
@@ -235,20 +225,16 @@ func convertToLeftJoin(ajoin *sqlparser.JoinTableExpr) {
 }
 
 func (pb *primitiveBuilder) join(rpb *primitiveBuilder, ajoin *sqlparser.JoinTableExpr) error {
-	if ajoin != nil && ajoin.Condition.Using != nil {
-		return errors.New("unsupported: join with USING(column_list) clause")
-	}
 	lRoute, leftIsRoute := pb.bldr.(*route)
 	rRoute, rightIsRoute := rpb.bldr.(*route)
 	if leftIsRoute && rightIsRoute {
 		// If both are routes, they have an opportunity
 		// to merge into one.
-		if lRoute.ERoute.Opcode == engine.SelectNext || rRoute.ERoute.Opcode == engine.SelectNext {
-			return errors.New("unsupported: sequence join with another table")
-		}
 		if lRoute.ERoute.Keyspace.Name != rRoute.ERoute.Keyspace.Name {
 			goto nomerge
 		}
+		// We don't have to check on SelectNext because the syntax
+		// doesn't allow joins.
 		switch lRoute.ERoute.Opcode {
 		case engine.SelectUnsharded:
 			if rRoute.ERoute.Opcode == engine.SelectUnsharded {
@@ -313,11 +299,12 @@ func (pb *primitiveBuilder) mergeRoutes(rpb *primitiveBuilder, ajoin *sqlparser.
 	if ajoin == nil {
 		return nil
 	}
-	_, expr, err := pb.findOrigin(ajoin.Condition.On)
+	pullouts, _, expr, err := pb.findOrigin(ajoin.Condition.On)
 	if err != nil {
 		return err
 	}
 	ajoin.Condition.On = expr
+	pb.addPullouts(pullouts)
 	for _, filter := range splitAndExpression(nil, ajoin.Condition.On) {
 		lRoute.UpdatePlan(pb, filter)
 	}

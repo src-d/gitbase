@@ -106,6 +106,24 @@ func bitmapFirstBitSet() []uint64 {
 	return bitmap
 }
 
+func bitmapSecondBitSet() []uint64 {
+	bitmap := make([]uint64, bitmapN)
+	bitmap[0] = 0x0000000000000002
+	return bitmap
+}
+
+func bitmapLastBitFirstRowSet() []uint64 {
+	bitmap := make([]uint64, bitmapN)
+	bitmap[0] = 0x8000000000000000
+	return bitmap
+}
+
+func bitmapFirstBitSecoundRowSet() []uint64 {
+	bitmap := make([]uint64, bitmapN)
+	bitmap[1] = 0x0000000000000001
+	return bitmap
+}
+
 func bitmapLastBitSet() []uint64 {
 	bitmap := make([]uint64, bitmapN)
 	bitmap[bitmapN-1] = 0x8000000000000000
@@ -230,22 +248,18 @@ type testOp struct {
 	exp string
 }
 
-func doContainer(containerType byte, data interface{}) *Container {
-	c := &Container{
-		containerType: containerType,
-	}
-
-	switch containerType {
+func doContainer(typ byte, data interface{}) *Container {
+	switch typ {
 	case containerArray:
-		c.array = data.([]uint16)
+		return NewContainerArray(data.([]uint16))
 	case containerBitmap:
-		c.bitmap = data.([]uint64)
+		c := NewContainerBitmap(0, data.([]uint64))
+		c.n = c.count()
+		return c
 	case containerRun:
-		c.runs = data.([]interval16)
+		return NewContainerRun(data.([]interval16))
 	}
-	c.n = c.count()
-
-	return c
+	return nil
 }
 
 func setupContainerTests() map[byte]map[string]*Container {

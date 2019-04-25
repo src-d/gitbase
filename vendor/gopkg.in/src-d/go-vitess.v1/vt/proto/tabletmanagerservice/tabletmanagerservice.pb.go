@@ -32,8 +32,9 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for TabletManager service
-
+// TabletManagerClient is the client API for TabletManager service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type TabletManagerClient interface {
 	// Ping returns the input payload
 	Ping(ctx context.Context, in *tabletmanagerdata.PingRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PingResponse, error)
@@ -55,6 +56,8 @@ type TabletManagerClient interface {
 	ReloadSchema(ctx context.Context, in *tabletmanagerdata.ReloadSchemaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ReloadSchemaResponse, error)
 	PreflightSchema(ctx context.Context, in *tabletmanagerdata.PreflightSchemaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PreflightSchemaResponse, error)
 	ApplySchema(ctx context.Context, in *tabletmanagerdata.ApplySchemaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ApplySchemaResponse, error)
+	LockTables(ctx context.Context, in *tabletmanagerdata.LockTablesRequest, opts ...grpc.CallOption) (*tabletmanagerdata.LockTablesResponse, error)
+	UnlockTables(ctx context.Context, in *tabletmanagerdata.UnlockTablesRequest, opts ...grpc.CallOption) (*tabletmanagerdata.UnlockTablesResponse, error)
 	ExecuteFetchAsDba(ctx context.Context, in *tabletmanagerdata.ExecuteFetchAsDbaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ExecuteFetchAsDbaResponse, error)
 	ExecuteFetchAsAllPrivs(ctx context.Context, in *tabletmanagerdata.ExecuteFetchAsAllPrivsRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ExecuteFetchAsAllPrivsResponse, error)
 	ExecuteFetchAsApp(ctx context.Context, in *tabletmanagerdata.ExecuteFetchAsAppRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ExecuteFetchAsAppResponse, error)
@@ -69,6 +72,9 @@ type TabletManagerClient interface {
 	StopSlaveMinimum(ctx context.Context, in *tabletmanagerdata.StopSlaveMinimumRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StopSlaveMinimumResponse, error)
 	// StartSlave starts the mysql replication
 	StartSlave(ctx context.Context, in *tabletmanagerdata.StartSlaveRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StartSlaveResponse, error)
+	// StartSlave starts the mysql replication until and including
+	// the provided position
+	StartSlaveUntilAfter(ctx context.Context, in *tabletmanagerdata.StartSlaveUntilAfterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StartSlaveUntilAfterResponse, error)
 	// TabletExternallyReparented tells a tablet that its underlying MySQL is
 	// currently the master. It is only used in environments (tabletmanagerdata.such as Vitess+MoB)
 	// in which MySQL is reparented by some agent external to Vitess, and then
@@ -111,6 +117,8 @@ type TabletManagerClient interface {
 	InitSlave(ctx context.Context, in *tabletmanagerdata.InitSlaveRequest, opts ...grpc.CallOption) (*tabletmanagerdata.InitSlaveResponse, error)
 	// DemoteMaster tells the soon-to-be-former master it's gonna change
 	DemoteMaster(ctx context.Context, in *tabletmanagerdata.DemoteMasterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.DemoteMasterResponse, error)
+	// UndoDemoteMaster reverts all changes made by DemoteMaster
+	UndoDemoteMaster(ctx context.Context, in *tabletmanagerdata.UndoDemoteMasterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.UndoDemoteMasterResponse, error)
 	// PromoteSlaveWhenCaughtUp tells the remote tablet to catch up,
 	// and then be the master
 	PromoteSlaveWhenCaughtUp(ctx context.Context, in *tabletmanagerdata.PromoteSlaveWhenCaughtUpRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PromoteSlaveWhenCaughtUpResponse, error)
@@ -140,7 +148,7 @@ func NewTabletManagerClient(cc *grpc.ClientConn) TabletManagerClient {
 
 func (c *tabletManagerClient) Ping(ctx context.Context, in *tabletmanagerdata.PingRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PingResponse, error) {
 	out := new(tabletmanagerdata.PingResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/Ping", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/Ping", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +157,7 @@ func (c *tabletManagerClient) Ping(ctx context.Context, in *tabletmanagerdata.Pi
 
 func (c *tabletManagerClient) Sleep(ctx context.Context, in *tabletmanagerdata.SleepRequest, opts ...grpc.CallOption) (*tabletmanagerdata.SleepResponse, error) {
 	out := new(tabletmanagerdata.SleepResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/Sleep", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/Sleep", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +166,7 @@ func (c *tabletManagerClient) Sleep(ctx context.Context, in *tabletmanagerdata.S
 
 func (c *tabletManagerClient) ExecuteHook(ctx context.Context, in *tabletmanagerdata.ExecuteHookRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ExecuteHookResponse, error) {
 	out := new(tabletmanagerdata.ExecuteHookResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteHook", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteHook", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +175,7 @@ func (c *tabletManagerClient) ExecuteHook(ctx context.Context, in *tabletmanager
 
 func (c *tabletManagerClient) GetSchema(ctx context.Context, in *tabletmanagerdata.GetSchemaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.GetSchemaResponse, error) {
 	out := new(tabletmanagerdata.GetSchemaResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/GetSchema", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/GetSchema", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +184,7 @@ func (c *tabletManagerClient) GetSchema(ctx context.Context, in *tabletmanagerda
 
 func (c *tabletManagerClient) GetPermissions(ctx context.Context, in *tabletmanagerdata.GetPermissionsRequest, opts ...grpc.CallOption) (*tabletmanagerdata.GetPermissionsResponse, error) {
 	out := new(tabletmanagerdata.GetPermissionsResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/GetPermissions", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/GetPermissions", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +193,7 @@ func (c *tabletManagerClient) GetPermissions(ctx context.Context, in *tabletmana
 
 func (c *tabletManagerClient) SetReadOnly(ctx context.Context, in *tabletmanagerdata.SetReadOnlyRequest, opts ...grpc.CallOption) (*tabletmanagerdata.SetReadOnlyResponse, error) {
 	out := new(tabletmanagerdata.SetReadOnlyResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SetReadOnly", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SetReadOnly", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +202,7 @@ func (c *tabletManagerClient) SetReadOnly(ctx context.Context, in *tabletmanager
 
 func (c *tabletManagerClient) SetReadWrite(ctx context.Context, in *tabletmanagerdata.SetReadWriteRequest, opts ...grpc.CallOption) (*tabletmanagerdata.SetReadWriteResponse, error) {
 	out := new(tabletmanagerdata.SetReadWriteResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SetReadWrite", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SetReadWrite", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +211,7 @@ func (c *tabletManagerClient) SetReadWrite(ctx context.Context, in *tabletmanage
 
 func (c *tabletManagerClient) ChangeType(ctx context.Context, in *tabletmanagerdata.ChangeTypeRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ChangeTypeResponse, error) {
 	out := new(tabletmanagerdata.ChangeTypeResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ChangeType", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ChangeType", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +220,7 @@ func (c *tabletManagerClient) ChangeType(ctx context.Context, in *tabletmanagerd
 
 func (c *tabletManagerClient) RefreshState(ctx context.Context, in *tabletmanagerdata.RefreshStateRequest, opts ...grpc.CallOption) (*tabletmanagerdata.RefreshStateResponse, error) {
 	out := new(tabletmanagerdata.RefreshStateResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/RefreshState", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/RefreshState", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +229,7 @@ func (c *tabletManagerClient) RefreshState(ctx context.Context, in *tabletmanage
 
 func (c *tabletManagerClient) RunHealthCheck(ctx context.Context, in *tabletmanagerdata.RunHealthCheckRequest, opts ...grpc.CallOption) (*tabletmanagerdata.RunHealthCheckResponse, error) {
 	out := new(tabletmanagerdata.RunHealthCheckResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/RunHealthCheck", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/RunHealthCheck", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +238,7 @@ func (c *tabletManagerClient) RunHealthCheck(ctx context.Context, in *tabletmana
 
 func (c *tabletManagerClient) IgnoreHealthError(ctx context.Context, in *tabletmanagerdata.IgnoreHealthErrorRequest, opts ...grpc.CallOption) (*tabletmanagerdata.IgnoreHealthErrorResponse, error) {
 	out := new(tabletmanagerdata.IgnoreHealthErrorResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/IgnoreHealthError", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/IgnoreHealthError", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +247,7 @@ func (c *tabletManagerClient) IgnoreHealthError(ctx context.Context, in *tabletm
 
 func (c *tabletManagerClient) ReloadSchema(ctx context.Context, in *tabletmanagerdata.ReloadSchemaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ReloadSchemaResponse, error) {
 	out := new(tabletmanagerdata.ReloadSchemaResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ReloadSchema", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ReloadSchema", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +256,7 @@ func (c *tabletManagerClient) ReloadSchema(ctx context.Context, in *tabletmanage
 
 func (c *tabletManagerClient) PreflightSchema(ctx context.Context, in *tabletmanagerdata.PreflightSchemaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PreflightSchemaResponse, error) {
 	out := new(tabletmanagerdata.PreflightSchemaResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PreflightSchema", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PreflightSchema", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +265,25 @@ func (c *tabletManagerClient) PreflightSchema(ctx context.Context, in *tabletman
 
 func (c *tabletManagerClient) ApplySchema(ctx context.Context, in *tabletmanagerdata.ApplySchemaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ApplySchemaResponse, error) {
 	out := new(tabletmanagerdata.ApplySchemaResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ApplySchema", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ApplySchema", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tabletManagerClient) LockTables(ctx context.Context, in *tabletmanagerdata.LockTablesRequest, opts ...grpc.CallOption) (*tabletmanagerdata.LockTablesResponse, error) {
+	out := new(tabletmanagerdata.LockTablesResponse)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/LockTables", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tabletManagerClient) UnlockTables(ctx context.Context, in *tabletmanagerdata.UnlockTablesRequest, opts ...grpc.CallOption) (*tabletmanagerdata.UnlockTablesResponse, error) {
+	out := new(tabletmanagerdata.UnlockTablesResponse)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/UnlockTables", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +292,7 @@ func (c *tabletManagerClient) ApplySchema(ctx context.Context, in *tabletmanager
 
 func (c *tabletManagerClient) ExecuteFetchAsDba(ctx context.Context, in *tabletmanagerdata.ExecuteFetchAsDbaRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ExecuteFetchAsDbaResponse, error) {
 	out := new(tabletmanagerdata.ExecuteFetchAsDbaResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteFetchAsDba", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteFetchAsDba", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +301,7 @@ func (c *tabletManagerClient) ExecuteFetchAsDba(ctx context.Context, in *tabletm
 
 func (c *tabletManagerClient) ExecuteFetchAsAllPrivs(ctx context.Context, in *tabletmanagerdata.ExecuteFetchAsAllPrivsRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ExecuteFetchAsAllPrivsResponse, error) {
 	out := new(tabletmanagerdata.ExecuteFetchAsAllPrivsResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteFetchAsAllPrivs", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteFetchAsAllPrivs", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +310,7 @@ func (c *tabletManagerClient) ExecuteFetchAsAllPrivs(ctx context.Context, in *ta
 
 func (c *tabletManagerClient) ExecuteFetchAsApp(ctx context.Context, in *tabletmanagerdata.ExecuteFetchAsAppRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ExecuteFetchAsAppResponse, error) {
 	out := new(tabletmanagerdata.ExecuteFetchAsAppResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteFetchAsApp", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ExecuteFetchAsApp", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +319,7 @@ func (c *tabletManagerClient) ExecuteFetchAsApp(ctx context.Context, in *tabletm
 
 func (c *tabletManagerClient) SlaveStatus(ctx context.Context, in *tabletmanagerdata.SlaveStatusRequest, opts ...grpc.CallOption) (*tabletmanagerdata.SlaveStatusResponse, error) {
 	out := new(tabletmanagerdata.SlaveStatusResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SlaveStatus", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SlaveStatus", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +328,7 @@ func (c *tabletManagerClient) SlaveStatus(ctx context.Context, in *tabletmanager
 
 func (c *tabletManagerClient) MasterPosition(ctx context.Context, in *tabletmanagerdata.MasterPositionRequest, opts ...grpc.CallOption) (*tabletmanagerdata.MasterPositionResponse, error) {
 	out := new(tabletmanagerdata.MasterPositionResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/MasterPosition", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/MasterPosition", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +337,7 @@ func (c *tabletManagerClient) MasterPosition(ctx context.Context, in *tabletmana
 
 func (c *tabletManagerClient) StopSlave(ctx context.Context, in *tabletmanagerdata.StopSlaveRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StopSlaveResponse, error) {
 	out := new(tabletmanagerdata.StopSlaveResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StopSlave", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StopSlave", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +346,7 @@ func (c *tabletManagerClient) StopSlave(ctx context.Context, in *tabletmanagerda
 
 func (c *tabletManagerClient) StopSlaveMinimum(ctx context.Context, in *tabletmanagerdata.StopSlaveMinimumRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StopSlaveMinimumResponse, error) {
 	out := new(tabletmanagerdata.StopSlaveMinimumResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StopSlaveMinimum", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StopSlaveMinimum", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +355,16 @@ func (c *tabletManagerClient) StopSlaveMinimum(ctx context.Context, in *tabletma
 
 func (c *tabletManagerClient) StartSlave(ctx context.Context, in *tabletmanagerdata.StartSlaveRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StartSlaveResponse, error) {
 	out := new(tabletmanagerdata.StartSlaveResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StartSlave", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StartSlave", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tabletManagerClient) StartSlaveUntilAfter(ctx context.Context, in *tabletmanagerdata.StartSlaveUntilAfterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StartSlaveUntilAfterResponse, error) {
+	out := new(tabletmanagerdata.StartSlaveUntilAfterResponse)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StartSlaveUntilAfter", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +373,7 @@ func (c *tabletManagerClient) StartSlave(ctx context.Context, in *tabletmanagerd
 
 func (c *tabletManagerClient) TabletExternallyReparented(ctx context.Context, in *tabletmanagerdata.TabletExternallyReparentedRequest, opts ...grpc.CallOption) (*tabletmanagerdata.TabletExternallyReparentedResponse, error) {
 	out := new(tabletmanagerdata.TabletExternallyReparentedResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/TabletExternallyReparented", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/TabletExternallyReparented", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +382,7 @@ func (c *tabletManagerClient) TabletExternallyReparented(ctx context.Context, in
 
 func (c *tabletManagerClient) TabletExternallyElected(ctx context.Context, in *tabletmanagerdata.TabletExternallyElectedRequest, opts ...grpc.CallOption) (*tabletmanagerdata.TabletExternallyElectedResponse, error) {
 	out := new(tabletmanagerdata.TabletExternallyElectedResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/TabletExternallyElected", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/TabletExternallyElected", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +391,7 @@ func (c *tabletManagerClient) TabletExternallyElected(ctx context.Context, in *t
 
 func (c *tabletManagerClient) GetSlaves(ctx context.Context, in *tabletmanagerdata.GetSlavesRequest, opts ...grpc.CallOption) (*tabletmanagerdata.GetSlavesResponse, error) {
 	out := new(tabletmanagerdata.GetSlavesResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/GetSlaves", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/GetSlaves", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +400,7 @@ func (c *tabletManagerClient) GetSlaves(ctx context.Context, in *tabletmanagerda
 
 func (c *tabletManagerClient) VReplicationExec(ctx context.Context, in *tabletmanagerdata.VReplicationExecRequest, opts ...grpc.CallOption) (*tabletmanagerdata.VReplicationExecResponse, error) {
 	out := new(tabletmanagerdata.VReplicationExecResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/VReplicationExec", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/VReplicationExec", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +409,7 @@ func (c *tabletManagerClient) VReplicationExec(ctx context.Context, in *tabletma
 
 func (c *tabletManagerClient) VReplicationWaitForPos(ctx context.Context, in *tabletmanagerdata.VReplicationWaitForPosRequest, opts ...grpc.CallOption) (*tabletmanagerdata.VReplicationWaitForPosResponse, error) {
 	out := new(tabletmanagerdata.VReplicationWaitForPosResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/VReplicationWaitForPos", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/VReplicationWaitForPos", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -383,7 +418,7 @@ func (c *tabletManagerClient) VReplicationWaitForPos(ctx context.Context, in *ta
 
 func (c *tabletManagerClient) ResetReplication(ctx context.Context, in *tabletmanagerdata.ResetReplicationRequest, opts ...grpc.CallOption) (*tabletmanagerdata.ResetReplicationResponse, error) {
 	out := new(tabletmanagerdata.ResetReplicationResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ResetReplication", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/ResetReplication", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +427,7 @@ func (c *tabletManagerClient) ResetReplication(ctx context.Context, in *tabletma
 
 func (c *tabletManagerClient) InitMaster(ctx context.Context, in *tabletmanagerdata.InitMasterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.InitMasterResponse, error) {
 	out := new(tabletmanagerdata.InitMasterResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/InitMaster", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/InitMaster", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +436,7 @@ func (c *tabletManagerClient) InitMaster(ctx context.Context, in *tabletmanagerd
 
 func (c *tabletManagerClient) PopulateReparentJournal(ctx context.Context, in *tabletmanagerdata.PopulateReparentJournalRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PopulateReparentJournalResponse, error) {
 	out := new(tabletmanagerdata.PopulateReparentJournalResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PopulateReparentJournal", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PopulateReparentJournal", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -410,7 +445,7 @@ func (c *tabletManagerClient) PopulateReparentJournal(ctx context.Context, in *t
 
 func (c *tabletManagerClient) InitSlave(ctx context.Context, in *tabletmanagerdata.InitSlaveRequest, opts ...grpc.CallOption) (*tabletmanagerdata.InitSlaveResponse, error) {
 	out := new(tabletmanagerdata.InitSlaveResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/InitSlave", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/InitSlave", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +454,16 @@ func (c *tabletManagerClient) InitSlave(ctx context.Context, in *tabletmanagerda
 
 func (c *tabletManagerClient) DemoteMaster(ctx context.Context, in *tabletmanagerdata.DemoteMasterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.DemoteMasterResponse, error) {
 	out := new(tabletmanagerdata.DemoteMasterResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/DemoteMaster", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/DemoteMaster", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tabletManagerClient) UndoDemoteMaster(ctx context.Context, in *tabletmanagerdata.UndoDemoteMasterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.UndoDemoteMasterResponse, error) {
+	out := new(tabletmanagerdata.UndoDemoteMasterResponse)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/UndoDemoteMaster", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +472,7 @@ func (c *tabletManagerClient) DemoteMaster(ctx context.Context, in *tabletmanage
 
 func (c *tabletManagerClient) PromoteSlaveWhenCaughtUp(ctx context.Context, in *tabletmanagerdata.PromoteSlaveWhenCaughtUpRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PromoteSlaveWhenCaughtUpResponse, error) {
 	out := new(tabletmanagerdata.PromoteSlaveWhenCaughtUpResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PromoteSlaveWhenCaughtUp", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PromoteSlaveWhenCaughtUp", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +481,7 @@ func (c *tabletManagerClient) PromoteSlaveWhenCaughtUp(ctx context.Context, in *
 
 func (c *tabletManagerClient) SlaveWasPromoted(ctx context.Context, in *tabletmanagerdata.SlaveWasPromotedRequest, opts ...grpc.CallOption) (*tabletmanagerdata.SlaveWasPromotedResponse, error) {
 	out := new(tabletmanagerdata.SlaveWasPromotedResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SlaveWasPromoted", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SlaveWasPromoted", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +490,7 @@ func (c *tabletManagerClient) SlaveWasPromoted(ctx context.Context, in *tabletma
 
 func (c *tabletManagerClient) SetMaster(ctx context.Context, in *tabletmanagerdata.SetMasterRequest, opts ...grpc.CallOption) (*tabletmanagerdata.SetMasterResponse, error) {
 	out := new(tabletmanagerdata.SetMasterResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SetMaster", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SetMaster", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -455,7 +499,7 @@ func (c *tabletManagerClient) SetMaster(ctx context.Context, in *tabletmanagerda
 
 func (c *tabletManagerClient) SlaveWasRestarted(ctx context.Context, in *tabletmanagerdata.SlaveWasRestartedRequest, opts ...grpc.CallOption) (*tabletmanagerdata.SlaveWasRestartedResponse, error) {
 	out := new(tabletmanagerdata.SlaveWasRestartedResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SlaveWasRestarted", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/SlaveWasRestarted", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +508,7 @@ func (c *tabletManagerClient) SlaveWasRestarted(ctx context.Context, in *tabletm
 
 func (c *tabletManagerClient) StopReplicationAndGetStatus(ctx context.Context, in *tabletmanagerdata.StopReplicationAndGetStatusRequest, opts ...grpc.CallOption) (*tabletmanagerdata.StopReplicationAndGetStatusResponse, error) {
 	out := new(tabletmanagerdata.StopReplicationAndGetStatusResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StopReplicationAndGetStatus", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/StopReplicationAndGetStatus", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +517,7 @@ func (c *tabletManagerClient) StopReplicationAndGetStatus(ctx context.Context, i
 
 func (c *tabletManagerClient) PromoteSlave(ctx context.Context, in *tabletmanagerdata.PromoteSlaveRequest, opts ...grpc.CallOption) (*tabletmanagerdata.PromoteSlaveResponse, error) {
 	out := new(tabletmanagerdata.PromoteSlaveResponse)
-	err := grpc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PromoteSlave", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/tabletmanagerservice.TabletManager/PromoteSlave", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -481,7 +525,7 @@ func (c *tabletManagerClient) PromoteSlave(ctx context.Context, in *tabletmanage
 }
 
 func (c *tabletManagerClient) Backup(ctx context.Context, in *tabletmanagerdata.BackupRequest, opts ...grpc.CallOption) (TabletManager_BackupClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_TabletManager_serviceDesc.Streams[0], c.cc, "/tabletmanagerservice.TabletManager/Backup", opts...)
+	stream, err := c.cc.NewStream(ctx, &_TabletManager_serviceDesc.Streams[0], "/tabletmanagerservice.TabletManager/Backup", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -513,7 +557,7 @@ func (x *tabletManagerBackupClient) Recv() (*tabletmanagerdata.BackupResponse, e
 }
 
 func (c *tabletManagerClient) RestoreFromBackup(ctx context.Context, in *tabletmanagerdata.RestoreFromBackupRequest, opts ...grpc.CallOption) (TabletManager_RestoreFromBackupClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_TabletManager_serviceDesc.Streams[1], c.cc, "/tabletmanagerservice.TabletManager/RestoreFromBackup", opts...)
+	stream, err := c.cc.NewStream(ctx, &_TabletManager_serviceDesc.Streams[1], "/tabletmanagerservice.TabletManager/RestoreFromBackup", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -544,8 +588,7 @@ func (x *tabletManagerRestoreFromBackupClient) Recv() (*tabletmanagerdata.Restor
 	return m, nil
 }
 
-// Server API for TabletManager service
-
+// TabletManagerServer is the server API for TabletManager service.
 type TabletManagerServer interface {
 	// Ping returns the input payload
 	Ping(context.Context, *tabletmanagerdata.PingRequest) (*tabletmanagerdata.PingResponse, error)
@@ -567,6 +610,8 @@ type TabletManagerServer interface {
 	ReloadSchema(context.Context, *tabletmanagerdata.ReloadSchemaRequest) (*tabletmanagerdata.ReloadSchemaResponse, error)
 	PreflightSchema(context.Context, *tabletmanagerdata.PreflightSchemaRequest) (*tabletmanagerdata.PreflightSchemaResponse, error)
 	ApplySchema(context.Context, *tabletmanagerdata.ApplySchemaRequest) (*tabletmanagerdata.ApplySchemaResponse, error)
+	LockTables(context.Context, *tabletmanagerdata.LockTablesRequest) (*tabletmanagerdata.LockTablesResponse, error)
+	UnlockTables(context.Context, *tabletmanagerdata.UnlockTablesRequest) (*tabletmanagerdata.UnlockTablesResponse, error)
 	ExecuteFetchAsDba(context.Context, *tabletmanagerdata.ExecuteFetchAsDbaRequest) (*tabletmanagerdata.ExecuteFetchAsDbaResponse, error)
 	ExecuteFetchAsAllPrivs(context.Context, *tabletmanagerdata.ExecuteFetchAsAllPrivsRequest) (*tabletmanagerdata.ExecuteFetchAsAllPrivsResponse, error)
 	ExecuteFetchAsApp(context.Context, *tabletmanagerdata.ExecuteFetchAsAppRequest) (*tabletmanagerdata.ExecuteFetchAsAppResponse, error)
@@ -581,6 +626,9 @@ type TabletManagerServer interface {
 	StopSlaveMinimum(context.Context, *tabletmanagerdata.StopSlaveMinimumRequest) (*tabletmanagerdata.StopSlaveMinimumResponse, error)
 	// StartSlave starts the mysql replication
 	StartSlave(context.Context, *tabletmanagerdata.StartSlaveRequest) (*tabletmanagerdata.StartSlaveResponse, error)
+	// StartSlave starts the mysql replication until and including
+	// the provided position
+	StartSlaveUntilAfter(context.Context, *tabletmanagerdata.StartSlaveUntilAfterRequest) (*tabletmanagerdata.StartSlaveUntilAfterResponse, error)
 	// TabletExternallyReparented tells a tablet that its underlying MySQL is
 	// currently the master. It is only used in environments (tabletmanagerdata.such as Vitess+MoB)
 	// in which MySQL is reparented by some agent external to Vitess, and then
@@ -623,6 +671,8 @@ type TabletManagerServer interface {
 	InitSlave(context.Context, *tabletmanagerdata.InitSlaveRequest) (*tabletmanagerdata.InitSlaveResponse, error)
 	// DemoteMaster tells the soon-to-be-former master it's gonna change
 	DemoteMaster(context.Context, *tabletmanagerdata.DemoteMasterRequest) (*tabletmanagerdata.DemoteMasterResponse, error)
+	// UndoDemoteMaster reverts all changes made by DemoteMaster
+	UndoDemoteMaster(context.Context, *tabletmanagerdata.UndoDemoteMasterRequest) (*tabletmanagerdata.UndoDemoteMasterResponse, error)
 	// PromoteSlaveWhenCaughtUp tells the remote tablet to catch up,
 	// and then be the master
 	PromoteSlaveWhenCaughtUp(context.Context, *tabletmanagerdata.PromoteSlaveWhenCaughtUpRequest) (*tabletmanagerdata.PromoteSlaveWhenCaughtUpResponse, error)
@@ -898,6 +948,42 @@ func _TabletManager_ApplySchema_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TabletManager_LockTables_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(tabletmanagerdata.LockTablesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletManagerServer).LockTables(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/tabletmanagerservice.TabletManager/LockTables",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletManagerServer).LockTables(ctx, req.(*tabletmanagerdata.LockTablesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TabletManager_UnlockTables_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(tabletmanagerdata.UnlockTablesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletManagerServer).UnlockTables(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/tabletmanagerservice.TabletManager/UnlockTables",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletManagerServer).UnlockTables(ctx, req.(*tabletmanagerdata.UnlockTablesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TabletManager_ExecuteFetchAsDba_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(tabletmanagerdata.ExecuteFetchAsDbaRequest)
 	if err := dec(in); err != nil {
@@ -1038,6 +1124,24 @@ func _TabletManager_StartSlave_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TabletManagerServer).StartSlave(ctx, req.(*tabletmanagerdata.StartSlaveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TabletManager_StartSlaveUntilAfter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(tabletmanagerdata.StartSlaveUntilAfterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletManagerServer).StartSlaveUntilAfter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/tabletmanagerservice.TabletManager/StartSlaveUntilAfter",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletManagerServer).StartSlaveUntilAfter(ctx, req.(*tabletmanagerdata.StartSlaveUntilAfterRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1218,6 +1322,24 @@ func _TabletManager_DemoteMaster_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TabletManagerServer).DemoteMaster(ctx, req.(*tabletmanagerdata.DemoteMasterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TabletManager_UndoDemoteMaster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(tabletmanagerdata.UndoDemoteMasterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TabletManagerServer).UndoDemoteMaster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/tabletmanagerservice.TabletManager/UndoDemoteMaster",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TabletManagerServer).UndoDemoteMaster(ctx, req.(*tabletmanagerdata.UndoDemoteMasterRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1433,6 +1555,14 @@ var _TabletManager_serviceDesc = grpc.ServiceDesc{
 			Handler:    _TabletManager_ApplySchema_Handler,
 		},
 		{
+			MethodName: "LockTables",
+			Handler:    _TabletManager_LockTables_Handler,
+		},
+		{
+			MethodName: "UnlockTables",
+			Handler:    _TabletManager_UnlockTables_Handler,
+		},
+		{
 			MethodName: "ExecuteFetchAsDba",
 			Handler:    _TabletManager_ExecuteFetchAsDba_Handler,
 		},
@@ -1463,6 +1593,10 @@ var _TabletManager_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "StartSlave",
 			Handler:    _TabletManager_StartSlave_Handler,
+		},
+		{
+			MethodName: "StartSlaveUntilAfter",
+			Handler:    _TabletManager_StartSlaveUntilAfter_Handler,
 		},
 		{
 			MethodName: "TabletExternallyReparented",
@@ -1505,6 +1639,10 @@ var _TabletManager_serviceDesc = grpc.ServiceDesc{
 			Handler:    _TabletManager_DemoteMaster_Handler,
 		},
 		{
+			MethodName: "UndoDemoteMaster",
+			Handler:    _TabletManager_UndoDemoteMaster_Handler,
+		},
+		{
 			MethodName: "PromoteSlaveWhenCaughtUp",
 			Handler:    _TabletManager_PromoteSlaveWhenCaughtUp_Handler,
 		},
@@ -1545,69 +1683,74 @@ var _TabletManager_serviceDesc = grpc.ServiceDesc{
 }
 
 func init() {
-	proto.RegisterFile("tabletmanagerservice.proto", fileDescriptor_tabletmanagerservice_a64e2f6154f58360)
+	proto.RegisterFile("tabletmanagerservice.proto", fileDescriptor_tabletmanagerservice_0dc181478a076ccc)
 }
 
-var fileDescriptor_tabletmanagerservice_a64e2f6154f58360 = []byte{
-	// 956 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x98, 0xdf, 0x8f, 0x1b, 0x35,
-	0x10, 0xc7, 0x89, 0x04, 0x95, 0x30, 0x3f, 0x6b, 0x21, 0x8a, 0x0e, 0x09, 0x28, 0x6d, 0xf9, 0xd1,
-	0xa2, 0x4b, 0xaf, 0x47, 0x79, 0x4f, 0xaf, 0x77, 0xed, 0x21, 0x4e, 0x84, 0xa4, 0x70, 0x08, 0x24,
-	0x24, 0x5f, 0x32, 0xcd, 0x2e, 0xb7, 0x59, 0x1b, 0xdb, 0x1b, 0xdd, 0x3d, 0x21, 0x21, 0xf1, 0x84,
-	0xc4, 0x1b, 0xff, 0x2f, 0xf2, 0xee, 0xda, 0x19, 0x27, 0xb3, 0x4e, 0xf2, 0x76, 0xca, 0xf7, 0x33,
-	0x33, 0xf6, 0x78, 0x66, 0xec, 0x5b, 0xb6, 0x67, 0xc5, 0x45, 0x01, 0x76, 0x2e, 0x4a, 0x31, 0x03,
-	0x6d, 0x40, 0x2f, 0xf2, 0x09, 0xec, 0x2b, 0x2d, 0xad, 0xe4, 0xef, 0x51, 0xda, 0xde, 0xad, 0xe8,
-	0xd7, 0xa9, 0xb0, 0xa2, 0xc1, 0x1f, 0xfd, 0x77, 0x9b, 0xbd, 0xf5, 0xa2, 0xd6, 0xce, 0x1a, 0x8d,
-	0x9f, 0xb2, 0x57, 0x87, 0x79, 0x39, 0xe3, 0x1f, 0xed, 0xaf, 0xdb, 0x38, 0x61, 0x04, 0x7f, 0x54,
-	0x60, 0xec, 0xde, 0xc7, 0x9d, 0xba, 0x51, 0xb2, 0x34, 0xf0, 0xe9, 0x2b, 0xfc, 0x3b, 0xf6, 0xda,
-	0xb8, 0x00, 0x50, 0x9c, 0x62, 0x6b, 0xc5, 0x3b, 0xfb, 0xa4, 0x1b, 0x08, 0xde, 0x7e, 0x63, 0x6f,
-	0x1c, 0x5f, 0xc1, 0xa4, 0xb2, 0xf0, 0x5c, 0xca, 0x4b, 0x7e, 0x8f, 0x30, 0x41, 0xba, 0xf7, 0xfc,
-	0xd9, 0x26, 0x2c, 0xf8, 0xff, 0x99, 0xbd, 0xfe, 0x0c, 0xec, 0x78, 0x92, 0xc1, 0x5c, 0xf0, 0x3b,
-	0x84, 0x59, 0x50, 0xbd, 0xef, 0xbb, 0x69, 0x28, 0x78, 0x9e, 0xb1, 0xb7, 0x9f, 0x81, 0x1d, 0x82,
-	0x9e, 0xe7, 0xc6, 0xe4, 0xb2, 0x34, 0xfc, 0x0b, 0xda, 0x12, 0x21, 0x3e, 0xc6, 0x97, 0x5b, 0x90,
-	0x38, 0x45, 0x63, 0xb0, 0x23, 0x10, 0xd3, 0xef, 0xcb, 0xe2, 0x9a, 0x4c, 0x11, 0xd2, 0x53, 0x29,
-	0x8a, 0xb0, 0xe0, 0x5f, 0xb0, 0x37, 0x5b, 0xe1, 0x5c, 0xe7, 0x16, 0x78, 0xc2, 0xb2, 0x06, 0x7c,
-	0x84, 0xcf, 0x37, 0x72, 0x21, 0xc4, 0xaf, 0x8c, 0x1d, 0x65, 0xa2, 0x9c, 0xc1, 0x8b, 0x6b, 0x05,
-	0x9c, 0xca, 0xf0, 0x52, 0xf6, 0xee, 0xef, 0x6d, 0xa0, 0xf0, 0xfa, 0x47, 0xf0, 0x52, 0x83, 0xc9,
-	0xc6, 0x56, 0x74, 0xac, 0x1f, 0x03, 0xa9, 0xf5, 0xc7, 0x1c, 0x3e, 0xeb, 0x51, 0x55, 0x3e, 0x07,
-	0x51, 0xd8, 0xec, 0x28, 0x83, 0xc9, 0x25, 0x79, 0xd6, 0x31, 0x92, 0x3a, 0xeb, 0x55, 0x32, 0x04,
-	0x52, 0xec, 0xe6, 0xe9, 0xac, 0x94, 0x1a, 0x1a, 0xf9, 0x58, 0x6b, 0xa9, 0xf9, 0x03, 0xc2, 0xc3,
-	0x1a, 0xe5, 0xc3, 0x7d, 0xb5, 0x1d, 0x1c, 0x67, 0xaf, 0x90, 0x62, 0xda, 0xf6, 0x08, 0x9d, 0xbd,
-	0x25, 0x90, 0xce, 0x1e, 0xe6, 0x42, 0x88, 0xdf, 0xd9, 0x3b, 0x43, 0x0d, 0x2f, 0x8b, 0x7c, 0x96,
-	0xf9, 0x4e, 0xa4, 0x92, 0xb2, 0xc2, 0xf8, 0x40, 0xf7, 0xb7, 0x41, 0x71, 0xb3, 0x0c, 0x94, 0x2a,
-	0xae, 0xdb, 0x38, 0x54, 0x11, 0x21, 0x3d, 0xd5, 0x2c, 0x11, 0x86, 0x0f, 0xa8, 0x1d, 0x34, 0x27,
-	0x60, 0x27, 0xd9, 0xc0, 0x3c, 0xbd, 0x10, 0xe4, 0x01, 0xad, 0x51, 0xa9, 0x03, 0x22, 0xe0, 0x10,
-	0xf1, 0x4f, 0xf6, 0x7e, 0x2c, 0x0f, 0x8a, 0x62, 0xa8, 0xf3, 0x85, 0xe1, 0x0f, 0x37, 0x7a, 0xf2,
-	0xa8, 0x8f, 0x7d, 0xb0, 0x83, 0x45, 0xf7, 0x96, 0x07, 0x4a, 0x6d, 0xb1, 0xe5, 0x81, 0x52, 0xdb,
-	0x6f, 0xb9, 0x86, 0xa3, 0x89, 0x57, 0x88, 0x05, 0xb8, 0x36, 0xac, 0x0c, 0x3d, 0xf1, 0x96, 0x7a,
-	0x72, 0xe2, 0x61, 0x0c, 0xb7, 0xf3, 0x99, 0x30, 0x16, 0xf4, 0x50, 0x9a, 0xdc, 0xe6, 0xb2, 0x24,
-	0xdb, 0x39, 0x46, 0x52, 0xed, 0xbc, 0x4a, 0xe2, 0xdb, 0x67, 0x6c, 0xa5, 0xaa, 0x57, 0x41, 0xde,
-	0x3e, 0x41, 0x4d, 0xdd, 0x3e, 0x08, 0x0a, 0x9e, 0xe7, 0xec, 0xdd, 0xf0, 0xf3, 0x59, 0x5e, 0xe6,
-	0xf3, 0x6a, 0xce, 0xef, 0xa7, 0x6c, 0x5b, 0xc8, 0xc7, 0x79, 0xb0, 0x15, 0x8b, 0x07, 0xf8, 0xd8,
-	0x0a, 0x6d, 0x9b, 0x9d, 0xd0, 0x8b, 0xf4, 0x72, 0x6a, 0x80, 0x63, 0x2a, 0x38, 0xff, 0xa7, 0xc7,
-	0xf6, 0x9a, 0xe7, 0xca, 0xf1, 0x95, 0x05, 0x5d, 0x8a, 0xc2, 0xdd, 0x4f, 0x4a, 0x68, 0x28, 0x2d,
-	0x4c, 0xf9, 0xd7, 0x84, 0x9f, 0x6e, 0xdc, 0x47, 0x7f, 0xbc, 0xa3, 0x55, 0x58, 0xcd, 0x5f, 0x3d,
-	0x76, 0x6b, 0x15, 0x3c, 0x2e, 0x60, 0xe2, 0x96, 0x72, 0xb0, 0x85, 0xd3, 0x96, 0xf5, 0xeb, 0x78,
-	0xb4, 0x8b, 0xc9, 0xea, 0xb3, 0xc5, 0x25, 0xca, 0x74, 0x3e, 0x5b, 0x6a, 0x75, 0xd3, 0xb3, 0xa5,
-	0x85, 0x70, 0xe1, 0xfc, 0x34, 0x02, 0x55, 0xe4, 0x13, 0xe1, 0x8a, 0xd5, 0xb5, 0x21, 0x59, 0x38,
-	0xab, 0x50, 0xaa, 0x70, 0xd6, 0x59, 0x3c, 0xbd, 0xb0, 0x7a, 0x2e, 0x72, 0x7b, 0x22, 0x5d, 0xab,
-	0x90, 0xd3, 0x8b, 0x46, 0x53, 0xd3, 0xab, 0xcb, 0x02, 0xef, 0x77, 0x04, 0xc6, 0x3d, 0x4b, 0x02,
-	0x47, 0xee, 0x77, 0x15, 0x4a, 0xed, 0x77, 0x9d, 0xc5, 0x8d, 0x72, 0x5a, 0xe6, 0xb6, 0x99, 0x08,
-	0x64, 0xa3, 0x2c, 0xe5, 0x54, 0xa3, 0x60, 0x2a, 0x2a, 0xcd, 0xa1, 0x54, 0x55, 0x51, 0xbf, 0x4e,
-	0x9a, 0xda, 0xfd, 0x56, 0x56, 0xae, 0x88, 0xc8, 0xd2, 0xec, 0x60, 0x53, 0xa5, 0xd9, 0x69, 0x82,
-	0x4b, 0xd3, 0x2d, 0xae, 0x7b, 0xa6, 0x05, 0x35, 0x55, 0x9a, 0x08, 0xc2, 0x4f, 0x91, 0xa7, 0x30,
-	0x97, 0x16, 0xda, 0xec, 0x51, 0x03, 0x1d, 0x03, 0xa9, 0xa7, 0x48, 0xcc, 0x85, 0x10, 0x7f, 0xf7,
-	0xd8, 0x07, 0x43, 0x2d, 0x9d, 0x56, 0x47, 0x3f, 0xcf, 0xa0, 0x3c, 0x12, 0xd5, 0x2c, 0xb3, 0x3f,
-	0x2a, 0x4e, 0xe6, 0xa3, 0x03, 0xf6, 0xb1, 0x0f, 0x77, 0xb2, 0x89, 0xc6, 0x77, 0x2d, 0x0b, 0xd3,
-	0xd2, 0x53, 0x7a, 0x7c, 0xaf, 0x40, 0xc9, 0xf1, 0xbd, 0xc6, 0x46, 0xf7, 0x10, 0xf8, 0xa2, 0xbc,
-	0x43, 0xbf, 0xdb, 0xe3, 0x9c, 0xde, 0x4d, 0x43, 0xf8, 0x71, 0xe0, 0xe3, 0x8e, 0xc0, 0xb8, 0xe9,
-	0x0e, 0x53, 0x9e, 0x5a, 0x5d, 0xa0, 0x52, 0x8f, 0x03, 0x02, 0x0e, 0x11, 0xff, 0xed, 0xb1, 0x0f,
-	0xdd, 0x4d, 0x85, 0xfa, 0x6f, 0x50, 0x4e, 0xdd, 0xa8, 0x6b, 0x5e, 0x0b, 0x8f, 0x3b, 0x6e, 0xb6,
-	0x0e, 0xde, 0x2f, 0xe3, 0x9b, 0x5d, 0xcd, 0x70, 0xd9, 0xe2, 0x13, 0x27, 0xcb, 0x16, 0x03, 0xa9,
-	0xb2, 0x8d, 0xb9, 0x10, 0xe2, 0x07, 0x76, 0xe3, 0x89, 0x98, 0x5c, 0x56, 0x8a, 0x53, 0xff, 0x53,
-	0x37, 0x92, 0x77, 0x7b, 0x3b, 0x41, 0x78, 0x87, 0x0f, 0x7b, 0x5c, 0xb3, 0x9b, 0x2e, 0xbb, 0x52,
-	0xc3, 0x89, 0x96, 0xf3, 0xd6, 0x7b, 0xc7, 0xb0, 0x8b, 0xa9, 0xd4, 0xc1, 0x11, 0xf0, 0x32, 0xe6,
-	0x93, 0xc3, 0x5f, 0x0e, 0x16, 0xb9, 0x05, 0x63, 0xf6, 0x73, 0xd9, 0x6f, 0xfe, 0xea, 0xcf, 0x64,
-	0x7f, 0x61, 0xfb, 0xf5, 0x77, 0x8b, 0x3e, 0xf5, 0x95, 0xe3, 0xe2, 0x46, 0xad, 0x1d, 0xfe, 0x1f,
-	0x00, 0x00, 0xff, 0xff, 0x2e, 0xeb, 0x66, 0x65, 0x20, 0x11, 0x00, 0x00,
+var fileDescriptor_tabletmanagerservice_0dc181478a076ccc = []byte{
+	// 1030 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x98, 0x6d, 0x6f, 0x1b, 0x45,
+	0x10, 0xc7, 0xb1, 0x04, 0x95, 0x58, 0x1e, 0xbb, 0xaa, 0x28, 0x0a, 0x12, 0x4f, 0x4d, 0x79, 0x48,
+	0x51, 0xdc, 0x34, 0x94, 0xf7, 0x6e, 0x9a, 0xb4, 0x41, 0x8d, 0x30, 0x76, 0x43, 0x10, 0x48, 0x48,
+	0x1b, 0x7b, 0xe2, 0x3b, 0x72, 0xde, 0x3d, 0x76, 0xf7, 0xac, 0xe6, 0x15, 0x12, 0x12, 0xaf, 0x90,
+	0xf8, 0x4a, 0x7c, 0x35, 0x74, 0x0f, 0xbb, 0x37, 0x6b, 0xcf, 0xad, 0xed, 0x77, 0x91, 0xff, 0xbf,
+	0x9d, 0x99, 0x9d, 0x9d, 0x99, 0xdd, 0x1c, 0xdb, 0xb1, 0xe2, 0x32, 0x03, 0x3b, 0x17, 0x52, 0xcc,
+	0x40, 0x1b, 0xd0, 0x8b, 0x74, 0x02, 0xfb, 0xb9, 0x56, 0x56, 0xf1, 0x3b, 0x94, 0xb6, 0x73, 0x37,
+	0xf8, 0x75, 0x2a, 0xac, 0xa8, 0xf1, 0x47, 0xff, 0xed, 0xb2, 0x77, 0x5e, 0x56, 0xda, 0x59, 0xad,
+	0xf1, 0x53, 0xf6, 0xfa, 0x30, 0x95, 0x33, 0xfe, 0xf1, 0xfe, 0xea, 0x9a, 0x52, 0x18, 0xc1, 0x1f,
+	0x05, 0x18, 0xbb, 0xf3, 0x49, 0xa7, 0x6e, 0x72, 0x25, 0x0d, 0x7c, 0xfe, 0x1a, 0x7f, 0xc1, 0xde,
+	0x18, 0x67, 0x00, 0x39, 0xa7, 0xd8, 0x4a, 0x71, 0xc6, 0x3e, 0xed, 0x06, 0xbc, 0xb5, 0xdf, 0xd8,
+	0x5b, 0xc7, 0xaf, 0x60, 0x52, 0x58, 0x78, 0xae, 0xd4, 0x35, 0xbf, 0x4f, 0x2c, 0x41, 0xba, 0xb3,
+	0xfc, 0xc5, 0x3a, 0xcc, 0xdb, 0xff, 0x99, 0xbd, 0xf9, 0x0c, 0xec, 0x78, 0x92, 0xc0, 0x5c, 0xf0,
+	0x7b, 0xc4, 0x32, 0xaf, 0x3a, 0xdb, 0xbb, 0x71, 0xc8, 0x5b, 0x9e, 0xb1, 0x77, 0x9f, 0x81, 0x1d,
+	0x82, 0x9e, 0xa7, 0xc6, 0xa4, 0x4a, 0x1a, 0xfe, 0x15, 0xbd, 0x12, 0x21, 0xce, 0xc7, 0xd7, 0x1b,
+	0x90, 0x38, 0x45, 0x63, 0xb0, 0x23, 0x10, 0xd3, 0x1f, 0x64, 0x76, 0x43, 0xa6, 0x08, 0xe9, 0xb1,
+	0x14, 0x05, 0x98, 0xb7, 0x2f, 0xd8, 0xdb, 0x8d, 0x70, 0xa1, 0x53, 0x0b, 0x3c, 0xb2, 0xb2, 0x02,
+	0x9c, 0x87, 0x2f, 0xd7, 0x72, 0xde, 0xc5, 0xaf, 0x8c, 0x1d, 0x25, 0x42, 0xce, 0xe0, 0xe5, 0x4d,
+	0x0e, 0x9c, 0xca, 0x70, 0x2b, 0x3b, 0xf3, 0xf7, 0xd7, 0x50, 0x38, 0xfe, 0x11, 0x5c, 0x69, 0x30,
+	0xc9, 0xd8, 0x8a, 0x8e, 0xf8, 0x31, 0x10, 0x8b, 0x3f, 0xe4, 0xf0, 0x59, 0x8f, 0x0a, 0xf9, 0x1c,
+	0x44, 0x66, 0x93, 0xa3, 0x04, 0x26, 0xd7, 0xe4, 0x59, 0x87, 0x48, 0xec, 0xac, 0x97, 0x49, 0xef,
+	0x28, 0x67, 0xb7, 0x4f, 0x67, 0x52, 0x69, 0xa8, 0xe5, 0x63, 0xad, 0x95, 0xe6, 0x0f, 0x08, 0x0b,
+	0x2b, 0x94, 0x73, 0xf7, 0xcd, 0x66, 0x70, 0x98, 0xbd, 0x4c, 0x89, 0x69, 0xd3, 0x23, 0x74, 0xf6,
+	0x5a, 0x20, 0x9e, 0x3d, 0xcc, 0x79, 0x17, 0xbf, 0xb3, 0xf7, 0x86, 0x1a, 0xae, 0xb2, 0x74, 0x96,
+	0xb8, 0x4e, 0xa4, 0x92, 0xb2, 0xc4, 0x38, 0x47, 0x7b, 0x9b, 0xa0, 0xb8, 0x59, 0x06, 0x79, 0x9e,
+	0xdd, 0x34, 0x7e, 0xa8, 0x22, 0x42, 0x7a, 0xac, 0x59, 0x02, 0x0c, 0x57, 0xf2, 0x0b, 0x35, 0xb9,
+	0xae, 0xa6, 0xab, 0x21, 0x2b, 0xb9, 0x95, 0x63, 0x95, 0x8c, 0x29, 0x7c, 0x16, 0xe7, 0x32, 0x6b,
+	0xcd, 0x53, 0x61, 0x61, 0x20, 0x76, 0x16, 0x21, 0x87, 0x0b, 0xac, 0x19, 0x94, 0x27, 0x60, 0x27,
+	0xc9, 0xc0, 0x3c, 0xbd, 0x14, 0x64, 0x81, 0xad, 0x50, 0xb1, 0x02, 0x23, 0x60, 0xef, 0xf1, 0x4f,
+	0xf6, 0x41, 0x28, 0x0f, 0xb2, 0x6c, 0xa8, 0xd3, 0x85, 0xe1, 0x0f, 0xd7, 0x5a, 0x72, 0xa8, 0xf3,
+	0x7d, 0xb0, 0xc5, 0x8a, 0xee, 0x2d, 0x0f, 0xf2, 0x7c, 0x83, 0x2d, 0x0f, 0xf2, 0x7c, 0xf3, 0x2d,
+	0x57, 0x70, 0x30, 0xb1, 0x33, 0xb1, 0x80, 0x72, 0x8c, 0x14, 0x86, 0x9e, 0xd8, 0xad, 0x1e, 0x9d,
+	0xd8, 0x18, 0xc3, 0xe3, 0xe8, 0x4c, 0x18, 0x0b, 0x7a, 0xa8, 0x4c, 0x6a, 0x53, 0x25, 0xc9, 0x71,
+	0x14, 0x22, 0xb1, 0x71, 0xb4, 0x4c, 0xe2, 0xdb, 0x73, 0x6c, 0x55, 0x5e, 0x45, 0x41, 0xde, 0x9e,
+	0x5e, 0x8d, 0xdd, 0x9e, 0x08, 0xf2, 0x96, 0xe7, 0xec, 0x7d, 0xff, 0xf3, 0x59, 0x2a, 0xd3, 0x79,
+	0x31, 0xe7, 0x7b, 0xb1, 0xb5, 0x0d, 0xe4, 0xfc, 0x3c, 0xd8, 0x88, 0xc5, 0x6d, 0x3b, 0xb6, 0x42,
+	0xdb, 0x7a, 0x27, 0x74, 0x90, 0x4e, 0x8e, 0xb5, 0x2d, 0xa6, 0xbc, 0xf1, 0x1b, 0x76, 0xa7, 0xfd,
+	0xfd, 0x5c, 0xda, 0x34, 0x1b, 0x5c, 0x59, 0xd0, 0x7c, 0x3f, 0x6a, 0xa0, 0x05, 0x9d, 0xc3, 0xfe,
+	0xc6, 0xbc, 0x77, 0xfd, 0x4f, 0x8f, 0xed, 0xd4, 0x2f, 0xbd, 0xe3, 0x57, 0x16, 0xb4, 0x14, 0x59,
+	0x79, 0xb5, 0xe7, 0x42, 0x83, 0xb4, 0x30, 0xe5, 0xdf, 0x12, 0x16, 0xbb, 0x71, 0x17, 0xc7, 0xe3,
+	0x2d, 0x57, 0xf9, 0x68, 0xfe, 0xea, 0xb1, 0xbb, 0xcb, 0xe0, 0x71, 0x06, 0x93, 0x32, 0x94, 0x83,
+	0x0d, 0x8c, 0x36, 0xac, 0x8b, 0xe3, 0xd1, 0x36, 0x4b, 0x96, 0x5f, 0x7c, 0x65, 0xca, 0x4c, 0xe7,
+	0x8b, 0xaf, 0x52, 0xd7, 0xbd, 0xf8, 0x1a, 0x08, 0xd7, 0xec, 0x4f, 0x23, 0xc8, 0xb3, 0x74, 0x22,
+	0xca, 0x3e, 0x29, 0x27, 0x00, 0x59, 0xb3, 0xcb, 0x50, 0xac, 0x66, 0x57, 0x59, 0x3c, 0x38, 0xb1,
+	0x7a, 0x21, 0x52, 0x7b, 0xa2, 0xca, 0x2e, 0x25, 0x07, 0x27, 0x8d, 0xc6, 0x06, 0x67, 0xd7, 0x0a,
+	0xbc, 0xdf, 0x11, 0x98, 0xf2, 0x45, 0xe7, 0x39, 0x72, 0xbf, 0xcb, 0x50, 0x6c, 0xbf, 0xab, 0x2c,
+	0xee, 0xd1, 0x53, 0x99, 0xda, 0x7a, 0x18, 0x91, 0x3d, 0xda, 0xca, 0xb1, 0x1e, 0xc5, 0x54, 0x50,
+	0x9a, 0x43, 0x95, 0x17, 0x59, 0xf5, 0xb0, 0xab, 0x6b, 0xf7, 0x7b, 0x55, 0x94, 0x45, 0x44, 0x96,
+	0x66, 0x07, 0x1b, 0x2b, 0xcd, 0xce, 0x25, 0xb8, 0x34, 0xcb, 0xe0, 0xba, 0xc7, 0xa9, 0x57, 0x63,
+	0xa5, 0x89, 0x20, 0xfc, 0x72, 0x78, 0x0a, 0x73, 0x65, 0xa1, 0xc9, 0x1e, 0x75, 0x97, 0x60, 0x20,
+	0xf6, 0x72, 0x08, 0x39, 0x5c, 0x0d, 0xe7, 0x72, 0xaa, 0x02, 0x37, 0x7b, 0xe4, 0xc3, 0x23, 0x84,
+	0x62, 0xd5, 0xb0, 0xca, 0x7a, 0x77, 0x7f, 0xf7, 0xd8, 0x87, 0x43, 0xad, 0x4a, 0xad, 0xda, 0xec,
+	0x45, 0x02, 0xf2, 0x48, 0x14, 0xb3, 0xc4, 0x9e, 0xe7, 0x9c, 0x4c, 0x7f, 0x07, 0xec, 0xfc, 0x1f,
+	0x6e, 0xb5, 0x26, 0xb8, 0xa8, 0x2a, 0x59, 0x98, 0x86, 0x9e, 0xd2, 0x17, 0xd5, 0x12, 0x14, 0xbd,
+	0xa8, 0x56, 0xd8, 0xe0, 0xc6, 0x05, 0xd7, 0x03, 0xf7, 0xe8, 0xff, 0xb0, 0xc2, 0xbc, 0xee, 0xc6,
+	0x21, 0xfc, 0x0c, 0x72, 0x7e, 0x47, 0x60, 0xca, 0x6b, 0x05, 0xa6, 0x3c, 0x16, 0x9d, 0xa7, 0x62,
+	0xcf, 0x20, 0x02, 0xf6, 0x1e, 0xff, 0xed, 0xb1, 0x8f, 0xca, 0x3b, 0x19, 0xb5, 0xfb, 0x40, 0x4e,
+	0xcb, 0xc9, 0x5a, 0xbf, 0x8b, 0x1e, 0x77, 0xdc, 0xe1, 0x1d, 0xbc, 0x0b, 0xe3, 0xbb, 0x6d, 0x97,
+	0xe1, 0x2e, 0xc1, 0x27, 0x4e, 0x76, 0x09, 0x06, 0x62, 0x5d, 0x12, 0x72, 0xde, 0xc5, 0x8f, 0xec,
+	0xd6, 0x13, 0x31, 0xb9, 0x2e, 0x72, 0x4e, 0x7d, 0xfd, 0xa8, 0x25, 0x67, 0xf6, 0xb3, 0x08, 0xe1,
+	0x0c, 0x3e, 0xec, 0x71, 0xcd, 0x6e, 0x97, 0xd9, 0x55, 0x1a, 0x4e, 0xb4, 0x9a, 0x37, 0xd6, 0x3b,
+	0x66, 0x6b, 0x48, 0xc5, 0x0e, 0x8e, 0x80, 0x5b, 0x9f, 0x4f, 0x0e, 0x7f, 0x39, 0x58, 0xa4, 0x16,
+	0x8c, 0xd9, 0x4f, 0x55, 0xbf, 0xfe, 0xab, 0x3f, 0x53, 0xfd, 0x85, 0xed, 0x57, 0x5f, 0x98, 0xfa,
+	0xd4, 0xf7, 0xa8, 0xcb, 0x5b, 0x95, 0x76, 0xf8, 0x7f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xae, 0x75,
+	0xbb, 0x5f, 0xca, 0x12, 0x00, 0x00,
 }

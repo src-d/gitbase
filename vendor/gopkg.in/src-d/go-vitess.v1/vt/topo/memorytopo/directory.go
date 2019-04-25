@@ -17,9 +17,9 @@ limitations under the License.
 package memorytopo
 
 import (
-	"fmt"
-
 	"golang.org/x/net/context"
+	"gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
 )
@@ -46,7 +46,7 @@ func (c *Conn) ListDir(ctx context.Context, dirPath string, full bool) ([]topo.D
 
 	// Check it's a directory.
 	if !n.isDirectory() {
-		return nil, fmt.Errorf("node %v in cell %v is not a directory", dirPath, c.cell)
+		return nil, vterrors.Errorf(vtrpc.Code_INVALID_ARGUMENT, "node %v in cell %v is not a directory", dirPath, c.cell)
 	}
 
 	result := make([]topo.DirEntry, 0, len(n.children))
