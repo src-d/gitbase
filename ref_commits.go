@@ -82,7 +82,8 @@ func (t *refCommitsTable) PartitionRows(
 		t.filters,
 		t.handledColumns(),
 		func(selectors selectors) (sql.RowIter, error) {
-			repos, err := selectors.textValues("repository_id")
+			var repos []string
+			repos, err = selectors.textValues("repository_id")
 			if err != nil {
 				return nil, err
 			}
@@ -91,7 +92,8 @@ func (t *refCommitsTable) PartitionRows(
 				return noRows, nil
 			}
 
-			names, err := selectors.textValues("ref_name")
+			var names []string
+			names, err = selectors.textValues("ref_name")
 			if err != nil {
 				return nil, err
 			}
@@ -290,10 +292,10 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 		if i.commits == nil {
 			var ref *plumbing.Reference
 			if i.head == nil {
-				var err error
-				ref, err = i.refs.Next()
-				if err != nil {
-					if err == io.EOF {
+				var err_ error
+				ref, err_ = i.refs.Next()
+				if err_ != nil {
+					if err_ == io.EOF {
 						i.repo.Close()
 						return nil, io.EOF
 					}
@@ -303,7 +305,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 					}
 
 					i.repo.Close()
-					return nil, err
+					return nil, err_
 				}
 			} else {
 				ref = plumbing.NewHashReference(plumbing.ReferenceName("HEAD"), i.head.Hash())

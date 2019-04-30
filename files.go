@@ -79,7 +79,8 @@ func (r *filesTable) PartitionRows(
 		r.filters,
 		r.handledColumns(),
 		func(selectors selectors) (sql.RowIter, error) {
-			repos, err := selectors.textValues("repository_id")
+			var repos []string
+			repos, err = selectors.textValues("repository_id")
 			if err != nil {
 				return nil, err
 			}
@@ -88,28 +89,33 @@ func (r *filesTable) PartitionRows(
 				return noRows, nil
 			}
 
-			treeHashes, err := selectors.textValues("tree_hash")
+			var treeHashes []string
+			treeHashes, err = selectors.textValues("tree_hash")
 			if err != nil {
 				return nil, err
 			}
 
-			blobHashes, err := selectors.textValues("blob_hash")
+			var blobHashes []string
+			blobHashes, err = selectors.textValues("blob_hash")
 			if err != nil {
 				return nil, err
 			}
 
-			filePaths, err := selectors.textValues("file_path")
+			var filePaths []string
+			filePaths, err = selectors.textValues("file_path")
 			if err != nil {
 				return nil, err
 			}
 
 			if r.index != nil {
-				values, err := r.index.Values(p)
+				var values sql.IndexValueIter
+				values, err = r.index.Values(p)
 				if err != nil {
 					return nil, err
 				}
 
-				session, err := getSession(ctx)
+				var session *Session
+				session, err = getSession(ctx)
 				if err != nil {
 					return nil, err
 				}

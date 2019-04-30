@@ -106,13 +106,15 @@ func (r *blobsTable) PartitionRows(
 		r.filters,
 		r.handledColumns(),
 		func(selectors selectors) (sql.RowIter, error) {
-			hashes, err := selectors.textValues("blob_hash")
+			var hashes []string
+			hashes, err = selectors.textValues("blob_hash")
 			if err != nil {
 				return nil, err
 			}
 
 			if r.index != nil {
-				indexValues, err := r.index.Values(p)
+				var indexValues sql.IndexValueIter
+				indexValues, err = r.index.Values(p)
 				if err != nil {
 					return nil, err
 				}

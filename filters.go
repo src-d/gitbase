@@ -171,8 +171,8 @@ func handledFilters(
 		// table.
 		var hasOtherFields bool
 		expression.Inspect(f, func(e sql.Expression) bool {
-			if e, ok := e.(*expression.GetField); ok {
-				if e.Table() != tableName {
+			if gf, ok := e.(*expression.GetField); ok {
+				if gf.Table() != tableName {
 					hasOtherFields = true
 				}
 			}
