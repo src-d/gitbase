@@ -68,11 +68,11 @@ type VerticalSplitDiffWorker struct {
 // NewVerticalSplitDiffWorker returns a new VerticalSplitDiffWorker object.
 func NewVerticalSplitDiffWorker(wr *wrangler.Wrangler, cell, keyspace, shard string, minHealthyRdonlyTablets, parallelDiffsCount int, destintationTabletType topodatapb.TabletType) Worker {
 	return &VerticalSplitDiffWorker{
-		StatusWorker: NewStatusWorker(),
-		wr:           wr,
-		cell:         cell,
-		keyspace:     keyspace,
-		shard:        shard,
+		StatusWorker:            NewStatusWorker(),
+		wr:                      wr,
+		cell:                    cell,
+		keyspace:                keyspace,
+		shard:                   shard,
 		minHealthyRdonlyTablets: minHealthyRdonlyTablets,
 		destinationTabletType:   destintationTabletType,
 		parallelDiffsCount:      parallelDiffsCount,
@@ -124,7 +124,7 @@ func (vsdw *VerticalSplitDiffWorker) Run(ctx context.Context) error {
 	cerr := vsdw.cleaner.CleanUp(vsdw.wr)
 	if cerr != nil {
 		if err != nil {
-			vsdw.wr.Logger().Errorf("CleanUp failed in addition to job error: %v", cerr)
+			vsdw.wr.Logger().Errorf2(cerr, "CleanUp failed in addition to job error")
 		} else {
 			err = cerr
 		}
@@ -285,7 +285,7 @@ func (vsdw *VerticalSplitDiffWorker) synchronizeReplication(ctx context.Context)
 	}
 	qr := sqltypes.Proto3ToResult(p3qr)
 	if len(qr.Rows) != 1 || len(qr.Rows[0]) != 1 {
-		return fmt.Errorf("Unexpected result while reading position: %v", qr)
+		return fmt.Errorf("unexpected result while reading position: %v", qr)
 	}
 	vreplicationPos := qr.Rows[0][0].ToString()
 
@@ -344,7 +344,7 @@ func (vsdw *VerticalSplitDiffWorker) synchronizeReplication(ctx context.Context)
 	vsdw.wr.Logger().Infof("Restarting filtered replication on master %v", topoproto.TabletAliasString(vsdw.shardInfo.MasterAlias))
 	shortCtx, cancel = context.WithTimeout(ctx, *remoteActionsTimeout)
 	defer cancel()
-	if _, err = vsdw.wr.TabletManagerClient().VReplicationExec(ctx, masterInfo.Tablet, binlogplayer.StartVReplication(ss.Uid)); err != nil {
+	if _, err = vsdw.wr.TabletManagerClient().VReplicationExec(shortCtx, masterInfo.Tablet, binlogplayer.StartVReplication(ss.Uid)); err != nil {
 		return vterrors.Wrapf(err, "VReplicationExec(start) failed for %v", vsdw.shardInfo.MasterAlias)
 	}
 
@@ -418,7 +418,7 @@ func (vsdw *VerticalSplitDiffWorker) diff(ctx context.Context) error {
 			if err != nil {
 				newErr := vterrors.Wrap(err, "TableScan(source) failed")
 				vsdw.markAsWillFail(rec, newErr)
-				vsdw.wr.Logger().Errorf("%v", newErr)
+				vsdw.wr.Logger().Error(newErr)
 				return
 			}
 			defer sourceQueryResultReader.Close(ctx)
@@ -427,7 +427,7 @@ func (vsdw *VerticalSplitDiffWorker) diff(ctx context.Context) error {
 			if err != nil {
 				newErr := vterrors.Wrap(err, "TableScan(destination) failed")
 				vsdw.markAsWillFail(rec, newErr)
-				vsdw.wr.Logger().Errorf("%v", newErr)
+				vsdw.wr.Logger().Error(newErr)
 				return
 			}
 			defer destinationQueryResultReader.Close(ctx)
@@ -436,18 +436,18 @@ func (vsdw *VerticalSplitDiffWorker) diff(ctx context.Context) error {
 			if err != nil {
 				newErr := vterrors.Wrap(err, "NewRowDiffer() failed")
 				vsdw.markAsWillFail(rec, newErr)
-				vsdw.wr.Logger().Errorf("%v", newErr)
+				vsdw.wr.Logger().Error(newErr)
 				return
 			}
 
 			report, err := differ.Go(vsdw.wr.Logger())
 			if err != nil {
-				vsdw.wr.Logger().Errorf("Differ.Go failed: %v", err)
+				vsdw.wr.Logger().Errorf2(err, "Differ.Go failed")
 			} else {
 				if report.HasDifferences() {
-					err := fmt.Errorf("Table %v has differences: %v", tableDefinition.Name, report.String())
+					err := fmt.Errorf("table %v has differences: %v", tableDefinition.Name, report.String())
 					vsdw.markAsWillFail(rec, err)
-					vsdw.wr.Logger().Errorf("%v", err)
+					vsdw.wr.Logger().Error(err)
 				} else {
 					vsdw.wr.Logger().Infof("Table %v checks out (%v rows processed, %v qps)", tableDefinition.Name, report.processedRows, report.processingQPS)
 				}

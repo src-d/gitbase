@@ -25,28 +25,33 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
-
-	"math"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/pilosa/pilosa/internal"
+	"github.com/pilosa/pilosa/logger"
 	"github.com/pilosa/pilosa/pql"
 	"github.com/pilosa/pilosa/roaring"
+	"github.com/pilosa/pilosa/shardwidth"
+	"github.com/pilosa/pilosa/stats"
+	"github.com/pilosa/pilosa/syswrap"
+	"github.com/pilosa/pilosa/tracing"
 	"github.com/pkg/errors"
 )
 
 const (
 	// ShardWidth is the number of column IDs in a shard. It must be a power of 2 greater than or equal to 16.
-	shardWidthExponent = 20
-	ShardWidth         = 1 << shardWidthExponent
+	// shardWidthExponent = 20 // set in shardwidthNN.go files
+
+	ShardWidth = 1 << shardwidth.Exponent
 
 	// shardVsContainerExponent is the power of 2 of ShardWith minus the power
 	// of two of roaring container width (which is 16).
@@ -56,7 +61,10 @@ const (
 	// which a given container is in means dividing by the number of rows per
 	// container which is performantly expressed as a right shift by this
 	// exponent.
-	shardVsContainerExponent = shardWidthExponent - 16
+	shardVsContainerExponent = shardwidth.Exponent - 16
+
+	// width of roaring containers is 2^16
+	containerWidth = 1 << 16
 
 	// snapshotExt is the file extension used for an in-process snapshot.
 	snapshotExt = ".snapshotting"
@@ -71,7 +79,7 @@ const (
 	HashBlockSize = 100
 
 	// defaultFragmentMaxOpN is the default value for Fragment.MaxOpN.
-	defaultFragmentMaxOpN = 2000
+	defaultFragmentMaxOpN = 10000
 
 	// Row ids used for boolean fields.
 	falseRowID = uint64(0)
@@ -115,7 +123,7 @@ type fragment struct {
 	MaxOpN int
 
 	// Logger used for out-of-band log entries.
-	Logger Logger
+	Logger logger.Logger
 
 	// Row attribute storage.
 	// This is set by the parent field unless overridden for testing.
@@ -125,7 +133,7 @@ type fragment struct {
 	// existing value (to clear) prior to setting a new value.
 	mutexVector vector
 
-	stats StatsClient
+	stats stats.StatsClient
 }
 
 // newFragment returns a new instance of Fragment.
@@ -139,10 +147,10 @@ func newFragment(path, index, field, view string, shard uint64) *fragment {
 		CacheType: DefaultCacheType,
 		CacheSize: DefaultCacheSize,
 
-		Logger: NopLogger,
+		Logger: logger.NopLogger,
 		MaxOpN: defaultFragmentMaxOpN,
 
-		stats: NopStatsClient,
+		stats: stats.NopStatsClient,
 	}
 }
 
@@ -181,6 +189,18 @@ func (f *fragment) Open() error {
 	return nil
 }
 
+func (f *fragment) reopen() (mustClose bool, err error) {
+	if f.file == nil {
+		// Open the data file to be mmap'd and used as an ops log.
+		f.file, mustClose, err = syswrap.OpenFile(f.path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			return mustClose, fmt.Errorf("open file: %s", err)
+		}
+		f.storage.OpWriter = f.file
+	}
+	return mustClose, nil
+}
+
 // openStorage opens the storage bitmap.
 func (f *fragment) openStorage() error {
 	// Create a roaring bitmap to serve as storage for the shard.
@@ -188,11 +208,14 @@ func (f *fragment) openStorage() error {
 		f.storage = roaring.NewFileBitmap()
 	}
 	// Open the data file to be mmap'd and used as an ops log.
-	file, err := os.OpenFile(f.path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	file, mustClose, err := syswrap.OpenFile(f.path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		return fmt.Errorf("open file: %s", err)
 	}
 	f.file = file
+	if mustClose {
+		defer f.safeClose()
+	}
 
 	// Lock the underlying file.
 	if err := syscall.Flock(int(f.file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
@@ -209,29 +232,36 @@ func (f *fragment) openStorage() error {
 			return fmt.Errorf("init storage file: %s", err)
 		}
 		bi.Flush()
-		fi, err = f.file.Stat()
+		_, err = f.file.Stat()
 		if err != nil {
 			return errors.Wrap(err, "statting file after")
 		}
+	} else {
+		// Mmap the underlying file so it can be zero copied.
+		data, err := syswrap.Mmap(int(f.file.Fd()), 0, int(fi.Size()), syscall.PROT_READ, syscall.MAP_SHARED)
+		if err == syswrap.ErrMaxMapCountReached {
+			f.Logger.Debugf("maximum number of maps reached, reading file instead")
+			data, err = ioutil.ReadAll(file)
+			if err != nil {
+				return errors.Wrap(err, "failure file readall")
+			}
+		} else if err != nil {
+			return errors.Wrap(err, "mmap failed")
+		} else {
+			f.storageData = data
+			// Advise the kernel that the mmap is accessed randomly.
+			if err := madvise(f.storageData, syscall.MADV_RANDOM); err != nil {
+				return fmt.Errorf("madvise: %s", err)
+			}
+		}
+
+		if err := f.storage.UnmarshalBinary(data); err != nil {
+			return fmt.Errorf("unmarshal storage: file=%s, err=%s", f.file.Name(), err)
+		}
+
 	}
 
-	// Mmap the underlying file so it can be zero copied.
-	storageData, err := syscall.Mmap(int(f.file.Fd()), 0, int(fi.Size()), syscall.PROT_READ, syscall.MAP_SHARED)
-	if err != nil {
-		return fmt.Errorf("mmap: %s", err)
-	}
-	f.storageData = storageData
-
-	// Advise the kernel that the mmap is accessed randomly.
-	if err := madvise(f.storageData, syscall.MADV_RANDOM); err != nil {
-		return fmt.Errorf("madvise: %s", err)
-	}
-
-	// Attach the mmap file to the bitmap.
-	data := f.storageData
-	if err := f.storage.UnmarshalBinary(data); err != nil {
-		return fmt.Errorf("unmarshal storage: file=%s, err=%s", f.file.Name(), err)
-	}
+	f.opN = f.storage.Info().OpN
 
 	// Attach the file to the bitmap to act as a write-ahead log.
 	f.storage.OpWriter = f.file
@@ -309,19 +339,8 @@ func (f *fragment) close() error {
 	return nil
 }
 
-func (f *fragment) closeStorage() error {
-	// Clear the storage bitmap so it doesn't access the closed mmap.
-
-	//f.storage = roaring.NewBitmap()
-
-	// Unmap the file.
-	if f.storageData != nil {
-		if err := syscall.Munmap(f.storageData); err != nil {
-			return fmt.Errorf("munmap: %s", err)
-		}
-		f.storageData = nil
-	}
-
+// safeClose is unprotected.
+func (f *fragment) safeClose() error {
 	// Flush file, unlock & close.
 	if f.file != nil {
 		if err := f.file.Sync(); err != nil {
@@ -330,10 +349,37 @@ func (f *fragment) closeStorage() error {
 		if err := syscall.Flock(int(f.file.Fd()), syscall.LOCK_UN); err != nil {
 			return fmt.Errorf("unlock: %s", err)
 		}
-		if err := f.file.Close(); err != nil {
+		if err := syswrap.CloseFile(f.file); err != nil {
 			return fmt.Errorf("close file: %s", err)
 		}
 	}
+	f.file = nil
+	f.storage.OpWriter = nil
+
+	return nil
+}
+
+func (f *fragment) closeStorage() error {
+	// Clear the storage bitmap so it doesn't access the closed mmap.
+
+	//f.storage = roaring.NewBitmap()
+
+	// Unmap the file.
+	if f.storageData != nil {
+		if err := syswrap.Munmap(f.storageData); err != nil {
+			return fmt.Errorf("munmap: %s", err)
+		}
+		f.storageData = nil
+	}
+
+	if err := f.safeClose(); err != nil {
+		return err
+	}
+
+	// opN is determined by how many bit set/clear operations are in the storage
+	// write log, so once the storage is closed it should be 0. Opening new
+	// storage will set opN appropriately.
+	f.opN = 0
 
 	return nil
 }
@@ -345,29 +391,40 @@ func (f *fragment) row(rowID uint64) *Row {
 	return f.unprotectedRow(rowID)
 }
 
+// unprotectedRow returns a row from the row cache if available or from storage
+// (updating the cache).
 func (f *fragment) unprotectedRow(rowID uint64) *Row {
 	r, ok := f.rowCache.Fetch(rowID)
 	if ok && r != nil {
 		return r
 	}
 
+	row := f.rowFromStorage(rowID)
+	f.rowCache.Add(rowID, row)
+	return row
+}
+
+// rowFromStorage clones a row data out of fragment storage and returns it as a
+// Row object.
+func (f *fragment) rowFromStorage(rowID uint64) *Row {
 	// Only use a subset of the containers.
 	// NOTE: The start & end ranges must be divisible by container width.
 	data := f.storage.OffsetRange(f.shard*ShardWidth, rowID*ShardWidth, (rowID+1)*ShardWidth)
 
-	// Reference bitmap subrange in storage.
-	// We Clone() data because otherwise row will contain pointers to containers in storage.
-	// This causes unexpected results when we cache the row and try to use it later.
+	// Reference bitmap subrange in storage. We Clone() data because otherwise
+	// row will contain pointers to containers in storage. This causes
+	// unexpected results when we cache the row and try to use it later.
+	// Basically, since we return the Row and release the fragment lock, the
+	// underlying fragment storage could be changed or snapshotted and thrown
+	// out at any point.
 	row := &Row{
 		segments: []rowSegment{{
 			data:     *data.Clone(),
 			shard:    f.shard,
-			writable: false,
+			writable: false, // this Row will probably be cached and shared, so it must be read only.
 		}},
 	}
 	row.invalidateCount()
-
-	f.rowCache.Add(rowID, row)
 
 	return row
 }
@@ -377,6 +434,13 @@ func (f *fragment) unprotectedRow(rowID uint64) *Row {
 func (f *fragment) setBit(rowID, columnID uint64) (changed bool, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	mustClose, err := f.reopen()
+	if err != nil {
+		return false, errors.Wrap(err, "reopening")
+	}
+	if mustClose {
+		defer f.safeClose()
+	}
 
 	// handle mutux field type
 	if f.mutexVector != nil {
@@ -401,6 +465,7 @@ func (f *fragment) handleMutex(rowID, columnID uint64) error {
 	return nil
 }
 
+// unprotectedSetBit TODO should be replaced by an invocation of importPositions with a single bit to set.
 func (f *fragment) unprotectedSetBit(rowID, columnID uint64) (changed bool, err error) {
 	changed = false
 	// Determine the position of the bit in the storage.
@@ -450,9 +515,18 @@ func (f *fragment) unprotectedSetBit(rowID, columnID uint64) (changed bool, err 
 func (f *fragment) clearBit(rowID, columnID uint64) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	mustClose, err := f.reopen()
+	if err != nil {
+		return false, errors.Wrap(err, "reopening")
+	}
+	if mustClose {
+		defer f.safeClose()
+	}
 	return f.unprotectedClearBit(rowID, columnID)
 }
 
+// unprotectedClearBit TODO should be replaced by an invocation of
+// importPositions with a single bit to clear.
 func (f *fragment) unprotectedClearBit(rowID, columnID uint64) (changed bool, err error) {
 	changed = false
 	// Determine the position of the bit in the storage.
@@ -496,6 +570,13 @@ func (f *fragment) unprotectedClearBit(rowID, columnID uint64) (changed bool, er
 func (f *fragment) setRow(row *Row, rowID uint64) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	mustClose, err := f.reopen()
+	if err != nil {
+		return false, errors.Wrap(err, "reopening")
+	}
+	if mustClose {
+		defer f.safeClose()
+	}
 	return f.unprotectedSetRow(row, rowID)
 }
 
@@ -546,6 +627,13 @@ func (f *fragment) unprotectedSetRow(row *Row, rowID uint64) (changed bool, err 
 func (f *fragment) clearRow(rowID uint64) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	mustClose, err := f.reopen()
+	if err != nil {
+		return false, errors.Wrap(err, "reopening")
+	}
+	if mustClose {
+		defer f.safeClose()
+	}
 	return f.unprotectedClearRow(rowID)
 }
 
@@ -612,10 +700,54 @@ func (f *fragment) value(columnID uint64, bitDepth uint) (value uint64, exists b
 	return value, true, nil
 }
 
+// clearValue uses a column of bits to clear a multi-bit value.
+func (f *fragment) clearValue(columnID uint64, bitDepth uint, value uint64) (changed bool, err error) {
+	return f.setValueBase(columnID, bitDepth, value, true)
+}
+
 // setValue uses a column of bits to set a multi-bit value.
 func (f *fragment) setValue(columnID uint64, bitDepth uint, value uint64) (changed bool, err error) {
+	return f.setValueBase(columnID, bitDepth, value, false)
+}
+
+func (f *fragment) positionsForValue(columnID uint64, bitDepth uint, value uint64, clear bool, toSet, toClear []uint64) ([]uint64, []uint64, error) {
+	for i := uint(0); i < bitDepth; i++ {
+		bit, err := f.pos(uint64(i), columnID)
+		if err != nil {
+			return toSet, toClear, errors.Wrap(err, "getting pos")
+		}
+		if value&(1<<i) != 0 {
+			toSet = append(toSet, bit)
+		} else {
+			toClear = append(toClear, bit)
+		}
+	}
+
+	// Mark value as set.
+	bit, err := f.pos(uint64(bitDepth), columnID)
+	if err != nil {
+		return toSet, toClear, errors.Wrap(err, "getting not-null pos")
+	}
+	if clear {
+		toClear = append(toClear, bit)
+	} else {
+		toSet = append(toSet, bit)
+	}
+
+	return toSet, toClear, nil
+}
+
+// TODO get rid of this and use positionsForValue to generate a single write op, and set that with importPositions.
+func (f *fragment) setValueBase(columnID uint64, bitDepth uint, value uint64, clear bool) (changed bool, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	mustClose, err := f.reopen()
+	if err != nil {
+		return false, errors.Wrap(err, "reopening")
+	}
+	if mustClose {
+		defer f.safeClose()
+	}
 
 	for i := uint(0); i < bitDepth; i++ {
 		if value&(1<<i) != 0 {
@@ -633,19 +765,26 @@ func (f *fragment) setValue(columnID uint64, bitDepth uint, value uint64) (chang
 		}
 	}
 
-	// Mark value as set.
-	if c, err := f.unprotectedSetBit(uint64(bitDepth), columnID); err != nil {
-		return changed, errors.Wrap(err, "marking not-null")
-	} else if c {
-		changed = true
+	// Mark value as set (or cleared).
+	if clear {
+		if c, err := f.unprotectedClearBit(uint64(bitDepth), columnID); err != nil {
+			return changed, errors.Wrap(err, "clearing not-null")
+		} else if c {
+			changed = true
+		}
+	} else {
+		if c, err := f.unprotectedSetBit(uint64(bitDepth), columnID); err != nil {
+			return changed, errors.Wrap(err, "marking not-null")
+		} else if c {
+			changed = true
+		}
 	}
 
 	return changed, nil
 }
 
 // importSetValue is a more efficient SetValue just for imports.
-func (f *fragment) importSetValue(columnID uint64, bitDepth uint, value uint64) (changed bool, err error) { // nolint: unparam
-
+func (f *fragment) importSetValue(columnID uint64, bitDepth uint, value uint64, clear bool) (changed bool, err error) { // nolint: unparam
 	for i := uint(0); i < bitDepth; i++ {
 		if value&(1<<i) != 0 {
 			bit, err := f.pos(uint64(i), columnID)
@@ -673,12 +812,20 @@ func (f *fragment) importSetValue(columnID uint64, bitDepth uint, value uint64) 
 	// Mark value as set.
 	p, err := f.pos(uint64(bitDepth), columnID)
 	if err != nil {
-		return changed, errors.Wrap(err, "marking not-null")
+		return changed, errors.Wrap(err, "getting not-null pos")
 	}
-	if c, err := f.storage.Add(p); err != nil {
-		return changed, errors.Wrap(err, "adding to storage")
-	} else if c {
-		changed = true
+	if clear {
+		if c, err := f.storage.Remove(p); err != nil {
+			return changed, errors.Wrap(err, "removing not-null from storage")
+		} else if c {
+			changed = true
+		}
+	} else {
+		if c, err := f.storage.Add(p); err != nil {
+			return changed, errors.Wrap(err, "adding not-null to storage")
+		} else if c {
+			changed = true
+		}
 	}
 
 	return changed, nil
@@ -688,12 +835,11 @@ func (f *fragment) importSetValue(columnID uint64, bitDepth uint, value uint64) 
 // A bitmap can be passed in to optionally filter the computed columns.
 func (f *fragment) sum(filter *Row, bitDepth uint) (sum, count uint64, err error) {
 	// Compute count based on the existence row.
-	row := f.row(uint64(bitDepth))
+	consider := f.row(uint64(bitDepth))
 	if filter != nil {
-		count = row.intersectionCount(filter)
-	} else {
-		count = row.Count()
+		consider = consider.Intersect(filter)
 	}
+	count = consider.Count()
 
 	// Compute the sum based on the bit count of each row multiplied by the
 	// place value of each row. For example, 10 bits in the 1's place plus
@@ -705,11 +851,7 @@ func (f *fragment) sum(filter *Row, bitDepth uint) (sum, count uint64, err error
 	var cnt uint64
 	for i := uint(0); i < bitDepth; i++ {
 		row := f.row(uint64(i))
-		if filter != nil {
-			cnt = row.intersectionCount(filter)
-		} else {
-			cnt = row.Count()
-		}
+		cnt = row.intersectionCount(consider)
 		sum += (1 << i) * cnt
 	}
 
@@ -964,7 +1106,7 @@ func (f *fragment) pos(rowID, columnID uint64) (uint64, error) {
 	// Return an error if the column ID is out of the range of the fragment's shard.
 	minColumnID := f.shard * ShardWidth
 	if columnID < minColumnID || columnID >= minColumnID+ShardWidth {
-		return 0, errors.New("column out of bounds")
+		return 0, errors.Errorf("column:%d out of bounds", columnID)
 	}
 	return pos(rowID, columnID), nil
 }
@@ -1026,7 +1168,7 @@ func (f *fragment) top(opt topOptions) ([]Pair, error) {
 		rowID, cnt := pair.ID, pair.Count
 
 		// Ignore empty rows.
-		if cnt <= 0 {
+		if cnt == 0 {
 			continue
 		}
 
@@ -1186,7 +1328,7 @@ type topOptions struct {
 func (f *fragment) Checksum() []byte {
 	h := xxhash.New()
 	for _, block := range f.Blocks() {
-		h.Write(block.Checksum)
+		_, _ = h.Write(block.Checksum)
 	}
 	return h.Sum(nil)
 }
@@ -1418,82 +1560,119 @@ func (f *fragment) mergeBlock(id int, data []pairSet) (sets, clears []pairSet, e
 
 // bulkImport bulk imports a set of bits and then snapshots the storage.
 // The cache is updated to reflect the new data.
-func (f *fragment) bulkImport(rowIDs, columnIDs []uint64) error {
+func (f *fragment) bulkImport(rowIDs, columnIDs []uint64, options *ImportOptions) error {
 	// Verify that there are an equal number of row ids and column ids.
 	if len(rowIDs) != len(columnIDs) {
 		return fmt.Errorf("mismatch of row/column len: %d != %d", len(rowIDs), len(columnIDs))
 	}
 
-	if f.mutexVector != nil {
+	if f.mutexVector != nil && !options.Clear {
 		return f.bulkImportMutex(rowIDs, columnIDs)
 	}
-	return f.bulkImportStandard(rowIDs, columnIDs)
+	return f.bulkImportStandard(rowIDs, columnIDs, options)
 }
 
-// bulkImportStandard performs a bulk import on a standard fragment.
-func (f *fragment) bulkImportStandard(rowIDs, columnIDs []uint64) error {
-	// Create a temporary bitmap which will be populated by rowIDs and columnIDs
-	// and then merged into the existing fragment's bitmap.
-	localBitmap := roaring.NewBitmap()
-
-	// Disconnect op writer so we don't append updates.
-	localBitmap.OpWriter = nil
-
-	// rowSet maintains the set of rowIDs present in this import.
-	// It allows the cache to be updated once per row, instead of once
-	// per bit.
+// bulkImportStandard performs a bulk import on a standard fragment. May mutate
+// its rowIDs and columnIDs arguments.
+func (f *fragment) bulkImportStandard(rowIDs, columnIDs []uint64, options *ImportOptions) (err error) {
+	// rowSet maintains the set of rowIDs present in this import. It allows the
+	// cache to be updated once per row, instead of once per bit. TODO: consider
+	// sorting by rowID/columnID first and avoiding the map allocation here. (we
+	// could reuse rowIDs to store the list of unique row IDs)
 	rowSet := make(map[uint64]struct{})
-	lastRowID := uint64(0)
+	lastRowID := uint64(1 << 63)
 
-	// Process every bit by writing to a local bitmap,
-	// to be merged with fragment storage next.
-	for i := range rowIDs {
+	// replace columnIDs with calculated positions to avoid allocation.
+	for i := 0; i < len(columnIDs); i++ {
 		rowID, columnID := rowIDs[i], columnIDs[i]
-
-		// Determine the position of the bit in the storage.
 		pos, err := f.pos(rowID, columnID)
 		if err != nil {
 			return err
 		}
-
-		// Write to local storage.
-		_, err = localBitmap.Add(pos)
-		if err != nil {
-			return err
-		}
-
-		// Reduce the StatsD rate for high volume stats
-		f.stats.Count("ImportBit", 1, 0.0001)
+		columnIDs[i] = pos
 
 		// Add row to rowSet.
-		if i == 0 || rowID != lastRowID {
+		if rowID != lastRowID {
 			lastRowID = rowID
 			rowSet[rowID] = struct{}{}
 		}
-
-		// Invalidate block checksum.
-		delete(f.checksums, int(rowID/HashBlockSize))
 	}
-
+	positions := columnIDs
 	f.mu.Lock()
 	defer f.mu.Unlock()
-
-	// Merge localBitmap into fragment's existing data.
-	var results *roaring.Bitmap
-	if f.storage.Count() > 0 {
-		results = f.storage.Union(localBitmap)
+	if options.Clear {
+		err = f.importPositions(nil, positions, rowSet)
 	} else {
-		results = localBitmap
+		err = f.importPositions(positions, nil, rowSet)
+	}
+	return errors.Wrap(err, "bulkImportStandard")
+}
+
+// importPositions takes slices of positions within the fragment to set and
+// clear in storage. One must also pass in the set of unique rows which are
+// affected by the set and clear operations. It is unprotected (f.mu must be
+// locked when calling it). No position should appear in both set and clear.
+//
+// importPositions tries to intelligently decide whether or not to do a full
+// snapshot of the fragment or just do in-memory updates while appending
+// operations to the op log.
+func (f *fragment) importPositions(set, clear []uint64, rowSet map[uint64]struct{}) error {
+	smallWrite := false
+	if len(set)+len(clear)+f.opN < f.MaxOpN {
+		smallWrite = true
+		mustClose, err := f.reopen()
+		if err != nil {
+			return errors.Wrap(err, "reopening")
+		}
+		if mustClose {
+			defer f.safeClose()
+		}
+
+	} else {
+		f.storage.OpWriter = nil
+	}
+
+	if len(set) > 0 {
+		f.stats.Count("ImportingN", int64(len(set)), 1)
+		changedN, err := f.storage.AddN(set...) // TODO benchmark Add/RemoveN behavior with sorted/unsorted positions
+		if err != nil {
+			return errors.Wrap(err, "adding positions")
+		}
+		f.stats.Count("ImportedN", int64(changedN), 1)
+		f.opN += changedN
+	}
+
+	if len(clear) > 0 {
+		f.stats.Count("ClearingN", int64(len(clear)), 1)
+		changedN, err := f.storage.RemoveN(clear...)
+		if err != nil {
+			return errors.Wrap(err, "clearing positions")
+		}
+		f.stats.Count("ClearedN", int64(changedN), 1)
+		f.opN += changedN
 	}
 
 	// Update cache counts for all affected rows.
 	for rowID := range rowSet {
-		n := results.CountRange(rowID*ShardWidth, (rowID+1)*ShardWidth)
+		// Invalidate block checksum.
+		delete(f.checksums, int(rowID/HashBlockSize))
+
+		n := f.storage.CountRange(rowID*ShardWidth, (rowID+1)*ShardWidth)
 		f.cache.BulkAdd(rowID, n)
+
+		if smallWrite {
+			if _, ok := f.rowCache.Fetch(rowID); ok { // we won't update the rowCache if it wasn't already in there.
+				f.rowCache.Add(rowID, f.rowFromStorage(rowID))
+			}
+		}
 	}
 
 	f.cache.Recalculate()
-	return unprotectedWriteToFragment(f, results)
+
+	if !smallWrite {
+		return f.snapshot()
+	}
+	return nil
 }
 
 // bulkImportMutex performs a bulk import on a fragment while ensuring
@@ -1504,109 +1683,116 @@ func (f *fragment) bulkImportMutex(rowIDs, columnIDs []uint64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	// Disconnect op writer so we don't append updates.
-	f.storage.OpWriter = nil
+	rowSet := make(map[uint64]struct{})
+	// we have to maintain which columns are getting bits set as a map so that
+	// we don't end up setting multiple bits in the same column if a column is
+	// repeated within the import.
+	colSet := make(map[uint64]uint64)
 
-	// If an error occurs then reopen the storage.
-	if err := func() error {
-		// rowSet maintains the set of rowIDs present in this import.
-		// It allows the cache to be updated once per row, instead of once
-		// per bit.
-		rowSet := make(map[uint64]struct{})
-		lastRowID := uint64(0)
-
-		// Process every bit.
-		for i := range rowIDs {
-			rowID, columnID := rowIDs[i], columnIDs[i]
-
-			// Handle mutex vector (i.e. clear an existing row).
-			if existingRowID, found, err := f.mutexVector.Get(columnID); err != nil {
-				return errors.Wrap(err, "getting mutex vector data")
-			} else if found && existingRowID != rowID {
-				// Determine the position of the bit in the storage.
-				pos, err := f.pos(existingRowID, columnID)
-				if err != nil {
-					return err
-				}
-
-				// Clear storage.
-				_, err = f.storage.Remove(pos)
-				if err != nil {
-					return err
-				}
-
-				rowSet[existingRowID] = struct{}{}
-			}
-
+	// Since each imported bit will at most set one bit and clear one bit, we
+	// can reuse the rowIDs and columnIDs slices as the set and clear slice
+	// arguments to importPositions. The set positions we'll get from the
+	// colSet, but we maintain clearIdx as we loop through row and col ids so
+	// that we know how many bits we need to clear and how far through columnIDs
+	// we are.
+	clearIdx := 0
+	for i := range rowIDs {
+		rowID, columnID := rowIDs[i], columnIDs[i]
+		if existingRowID, found, err := f.mutexVector.Get(columnID); err != nil {
+			return errors.Wrap(err, "getting mutex vector data")
+		} else if found && existingRowID != rowID {
 			// Determine the position of the bit in the storage.
-			pos, err := f.pos(rowID, columnID)
+			clearPos, err := f.pos(existingRowID, columnID)
 			if err != nil {
 				return err
 			}
+			columnIDs[clearIdx] = clearPos
+			clearIdx++
 
-			// Write to storage.
-			_, err = f.storage.Add(pos)
+			rowSet[existingRowID] = struct{}{}
+		} else if found && existingRowID == rowID {
+			continue
+		}
+		pos, err := f.pos(rowID, columnID)
+		if err != nil {
+			return err
+		}
+		colSet[columnID] = pos
+		rowSet[rowID] = struct{}{}
+	}
+
+	// re-use rowIDs by populating positions to set from colSet.
+	i := 0
+	for _, pos := range colSet {
+		rowIDs[i] = pos
+		i++
+	}
+	toSet := rowIDs[:i]
+	toClear := columnIDs[:clearIdx]
+
+	return errors.Wrap(f.importPositions(toSet, toClear, rowSet), "importing positions")
+}
+
+func (f *fragment) importValueSmallWrite(columnIDs, values []uint64, bitDepth uint, clear bool) error {
+	// TODO figure out how to avoid re-allocating these each time. Probably
+	// possible to store them on the fragment with a capacity based on
+	// MaxOpN. For now, we know that the total number of bits to be
+	// set+cleared is len(values)*(bitDepth+1), so we make each slice
+	// slightly more than half of that to try to avoid reallocation.
+	toSet := make([]uint64, 0, len(columnIDs)*int(bitDepth+1)*(5/8))
+	toClear := make([]uint64, 0, len(columnIDs)*int(bitDepth+1)*(5/8))
+	colSet := make(map[uint64]struct{}, len(columnIDs))
+
+	if err := func() (err error) {
+		for i := len(columnIDs) - 1; i >= 0; i-- {
+			columnID, value := columnIDs[i], values[i]
+			if _, ok := colSet[columnID]; ok {
+				continue
+			}
+			colSet[columnID] = struct{}{}
+			toSet, toClear, err = f.positionsForValue(columnID, bitDepth, value, clear, toSet, toClear)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "getting positions for value")
 			}
-
-			// Reduce the StatsD rate for high volume stats
-			f.stats.Count("ImportBit", 1, 0.0001)
-
-			// Add row to rowSet.
-			if i == 0 || rowID != lastRowID {
-				lastRowID = rowID
-				rowSet[rowID] = struct{}{}
-			}
-
-			// Invalidate block checksum.
-			delete(f.checksums, int(rowID/HashBlockSize))
 		}
-
-		// Update cache counts for all rows.
-		for rowID := range rowSet {
-			// Import should ALWAYS have row() load a new bm from fragment.storage
-			// because the row that's in rowCache hasn't been updated with
-			// this import's data.
-			f.cache.BulkAdd(rowID, f.unprotectedRow(rowID).Count())
-		}
-
-		f.cache.Invalidate()
-
 		return nil
 	}(); err != nil {
 		_ = f.closeStorage()
 		_ = f.openStorage()
 		return err
 	}
-
-	// Write the storage to disk and reload.
-	if err := f.snapshot(); err != nil {
-		return err
+	rowSet := make(map[uint64]struct{}, bitDepth+1)
+	for i := uint(0); i < bitDepth+1; i++ {
+		rowSet[uint64(i)] = struct{}{}
 	}
-
-	return nil
+	err := f.importPositions(toSet, toClear, rowSet)
+	return errors.Wrap(err, "importing positions")
 }
 
 // importValue bulk imports a set of range-encoded values.
-func (f *fragment) importValue(columnIDs, values []uint64, bitDepth uint) error {
+func (f *fragment) importValue(columnIDs, values []uint64, bitDepth uint, clear bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	// Verify that there are an equal number of column ids and values.
 	if len(columnIDs) != len(values) {
 		return fmt.Errorf("mismatch of column/value len: %d != %d", len(columnIDs), len(values))
 	}
 
+	if len(columnIDs)*int(bitDepth+1)+f.opN < f.MaxOpN {
+		return errors.Wrap(f.importValueSmallWrite(columnIDs, values, bitDepth, clear), "import small write")
+
+	}
+
 	f.storage.OpWriter = nil
+
 	// Process every value.
 	// If an error occurs then reopen the storage.
-	if err := func() error {
+	if err := func() (err error) {
 		for i := range columnIDs {
 			columnID, value := columnIDs[i], values[i]
-
-			_, err := f.importSetValue(columnID, bitDepth, value)
-			if err != nil {
-				return errors.Wrap(err, "setting")
+			if _, err := f.importSetValue(columnID, bitDepth, value, clear); err != nil {
+				return errors.Wrapf(err, "importSetValue")
 			}
 		}
 		return nil
@@ -1615,19 +1801,18 @@ func (f *fragment) importValue(columnIDs, values []uint64, bitDepth uint) error 
 		_ = f.openStorage()
 		return err
 	}
-	if err := f.snapshot(); err != nil {
-		return errors.Wrap(err, "snapshotting")
-	}
-	return nil
+
+	err := f.snapshot()
+	return errors.Wrap(err, "snapshotting")
 }
 
 // importRoaring imports from the official roaring data format defined at
 // https://github.com/RoaringBitmap/RoaringFormatSpec or from pilosa's version
 // of the roaring format. The cache is updated to reflect the new data.
-func (f *fragment) importRoaring(data []byte) error {
+func (f *fragment) importRoaring(data []byte, clear bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	bm := roaring.NewBitmap()
+	bm := roaring.NewBTreeBitmap()
 	err := bm.UnmarshalBinary(data)
 	if err != nil {
 		return err
@@ -1635,11 +1820,13 @@ func (f *fragment) importRoaring(data []byte) error {
 
 	// get a list of keys in order to update the cache
 	iter, _ := bm.Containers.Iterator(0)
-	rowSet := make([]uint64, 0)
+	rowSet := make(map[uint64]struct{})
 	var lastRow uint64 = math.MaxUint64
 
+	incomingCnt := uint64(0)
 	for iter.Next() {
-		key, _ := iter.Value()
+		key, c := iter.Value()
+		incomingCnt += uint64(c.N())
 
 		// virtual row for the current container
 		vRow := key >> shardVsContainerExponent
@@ -1648,15 +1835,33 @@ func (f *fragment) importRoaring(data []byte) error {
 		if vRow == lastRow {
 			continue
 		}
-		rowSet = append(rowSet, vRow)
+		rowSet[vRow] = struct{}{}
 		lastRow = vRow
 	}
 
-	if f.storage.Count() > 0 {
-		bm = f.storage.Union(bm)
+	// take smallPath? TODO - ideally instead of checking f.storage.Any(), the
+	// test here would be if the storage size (in bytes) is significantly
+	// greater than the size of the incoming bits serialized as append
+	// operations. Getting the storage size might be a bit expensive though
+	// especially if the fragment isn't mapped.
+	if incomingCnt+uint64(f.opN) <= uint64(f.MaxOpN) && f.storage.Any() {
+		toSet, toClear := bm.Slice(), []uint64{}
+		if clear {
+			toSet, toClear = toClear, toSet
+		}
+		return f.importPositions(toSet, toClear, rowSet)
 	}
 
-	for _, rowID := range rowSet {
+	if clear {
+		bm = f.storage.Difference(bm)
+	} else if f.storage.Containers.Size() >= bm.Containers.Size() {
+		f.storage.UnionInPlace(bm)
+		bm = f.storage
+	} else {
+		bm.UnionInPlace(f.storage)
+	}
+
+	for rowID := range rowSet {
 		n := bm.CountRange(rowID*ShardWidth, (rowID+1)*ShardWidth)
 		f.cache.BulkAdd(rowID, n)
 	}
@@ -1686,7 +1891,7 @@ func (f *fragment) Snapshot() error {
 	defer f.mu.Unlock()
 	return f.snapshot()
 }
-func track(start time.Time, message string, stats StatsClient, logger Logger) {
+func track(start time.Time, message string, stats stats.StatsClient, logger logger.Logger) {
 	elapsed := time.Since(start)
 	logger.Printf("%s took %s", message, elapsed)
 	stats.Histogram("snapshot", elapsed.Seconds(), 1.0)
@@ -1700,7 +1905,6 @@ func (f *fragment) snapshot() error {
 // f.mu must be locked when calling it.
 func unprotectedWriteToFragment(f *fragment, bm *roaring.Bitmap) error { // nolint: interfacer
 
-	f.Logger.Printf("fragment: snapshotting %s/%s/%s/%d", f.index, f.field, f.view, f.shard)
 	completeMessage := fmt.Sprintf("fragment: snapshot complete %s/%s/%s/%d", f.index, f.field, f.view, f.shard)
 	start := time.Now()
 	defer track(start, completeMessage, f.stats, f.Logger)
@@ -1957,15 +2161,82 @@ func (f *fragment) readCacheFromArchive(r io.Reader) error {
 	return nil
 }
 
-func (f *fragment) rows() []uint64 {
-	i, _ := f.storage.Containers.Iterator(0)
-	rows := make([]uint64, 0)
+// rowFilter is a function signature for controlling iteration over containers
+// in a fragment. It will be invoked on each container found and returns two
+// booleans. The first is whether the row this container is in should be
+// included or skipped, and the second is whether to stop processing or
+// continue.
+type rowFilter func(rowID, key uint64, c *roaring.Container) (include, done bool)
 
+// filterWithLimit returns a filter which will only allow a limited number of
+// rows to be returned. It should be applied last so that it is only called (and
+// therefore only updates its internal state) if the row is being included by
+// every other filter.
+func filterWithLimit(limit uint64) rowFilter {
+	return func(rowID, key uint64, c *roaring.Container) (include, done bool) {
+		if limit > 0 {
+			limit--
+			return true, false
+		}
+		return false, true
+	}
+}
+
+func filterColumn(col uint64) rowFilter {
+	return func(rowID, key uint64, c *roaring.Container) (include, done bool) {
+		colID := col % ShardWidth
+		colKey := ((rowID * ShardWidth) + colID) >> 16
+		colVal := uint16(colID & 0xFFFF) // columnID within the container
+		return colKey == key && c.Contains(colVal), false
+	}
+}
+
+// TODO: this works, but it would be more performant if the fragment could seek
+// to the next row in the rows list rather than asking the filter for each
+// container serially. The container iterator would need to expose a seek
+// method, and the rowFilter would need some way of communicating to
+// fragment.rows what the next rowID to seek to is.
+func filterWithRows(rows []uint64) rowFilter {
+	loc := 0
+	return func(rowID, key uint64, c *roaring.Container) (include, done bool) {
+		if loc >= len(rows) {
+			return false, true
+		}
+		i := sort.Search(len(rows[loc:]), func(i int) bool {
+			return rows[loc+i] >= rowID
+		})
+		loc += i
+		if loc >= len(rows) {
+			return false, true
+		}
+		if rows[loc] == rowID {
+			if loc == len(rows)-1 {
+				done = true
+			}
+			return true, done
+		}
+		return false, false
+	}
+}
+
+// rows returns all rows starting from 'start'. Filters will be applied in
+// order. All filters must return true to include the row. Once a row is
+// included, further containers in that row will be skipped. So, for a row to be
+// included, there must be one container in that row where all filters return
+// true. For a row to be skipped, at least one filter must return false for each
+// container in that row (it need not be the same filter for each). Any filter
+// returning done == true will cause processing to stop after all filters for
+// this container have been processed. The rows accumulated up to this point
+// (including this row if all filters passed) will be returned.
+func (f *fragment) rows(start uint64, filters ...rowFilter) []uint64 {
+	startKey := rowToKey(start)
+	i, _ := f.storage.Containers.Iterator(startKey)
+	rows := make([]uint64, 0)
 	var lastRow uint64 = math.MaxUint64
 
 	// Loop over the existing containers.
 	for i.Next() {
-		key, _ := i.Value()
+		key, c := i.Value()
 
 		// virtual row for the current container
 		vRow := key >> shardVsContainerExponent
@@ -1975,42 +2246,61 @@ func (f *fragment) rows() []uint64 {
 			continue
 		}
 
-		rows = append(rows, vRow)
-		lastRow = vRow
-	}
-	return rows
-
-}
-
-func (f *fragment) rowsForColumn(columnID uint64) []uint64 {
-	var colKey uint64
-
-	colID := columnID % ShardWidth
-	i, _ := f.storage.Containers.Iterator(0)
-
-	colVal := uint16(colID & 0xFFFF)
-
-	rows := make([]uint64, 0)
-
-	// Loop over the existing containers.
-	for i.Next() {
-		key, c := i.Value()
-
-		// virtual row for the current container
-		vRow := key >> shardVsContainerExponent
-
-		// column container key for virtual row
-		colKey = ((vRow * ShardWidth) + colID) >> 16
-
-		if colKey != key {
-			continue
+		// apply filters
+		addRow, done := true, false
+		for _, filter := range filters {
+			var d bool
+			addRow, d = filter(vRow, key, c)
+			done = done || d
+			if !addRow {
+				break
+			}
 		}
-
-		if c.Contains(colVal) {
+		if addRow {
+			lastRow = vRow
 			rows = append(rows, vRow)
 		}
+		if done {
+			return rows
+		}
 	}
 	return rows
+}
+
+type rowIterator struct {
+	f      *fragment
+	rowIDs []uint64
+	cur    int
+	wrap   bool
+}
+
+func (f *fragment) rowIterator(wrap bool, filters ...rowFilter) *rowIterator {
+	return &rowIterator{
+		f:      f,
+		rowIDs: f.rows(0, filters...), // TODO: this may be memory intensive in high cardinality cases
+		wrap:   wrap,
+	}
+}
+
+func (ri *rowIterator) Seek(rowID uint64) {
+	idx := sort.Search(len(ri.rowIDs), func(i int) bool {
+		return ri.rowIDs[i] >= rowID
+	})
+	ri.cur = idx
+}
+
+func (ri *rowIterator) Next() (r *Row, rowID uint64, wrapped bool) {
+	if ri.cur >= len(ri.rowIDs) {
+		if !ri.wrap || len(ri.rowIDs) == 0 {
+			return nil, 0, true
+		}
+		ri.Seek(0)
+		wrapped = true
+	}
+	rowID = ri.rowIDs[ri.cur]
+	r = ri.f.row(rowID)
+	ri.cur += 1
+	return r, rowID, wrapped
 }
 
 // FragmentBlock represents info about a subsection of the rows in a block.
@@ -2042,7 +2332,7 @@ func (h *blockHasher) Sum() []byte {
 
 func (h *blockHasher) WriteValue(v uint64) {
 	binary.BigEndian.PutUint64(h.buf[:], v)
-	h.hash.Write(h.buf[:])
+	_, _ = h.hash.Write(h.buf[:])
 }
 
 // fragmentSyncer syncs a local fragment to one on a remote host.
@@ -2068,6 +2358,9 @@ func (s *fragmentSyncer) isClosing() bool {
 // syncFragment compares checksums for the local and remote fragments and
 // then merges any blocks which have differences.
 func (s *fragmentSyncer) syncFragment() error {
+	span, ctx := tracing.StartSpanFromContext(context.Background(), "FragmentSyncer.syncFragment")
+	defer span.Finish()
+
 	// Determine replica set.
 	nodes := s.Cluster.shardNodes(s.Fragment.index, s.Fragment.shard)
 	if len(nodes) == 1 {
@@ -2085,7 +2378,7 @@ func (s *fragmentSyncer) syncFragment() error {
 		}
 
 		// Retrieve remote blocks.
-		blocks, err := s.Cluster.InternalClient.FragmentBlocks(context.Background(), &node.URI, s.Fragment.index, s.Fragment.field, s.Fragment.view, s.Fragment.shard)
+		blocks, err := s.Cluster.InternalClient.FragmentBlocks(ctx, &node.URI, s.Fragment.index, s.Fragment.field, s.Fragment.view, s.Fragment.shard)
 		if err != nil && err != ErrFragmentNotFound {
 			return errors.Wrap(err, "getting blocks")
 		}
@@ -2145,6 +2438,9 @@ func (s *fragmentSyncer) syncFragment() error {
 // syncBlock sends and receives all rows for a given block.
 // Returns an error if any remote hosts are unreachable.
 func (s *fragmentSyncer) syncBlock(id int) error {
+	span, ctx := tracing.StartSpanFromContext(context.Background(), "FragmentSyncer.syncBlock")
+	defer span.Finish()
+
 	f := s.Fragment
 
 	// Read pairs from each remote block.
@@ -2164,7 +2460,7 @@ func (s *fragmentSyncer) syncBlock(id int) error {
 		uris = append(uris, uri)
 
 		// Only sync the standard block.
-		rowIDs, columnIDs, err := s.Cluster.InternalClient.BlockData(context.Background(), &node.URI, f.index, f.field, f.view, f.shard, id)
+		rowIDs, columnIDs, err := s.Cluster.InternalClient.BlockData(ctx, &node.URI, f.index, f.field, f.view, f.shard, id)
 		if err != nil {
 			return errors.Wrap(err, "getting block")
 		}
@@ -2189,51 +2485,76 @@ func (s *fragmentSyncer) syncBlock(id int) error {
 	// Write updates to remote blocks.
 	for i := 0; i < len(uris); i++ {
 		set, clear := sets[i], clears[i]
-		count := 0
 
-		// Ignore if there are no differences.
-		if len(set.columnIDs) == 0 && len(clear.columnIDs) == 0 {
-			continue
-		}
-
-		// Generate query with sets & clears, and group the requests to not exceed MaxWritesPerRequest.
-		total := len(set.columnIDs) + len(clear.columnIDs)
-		maxWrites := s.Cluster.maxWritesPerRequest
-		if maxWrites <= 0 {
-			maxWrites = 5000
-		}
-		buffers := make([]bytes.Buffer, int(math.Ceil(float64(total)/float64(maxWrites))))
-
-		// Only sync the standard block.
-		for j := 0; j < len(set.columnIDs); j++ {
-			fmt.Fprintf(&(buffers[count/maxWrites]), "Set(%d, %s=%d)\n", (f.shard*ShardWidth)+set.columnIDs[j], f.field, set.rowIDs[j])
-			count++
-		}
-		for j := 0; j < len(clear.columnIDs); j++ {
-			fmt.Fprintf(&(buffers[count/maxWrites]), "Clear(%d, %s=%d)\n", (f.shard*ShardWidth)+clear.columnIDs[j], f.field, clear.rowIDs[j])
-			count++
-		}
-
-		// Iterate over the buffers.
-		for k := 0; k < len(buffers); k++ {
-			// Verify sync is not prematurely closing.
-			if s.isClosing() {
-				return nil
-			}
-
-			// Execute query.
-			queryRequest := &QueryRequest{
-				Query:  buffers[k].String(),
-				Remote: true,
-			}
-			_, err := s.Cluster.InternalClient.QueryNode(context.Background(), uris[i], f.index, queryRequest)
+		// Handle Sets.
+		if len(set.columnIDs) > 0 {
+			setData, err := bitsToRoaringData(set)
 			if err != nil {
-				return errors.Wrap(err, "executing")
+				return errors.Wrap(err, "converting bits to roaring data (set)")
+			}
+
+			setReq := &ImportRoaringRequest{
+				Clear: false,
+				Views: map[string][]byte{cleanViewName(f.view): setData},
+			}
+
+			if err := s.Cluster.InternalClient.ImportRoaring(ctx, uris[i], f.index, f.field, f.shard, true, setReq); err != nil {
+				return errors.Wrap(err, "sending roaring data (set)")
+			}
+		}
+
+		// Handle Clears.
+		if len(clear.columnIDs) > 0 {
+			clearData, err := bitsToRoaringData(clear)
+			if err != nil {
+				return errors.Wrap(err, "converting bits to roaring data (clear)")
+			}
+
+			clearReq := &ImportRoaringRequest{
+				Clear: true,
+				Views: map[string][]byte{"": clearData},
+			}
+
+			if err := s.Cluster.InternalClient.ImportRoaring(ctx, uris[i], f.index, f.field, f.shard, true, clearReq); err != nil {
+				return errors.Wrap(err, "sending roaring data (clear)")
 			}
 		}
 	}
 
 	return nil
+}
+
+// cleanViewName converts a viewname into the equivalent
+// string required by the external api. Because views are
+// not exposed externally, the conversion looks like this:
+// "standard" -> ""
+// "standard_YYYYMMDD" -> "YYYYMMDD"
+// "other" -> "other" (there is currently not a use for this)
+func cleanViewName(v string) string {
+	viewPrefix := viewStandard + "_"
+	if strings.HasPrefix(v, viewPrefix) {
+		return v[len(viewPrefix):]
+	} else if v == viewStandard {
+		return ""
+	}
+	return v
+}
+
+// bitsToRoaringData converts a pairSet into a roaring.Bitmap
+// which represents the data within a single shard.
+func bitsToRoaringData(ps pairSet) ([]byte, error) {
+	bmp := roaring.NewBitmap()
+	for j := 0; j < len(ps.columnIDs); j++ {
+		bmp.DirectAdd(ps.rowIDs[j]*ShardWidth + (ps.columnIDs[j] % ShardWidth))
+	}
+
+	var buf bytes.Buffer
+	_, err := bmp.WriteTo(&buf)
+	if err != nil {
+		return nil, errors.Wrap(err, "writing to buffer")
+	}
+
+	return buf.Bytes(), nil
 }
 
 func madvise(b []byte, advice int) error { // nolint: unparam
@@ -2292,13 +2613,20 @@ func newRowsVector(f *fragment) *rowsVector {
 // Additionally, it returns true if a value was found,
 // otherwise it returns false.
 func (v *rowsVector) Get(colID uint64) (uint64, bool, error) {
-	rows := v.f.rowsForColumn(colID)
+	rows := v.f.rows(0, filterColumn(colID))
 	if len(rows) > 1 {
 		return 0, false, errors.New("found multiple row values for column")
 	} else if len(rows) == 1 {
 		return rows[0], true, nil
 	}
 	return 0, false, nil
+}
+
+// rowToKey converts a Pilosa row ID to the key of the container which starts
+// that row in the bitmap which represents this entire fragment. A fragment is
+// all the rows within a shard within a field concatenated together.
+func rowToKey(rowID uint64) (key uint64) {
+	return rowID * (ShardWidth / containerWidth)
 }
 
 // boolVector implements the vector interface by looking
@@ -2318,7 +2646,7 @@ func newBoolVector(f *fragment) *boolVector {
 // Additionally, it returns true if a value was found,
 // otherwise it returns false.
 func (v *boolVector) Get(colID uint64) (uint64, bool, error) {
-	rows := v.f.rowsForColumn(colID)
+	rows := v.f.rows(0, filterColumn(colID))
 	if len(rows) > 1 {
 		return 0, false, errors.New("found multiple row values for column")
 	} else if len(rows) == 1 {

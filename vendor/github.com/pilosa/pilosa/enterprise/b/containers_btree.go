@@ -23,8 +23,8 @@ import (
 	"github.com/pilosa/pilosa/roaring"
 )
 
-func cmp(a, b uint64) int {
-	return int(a - b)
+func cmp(a, b uint64) int64 {
+	return int64(a - b)
 }
 
 type bTreeContainers struct {
@@ -44,7 +44,8 @@ func NewBTreeBitmap(a ...uint64) *roaring.Bitmap {
 	b := &roaring.Bitmap{
 		Containers: newBTreeContainers(),
 	}
-	b.Add(a...)
+	// TODO: there's no way to report an error here
+	_, _ = b.Add(a...)
 	return b
 }
 
@@ -93,8 +94,8 @@ type updater struct {
 	mapped        bool
 }
 
-func (btc *bTreeContainers) PutContainerValues(key uint64, containerType byte, n int, mapped bool) {
-	a := updater{key, int32(n), containerType, mapped}
+func (btc *bTreeContainers) PutContainerValues(key uint64, typ byte, n int, mapped bool) {
+	a := updater{key, int32(n), typ, mapped}
 	btc.tree.Put(key, a.update)
 }
 
@@ -111,7 +112,7 @@ func (btc *bTreeContainers) GetOrCreate(key uint64) *roaring.Container {
 	btc.lastKey = key
 	v, ok := btc.tree.Get(key)
 	if !ok {
-		cont := roaring.NewContainer()
+		cont := roaring.NewContainerArray(nil)
 		btc.tree.Set(key, cont)
 		btc.lastContainer = cont
 		return cont
@@ -175,6 +176,15 @@ func (btc *bTreeContainers) Iterator(key uint64) (citer roaring.ContainerIterato
 	return &btcIterator{
 		e: e,
 	}, found
+}
+
+func (btc *bTreeContainers) Repair() {
+	e, _ := btc.tree.Seek(0)
+	_, c, err := e.Next()
+	for err != io.EOF {
+		c.Repair()
+		_, c, err = e.Next()
+	}
 }
 
 type btcIterator struct {

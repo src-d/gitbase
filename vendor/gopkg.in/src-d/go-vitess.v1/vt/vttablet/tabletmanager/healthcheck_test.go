@@ -28,10 +28,12 @@ import (
 	"golang.org/x/net/context"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/health"
+	"gopkg.in/src-d/go-vitess.v1/vt/logutil"
 	"gopkg.in/src-d/go-vitess.v1/vt/mysqlctl/fakemysqldaemon"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo/memorytopo"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo/topoproto"
+	"gopkg.in/src-d/go-vitess.v1/vt/topotools"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/tabletserver"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/tabletservermock"
 
@@ -524,15 +526,25 @@ func TestTabletControl(t *testing.T) {
 	}
 
 	// now update the shard
-	_, err = agent.TopoServer.UpdateShardFields(ctx, "test_keyspace", "0", func(si *topo.ShardInfo) error {
-		si.TabletControls = []*topodatapb.Shard_TabletControl{
-			{
-				TabletType:          topodatapb.TabletType_REPLICA,
-				DisableQueryService: true,
-			},
-		}
-		return nil
-	})
+
+	si, err := agent.TopoServer.GetShard(ctx, "test_keyspace", "0")
+	if err != nil {
+		t.Fatalf("GetShard failed: %v", err)
+	}
+
+	ctx, unlock, lockErr := agent.TopoServer.LockKeyspace(ctx, "test_keyspace", "UpdateDisableQueryService")
+	if lockErr != nil {
+		t.Fatalf("Couldn't lock keyspace for test")
+	}
+	defer unlock(&err)
+
+	// Let's generate the keyspace graph we have partition information for this cell
+	err = topotools.RebuildKeyspaceLocked(ctx, logutil.NewConsoleLogger(), agent.TopoServer, "test_keyspace", []string{agent.TabletAlias.GetCell()})
+	if err != nil {
+		t.Fatalf("RebuildKeyspaceLocked failed: %v", err)
+	}
+
+	err = agent.TopoServer.UpdateDisableQueryService(ctx, "test_keyspace", []*topo.ShardInfo{si}, topodatapb.TabletType_REPLICA, nil, true)
 	if err != nil {
 		t.Fatalf("UpdateShardFields failed: %v", err)
 	}
@@ -647,12 +659,9 @@ func TestTabletControl(t *testing.T) {
 
 	// now clear TabletControl, run health check, make sure we go
 	// back healthy and serving.
-	_, err = agent.TopoServer.UpdateShardFields(ctx, "test_keyspace", "0", func(si *topo.ShardInfo) error {
-		si.TabletControls = nil
-		return nil
-	})
+	err = agent.TopoServer.UpdateDisableQueryService(ctx, "test_keyspace", []*topo.ShardInfo{si}, topodatapb.TabletType_REPLICA, nil, false)
 	if err != nil {
-		t.Fatalf("UpdateShardFields failed: %v", err)
+		t.Fatalf("UpdateDisableQueryService failed: %v", err)
 	}
 
 	// now refresh the tablet state, as the resharding process would do
@@ -710,9 +719,7 @@ func TestStateChangeImmediateHealthBroadcast(t *testing.T) {
 	if err := agent.TabletExternallyReparented(ctx, "unused_id"); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case <-agent.finalizeReparentCtx.Done():
-	}
+	<-agent.finalizeReparentCtx.Done()
 	ti, err := agent.TopoServer.GetTablet(ctx, tabletAlias)
 	if err != nil {
 		t.Fatalf("GetTablet failed: %v", err)

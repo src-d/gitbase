@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
-
 	"gopkg.in/src-d/go-vitess.v1/mysql"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/vt/binlog/binlogplayer"
@@ -51,8 +50,7 @@ type Engine struct {
 	isOpen      bool
 	controllers map[int]*controller
 	// wg is used by in-flight functions that can run for long periods.
-	wg         sync.WaitGroup
-	mustCreate bool
+	wg sync.WaitGroup
 
 	// ctx is the root context for all controllers.
 	ctx context.Context
@@ -63,17 +61,19 @@ type Engine struct {
 	cell            string
 	mysqld          mysqlctl.MysqlDaemon
 	dbClientFactory func() binlogplayer.DBClient
+	dbName          string
 }
 
 // NewEngine creates a new Engine.
 // A nil ts means that the Engine is disabled.
-func NewEngine(ts *topo.Server, cell string, mysqld mysqlctl.MysqlDaemon, dbClientFactory func() binlogplayer.DBClient) *Engine {
+func NewEngine(ts *topo.Server, cell string, mysqld mysqlctl.MysqlDaemon, dbClientFactory func() binlogplayer.DBClient, dbName string) *Engine {
 	vre := &Engine{
 		controllers:     make(map[int]*controller),
 		ts:              ts,
 		cell:            cell,
 		mysqld:          mysqld,
 		dbClientFactory: dbClientFactory,
+		dbName:          dbName,
 	}
 	return vre
 }
@@ -100,6 +100,47 @@ func (vre *Engine) Open(ctx context.Context) error {
 	return nil
 }
 
+// executeFetchMaybeCreateTable calls DBClient.ExecuteFetch and does one retry if
+// there's a failure due to mysql.ERNoSuchTable or mysql.ERBadDb which can be fixed
+// by re-creating the _vt.vreplication table.
+func (vre *Engine) executeFetchMaybeCreateTable(dbClient binlogplayer.DBClient, query string, maxrows int) (qr *sqltypes.Result, err error) {
+	qr, err = dbClient.ExecuteFetch(query, maxrows)
+
+	if err == nil {
+		return
+	}
+
+	// If it's a bad table or db, it could be because _vt.vreplication wasn't created.
+	// In that case we can try creating it again.
+	merr, isSQLErr := err.(*mysql.SQLError)
+	if !isSQLErr || !(merr.Num == mysql.ERNoSuchTable || merr.Num == mysql.ERBadDb || merr.Num == mysql.ERBadFieldError) {
+		return qr, err
+	}
+
+	log.Info("Looks like _vt.vreplication table may not exist. Trying to recreate... ")
+	if merr.Num == mysql.ERNoSuchTable || merr.Num == mysql.ERBadDb {
+		for _, query := range binlogplayer.CreateVReplicationTable() {
+			if _, merr := dbClient.ExecuteFetch(query, 0); merr != nil {
+				log.Warningf("Failed to ensure _vt.vreplication table exists: %v", merr)
+				return nil, err
+			}
+		}
+	}
+	if merr.Num == mysql.ERBadFieldError {
+		log.Info("Adding column to table _vt.vreplication")
+		for _, query := range binlogplayer.AlterVReplicationTable() {
+			if _, merr := dbClient.ExecuteFetch(query, 0); merr != nil {
+				merr, isSQLErr := err.(*mysql.SQLError)
+				if !isSQLErr || !(merr.Num == mysql.ERDupFieldName) {
+					log.Warningf("Failed to alter _vt.vreplication table: %v", merr)
+					return nil, err
+				}
+			}
+		}
+	}
+	return dbClient.ExecuteFetch(query, maxrows)
+}
+
 func (vre *Engine) initAll() error {
 	dbClient := vre.dbClientFactory()
 	if err := dbClient.Connect(); err != nil {
@@ -107,12 +148,16 @@ func (vre *Engine) initAll() error {
 	}
 	defer dbClient.Close()
 
-	rows, err := readAllRows(dbClient)
+	rows, err := readAllRows(dbClient, vre.dbName)
 	if err != nil {
 		// Handle Table not found.
-		if merr, ok := err.(*mysql.SQLError); ok && merr.Num == 1146 {
-			vre.mustCreate = true
+		if merr, ok := err.(*mysql.SQLError); ok && merr.Num == mysql.ERNoSuchTable {
 			log.Info("_vt.vreplication table not found. Will create it later if needed")
+			return nil
+		}
+		// Handle missing field
+		if merr, ok := err.(*mysql.SQLError); ok && merr.Num == mysql.ERBadFieldError {
+			log.Info("_vt.vreplication table found but is missing field db_name. Will add it later if needed")
 			return nil
 		}
 		return err
@@ -175,7 +220,7 @@ func (vre *Engine) Exec(query string) (*sqltypes.Result, error) {
 	}
 	defer vre.updateStats()
 
-	plan, err := getPlan(query)
+	plan, err := buildControllerPlan(query)
 	if err != nil {
 		return nil, err
 	}
@@ -185,25 +230,16 @@ func (vre *Engine) Exec(query string) (*sqltypes.Result, error) {
 	}
 	defer dbClient.Close()
 
-	if vre.mustCreate {
-		for _, query := range binlogplayer.CreateVReplicationTable() {
-			if _, err := dbClient.ExecuteFetch(query, 0); err != nil {
-				return nil, err
-			}
-		}
-		vre.mustCreate = false
-	}
-
 	// Change the database to ensure that these events don't get
 	// replicated by another vreplication. This can happen when
 	// we reverse replication.
-	if _, err := dbClient.ExecuteFetch("use _vt", 1); err != nil {
+	if _, err := vre.executeFetchMaybeCreateTable(dbClient, "use _vt", 1); err != nil {
 		return nil, err
 	}
 
 	switch plan.opcode {
 	case insertQuery:
-		qr, err := dbClient.ExecuteFetch(plan.query, 1)
+		qr, err := vre.executeFetchMaybeCreateTable(dbClient, plan.query, 1)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +264,7 @@ func (vre *Engine) Exec(query string) (*sqltypes.Result, error) {
 			ct.Stop()
 			blpStats = ct.blpStats
 		}
-		qr, err := dbClient.ExecuteFetch(plan.query, 1)
+		qr, err := vre.executeFetchMaybeCreateTable(dbClient, plan.query, 1)
 		if err != nil {
 			return nil, err
 		}
@@ -250,10 +286,10 @@ func (vre *Engine) Exec(query string) (*sqltypes.Result, error) {
 			ct.Stop()
 			delete(vre.controllers, plan.id)
 		}
-		return dbClient.ExecuteFetch(plan.query, 1)
+		return vre.executeFetchMaybeCreateTable(dbClient, plan.query, 1)
 	case selectQuery:
 		// select queries are passed through.
-		return dbClient.ExecuteFetch(plan.query, 10000)
+		return vre.executeFetchMaybeCreateTable(dbClient, plan.query, 10000)
 	}
 	panic("unreachable")
 }
@@ -265,14 +301,19 @@ func (vre *Engine) WaitForPos(ctx context.Context, id int, pos string) error {
 		return err
 	}
 
-	vre.mu.Lock()
-	if !vre.isOpen {
-		vre.mu.Unlock()
-		return errors.New("vreplication engine is closed")
+	if err := func() error {
+		vre.mu.Lock()
+		defer vre.mu.Unlock()
+		if !vre.isOpen {
+			return errors.New("vreplication engine is closed")
+		}
+
+		// Ensure that the engine won't be closed while this is running.
+		vre.wg.Add(1)
+		return nil
+	}(); err != nil {
+		return err
 	}
-	// Ensure that the engine won't be closed while this is running.
-	vre.wg.Add(1)
-	vre.mu.Unlock()
 	defer vre.wg.Done()
 
 	dbClient := vre.dbClientFactory()
@@ -282,13 +323,13 @@ func (vre *Engine) WaitForPos(ctx context.Context, id int, pos string) error {
 	defer dbClient.Close()
 
 	for {
-		qr, err := dbClient.ExecuteFetch(binlogplayer.ReadVReplicationPos(uint32(id)), 10)
+		qr, err := dbClient.ExecuteFetch(binlogplayer.ReadVReplicationStatus(uint32(id)), 10)
 		switch {
 		case err != nil:
 			return err
 		case len(qr.Rows) == 0:
 			return fmt.Errorf("vreplication stream %d not found", id)
-		case len(qr.Rows) > 1 || len(qr.Rows[0]) != 1:
+		case len(qr.Rows) > 1 || len(qr.Rows[0]) != 3:
 			return fmt.Errorf("unexpected result: %v", qr)
 		}
 		current, err := mysql.DecodePosition(qr.Rows[0][0].ToString())
@@ -298,6 +339,10 @@ func (vre *Engine) WaitForPos(ctx context.Context, id int, pos string) error {
 
 		if current.AtLeast(mPos) {
 			return nil
+		}
+
+		if qr.Rows[0][1].ToString() == binlogplayer.BlpStopped {
+			return fmt.Errorf("replication has stopped at %v before reaching position %v, message: %s", current, mPos, qr.Rows[0][2].ToString())
 		}
 
 		select {
@@ -322,8 +367,8 @@ func (vre *Engine) updateStats() {
 	}
 }
 
-func readAllRows(dbClient binlogplayer.DBClient) ([]map[string]string, error) {
-	qr, err := dbClient.ExecuteFetch("select * from _vt.vreplication", 10000)
+func readAllRows(dbClient binlogplayer.DBClient, dbName string) ([]map[string]string, error) {
+	qr, err := dbClient.ExecuteFetch(fmt.Sprintf("select * from _vt.vreplication where db_name=%v", encodeString(dbName)), 10000)
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/pkg/errors"
 )
 
 // String produces a human viewable string of the contents.
@@ -31,11 +33,11 @@ func (iv interval16) String() string {
 }
 
 func (c *Container) String() string {
-	return fmt.Sprintf("<%s container  n=%d, array[%d], runs[%d], bitmap[%d]> type:%d", c.info().Type, c.n, len(c.array), len(c.runs), len(c.bitmap), c.containerType)
+	return fmt.Sprintf("<%s container  n=%d, array[%d], runs[%d], bitmap[%d]> type:%s", c.info().Type, c.n, len(c.array()), len(c.runs()), len(c.bitmap()), containerTypeNames[c.typ])
 }
 
 func TestRunAppendInterval(t *testing.T) {
-	a := Container{containerType: containerRun}
+	a := NewContainerRun(nil)
 	tests := []struct {
 		base []interval16
 		app  interval16
@@ -64,7 +66,7 @@ func TestRunAppendInterval(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		a.runs = test.base
+		a.setRuns(test.base)
 		if n := a.runAppendInterval(test.app); n != test.exp {
 			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, n)
 		}
@@ -84,7 +86,7 @@ func TestInterval16RunLen(t *testing.T) {
 }
 
 func TestContainerRunAdd(t *testing.T) {
-	c := Container{runs: make([]interval16, 0), containerType: containerRun}
+	c := NewContainerRun(nil)
 	tests := []struct {
 		op  uint16
 		exp []interval16
@@ -103,10 +105,10 @@ func TestContainerRunAdd(t *testing.T) {
 		c.mapped = true
 		ret := c.add(test.op)
 		if !ret {
-			t.Fatalf("result of adding new bit should be true: %v", c.runs)
+			t.Fatalf("result of adding new bit should be true: %v", c.runs())
 		}
-		if !reflect.DeepEqual(c.runs, test.exp) {
-			t.Fatalf("Should have %v, but got %v after adding %v", test.exp, c.runs, test.op)
+		if !reflect.DeepEqual(c.runs(), test.exp) {
+			t.Fatalf("Should have %v, but got %v after adding %v", test.exp, c.runs(), test.op)
 		}
 		if c.mapped {
 			t.Fatalf("container should not be mapped after adding bit %v", test.op)
@@ -115,22 +117,22 @@ func TestContainerRunAdd(t *testing.T) {
 }
 
 func TestContainerRunAdd2(t *testing.T) {
-	c := Container{runs: make([]interval16, 0), containerType: containerRun}
+	c := NewContainerRun(nil)
 	ret := c.add(0)
 	if !ret {
-		t.Fatalf("result of adding new bit should be true: %v", c.runs)
+		t.Fatalf("result of adding new bit should be true: %v", c.runs())
 	}
-	if !reflect.DeepEqual(c.runs, []interval16{{start: 0, last: 0}}) {
-		t.Fatalf("should have 1 run of length 1, but have %v", c.runs)
+	if !reflect.DeepEqual(c.runs(), []interval16{{start: 0, last: 0}}) {
+		t.Fatalf("should have 1 run of length 1, but have %v", c.runs())
 	}
 	ret = c.add(0)
 	if ret {
-		t.Fatalf("result of adding existing bit should be false: %v", c.runs)
+		t.Fatalf("result of adding existing bit should be false: %v", c.runs())
 	}
 }
 
 func TestRunCountRange(t *testing.T) {
-	c := Container{runs: make([]interval16, 0), containerType: containerRun}
+	c := NewContainerRun(nil)
 	cnt := c.runCountRange(2, 9)
 	if cnt != 0 {
 		t.Fatalf("should get 0 from empty container, but got: %v", cnt)
@@ -165,8 +167,8 @@ func TestRunCountRange(t *testing.T) {
 	}
 
 	c.add(17)
-	c.add(18)
 	c.add(19)
+	c.add(18)
 
 	cnt = c.runCountRange(1, 22)
 	if cnt != 10 {
@@ -180,10 +182,15 @@ func TestRunCountRange(t *testing.T) {
 	if cnt != 9 {
 		t.Fatalf("should get 9 from multiple ranges overlapping both sides, but got: %v", cnt)
 	}
+	// verify that the disparate ops resulted in three separate runs
+	cnt = c.countRuns()
+	if cnt != 3 {
+		t.Fatalf("should get 3 total runs, but got: %v [%v]", cnt, c.runs())
+	}
 }
 
 func TestRunContains(t *testing.T) {
-	c := Container{runs: make([]interval16, 0), containerType: containerRun}
+	c := NewContainerRun(nil)
 	if c.runContains(5) {
 		t.Fatalf("empty run container should not contain 5")
 	}
@@ -205,7 +212,7 @@ func TestRunContains(t *testing.T) {
 }
 
 func TestBitmapCountRange(t *testing.T) {
-	c := Container{containerType: containerBitmap}
+	c := NewContainerBitmap(0, nil)
 	tests := []struct {
 		start  int32
 		end    int32
@@ -222,7 +229,7 @@ func TestBitmapCountRange(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		c.bitmap = test.bitmap
+		c.setBitmap(test.bitmap)
 		if ret := c.bitmapCountRange(test.start, test.end); ret != test.exp {
 			t.Fatalf("test #%v count of %v from %v to %v should be %v but got %v", i, test.bitmap, test.start, test.end, test.exp, ret)
 		}
@@ -230,25 +237,19 @@ func TestBitmapCountRange(t *testing.T) {
 }
 
 func TestIntersectionCountArrayBitmap3(t *testing.T) {
-	a, b := &Container{}, &Container{}
-	a.containerType = containerBitmap
-	a.bitmap = getFullBitmap()
-	a.n = maxContainerVal + 1
+	a, b := NewContainerBitmap(maxContainerVal+1, getFullBitmap()), NewContainerBitmap(maxContainerVal+1, getFullBitmap())
 
-	b.containerType = containerBitmap
-	b.bitmap = getFullBitmap()
-	b.n = maxContainerVal + 1
 	res := intersectBitmapBitmap(a, b)
 	if res.n != res.count() || res.n != maxContainerVal+1 {
 		t.Fatalf("test #1 intersectCountBitmapBitmap fail orig: %v new: %v exp: %v", res.n, res.count(), maxContainerVal+1)
 	}
 
-	a.bitmapToRun()
+	a.bitmapToRun(0)
 	res = intersectBitmapRun(b, a)
 	if res.n != res.count() || res.n != maxContainerVal+1 {
 		t.Fatalf("test #2 intersectCountBitmapRun fail orig: %v new: %v exp: %v", res.n, res.count(), maxContainerVal+1)
 	}
-	b.bitmapToRun()
+	b.bitmapToRun(0)
 	res = intersectRunRun(a, b)
 	n := intersectionCountRunRun(a, b)
 	if res.n != res.count() || res.n != maxContainerVal+1 || res.n != int32(n) {
@@ -257,7 +258,7 @@ func TestIntersectionCountArrayBitmap3(t *testing.T) {
 }
 
 func TestIntersectionCountArrayBitmap2(t *testing.T) {
-	a, b := &Container{}, &Container{}
+	a, b := NewContainerArray(nil), NewContainerBitmap(0, nil)
 	tests := []struct {
 		array  []uint16
 		bitmap []uint64
@@ -291,10 +292,8 @@ func TestIntersectionCountArrayBitmap2(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		a.array = test.array
-		a.containerType = containerArray
-		b.bitmap = test.bitmap
-		b.containerType = containerBitmap
+		a.setArray(test.array)
+		b.setBitmap(test.bitmap)
 		ret := intersectionCountArrayBitmap(a, b)
 		if ret != test.exp {
 			t.Fatalf("test #%v intersectCountArrayBitmap fail received: %v exp: %v", i, ret, test.exp)
@@ -303,7 +302,7 @@ func TestIntersectionCountArrayBitmap2(t *testing.T) {
 }
 
 func TestRunRemove(t *testing.T) {
-	c := Container{runs: []interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}}, containerType: containerRun}
+	c := NewContainerRun([]interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}})
 	tests := []struct {
 		op     uint16
 		exp    []interval16
@@ -324,8 +323,8 @@ func TestRunRemove(t *testing.T) {
 	for i, test := range tests {
 		c.mapped = true
 		ret := c.remove(test.op)
-		if ret != test.expRet || !reflect.DeepEqual(c.runs, test.exp) {
-			t.Fatalf("test #%v Unexpected result removing %v from runs. Expected %v, got %v. Expected %v, got %v", i, test.op, test.expRet, ret, test.exp, c.runs)
+		if ret != test.expRet || !reflect.DeepEqual(c.runs(), test.exp) {
+			t.Fatalf("test #%v Unexpected result removing %v from runs. Expected %v, got %v. Expected %v, got %v", i, test.op, test.expRet, ret, test.exp, c.runs())
 		}
 		if ret && c.mapped {
 			t.Fatalf("test #%v container was not unmapped although bit %v was removed", i, test.op)
@@ -337,50 +336,52 @@ func TestRunRemove(t *testing.T) {
 }
 
 func TestRunMax(t *testing.T) {
-	c := Container{runs: []interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}}, containerType: containerRun}
+	c := NewContainerRun([]interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}})
 	max := c.max()
 	if max != 16 {
-		t.Fatalf("max for %v should be 16", c.runs)
+		t.Fatalf("max for %v should be 16", c.runs())
 	}
 
-	c = Container{runs: []interval16{}}
+	c = NewContainerRun(nil)
 	max = c.max()
 	if max != 0 {
-		t.Fatalf("max for %v should be 0", c.runs)
+		t.Fatalf("max for %v should be 0", c.runs())
 	}
 }
 
 func TestIntersectionCountArrayRun(t *testing.T) {
-	a := &Container{containerType: containerArray, array: []uint16{1, 5, 10, 11, 12}}
-	b := &Container{containerType: containerRun, runs: []interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}}}
+	a := NewContainerArray([]uint16{1, 5, 10, 11, 12})
+	b := NewContainerRun([]interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}})
 
 	ret := intersectionCountArrayRun(a, b)
 	if ret != 3 {
-		t.Fatalf("count of %v with %v should be 3, but got %v", a.array, b.runs, ret)
+		t.Fatalf("count of %v with %v should be 3, but got %v", a.array(), b.runs(), ret)
 	}
 }
 
 func TestIntersectionCountBitmapRun(t *testing.T) {
-	a := &Container{containerType: containerBitmap, bitmap: []uint64{0x8000000000000000}}
-	b := &Container{containerType: containerRun, runs: []interval16{{start: 63, last: 64}}}
+	ob := make([]uint64, bitmapN)
+	ob[0] = 1 << 63
+	a := NewContainerBitmap(1, ob)
+	b := NewContainerRun([]interval16{{start: 63, last: 64}})
 
 	ret := intersectionCountBitmapRun(a, b)
 	if ret != 1 {
-		t.Fatalf("count of %v with %v should be 1, but got %v", a.bitmap, b.runs, ret)
+		t.Fatalf("count of %v with %v should be 1, but got %v", a.bitmap(), b.runs(), ret)
 	}
 
-	a = &Container{containerType: containerBitmap, bitmap: []uint64{0xF0000001, 0xFF00000000000000, 0xFF000000000000F0, 0x0F0000}}
-	b = &Container{containerType: containerRun, runs: []interval16{{start: 29, last: 31}, {start: 125, last: 134}, {start: 191, last: 197}, {start: 200, last: 300}}}
+	a = NewContainerBitmap(29, []uint64{0xF0000001, 0xFF00000000000000, 0xFF000000000000F0, 0x0F0000})
+	b = NewContainerRun([]interval16{{start: 29, last: 31}, {start: 125, last: 134}, {start: 191, last: 197}, {start: 200, last: 300}})
 
 	ret = intersectionCountBitmapRun(a, b)
 	if ret != 14 {
-		t.Fatalf("count of %v with %v should be 14, but got %v", a.bitmap, b.runs, ret)
+		t.Fatalf("count of %v with %v should be 14, but got %v", a.bitmap(), b.runs(), ret)
 	}
 }
 
 func TestIntersectionCountRunRun(t *testing.T) {
-	a := &Container{}
-	b := &Container{}
+	a := NewContainerRun(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		aruns []interval16
 		bruns []interval16
@@ -418,10 +419,10 @@ func TestIntersectionCountRunRun(t *testing.T) {
 			bruns: []interval16{{start: 9, last: 9}, {start: 11, last: 17}}, exp: 6},
 	}
 	for i, test := range tests {
-		a.containerType = containerRun
-		b.containerType = containerRun
-		a.runs = test.aruns
-		b.runs = test.bruns
+		a.typ = containerRun
+		b.typ = containerRun
+		a.setRuns(test.aruns)
+		b.setRuns(test.bruns)
 		ret := intersectionCountRunRun(a, b)
 		if ret != test.exp {
 			t.Fatalf("test #%v failed intersecting %v with %v should be %v, but got %v", i, test.aruns, test.bruns, test.exp, ret)
@@ -430,8 +431,8 @@ func TestIntersectionCountRunRun(t *testing.T) {
 }
 
 func TestIntersectArrayRun(t *testing.T) {
-	a := &Container{}
-	b := &Container{}
+	a := NewContainerArray(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		array []uint16
 		runs  []interval16
@@ -460,20 +461,22 @@ func TestIntersectArrayRun(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		a.containerType = containerArray
-		b.containerType = containerRun
-		a.array = test.array
-		b.runs = test.runs
+		a.setArray(test.array)
+		b.setRuns(test.runs)
 		ret := intersectArrayRun(a, b)
-		if !reflect.DeepEqual(ret.array, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array)
+		if test.exp == nil {
+			if len(ret.array()) != 0 {
+				t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array())
+			}
+		} else if !reflect.DeepEqual(ret.array(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array())
 		}
 	}
 }
 
 func TestIntersectRunRun(t *testing.T) {
-	a := &Container{}
-	b := &Container{}
+	a := NewContainerRun(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		aruns []interval16
 		bruns []interval16
@@ -518,24 +521,25 @@ func TestIntersectRunRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.containerType = containerRun
-		b.containerType = containerRun
-		a.runs = test.aruns
-		b.runs = test.bruns
+		a.setRuns(test.aruns)
+		b.setRuns(test.bruns)
 		ret := intersectRunRun(a, b)
 		if ret.n != test.expN {
 			t.Fatalf("test #%v expected n to be %v, but got %v", i, test.expN, ret.n)
 		}
-		if !reflect.DeepEqual(ret.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs)
+		if test.exp != nil {
+			if !reflect.DeepEqual(ret.runs(), test.exp) {
+				t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs())
+			}
+		} else if len(ret.runs()) != 0 {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs())
 		}
 	}
-
 }
 
 func TestIntersectBitmapRunBitmap(t *testing.T) {
-	a := &Container{bitmap: make([]uint64, bitmapN)}
-	b := &Container{}
+	a := NewContainerBitmap(0, nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		bitmap []uint64
 		runs   []interval16
@@ -574,19 +578,19 @@ func TestIntersectBitmapRunBitmap(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		copy(a.bitmap, test.bitmap)
-		b.runs = test.runs
+		copy(a.bitmap(), test.bitmap)
+		b.setRuns(test.runs)
 		b.n = 4097 // ;)
 		exp := make([]uint64, bitmapN)
 		copy(exp, test.exp)
-		a.containerType = containerBitmap
-		b.containerType = containerRun
+		a.typ = containerBitmap
+		b.typ = containerRun
 		ret := intersectBitmapRun(a, b)
 		if ret.isArray() {
 			ret.arrayToBitmap()
 		}
-		if !reflect.DeepEqual(ret.bitmap, exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, exp, ret.bitmap)
+		if !reflect.DeepEqual(ret.bitmap(), exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, exp, ret.bitmap())
 		}
 		if ret.n != test.expN {
 			t.Fatalf("test #%v expected n to be %v, but got %v", i, test.expN, ret.n)
@@ -596,8 +600,8 @@ func TestIntersectBitmapRunBitmap(t *testing.T) {
 }
 
 func TestIntersectBitmapRunArray(t *testing.T) {
-	a := &Container{bitmap: make([]uint64, bitmapN)}
-	b := &Container{}
+	a := NewContainerBitmap(0, nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		bitmap []uint64
 		runs   []interval16
@@ -636,13 +640,11 @@ func TestIntersectBitmapRunArray(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		copy(a.bitmap, test.bitmap)
-		b.runs = test.runs
-		a.containerType = containerBitmap
-		b.containerType = containerRun
+		copy(a.bitmap(), test.bitmap)
+		b.setRuns(test.runs)
 		ret := intersectBitmapRun(a, b)
-		if !reflect.DeepEqual(ret.array, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array)
+		if !reflect.DeepEqual(ret.array(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array())
 		}
 		if ret.n != test.expN {
 			t.Fatalf("test #%v expected n to be %v, but got %v", i, test.expN, ret.n)
@@ -654,22 +656,13 @@ func TestIntersectBitmapRunArray(t *testing.T) {
 func TestUnionMixed(t *testing.T) {
 
 	// array container
-	a := &Container{}
-	a.array = []uint16{1, 4, 5, 7, 10, 11, 12}
-	a.containerType = containerArray
-	a.n = 7
+	a := NewContainerArray([]uint16{1, 4, 5, 7, 10, 11, 12})
 
 	// bitmap container
-	b := &Container{bitmap: make([]uint64, bitmapN)}
-	b.bitmap[0] = uint64(0x3)
-	b.n = 2
-	b.containerType = containerBitmap
+	b := NewContainerBitmap(2, []uint64{0x3})
 
 	// run container
-	r := &Container{}
-	r.runs = []interval16{{start: 5, last: 10}}
-	r.containerType = containerRun
-	r.n = 6
+	r := NewContainerRun([]interval16{{start: 5, last: 10}})
 
 	t.Run("various container Unions", func(t *testing.T) {
 		tests := []struct {
@@ -695,116 +688,95 @@ func TestUnionMixed(t *testing.T) {
 			} else if res.isRun() {
 				res.runToArray()
 			}
-			if !reflect.DeepEqual(res.array, tt.exp) {
-				t.Fatalf("test %s expected %v, but got %v", tt.name, tt.exp, res.array)
+			if !reflect.DeepEqual(res.array(), tt.exp) {
+				t.Fatalf("test %s expected %v, but got %v", tt.name, tt.exp, res.array())
 			}
 		}
 	})
 }
 
 func TestIntersectMixed(t *testing.T) {
-	a := &Container{}
-	b := &Container{}
-	c := &Container{}
+	a := NewContainerRun([]interval16{{start: 5, last: 10}})
+	b := NewContainerArray([]uint16{1, 4, 5, 7, 10, 11, 12})
+	c := NewContainerBitmap(2, []uint64{0x60})
 
-	a.runs = []interval16{{start: 5, last: 10}}
-	a.n = 6
-	a.containerType = containerRun
-	b.array = []uint16{1, 4, 5, 7, 10, 11, 12}
-	b.n = 7
-	b.containerType = containerArray
 	res := intersect(a, b)
-	if !reflect.DeepEqual(res.array, []uint16{5, 7, 10}) {
-		t.Fatalf("test #1 expected %v, but got %v", []uint16{5, 7, 10}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{5, 7, 10}) {
+		t.Fatalf("test #1 expected %v, but got %v", []uint16{5, 7, 10}, res.array())
 	}
 	res = intersect(b, a)
-	if !reflect.DeepEqual(res.array, []uint16{5, 7, 10}) {
-		t.Fatalf("test #1 expected %v, but got %v", []uint16{5, 7, 10}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{5, 7, 10}) {
+		t.Fatalf("test #1 expected %v, but got %v", []uint16{5, 7, 10}, res.array())
 	}
-
 	res = intersect(a, a)
-	if !reflect.DeepEqual(res.runs, []interval16{{start: 5, last: 10}}) {
-		t.Fatalf("test #3 expected %v, but got %v", []interval16{{start: 5, last: 10}}, res.runs)
+	if !reflect.DeepEqual(res.runs(), []interval16{{start: 5, last: 10}}) {
+		t.Fatalf("test #3 expected %v, but got %v", []interval16{{start: 5, last: 10}}, res.runs())
 	}
-	c.bitmap = []uint64{0x60}
-	c.n = 2
-	c.containerType = containerBitmap
 
 	res = intersect(c, a)
-	if !reflect.DeepEqual(res.array, []uint16{5, 6}) {
-		t.Fatalf("test #4 expected %v, but got %v", []uint16{6}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{5, 6}) {
+		t.Fatalf("test #4 expected %v, but got %v", []uint16{6}, res.array())
 	}
 
 	res = intersect(a, c)
-	if !reflect.DeepEqual(res.array, []uint16{5, 6}) {
-		t.Fatalf("test #5 expected %v, but got %v", []uint16{6}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{5, 6}) {
+		t.Fatalf("test #5 expected %v, but got %v", []uint16{6}, res.array())
 	}
 
 	res = intersect(b, c)
-	if !reflect.DeepEqual(res.array, []uint16{5}) {
-		t.Fatalf("test #6 expected %v, but got %v", []uint16{5}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{5}) {
+		t.Fatalf("test #6 expected %v, but got %v", []uint16{5}, res.array())
 	}
 	res = intersect(c, b)
-	if !reflect.DeepEqual(res.array, []uint16{5}) {
-		t.Fatalf("test #7 expected %v, but got %v", []uint16{5}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{5}) {
+		t.Fatalf("test #7 expected %v, but got %v", []uint16{5}, res.array())
 	}
 
 }
 func TestDifferenceMixed(t *testing.T) {
-	a := &Container{}
-	b := &Container{}
-	c := &Container{}
-	d := &Container{}
+	a := NewContainerRun([]interval16{{start: 5, last: 10}})
 
-	a.runs = []interval16{{start: 5, last: 10}}
-	a.n = a.runCountRange(0, 100)
-	a.containerType = containerRun
+	b := NewContainerArray([]uint16{0, 2, 4, 6, 8, 10, 12})
 
-	b.array = []uint16{0, 2, 4, 6, 8, 10, 12}
-	b.n = int32(len(b.array))
-	b.containerType = containerArray
+	c := NewContainerBitmap(0, MakeBitmap([]uint64{0x64}))
+	c.n = c.countRange(0, 100)
 
-	d.array = []uint16{1, 3, 5, 7, 9, 11, 12}
-	d.n = int32(len(d.array))
-	d.containerType = containerArray
+	d := NewContainerArray([]uint16{1, 3, 5, 7, 9, 11, 12})
 
 	res := difference(a, b)
 
-	if !reflect.DeepEqual(res.array, []uint16{5, 7, 9}) {
+	if !reflect.DeepEqual(res.array(), []uint16{5, 7, 9}) {
 		t.Fatalf("test #1 expected %v, but got %#v", []uint16{5, 7, 9}, res)
 	}
 
 	res = difference(b, a)
-	if !reflect.DeepEqual(res.array, []uint16{0, 2, 4, 12}) {
-		t.Fatalf("test #2 expected %v, but got %v", []uint16{0, 2, 4, 12}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{0, 2, 4, 12}) {
+		t.Fatalf("test #2 expected %v, but got %v", []uint16{0, 2, 4, 12}, res.array())
 	}
 
 	res = difference(a, a)
-	if !reflect.DeepEqual(res.runs, []interval16{}) {
-		t.Fatalf("test #3 expected empty but got %v", res.runs)
+	if !reflect.DeepEqual(res.runs(), []interval16{}) {
+		t.Fatalf("test #3 expected empty but got %v", res.runs())
 	}
 
-	c.bitmap = MakeBitmap([]uint64{0x64})
-	c.n = c.countRange(0, 100)
-	c.containerType = containerBitmap
 	res = difference(c, a)
-	if !reflect.DeepEqual(res.bitmap, MakeBitmap([]uint64{0x4})) {
-		t.Fatalf("test #4 expected %v, but got %v", []uint16{4}, res.bitmap)
+	if !reflect.DeepEqual(res.bitmap(), MakeBitmap([]uint64{0x4})) {
+		t.Fatalf("test #4 expected %v, but got %v", []uint16{4}, res.bitmap())
 	}
 
 	res = difference(a, c)
-	if !reflect.DeepEqual(res.runs, []interval16{{start: 7, last: 10}}) {
-		t.Fatalf("test #5 expected %v, but got %v", []interval16{{start: 7, last: 10}}, res.runs)
+	if !reflect.DeepEqual(res.runs(), []interval16{{start: 7, last: 10}}) {
+		t.Fatalf("test #5 expected %v, but got %v", []interval16{{start: 7, last: 10}}, res.runs())
 	}
 
 	res = difference(b, c)
-	if !reflect.DeepEqual(res.array, []uint16{0, 4, 8, 10, 12}) {
-		t.Fatalf("test #6 expected %v, but got %v", []uint16{0, 4, 8, 10, 12}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{0, 4, 8, 10, 12}) {
+		t.Fatalf("test #6 expected %v, but got %v", []uint16{0, 4, 8, 10, 12}, res.array())
 	}
 
 	res = difference(c, b)
-	if !reflect.DeepEqual(res.array, []uint16{5}) {
-		t.Fatalf("test #7 expected %v, but got %v", []uint16{5}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{5}) {
+		t.Fatalf("test #7 expected %v, but got %v", []uint16{5}, res.array())
 	}
 
 	res = difference(b, b)
@@ -818,20 +790,20 @@ func TestDifferenceMixed(t *testing.T) {
 	}
 
 	res = difference(d, b)
-	if !reflect.DeepEqual(res.array, []uint16{1, 3, 5, 7, 9, 11}) {
-		t.Fatalf("test #10 expected %v, but got %d", []uint16{1, 3, 5, 7, 9, 11}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{1, 3, 5, 7, 9, 11}) {
+		t.Fatalf("test #10 expected %v, but got %d", []uint16{1, 3, 5, 7, 9, 11}, res.array())
 	}
 
 	res = difference(b, d)
-	if !reflect.DeepEqual(res.array, []uint16{0, 2, 4, 6, 8, 10}) {
-		t.Fatalf("test #11 expected %v, but got %d", []uint16{0, 2, 4, 6, 8, 10}, res.array)
+	if !reflect.DeepEqual(res.array(), []uint16{0, 2, 4, 6, 8, 10}) {
+		t.Fatalf("test #11 expected %v, but got %d", []uint16{0, 2, 4, 6, 8, 10}, res.array())
 	}
 
 }
 
 func TestUnionRunRun(t *testing.T) {
-	a := &Container{}
-	b := &Container{}
+	a := NewContainerRun(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		aruns []interval16
 		bruns []interval16
@@ -879,20 +851,18 @@ func TestUnionRunRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.runs = test.aruns
-		b.runs = test.bruns
-		a.containerType = containerRun
-		b.containerType = containerRun
+		a.setRuns(test.aruns)
+		b.setRuns(test.bruns)
 		ret := unionRunRun(a, b)
-		if !reflect.DeepEqual(ret.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs)
+		if !reflect.DeepEqual(ret.runs(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs())
 		}
 	}
 }
 
 func TestUnionArrayRun(t *testing.T) {
-	a := &Container{}
-	b := &Container{}
+	a := NewContainerArray(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		array []uint16
 		runs  []interval16
@@ -921,19 +891,17 @@ func TestUnionArrayRun(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		a.array = test.array
-		b.runs = test.runs
-		a.containerType = containerArray
-		b.containerType = containerRun
+		a.setArray(test.array)
+		b.setRuns(test.runs)
 		ret := unionArrayRun(a, b)
-		if !reflect.DeepEqual(ret.array, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array)
+		if !reflect.DeepEqual(ret.array(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array())
 		}
 	}
 }
 
 func TestBitmapSetRange(t *testing.T) {
-	c := &Container{containerType: containerBitmap, bitmap: make([]uint64, bitmapN)}
+	c := NewContainerBitmap(0, nil)
 	tests := []struct {
 		bitmap []uint64
 		start  uint64
@@ -958,11 +926,12 @@ func TestBitmapSetRange(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		copy(c.bitmap, test.bitmap)
+		bitmap := c.bitmap()
+		copy(bitmap, test.bitmap)
 		c.n = c.countRange(0, 65535)
-		c.bitmapSetRange(test.start, test.last+1)
-		if !reflect.DeepEqual(c.bitmap[:len(test.exp)], test.exp) {
-			t.Fatalf("test %#v expected %x, got %x", i, test.exp, c.bitmap[:len(test.bitmap)])
+		c.bitmapSetRange(bitmap, test.start, test.last+1)
+		if !reflect.DeepEqual(c.bitmap()[:len(test.exp)], test.exp) {
+			t.Fatalf("test %#v expected %x, got %x", i, test.exp, c.bitmap()[:len(test.bitmap)])
 		}
 		if test.expN != c.n {
 			t.Fatalf("test #%v expected n to be %v, but got %v", i, test.expN, c.n)
@@ -971,7 +940,7 @@ func TestBitmapSetRange(t *testing.T) {
 }
 
 func TestArrayToBitmap(t *testing.T) {
-	a := &Container{containerType: containerArray}
+	a := NewContainerArray(nil)
 	tests := []struct {
 		array []uint16
 		exp   []uint64
@@ -990,17 +959,18 @@ func TestArrayToBitmap(t *testing.T) {
 		exp := make([]uint64, bitmapN)
 		copy(exp, test.exp)
 
-		a.array = test.array
+		a.setArray(test.array)
 		a.n = int32(len(test.array))
 		a.arrayToBitmap()
-		if !reflect.DeepEqual(a.bitmap, exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, exp, a.bitmap)
+		if !reflect.DeepEqual(a.bitmap(), exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, exp, a.bitmap())
 		}
+		a.bitmapToArray()
 	}
 }
 
 func TestBitmapToArray(t *testing.T) {
-	a := &Container{containerType: containerBitmap}
+	a := NewContainerBitmap(0, nil)
 	tests := []struct {
 		bitmap []uint64
 		exp    []uint16
@@ -1015,23 +985,25 @@ func TestBitmapToArray(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.bitmap = make([]uint64, bitmapN)
+		a.setBitmap(make([]uint64, bitmapN))
+		bitmap := a.bitmap()
 		n := int32(0)
 		for i, v := range test.bitmap {
-			a.bitmap[i] = v
+			bitmap[i] = v
 			n += int32(popcount(v))
 		}
 		a.n = n
 
 		a.bitmapToArray()
-		if !reflect.DeepEqual(a.array, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, a.array)
+		if !reflect.DeepEqual(a.array(), test.exp) {
+			t.Fatalf("test #%v expected %#v, but got %#v", i, test.exp, a.array())
 		}
+		a.arrayToBitmap()
 	}
 }
 
 func TestRunToBitmap(t *testing.T) {
-	a := &Container{containerType: containerRun}
+	a := NewContainerRun(nil)
 	tests := []struct {
 		runs []interval16
 		exp  []uint64
@@ -1066,11 +1038,12 @@ func TestRunToBitmap(t *testing.T) {
 			n += int(popcount(v))
 		}
 
-		a.runs = test.runs
+		a.typ = containerRun
+		a.setRuns(test.runs)
 		a.n = int32(n)
 		a.runToBitmap()
-		if !reflect.DeepEqual(a.bitmap, exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, exp, a.bitmap)
+		if !reflect.DeepEqual(a.bitmap(), exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, exp, a.bitmap())
 		}
 	}
 }
@@ -1085,7 +1058,7 @@ func getFullBitmap() []uint64 {
 }
 
 func TestBitmapToRun(t *testing.T) {
-	a := &Container{containerType: containerBitmap}
+	a := NewContainerBitmap(0, nil)
 	tests := []struct {
 		bitmap []uint64
 		exp    []interval16
@@ -1143,27 +1116,28 @@ func TestBitmapToRun(t *testing.T) {
 	tests[8].bitmap[1023] = 0xFFFFFFFFFFFFFFFF
 
 	for i, test := range tests {
-		a.bitmap = make([]uint64, bitmapN)
+		a.setBitmap(make([]uint64, bitmapN))
+		bitmap := a.bitmap()
 		n := 0
 		for i, v := range test.bitmap {
-			a.bitmap[i] = v
+			bitmap[i] = v
 			n += int(popcount(v))
 		}
 		a.n = int32(n)
-		x := a.bitmap
-		a.bitmapToRun()
-		if !reflect.DeepEqual(a.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, a.runs)
+		x := bitmap
+		a.bitmapToRun(0)
+		if !reflect.DeepEqual(a.runs(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, a.runs())
 		}
 		a.runToBitmap()
-		if !reflect.DeepEqual(a.bitmap, x) {
-			t.Fatalf("test #%v expected %v, but got %v", i, a.bitmap, x)
+		if !reflect.DeepEqual(a.bitmap(), x) {
+			t.Fatalf("test #%v expected %v, but got %v", i, a.bitmap(), x)
 		}
 	}
 }
 
 func TestArrayToRun(t *testing.T) {
-	a := &Container{containerType: containerArray}
+	a := NewContainerArray(nil)
 	tests := []struct {
 		array []uint16
 		exp   []interval16
@@ -1187,17 +1161,18 @@ func TestArrayToRun(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		a.array = test.array
+		a.typ = containerArray
+		a.setArray(test.array)
 		a.n = int32(len(test.array))
-		a.arrayToRun()
-		if !reflect.DeepEqual(a.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, a.runs)
+		a.arrayToRun(0)
+		if !reflect.DeepEqual(a.runs(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, a.runs())
 		}
 	}
 }
 
 func TestRunToArray(t *testing.T) {
-	a := &Container{containerType: containerRun}
+	a := NewContainerRun(nil)
 	tests := []struct {
 		runs []interval16
 		exp  []uint16
@@ -1221,17 +1196,18 @@ func TestRunToArray(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		a.runs = test.runs
+		a.typ = containerRun
+		a.setRuns(test.runs)
 		a.n = int32(len(test.exp))
 		a.runToArray()
-		if !reflect.DeepEqual(a.array, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, a.array)
+		if !reflect.DeepEqual(a.array(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, a.array())
 		}
 	}
 }
 
 func TestBitmapZeroRange(t *testing.T) {
-	c := &Container{containerType: containerBitmap, bitmap: make([]uint64, bitmapN)}
+	c := NewContainerBitmap(0, nil)
 	tests := []struct {
 		bitmap []uint64
 		start  uint64
@@ -1254,27 +1230,28 @@ func TestBitmapZeroRange(t *testing.T) {
 			expN:   13,
 		},
 	}
+	bitmap := c.bitmap()
 
 	for i, test := range tests {
-		copy(c.bitmap, test.bitmap)
+		copy(bitmap, test.bitmap)
 		c.n = c.countRange(0, 65535)
 		c.bitmapZeroRange(test.start, test.last+1)
-		if !reflect.DeepEqual(c.bitmap[:len(test.exp)], test.exp) {
-			t.Fatalf("test %#v expected %x, got %x", i, test.exp, c.bitmap[:len(test.bitmap)])
+		if !reflect.DeepEqual(bitmap[:len(test.exp)], test.exp) {
+			t.Fatalf("test %#v expected %x, got %x", i, test.exp, bitmap[:len(test.bitmap)])
 		}
 		if test.expN != c.n {
 			t.Fatalf("test #%v expected n to be %v, but got %v", i, test.expN, c.n)
 		}
 		for i := range test.bitmap {
-			c.bitmap[i] = 0
+			bitmap[i] = 0
 		}
 	}
 
 }
 
 func TestUnionBitmapRun(t *testing.T) {
-	a := &Container{containerType: containerBitmap, bitmap: make([]uint64, bitmapN)}
-	b := &Container{containerType: containerRun}
+	a := NewContainerBitmap(0, nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		bitmap []uint64
 		runs   []interval16
@@ -1289,28 +1266,29 @@ func TestUnionBitmapRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		copy(a.bitmap, test.bitmap)
+		copy(a.bitmap(), test.bitmap)
 		a.n = a.bitmapCountRange(0, 65535)
-		b.runs = test.runs
+		b.setRuns(test.runs)
 		b.n = b.runCountRange(0, 65535)
 		ret := unionBitmapRun(a, b)
 		if ret.isArray() {
 			ret.arrayToBitmap()
 		}
-		if !reflect.DeepEqual(ret.bitmap[:len(test.exp)], test.exp) {
-			t.Fatalf("test #%v expected %x, but got %x", i, test.exp, ret.bitmap[:len(test.exp)])
+		bitmap := ret.bitmap()
+		if !reflect.DeepEqual(bitmap[:len(test.exp)], test.exp) {
+			t.Fatalf("test #%v expected %x, but got %x", i, test.exp, bitmap[:len(test.exp)])
 		}
 		if ret.n != test.expN {
 			t.Fatalf("test #%v expected n to be %v, but got %v", i, test.expN, ret.n)
 		}
 		for i := range test.bitmap {
-			a.bitmap[i] = 0
+			a.bitmap()[i] = 0
 		}
 	}
 }
 
 func TestBitmapCountRuns(t *testing.T) {
-	c := &Container{containerType: containerBitmap, bitmap: make([]uint64, bitmapN)}
+	c := NewContainerBitmap(0, nil)
 	tests := []struct {
 		bitmap []uint64
 		exp    int32
@@ -1334,7 +1312,7 @@ func TestBitmapCountRuns(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		copy(c.bitmap, test.bitmap)
+		copy(c.bitmap(), test.bitmap)
 
 		ret := c.bitmapCountRuns()
 		if ret != test.exp {
@@ -1342,13 +1320,13 @@ func TestBitmapCountRuns(t *testing.T) {
 		}
 
 		for j := range test.bitmap {
-			c.bitmap[j] = 0
+			c.bitmap()[j] = 0
 		}
 	}
 
 	test := tests[3]
 	for j, v := range test.bitmap {
-		c.bitmap[1024-len(test.bitmap)+j] = v
+		c.bitmap()[1024-len(test.bitmap)+j] = v
 
 	}
 	ret := c.bitmapCountRuns()
@@ -1358,7 +1336,7 @@ func TestBitmapCountRuns(t *testing.T) {
 }
 
 func TestArrayCountRuns(t *testing.T) {
-	c := &Container{containerType: containerArray}
+	c := NewContainerArray(nil)
 	tests := []struct {
 		array []uint16
 		exp   int32
@@ -1390,7 +1368,7 @@ func TestArrayCountRuns(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		c.array = test.array
+		c.setArray(test.array)
 		ret := c.arrayCountRuns()
 		if ret != test.exp {
 			t.Fatalf("test #%v expected %v but got %v", i, test.exp, ret)
@@ -1399,8 +1377,8 @@ func TestArrayCountRuns(t *testing.T) {
 }
 
 func TestDifferenceArrayRun(t *testing.T) {
-	a := &Container{containerType: containerArray}
-	b := &Container{containerType: containerRun}
+	a := NewContainerArray(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		array []uint16
 		runs  []interval16
@@ -1413,20 +1391,20 @@ func TestDifferenceArrayRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.array = test.array
-		a.n = int32(len(a.array))
-		b.runs = test.runs
+		a.setArray(test.array)
+		a.n = int32(len(a.array()))
+		b.setRuns(test.runs)
 		b.n = b.runCountRange(0, 100)
 		ret := differenceArrayRun(a, b)
-		if !reflect.DeepEqual(ret.array, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array)
+		if !reflect.DeepEqual(ret.array(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.array())
 		}
 	}
 }
 
 func TestDifferenceRunArray(t *testing.T) {
-	a := &Container{containerType: containerRun}
-	b := &Container{containerType: containerArray}
+	a := NewContainerRun(nil)
+	b := NewContainerArray(nil)
 	tests := []struct {
 		runs  []interval16
 		array []uint16
@@ -1479,13 +1457,13 @@ func TestDifferenceRunArray(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.runs = test.runs
+		a.setRuns(test.runs)
 		a.n = a.runCountRange(0, 100)
-		b.array = test.array
-		b.n = int32(len(b.array))
+		b.setArray(test.array)
+		b.n = int32(len(b.array()))
 		ret := differenceRunArray(a, b)
-		if !reflect.DeepEqual(ret.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs)
+		if !reflect.DeepEqual(ret.runs(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs())
 		}
 	}
 }
@@ -1498,12 +1476,12 @@ func MakeLastBitSet() []uint64 {
 	obj := NewFileBitmap(65535)
 	c := obj.container(0)
 	c.arrayToBitmap()
-	return c.bitmap
+	return c.bitmap()
 }
 
 func TestDifferenceRunBitmap(t *testing.T) {
-	a := &Container{containerType: containerRun}
-	b := &Container{containerType: containerBitmap, bitmap: make([]uint64, bitmapN)}
+	a := NewContainerRun(nil)
+	b := NewContainerBitmap(0, nil)
 	tests := []struct {
 		runs   []interval16
 		bitmap []uint64
@@ -1551,20 +1529,20 @@ func TestDifferenceRunBitmap(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.runs = test.runs
+		a.setRuns(test.runs)
 		a.n = a.runCountRange(0, 65536)
-		copy(b.bitmap, test.bitmap)
+		copy(b.bitmap(), test.bitmap)
 		b.n = b.bitmapCountRange(0, 65536)
 		ret := differenceRunBitmap(a, b)
-		if !reflect.DeepEqual(ret.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs)
+		if !reflect.DeepEqual(ret.runs(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs())
 		}
 	}
 }
 
 func TestDifferenceBitmapRun(t *testing.T) {
-	a := &Container{containerType: containerBitmap, bitmap: make([]uint64, bitmapN)}
-	b := &Container{containerType: containerRun}
+	a := NewContainerBitmap(0, nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		bitmap []uint64
 		runs   []interval16
@@ -1632,20 +1610,20 @@ func TestDifferenceBitmapRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		copy(a.bitmap, test.bitmap)
+		copy(a.bitmap(), test.bitmap)
 		a.n = a.bitmapCountRange(0, 65536)
-		b.runs = test.runs
+		b.setRuns(test.runs)
 		b.n = b.runCountRange(0, 65536)
 		ret := differenceBitmapRun(a, b)
-		if !reflect.DeepEqual(ret.bitmap[:len(test.exp)], test.exp) {
-			t.Fatalf("test #%v expected \n%X, but got \n%X", i, test.exp, ret.bitmap[:len(test.exp)])
+		if !reflect.DeepEqual(ret.bitmap()[:len(test.exp)], test.exp) {
+			t.Fatalf("test #%v expected \n%X, but got \n%X", i, test.exp, ret.bitmap()[:len(test.exp)])
 		}
 	}
 }
 
 func TestDifferenceBitmapArray(t *testing.T) {
-	b := &Container{containerType: containerBitmap, bitmap: make([]uint64, bitmapN)}
-	a := &Container{containerType: containerArray}
+	b := NewContainerBitmap(0, nil)
+	a := NewContainerArray(nil)
 	tests := []struct {
 		bitmap []uint64
 		array  []uint16
@@ -1683,19 +1661,19 @@ func TestDifferenceBitmapArray(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		b.bitmap[0] = test.bitmap[0]
+		b.bitmap()[0] = test.bitmap[0]
 		b.n = b.count()
-		a.array = test.array
+		a.setArray(test.array)
 		ret := differenceBitmapArray(b, a)
-		if !reflect.DeepEqual(ret.array, test.exp) {
-			t.Fatalf("test #%v expected %X, but got %X", i, test.exp, ret.array)
+		if !reflect.DeepEqual(ret.array(), test.exp) {
+			t.Fatalf("test #%v expected %#v, but got %#v", i, test.exp, ret.array())
 		}
 	}
 }
 
 func TestDifferenceBitmapBitmap(t *testing.T) {
-	a := &Container{bitmap: make([]uint64, bitmapN), containerType: containerBitmap}
-	b := &Container{bitmap: make([]uint64, bitmapN), containerType: containerBitmap}
+	a := NewContainerBitmap(0, nil)
+	b := NewContainerBitmap(0, nil)
 	tests := []struct {
 		abitmap []uint64
 		bbitmap []uint64
@@ -1713,19 +1691,19 @@ func TestDifferenceBitmapBitmap(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.bitmap[0] = test.abitmap[0]
-		b.bitmap[0] = test.bbitmap[0]
+		a.bitmap()[0] = test.abitmap[0]
+		b.bitmap()[0] = test.bbitmap[0]
 
 		ret := differenceBitmapBitmap(a, b)
-		if !reflect.DeepEqual(ret.array, test.exp) {
-			t.Fatalf("test #%v expected \n%X, but got \n%X", i, test.exp, ret.array)
+		if !reflect.DeepEqual(ret.array(), test.exp) {
+			t.Fatalf("test #%v expected \n%X, but got \n%X", i, test.exp, ret.array())
 		}
 	}
 }
 
 func TestDifferenceRunRun(t *testing.T) {
-	a := &Container{containerType: containerRun}
-	b := &Container{containerType: containerRun}
+	a := NewContainerRun(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		aruns []interval16
 		bruns []interval16
@@ -1743,13 +1721,13 @@ func TestDifferenceRunRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.runs = test.aruns
+		a.setRuns(test.aruns)
 		a.n = a.runCountRange(0, 100)
-		b.runs = test.bruns
+		b.setRuns(test.bruns)
 		b.n = b.runCountRange(0, 100)
 		ret := differenceRunRun(a, b)
-		if !reflect.DeepEqual(ret.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs)
+		if !reflect.DeepEqual(ret.runs(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs())
 		}
 		if ret.n != test.expn {
 			t.Fatalf("test #%v expected n=%v, but got n=%v", i, test.expn, ret.n)
@@ -1758,7 +1736,7 @@ func TestDifferenceRunRun(t *testing.T) {
 }
 
 func TestWriteReadArray(t *testing.T) {
-	ca := &Container{array: []uint16{1, 10, 100, 1000}, n: 4, containerType: containerArray}
+	ca := NewContainerArray([]uint16{1, 10, 100, 1000})
 	ba := NewFileBitmap()
 	ba.Containers.Put(0, ca)
 	ba2 := NewFileBitmap()
@@ -1771,16 +1749,16 @@ func TestWriteReadArray(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error unmarshaling: %v", err)
 	}
-	if !reflect.DeepEqual(ba2.Containers.Get(0).array, ca.array) {
-		t.Fatalf("array test expected %x, but got %x", ca.array, ba2.Containers.Get(0).array)
+	if !reflect.DeepEqual(ba2.Containers.Get(0).array(), ca.array()) {
+		t.Fatalf("array test expected %x, but got %x", ca.array(), ba2.Containers.Get(0).array())
 	}
 }
 
 func TestWriteReadBitmap(t *testing.T) {
 	// create bitmap containing > 4096 bits
-	cb := &Container{bitmap: make([]uint64, bitmapN), n: 129 * 32, containerType: containerBitmap}
+	cb := NewContainerBitmap(129*32, nil)
 	for i := 0; i < 129; i++ {
-		cb.bitmap[i] = 0x5555555555555555
+		cb.bitmap()[i] = 0x5555555555555555
 	}
 	bb := NewFileBitmap()
 	bb.Containers.Put(0, cb)
@@ -1794,31 +1772,34 @@ func TestWriteReadBitmap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error unmarshaling: %v", err)
 	}
-	if !reflect.DeepEqual(bb2.Containers.Get(0).bitmap, cb.bitmap) {
-		t.Fatalf("bitmap test expected %x, but got %x", cb.bitmap, bb2.Containers.Get(0).bitmap)
+	if !reflect.DeepEqual(bb2.Containers.Get(0).bitmap(), cb.bitmap()) {
+		t.Fatalf("bitmap test expected %x, but got %x", cb.bitmap(), bb2.Containers.Get(0).bitmap())
 	}
 }
 
 func TestWriteReadFullBitmap(t *testing.T) {
 	// create bitmap containing > 4096 bits
-	cb := &Container{bitmap: make([]uint64, bitmapN), n: 65536, containerType: containerBitmap}
+	cb := NewContainerBitmap(65536, nil)
 	for i := 0; i < bitmapN; i++ {
-		cb.bitmap[i] = 0xffffffffffffffff
+		cb.bitmap()[i] = 0xffffffffffffffff
 	}
 	bb := NewFileBitmap()
 	bb.Containers.Put(0, cb)
 	bb2 := NewFileBitmap()
 	var buf bytes.Buffer
-	_, err := bb.WriteTo(&buf)
+	_, err := bb.writeToUnoptimized(&buf)
 	if err != nil {
 		t.Fatalf("error writing: %v", err)
+	}
+	if !cb.isBitmap() {
+		t.Fatalf("how can i test a bitmap if it's not a bitmap")
 	}
 	err = bb2.UnmarshalBinary(buf.Bytes())
 	if err != nil {
 		t.Fatalf("error unmarshaling: %v", err)
 	}
-	if !reflect.DeepEqual(bb2.Containers.Get(0).bitmap, cb.bitmap) {
-		t.Fatalf("bitmap test expected %x, but got %x", cb.bitmap, bb2.Containers.Get(0).bitmap)
+	if !reflect.DeepEqual(bb2.Containers.Get(0).bitmap(), cb.bitmap()) {
+		t.Fatalf("bitmap test expected %x, but got %x", cb.bitmap(), bb2.Containers.Get(0).bitmap())
 	}
 
 	if bb2.Containers.Get(0).n != cb.n {
@@ -1830,7 +1811,7 @@ func TestWriteReadFullBitmap(t *testing.T) {
 }
 
 func TestWriteReadRun(t *testing.T) {
-	cr := &Container{runs: []interval16{{start: 3, last: 13}, {start: 100, last: 109}}, n: 21, containerType: containerRun}
+	cr := NewContainerRun([]interval16{{start: 3, last: 13}, {start: 100, last: 109}})
 	br := NewFileBitmap()
 	br.Containers.Put(0, cr)
 	br2 := NewFileBitmap()
@@ -1843,8 +1824,8 @@ func TestWriteReadRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error unmarshaling: %v", err)
 	}
-	if !reflect.DeepEqual(br2.Containers.Get(0).runs, cr.runs) {
-		t.Fatalf("run test expected %x, but got %x", cr.runs, br2.Containers.Get(0).runs)
+	if !reflect.DeepEqual(br2.Containers.Get(0).runs(), cr.runs()) {
+		t.Fatalf("run test expected %x, but got %x", cr.runs(), br2.Containers.Get(0).runs())
 	}
 }
 
@@ -1855,21 +1836,21 @@ func TestXorArrayRun(t *testing.T) {
 		exp *Container
 	}{
 		{
-			a:   &Container{array: []uint16{1, 5, 10, 11, 12}, containerType: containerArray},
-			b:   &Container{runs: []interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}}, containerType: containerRun},
-			exp: &Container{array: []uint16{1, 2, 3, 4, 6, 7, 8, 9, 11, 13, 15, 16}, containerType: containerArray, n: 12},
+			a:   NewContainerArray([]uint16{1, 5, 10, 11, 12}),
+			b:   NewContainerRun([]interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}}),
+			exp: NewContainerArray([]uint16{1, 2, 3, 4, 6, 7, 8, 9, 11, 13, 15, 16}),
 		}, {
-			a:   &Container{array: []uint16{1, 5, 10, 11, 12, 13, 14}, containerType: containerArray},
-			b:   &Container{runs: []interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}}, containerType: containerRun},
-			exp: &Container{array: []uint16{1, 2, 3, 4, 6, 7, 8, 9, 11, 14, 15, 16}, containerType: containerArray, n: 12},
+			a:   NewContainerArray([]uint16{1, 5, 10, 11, 12, 13, 14}),
+			b:   NewContainerRun([]interval16{{start: 2, last: 10}, {start: 12, last: 13}, {start: 15, last: 16}}),
+			exp: NewContainerArray([]uint16{1, 2, 3, 4, 6, 7, 8, 9, 11, 14, 15, 16}),
 		}, {
-			a:   &Container{array: []uint16{65535}, containerType: containerArray},
-			b:   &Container{runs: []interval16{{start: 65534, last: 65535}}, containerType: containerRun},
-			exp: &Container{array: []uint16{65534}, containerType: containerArray, n: 1},
+			a:   NewContainerArray([]uint16{65535}),
+			b:   NewContainerRun([]interval16{{start: 65534, last: 65535}}),
+			exp: NewContainerArray([]uint16{65534}),
 		}, {
-			a:   &Container{array: []uint16{65535}, containerType: containerArray},
-			b:   &Container{runs: []interval16{{start: 65535, last: 65535}}, containerType: containerRun},
-			exp: &Container{array: []uint16{}, containerType: containerArray, n: 0},
+			a:   NewContainerArray([]uint16{65535}),
+			b:   NewContainerRun([]interval16{{start: 65535, last: 65535}}),
+			exp: NewContainerArray([]uint16{}),
 		},
 	}
 
@@ -1877,12 +1858,12 @@ func TestXorArrayRun(t *testing.T) {
 		test.a.n = test.a.count()
 		test.b.n = test.b.count()
 		ret := xor(test.a, test.b)
-		if !reflect.DeepEqual(ret, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret)
+		if !reflect.DeepEqual(ret.array(), test.exp.array()) {
+			t.Fatalf("test #%v expected %#v, but got %#v", i, test.exp, ret)
 		}
 		ret = xor(test.b, test.a)
-		if !reflect.DeepEqual(ret, test.exp) {
-			t.Fatalf("test #%v.1 expected %v, but got %v", i, test.exp, ret)
+		if !reflect.DeepEqual(ret.array(), test.exp.array()) {
+			t.Fatalf("test #%v.1 expected %#v, but got %#v", i, test.exp, ret)
 		}
 	}
 
@@ -1890,23 +1871,21 @@ func TestXorArrayRun(t *testing.T) {
 
 //special case that didn't fit the xorrunrun table testing below.
 func TestXorRunRun1(t *testing.T) {
-	a := &Container{containerType: containerRun}
-	b := &Container{containerType: containerRun}
-	a.runs = []interval16{{start: 4, last: 10}}
-	b.runs = []interval16{{start: 5, last: 10}}
+	a := NewContainerRun([]interval16{{start: 4, last: 10}})
+	b := NewContainerRun([]interval16{{start: 5, last: 10}})
 	ret := xorRunRun(a, b)
-	if !reflect.DeepEqual(ret.array, []uint16{4}) {
-		t.Fatalf("test #1 expected %v, but got %v", []uint16{4}, ret.array)
+	if !reflect.DeepEqual(ret.array(), []uint16{4}) {
+		t.Fatalf("test #1 expected %v, but got %v", []uint16{4}, ret.array())
 	}
 	ret = xorRunRun(b, a)
-	if !reflect.DeepEqual(ret.array, []uint16{4}) {
-		t.Fatalf("test #1 expected %v, but got %v", []uint16{4}, ret.array)
+	if !reflect.DeepEqual(ret.array(), []uint16{4}) {
+		t.Fatalf("test #1 expected %v, but got %v", []uint16{4}, ret.array())
 	}
 }
 
 func TestXorRunRun(t *testing.T) {
-	a := &Container{containerType: containerRun}
-	b := &Container{containerType: containerRun}
+	a := NewContainerRun(nil)
+	b := NewContainerRun(nil)
 	tests := []struct {
 		aruns []interval16
 		bruns []interval16
@@ -1989,21 +1968,21 @@ func TestXorRunRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.runs = test.aruns
-		b.runs = test.bruns
+		a.setRuns(test.aruns)
+		b.setRuns(test.bruns)
 		ret := xorRunRun(a, b)
-		if !reflect.DeepEqual(ret.runs, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs)
+		if !reflect.DeepEqual(ret.runs(), test.exp) {
+			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.runs())
 		}
 		ret = xorRunRun(b, a)
-		if !reflect.DeepEqual(ret.runs, test.exp) {
-			t.Fatalf("test #%v.1 expected %v, but got %v", i, test.exp, ret.runs)
+		if !reflect.DeepEqual(ret.runs(), test.exp) {
+			t.Fatalf("test #%v.1 expected %v, but got %v", i, test.exp, ret.runs())
 		}
 	}
 }
 
 func TestBitmapXorRange(t *testing.T) {
-	c := &Container{bitmap: make([]uint64, bitmapN), containerType: containerBitmap}
+	c := NewContainerBitmap(0, nil)
 	tests := []struct {
 		bitmap []uint64
 		start  uint64
@@ -2056,11 +2035,11 @@ func TestBitmapXorRange(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		copy(c.bitmap, test.bitmap)
+		copy(c.bitmap(), test.bitmap)
 		c.n = c.countRange(0, 65535)
 		c.bitmapXorRange(test.start, test.last+1)
-		if !reflect.DeepEqual(c.bitmap[:len(test.exp)], test.exp) {
-			t.Fatalf("test %#v expected %x, got %x", i, test.exp, c.bitmap[:len(test.bitmap)])
+		if !reflect.DeepEqual(c.bitmap()[:len(test.exp)], test.exp) {
+			t.Fatalf("test %#v expected %x, got %x", i, test.exp, c.bitmap()[:len(test.bitmap)])
 		}
 		if test.expN != c.n {
 			t.Fatalf("test #%v expected n to be %v, but got %v", i, test.expN, c.n)
@@ -2069,8 +2048,6 @@ func TestBitmapXorRange(t *testing.T) {
 }
 
 func TestXorBitmapRun(t *testing.T) {
-	a := &Container{containerType: containerBitmap}
-	b := &Container{containerType: containerRun}
 	tests := []struct {
 		bitmap []uint64
 		runs   []interval16
@@ -2083,16 +2060,17 @@ func TestXorBitmapRun(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		a.bitmap = test.bitmap
-		b.runs = test.runs
+		a := NewContainerBitmap(0, test.bitmap)
+		e := NewContainerBitmap(0, test.exp)
+		b := NewContainerRun(test.runs)
 		//xorBitmapRun
 		ret := xor(a, b)
-		if !reflect.DeepEqual(ret.bitmap, test.exp) {
-			t.Fatalf("test #%v expected %v, but got %v", i, test.exp, ret.bitmap)
+		if !reflect.DeepEqual(ret.bitmap(), e.bitmap()) {
+			t.Fatalf("test #%v expected %v, but got %v", i, e.bitmap(), ret.bitmap())
 		}
 		ret = xor(b, a)
-		if !reflect.DeepEqual(ret.bitmap, test.exp) {
-			t.Fatalf("test #%v.1 expected %v, but got %v", i, test.exp, ret.bitmap)
+		if !reflect.DeepEqual(ret.bitmap(), e.bitmap()) {
+			t.Fatalf("test #%v.1 expected %v, but got %v", i, e.bitmap(), ret.bitmap())
 		}
 	}
 
@@ -2149,10 +2127,14 @@ func TestIteratorBitmap(t *testing.T) {
 	// but won't update to RLE until Optimize() is called
 	b := NewFileBitmap()
 	for i := uint64(61000); i < 71000; i++ {
-		b.Add(i)
+		if _, err := b.Add(i); err != nil {
+			t.Fatalf("adding bit: %v", err)
+		}
 	}
 	for i := uint64(75000); i < 75100; i++ {
-		b.Add(i)
+		if _, err := b.Add(i); err != nil {
+			t.Fatalf("adding bit: %v", err)
+		}
 	}
 	if !b.Containers.Get(0).isBitmap() {
 		t.Fatalf("wrong container type")
@@ -2415,7 +2397,9 @@ func TestRunBinSearch(t *testing.T) {
 }
 func TestBitmap_RemoveEmptyContainers(t *testing.T) {
 	bm1 := NewFileBitmap(1<<16, 2<<16, 3<<16)
-	bm1.Remove(2 << 16)
+	if _, err := bm1.Remove(2 << 16); err != nil {
+		t.Fatalf("removing a bit: %v", err)
+	}
 	if bm1.countEmptyContainers() != 1 {
 		t.Fatalf("Should be 1 empty container ")
 	}
@@ -2428,13 +2412,17 @@ func TestBitmap_RemoveEmptyContainers(t *testing.T) {
 
 func TestBitmap_BitmapWriteToWithEmpty(t *testing.T) {
 	bm1 := NewFileBitmap(1<<16, 2<<16, 3<<16)
-	bm1.Remove(2 << 16)
+	if _, err := bm1.Remove(2 << 16); err != nil {
+		t.Fatalf("removing a bit: %v", err)
+	}
 	var buf bytes.Buffer
 	if _, err := bm1.WriteTo(&buf); err != nil {
 		t.Fatalf("Failure to write to bitmap buffer. ")
 	}
 	bm0 := NewFileBitmap()
-	bm0.UnmarshalBinary(buf.Bytes())
+	if err := bm0.UnmarshalBinary(buf.Bytes()); err != nil {
+		t.Fatalf("unmarshalling: %v", err)
+	}
 	if bm0.countEmptyContainers() != 0 {
 		t.Fatalf("Should be no empty containers ")
 	}
@@ -2522,10 +2510,7 @@ func TestSearch64(t *testing.T) {
 }
 
 func TestIntersectArrayBitmap(t *testing.T) {
-	a, b := &Container{containerType: containerArray}, &Container{
-		containerType: containerBitmap,
-		bitmap:        make([]uint64, bitmapN),
-	}
+	a, b := NewContainerArray(nil), NewContainerBitmap(0, nil)
 	tests := []struct {
 		array  []uint16
 		bitmap []uint64
@@ -2569,11 +2554,9 @@ func TestIntersectArrayBitmap(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		a.array = test.array
-		a.containerType = containerArray
-		copy(b.bitmap, test.bitmap)
-		b.containerType = containerBitmap
-		ret := intersectArrayBitmap(a, b).array
+		a.setArray(test.array)
+		copy(b.bitmap(), test.bitmap)
+		ret := intersectArrayBitmap(a, b).array()
 		if len(ret) == 0 && len(test.exp) == 0 {
 			continue
 		}
@@ -2586,7 +2569,9 @@ func TestIntersectArrayBitmap(t *testing.T) {
 func TestBitmapClone(t *testing.T) {
 	b := NewFileBitmap()
 	for i := uint64(61000); i < 71000; i++ {
-		b.Add(i)
+		if _, err := b.Add(i); err != nil {
+			t.Fatalf("adding bit: %v", err)
+		}
 	}
 	c := b.Clone()
 	if err := bitmapsEqual(b, c); err != nil {
@@ -2692,18 +2677,23 @@ func getFunctionName(i interface{}) string {
 	return y[0]
 }
 
+// UnionInPlace is defined at the Bitmap level, but this wrapper lets us insert
+// it into our ContainerCombinations tests so that it gets exercised on a wide
+// variety of container data.
+func unionInPlaceWrapper(a, b *Container) *Container {
+	out := NewBitmap()
+	out.Containers.Put(0, a.Clone())
+	B := NewBitmap()
+	B.Containers.Put(0, b)
+	out.UnionInPlace(B)
+	return out.Containers.Get(0)
+}
+
 func TestContainerCombinations(t *testing.T) {
 
 	cts := setupContainerTests()
 
 	containerTypes := []byte{containerArray, containerBitmap, containerRun}
-
-	// map used for a more descriptive print
-	cm := map[byte]string{
-		containerArray:  "array",
-		containerBitmap: "bitmap",
-		containerRun:    "run",
-	}
 
 	testOps := []testOp{
 		// intersect
@@ -2927,6 +2917,117 @@ func TestContainerCombinations(t *testing.T) {
 		//{union, "evenBitsSet", "outerBitsSet", ""},
 		{union, "evenBitsSet", "oddBitsSet", "full"},
 		{union, "evenBitsSet", "evenBitsSet", "evenBitsSet"},
+
+		// unionInPlaceWrapper
+		{unionInPlaceWrapper, "empty", "empty", "empty"},
+		{unionInPlaceWrapper, "empty", "full", "full"},
+		{unionInPlaceWrapper, "empty", "firstBitSet", "firstBitSet"},
+		{unionInPlaceWrapper, "empty", "lastBitSet", "lastBitSet"},
+		{unionInPlaceWrapper, "empty", "firstBitUnset", "firstBitUnset"},
+		{unionInPlaceWrapper, "empty", "lastBitUnset", "lastBitUnset"},
+		{unionInPlaceWrapper, "empty", "innerBitsSet", "innerBitsSet"},
+		{unionInPlaceWrapper, "empty", "outerBitsSet", "outerBitsSet"},
+		{unionInPlaceWrapper, "empty", "oddBitsSet", "oddBitsSet"},
+		{unionInPlaceWrapper, "empty", "evenBitsSet", "evenBitsSet"},
+		//
+		{unionInPlaceWrapper, "full", "empty", "full"},
+		{unionInPlaceWrapper, "full", "full", "full"},
+		{unionInPlaceWrapper, "full", "firstBitSet", "full"},
+		{unionInPlaceWrapper, "full", "lastBitSet", "full"},
+		{unionInPlaceWrapper, "full", "firstBitUnset", "full"},
+		{unionInPlaceWrapper, "full", "lastBitUnset", "full"},
+		{unionInPlaceWrapper, "full", "innerBitsSet", "full"},
+		{unionInPlaceWrapper, "full", "outerBitsSet", "full"},
+		{unionInPlaceWrapper, "full", "oddBitsSet", "full"},
+		{unionInPlaceWrapper, "full", "evenBitsSet", "full"},
+		//
+		{unionInPlaceWrapper, "firstBitSet", "empty", "firstBitSet"},
+		{unionInPlaceWrapper, "firstBitSet", "full", "full"},
+		{unionInPlaceWrapper, "firstBitSet", "firstBitSet", "firstBitSet"},
+		{unionInPlaceWrapper, "firstBitSet", "lastBitSet", "outerBitsSet"},
+		{unionInPlaceWrapper, "firstBitSet", "firstBitUnset", "full"},
+		{unionInPlaceWrapper, "firstBitSet", "lastBitUnset", "lastBitUnset"},
+		{unionInPlaceWrapper, "firstBitSet", "innerBitsSet", "lastBitUnset"},
+		{unionInPlaceWrapper, "firstBitSet", "outerBitsSet", "outerBitsSet"},
+		//{unionInPlaceWrapper, "firstBitSet", "oddBitsSet", ""},
+		{unionInPlaceWrapper, "firstBitSet", "evenBitsSet", "evenBitsSet"},
+		//
+		{unionInPlaceWrapper, "lastBitSet", "empty", "lastBitSet"},
+		{unionInPlaceWrapper, "lastBitSet", "full", "full"},
+		{unionInPlaceWrapper, "lastBitSet", "firstBitSet", "outerBitsSet"},
+		{unionInPlaceWrapper, "lastBitSet", "lastBitSet", "lastBitSet"},
+		{unionInPlaceWrapper, "lastBitSet", "firstBitUnset", "firstBitUnset"},
+		{unionInPlaceWrapper, "lastBitSet", "lastBitUnset", "full"},
+		{unionInPlaceWrapper, "lastBitSet", "innerBitsSet", "firstBitUnset"},
+		{unionInPlaceWrapper, "lastBitSet", "outerBitsSet", "outerBitsSet"},
+		{unionInPlaceWrapper, "lastBitSet", "oddBitsSet", "oddBitsSet"},
+		//{unionInPlaceWrapper, "lastBitSet", "evenBitsSet", ""},
+		//
+		{unionInPlaceWrapper, "firstBitUnset", "empty", "firstBitUnset"},
+		{unionInPlaceWrapper, "firstBitUnset", "full", "full"},
+		{unionInPlaceWrapper, "firstBitUnset", "firstBitSet", "full"},
+		{unionInPlaceWrapper, "firstBitUnset", "lastBitSet", "firstBitUnset"},
+		{unionInPlaceWrapper, "firstBitUnset", "firstBitUnset", "firstBitUnset"},
+		{unionInPlaceWrapper, "firstBitUnset", "lastBitUnset", "full"},
+		{unionInPlaceWrapper, "firstBitUnset", "innerBitsSet", "firstBitUnset"},
+		{unionInPlaceWrapper, "firstBitUnset", "outerBitsSet", "full"},
+		{unionInPlaceWrapper, "firstBitUnset", "oddBitsSet", "firstBitUnset"},
+		{unionInPlaceWrapper, "firstBitUnset", "evenBitsSet", "full"},
+		//
+		{unionInPlaceWrapper, "lastBitUnset", "empty", "lastBitUnset"},
+		{unionInPlaceWrapper, "lastBitUnset", "full", "full"},
+		{unionInPlaceWrapper, "lastBitUnset", "firstBitSet", "lastBitUnset"},
+		{unionInPlaceWrapper, "lastBitUnset", "lastBitSet", "full"},
+		{unionInPlaceWrapper, "lastBitUnset", "firstBitUnset", "full"},
+		{unionInPlaceWrapper, "lastBitUnset", "lastBitUnset", "lastBitUnset"},
+		{unionInPlaceWrapper, "lastBitUnset", "innerBitsSet", "lastBitUnset"},
+		{unionInPlaceWrapper, "lastBitUnset", "outerBitsSet", "full"},
+		{unionInPlaceWrapper, "lastBitUnset", "oddBitsSet", "full"},
+		{unionInPlaceWrapper, "lastBitUnset", "evenBitsSet", "lastBitUnset"},
+		//
+		{unionInPlaceWrapper, "innerBitsSet", "empty", "innerBitsSet"},
+		{unionInPlaceWrapper, "innerBitsSet", "full", "full"},
+		{unionInPlaceWrapper, "innerBitsSet", "firstBitSet", "lastBitUnset"},
+		{unionInPlaceWrapper, "innerBitsSet", "lastBitSet", "firstBitUnset"},
+		{unionInPlaceWrapper, "innerBitsSet", "firstBitUnset", "firstBitUnset"},
+		{unionInPlaceWrapper, "innerBitsSet", "lastBitUnset", "lastBitUnset"},
+		{unionInPlaceWrapper, "innerBitsSet", "innerBitsSet", "innerBitsSet"},
+		{unionInPlaceWrapper, "innerBitsSet", "outerBitsSet", "full"},
+		{unionInPlaceWrapper, "innerBitsSet", "oddBitsSet", "firstBitUnset"},
+		{unionInPlaceWrapper, "innerBitsSet", "evenBitsSet", "lastBitUnset"},
+		//
+		{unionInPlaceWrapper, "outerBitsSet", "empty", "outerBitsSet"},
+		{unionInPlaceWrapper, "outerBitsSet", "full", "full"},
+		{unionInPlaceWrapper, "outerBitsSet", "firstBitSet", "outerBitsSet"},
+		{unionInPlaceWrapper, "outerBitsSet", "lastBitSet", "outerBitsSet"},
+		{unionInPlaceWrapper, "outerBitsSet", "firstBitUnset", "full"},
+		{unionInPlaceWrapper, "outerBitsSet", "lastBitUnset", "full"},
+		{unionInPlaceWrapper, "outerBitsSet", "innerBitsSet", "full"},
+		{unionInPlaceWrapper, "outerBitsSet", "outerBitsSet", "outerBitsSet"},
+		//{unionInPlaceWrapper, "outerBitsSet", "oddBitsSet", ""},
+		//{unionInPlaceWrapper, "outerBitsSet", "evenBitsSet", ""},
+		//
+		{unionInPlaceWrapper, "oddBitsSet", "empty", "oddBitsSet"},
+		{unionInPlaceWrapper, "oddBitsSet", "full", "full"},
+		//{unionInPlaceWrapper, "oddBitsSet", "firstBitSet", ""},
+		{unionInPlaceWrapper, "oddBitsSet", "lastBitSet", "oddBitsSet"},
+		{unionInPlaceWrapper, "oddBitsSet", "firstBitUnset", "firstBitUnset"},
+		{unionInPlaceWrapper, "oddBitsSet", "lastBitUnset", "full"},
+		{unionInPlaceWrapper, "oddBitsSet", "innerBitsSet", "firstBitUnset"},
+		//{unionInPlaceWrapper, "oddBitsSet", "outerBitsSet", ""},
+		{unionInPlaceWrapper, "oddBitsSet", "oddBitsSet", "oddBitsSet"},
+		{unionInPlaceWrapper, "oddBitsSet", "evenBitsSet", "full"},
+		//
+		{unionInPlaceWrapper, "evenBitsSet", "empty", "evenBitsSet"},
+		{unionInPlaceWrapper, "evenBitsSet", "full", "full"},
+		{unionInPlaceWrapper, "evenBitsSet", "firstBitSet", "evenBitsSet"},
+		//{unionInPlaceWrapper, "evenBitsSet", "lastBitSet", ""},
+		{unionInPlaceWrapper, "evenBitsSet", "firstBitUnset", "full"},
+		{unionInPlaceWrapper, "evenBitsSet", "lastBitUnset", "lastBitUnset"},
+		{unionInPlaceWrapper, "evenBitsSet", "innerBitsSet", "lastBitUnset"},
+		//{unionInPlaceWrapper, "evenBitsSet", "outerBitsSet", ""},
+		{unionInPlaceWrapper, "evenBitsSet", "oddBitsSet", "full"},
+		{unionInPlaceWrapper, "evenBitsSet", "evenBitsSet", "evenBitsSet"},
 
 		// difference
 		{difference, "empty", "empty", "empty"},
@@ -3165,7 +3266,7 @@ func TestContainerCombinations(t *testing.T) {
 	for _, testOp := range testOps {
 		for _, x := range containerTypes {
 			for _, y := range containerTypes {
-				desc := fmt.Sprintf("%s(%s/%s, %s/%s)", getFunctionName(testOp.f), cm[x], testOp.x, cm[y], testOp.y)
+				desc := fmt.Sprintf("%s(%s/%s, %s/%s)", getFunctionName(testOp.f), containerTypeNames[x], testOp.x, containerTypeNames[y], testOp.y)
 				ret := runContainerFunc(testOp.f, cts[x][testOp.x], cts[y][testOp.y])
 				exp := testOp.exp
 
@@ -3183,8 +3284,8 @@ func TestContainerCombinations(t *testing.T) {
 						}
 						// Because xorRunRun resulting in an empty container returns an array container with a
 						// nil slice array, then we need to check len() on array first (look for 0).
-						if !(len(clone.array) == 0 && len(cts[ct][exp].array) == 0) && !reflect.DeepEqual(clone.array, cts[ct][exp].array) {
-							t.Fatalf("test %s expected array %X, but got %X", desc, cts[ct][exp].array, clone.array)
+						if !(len(clone.array()) == 0 && len(cts[ct][exp].array()) == 0) && !reflect.DeepEqual(clone.array(), cts[ct][exp].array()) {
+							t.Fatalf("test %s expected array %X, but got %X", desc, cts[ct][exp].array(), clone.array())
 						}
 					} else if ct == containerBitmap {
 						if clone.isArray() {
@@ -3195,20 +3296,20 @@ func TestContainerCombinations(t *testing.T) {
 						if clone.n != cts[ct][exp].n {
 							t.Fatalf("test %s expected bitmap n=%d, but got n=%d", desc, cts[ct][exp].n, clone.n)
 						}
-						if !reflect.DeepEqual(clone.bitmap, cts[ct][exp].bitmap) {
-							t.Fatalf("test %s expected bitmap %X, but got %X", desc, cts[ct][exp].bitmap, clone.bitmap)
+						if !reflect.DeepEqual(clone.bitmap(), cts[ct][exp].bitmap()) {
+							t.Fatalf("test %s expected bitmap %X, but got %X", desc, cts[ct][exp].bitmap(), clone.bitmap())
 						}
 					} else if ct == containerRun {
 						if clone.isArray() {
-							clone.arrayToRun()
+							clone.arrayToRun(0)
 						} else if clone.isBitmap() {
-							clone.bitmapToRun()
+							clone.bitmapToRun(0)
 						}
 						if clone.n != cts[ct][exp].n {
 							t.Fatalf("test %s expected runs n=%d, but got n=%d", desc, cts[ct][exp].n, clone.n)
 						}
-						if !reflect.DeepEqual(clone.runs, cts[ct][exp].runs) {
-							t.Fatalf("test %s expected runs %X, but got %X", desc, cts[ct][exp].runs, clone.runs)
+						if !reflect.DeepEqual(clone.runs(), cts[ct][exp].runs()) {
+							t.Fatalf("test %s expected runs %X, but got %X", desc, cts[ct][exp].runs(), clone.runs())
 						}
 					}
 				}
@@ -3219,11 +3320,11 @@ func TestContainerCombinations(t *testing.T) {
 
 //func getFunc(func(a, b *container) *container, m, n *container) *container {
 func runContainerFunc(f interface{}, c ...*Container) *Container {
-	switch f.(type) {
+	switch f := f.(type) {
 	case func(*Container) *Container:
-		return f.(func(*Container) *Container)(c[0])
+		return f(c[0])
 	case func(*Container, *Container) *Container:
-		return f.(func(a, b *Container) *Container)(c[0], c[1])
+		return f(c[0], c[1])
 	}
 	return nil
 }
@@ -3260,4 +3361,467 @@ func TestUnmarshalOfficialRoaring(t *testing.T) {
 		t.Fatalf("expecting X got %d", bm.Count())
 	}
 
+}
+
+func BenchmarkUnionBitmapBitmapInPlace(b *testing.B) {
+	b1 := newTestBitmapContainer()
+	b2 := newTestBitmapContainer()
+	for n := 0; n < b.N; n++ {
+		unionBitmapBitmapInPlace(b1, b2)
+	}
+}
+
+func BenchmarkBitmapRepair(b *testing.B) {
+	b1 := newTestBitmapContainer()
+	for n := 0; n < b.N; n++ {
+		b1.bitmapRepair()
+	}
+}
+
+func newTestBitmapContainer() *Container {
+	return NewContainerBitmap(0, nil)
+}
+
+/*
+// This function exercises an arcane edge case in dead code.
+// It doesn't need to be run right now.
+func TestEquals(t *testing.T) {
+	bma := NewBitmap()
+	bmr := NewBitmap()
+	for i := uint64(0); i < 30; i++ {
+		bma.Add(i)
+		bmr.Add(i)
+	}
+	bmr.Optimize()
+	bmi := bma.Intersect(bmr)
+	err := bitmapsEqual(bmi, bma)
+	if err != nil {
+		t.Fatalf("expected intersection to equal array")
+	}
+	err = bitmapsEqual(bmi, bmr)
+	if err != nil {
+		t.Fatalf("expected intersection to equal run")
+	}
+}
+*/
+func TestShiftArray(t *testing.T) {
+	a := NewContainerArray(nil)
+	tests := []struct {
+		array []uint16
+		exp   []uint16
+	}{
+		{
+			array: []uint16{1},
+			exp:   []uint16{2},
+		},
+		{
+			array: []uint16{},
+			exp:   []uint16{},
+		},
+		{
+			array: []uint16{1, 2, 3, 4, 5, 11, 12},
+			exp:   []uint16{2, 3, 4, 5, 6, 12, 13},
+		},
+		{
+			array: []uint16{65535},
+			exp:   []uint16{},
+		},
+	}
+
+	for i, test := range tests {
+		a.setArray(test.array)
+		a.n = int32(len(a.array()))
+		ret1, _ := shift(a)      // test generic shift function
+		ret2, _ := shiftArray(a) // test array-specific shift function
+		if !reflect.DeepEqual(ret1.array(), test.exp) {
+			t.Fatalf("test #%v shift() expected %v, but got %v", i, test.exp, ret1.array())
+		} else if !reflect.DeepEqual(ret2.array(), test.exp) {
+			t.Fatalf("test #%v shiftArray() expected %v, but got %v", i, test.exp, ret2.array())
+		}
+	}
+}
+
+func TestShiftBitmap(t *testing.T) {
+	// note, bitmaps are provided for us by the ensuing tests
+	a := NewContainerBitmap(0, nil)
+	tests := []struct {
+		bitmap []uint64
+		exp    []uint64
+	}{
+		{
+			bitmap: bitmapFirstBitSet(),
+			exp:    bitmapSecondBitSet(),
+		},
+		{
+			bitmap: bitmapLastBitSet(),
+			exp:    bitmapEmpty(),
+		},
+		{
+			bitmap: bitmapLastBitFirstRowSet(),
+			exp:    bitmapFirstBitSecoundRowSet(),
+		},
+	}
+
+	for i, test := range tests {
+		a.setBitmap(test.bitmap)
+		a.n = 1
+		ret1, _ := shift(a)       // test generic shift function
+		ret2, _ := shiftBitmap(a) // test bitmap-specific shift function
+		e := NewContainerBitmap(1, test.exp)
+		if !reflect.DeepEqual(ret1.bitmap(), e.bitmap()) {
+			t.Fatalf("test #%v shift() expected %v, but got %v", i, e.bitmap(), ret1.bitmap())
+		} else if !reflect.DeepEqual(ret2.bitmap(), test.exp) {
+			t.Fatalf("test #%v shiftBitmap() expected %v, but got %v", i, e.bitmap(), ret2.bitmap())
+		}
+	}
+}
+func TestShiftRun(t *testing.T) {
+	a := NewContainerRun(nil)
+
+	tests := []struct {
+		runs  []interval16
+		n     int32
+		en    int32
+		exp   []interval16
+		carry bool
+	}{
+		{
+			runs:  []interval16{{start: 5, last: 10}},
+			n:     5,
+			en:    5,
+			exp:   []interval16{{start: 6, last: 11}},
+			carry: false,
+		},
+		{
+			runs:  []interval16{{start: 5, last: 65535}},
+			n:     65530,
+			en:    65529,
+			exp:   []interval16{{start: 6, last: 65535}},
+			carry: true,
+		},
+		{
+			runs:  []interval16{{start: 65535, last: 65535}},
+			n:     1,
+			en:    0,
+			exp:   []interval16{},
+			carry: true,
+		},
+	}
+
+	for i, test := range tests {
+		a.setRuns(test.runs)
+		a.n = test.n
+		ret1, c1 := shift(a)    // test generic shift function
+		ret2, c2 := shiftRun(a) // test run-specific shift function
+		if !reflect.DeepEqual(ret1.runs(), test.exp) && c1 == test.carry && ret1.n == test.en {
+			t.Fatalf("test #%v shift() expected %v, but got %v %d", i, test.exp, ret1.runs(), ret1.n)
+		} else if !reflect.DeepEqual(ret2.runs(), test.exp) && c2 == test.carry && ret2.n == test.en {
+			t.Fatalf("test #%v shiftRun() expected %v, but got %v %d", i, test.exp, ret2.runs(), ret2.n)
+		}
+	}
+}
+
+func TestOpLogWriteUnmarshal(t *testing.T) {
+	tests := []*op{
+		{
+			typ:   opTypeAdd,
+			value: 27,
+		},
+		{
+			typ:   opTypeRemove,
+			value: 28,
+		},
+		{
+			typ:    opTypeAddBatch,
+			values: []uint64{1, 2, 6, 19},
+		},
+		{
+			typ:    opTypeRemoveBatch,
+			values: []uint64{1, 2, 6, 19, 22, 44},
+		},
+		{
+			typ:    opTypeAddBatch,
+			values: []uint64{51234567890},
+		},
+		{
+			typ:    opTypeRemoveBatch,
+			values: []uint64{51234567890},
+		},
+		{
+			typ:   opTypeAdd,
+			value: 0,
+		},
+		{
+			typ:   opTypeRemove,
+			value: 0,
+		},
+		{
+			typ:    opTypeAddBatch,
+			values: []uint64{0},
+		},
+		{
+			typ:    opTypeRemoveBatch,
+			values: []uint64{0},
+		},
+		{
+			typ:    opTypeAddBatch,
+			values: []uint64{},
+		},
+		{
+			typ:    opTypeRemoveBatch,
+			values: []uint64{},
+		},
+	}
+
+	// test each one separately
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			if _, err := test.WriteTo(buf); err != nil {
+				t.Errorf("writing op %v to buffer: %v", test, err)
+			}
+
+			op := &op{}
+			if err := op.UnmarshalBinary(buf.Bytes()); err != nil {
+				t.Fatalf("unmarshling op: %v", err)
+			}
+
+			if err := compareOps(test, op); err != nil {
+				t.Errorf("mismatch: %v", err)
+			}
+		})
+	}
+
+	// now write them all to the same buffer and unmarshal one by one
+	t.Run("writeAllOps", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		for _, test := range tests {
+			_, err := test.WriteTo(buf)
+			if err != nil {
+				t.Fatalf("writing op to buffer: %v", err)
+			}
+		}
+
+		data := buf.Bytes()
+		offset := 0
+		for i, test := range tests {
+			op := &op{}
+
+			if err := op.UnmarshalBinary(data[offset:]); err != nil {
+				t.Fatalf("unmarshling op: %v", err)
+			}
+			if err := compareOps(test, op); err != nil {
+				t.Errorf("mismatch at %d: %v", i, err)
+			}
+			offset += op.size()
+		}
+	})
+}
+
+func compareOps(op1, op2 *op) error {
+	if op1.typ != op2.typ || op1.value != op2.value || len(op1.values) != len(op2.values) {
+		return errors.Errorf("mismatched type, value, or length: %v, %v", op1, op2)
+	}
+
+	for i := 0; i < len(op1.values); i++ {
+		if op1.values[i] != op2.values[i] {
+			return errors.Errorf("mismatched values at %d: %d and %d", i, op1.values[i], op2.values[i])
+		}
+	}
+	return nil
+}
+
+func TestDirectAddN(t *testing.T) {
+	tests := []struct {
+		call1     []uint64
+		expn1     int
+		call2     []uint64
+		expn2     int
+		exp       []uint64
+		expcall2n []uint64
+	}{
+		{
+			call1:     []uint64{0},
+			expn1:     1,
+			call2:     []uint64{0, 1},
+			expn2:     1,
+			exp:       []uint64{0, 1},
+			expcall2n: []uint64{1},
+		},
+		{
+			call1:     []uint64{0, 22, 55},
+			expn1:     3,
+			call2:     []uint64{0, 14, 22, 99, 55},
+			expn2:     2,
+			exp:       []uint64{0, 14, 22, 55, 99},
+			expcall2n: []uint64{14, 99},
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			b := NewBitmap()
+			n1 := b.DirectAddN(test.call1...)
+			if n1 != test.expn1 {
+				t.Errorf("mismatched n1 exp:%d got:%d", test.expn1, n1)
+			}
+			n2 := b.DirectAddN(test.call2...)
+			if n2 != test.expn2 {
+				t.Errorf("mismatched n2 exp:%d got:%d", test.expn2, n2)
+			}
+			if !reflect.DeepEqual(test.exp, b.Slice()) {
+				t.Errorf("misatched results \n%v\n%v", test.exp, b.Slice())
+			}
+			if !reflect.DeepEqual(test.expcall2n, test.call2[:n2]) {
+				t.Errorf("unexpected arg change \n%v\n%v", test.expcall2n, test.call2[:n2])
+			}
+		})
+	}
+}
+
+func TestDirectAddNVsAdd(t *testing.T) {
+	tests := [][]uint64{
+		{},
+		{0},
+		{0, 1, 2, 3},
+		{0, 1, 2, 101000, 9384932},
+		{9384932, 101000, 2, 1, 0},
+		{3489, 19230, 394, 0, 893982, 890283, 14, 7},
+	}
+	// TODO generate more tests and fuzz
+	testsCopy := make([][]uint64, len(tests))
+	copy(testsCopy, tests)
+	for i, test := range testsCopy {
+		t.Run(fmt.Sprintf("Fresh%d", i), func(t *testing.T) {
+			ba := NewBitmap()
+			bd := NewBitmap()
+			na, err := ba.Add(test...)
+			if err != nil {
+				t.Fatalf("adding bits: %v", err)
+			}
+			nd := bd.DirectAddN(test...)
+			if na != (nd > 0) {
+				t.Errorf("differing changed numbers %v, %d", na, nd)
+			}
+			if ba.Count() != bd.Count() {
+				t.Errorf("different counts")
+			}
+			if !reflect.DeepEqual(ba.Slice(), bd.Slice()) {
+				t.Errorf("unequal values\n%v\n%v", ba.Slice(), bd.Slice())
+			}
+		})
+	}
+
+	ba := NewBitmap()
+	bd := NewBitmap()
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("ContinuousAdd%d", i), func(t *testing.T) {
+			na, err := ba.Add(test...)
+			if err != nil {
+				t.Fatalf("adding bits: %v", err)
+			}
+			nd := bd.DirectAddN(test...)
+			if na != (nd > 0) {
+				t.Errorf("differing changed numbers %v, %d", na, nd)
+			}
+			if ba.Count() != bd.Count() {
+				t.Errorf("different counts")
+			}
+			if !reflect.DeepEqual(ba.Slice(), bd.Slice()) {
+				t.Errorf("unequal values\n%v\n%v", ba.Slice(), bd.Slice())
+			}
+		})
+	}
+
+}
+
+func BenchmarkUnionInPlaceRegression(b *testing.B) {
+	initial := make([]uint64, 0, 10100)
+	a1 := make([]uint64, 0, 10000)
+	a2 := make([]uint64, 0, 10000)
+	for i := uint64(0); i < 1<<30; i += 100000 {
+		initial = append(initial, i)
+		a1 = append(a1, i+67000)
+		a2 = append(a2, i/2)
+	}
+	a1BM := NewBTreeBitmap(a1...)
+	a2BM := NewBTreeBitmap(a2...)
+	b.Run("Union1", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			bm := NewBTreeBitmap(initial...)
+			_ = bm.Union(a1BM)
+		}
+	})
+	b.Run("UnionInPlace1", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			bm := NewBTreeBitmap(initial...)
+			bm.UnionInPlace(a1BM)
+		}
+	})
+
+	b.Run("Union2", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			bm := NewBTreeBitmap(initial...)
+			_ = bm.Union(a1BM, a2BM)
+		}
+	})
+	b.Run("UnionInPlace2", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			bm := NewBTreeBitmap(initial...)
+			bm.UnionInPlace(a1BM, a2BM)
+		}
+	})
+}
+
+func TestBitmapAny(t *testing.T) {
+	bm := NewBTreeBitmap()
+	if bm.Any() {
+		t.Error("empty bitmap should have Any()==false")
+	}
+	_, err := bm.Add(1)
+	if err != nil {
+		t.Errorf("couldn't add a bit: %v", err)
+	}
+	if !bm.Any() {
+		t.Error("bitmap with 1 bit should have Any()==true")
+	}
+	_, err = bm.Add(100000)
+	if err != nil {
+		t.Errorf("couldn't add a bit: %v", err)
+	}
+	if !bm.Any() {
+		t.Error("bitmap with 2 bits should have Any()==true")
+	}
+	changed, err := bm.Remove(1)
+	if err != nil {
+		t.Errorf("couldn't remove a bit: %v", err)
+	}
+	if changed != true {
+		t.Error("removing a set bit should have been a change")
+	}
+	if !bm.Any() {
+		t.Error("bitmap with 1 bit left after removing 1 should have Any()==true")
+	}
+	_, err = bm.Add(1)
+	if err != nil {
+		t.Errorf("couldn't remove a bit: %v", err)
+	}
+	if changed != true {
+		t.Error("re-addintg a previously set bit should have been a change")
+	}
+	bm = bm.Difference(NewBTreeBitmap(1))
+	if !bm.Any() {
+		t.Error("bitmap with 1 bit left after differencing 1 should have Any()==true")
+	}
+	_, err = bm.Remove(100000)
+	if err != nil {
+		t.Errorf("couldn't remove a bit: %v", err)
+	}
+	if bm.Any() {
+		t.Error("shouldn't be any left")
+	}
 }

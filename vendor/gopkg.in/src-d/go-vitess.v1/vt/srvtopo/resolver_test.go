@@ -24,7 +24,6 @@ import (
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/vt/key"
 	"gopkg.in/src-d/go-vitess.v1/vt/logutil"
-	"gopkg.in/src-d/go-vitess.v1/vt/topo"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo/memorytopo"
 	"gopkg.in/src-d/go-vitess.v1/vt/topotools"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/queryservice"
@@ -63,12 +62,6 @@ func initResolver(t *testing.T, name string) *Resolver {
 		if err := ts.CreateShard(ctx, "sks", shard); err != nil {
 			t.Fatalf("CreateShard(\"%v\") failed: %v", shard, err)
 		}
-		if _, err := ts.UpdateShardFields(ctx, "sks", shard, func(si *topo.ShardInfo) error {
-			si.Shard.Cells = []string{"cell1"}
-			return nil
-		}); err != nil {
-			t.Fatalf("UpdateShardFields(\"%v\") failed: %v", shard, err)
-		}
 	}
 
 	// Create unsharded keyspace and shard.
@@ -77,12 +70,6 @@ func initResolver(t *testing.T, name string) *Resolver {
 	}
 	if err := ts.CreateShard(ctx, "uks", "0"); err != nil {
 		t.Fatalf("CreateShard(0) failed: %v", err)
-	}
-	if _, err := ts.UpdateShardFields(ctx, "uks", "0", func(si *topo.ShardInfo) error {
-		si.Shard.Cells = []string{"cell1"}
-		return nil
-	}); err != nil {
-		t.Fatalf("UpdateShardFields(0) failed: %v", err)
 	}
 
 	// And rebuild both.

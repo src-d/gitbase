@@ -18,6 +18,7 @@ package vreplication
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,10 +40,11 @@ var (
 		InsertID:     0,
 		Rows: [][]sqltypes.Value{
 			{
-				sqltypes.NewVarBinary("MariaDB/0-1-1083"),    // pos
-				sqltypes.NULL,                                // stop_pos
+				sqltypes.NewVarBinary("MariaDB/0-1-1083"), // pos
+				sqltypes.NULL, // stop_pos
 				sqltypes.NewVarBinary("9223372036854775807"), // max_tps
 				sqltypes.NewVarBinary("9223372036854775807"), // max_replication_lag
+				sqltypes.NewVarBinary("Running"),             // state
 			},
 		},
 	}
@@ -51,19 +53,19 @@ var (
 )
 
 func TestControllerKeyRange(t *testing.T) {
-	ts := createTopo()
-	fbc := newFakeBinlogClient()
-	wantTablet := addTablet(ts, 100, "0", topodatapb.TabletType_REPLICA, true, true)
+	resetBinlogClient()
+	wantTablet := addTablet(100, "0", topodatapb.TabletType_REPLICA, true, true)
+	defer deleteTablet(wantTablet)
 
 	params := map[string]string{
 		"id":     "1",
 		"state":  binlogplayer.BlpRunning,
-		"source": `keyspace:"ks" shard:"0" key_range:<end:"\200" > `,
+		"source": fmt.Sprintf(`keyspace:"%s" shard:"0" key_range:<end:"\200" > `, env.KeyspaceName),
 	}
 
 	dbClient := binlogplayer.NewMockDBClient(t)
 	dbClient.ExpectRequest("update _vt.vreplication set state='Running', message='' where id=1", testDMLResponse, nil)
-	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag from _vt.vreplication where id=1", testSettingsResponse, nil)
+	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag, state from _vt.vreplication where id=1", testSettingsResponse, nil)
 	dbClient.ExpectRequest("begin", nil, nil)
 	dbClient.ExpectRequest("insert into t values(1)", testDMLResponse, nil)
 	dbClient.ExpectRequestRE("update _vt.vreplication set pos='MariaDB/0-1-1235', time_updated=.*", testDMLResponse, nil)
@@ -72,7 +74,7 @@ func TestControllerKeyRange(t *testing.T) {
 	dbClientFactory := func() binlogplayer.DBClient { return dbClient }
 	mysqld := &fakemysqldaemon.FakeMysqlDaemon{MysqlPort: 3306}
 
-	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, ts, testCell, "replica", nil)
+	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, env.TopoServ, env.Cells[0], "replica", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,23 +84,23 @@ func TestControllerKeyRange(t *testing.T) {
 	}()
 
 	dbClient.Wait()
-	expectFBCRequest(t, fbc, wantTablet, testPos, nil, &topodatapb.KeyRange{End: []byte{0x80}})
+	expectFBCRequest(t, wantTablet, testPos, nil, &topodatapb.KeyRange{End: []byte{0x80}})
 }
 
 func TestControllerTables(t *testing.T) {
-	ts := createTopo()
-	wantTablet := addTablet(ts, 100, "0", topodatapb.TabletType_REPLICA, true, true)
-	fbc := newFakeBinlogClient()
+	wantTablet := addTablet(100, "0", topodatapb.TabletType_REPLICA, true, true)
+	defer deleteTablet(wantTablet)
+	resetBinlogClient()
 
 	params := map[string]string{
 		"id":     "1",
 		"state":  binlogplayer.BlpRunning,
-		"source": `keyspace:"ks" shard:"0" tables:"table1" tables:"/funtables_/" `,
+		"source": fmt.Sprintf(`keyspace:"%s" shard:"0" tables:"table1" tables:"/funtables_/" `, env.KeyspaceName),
 	}
 
 	dbClient := binlogplayer.NewMockDBClient(t)
 	dbClient.ExpectRequest("update _vt.vreplication set state='Running', message='' where id=1", testDMLResponse, nil)
-	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag from _vt.vreplication where id=1", testSettingsResponse, nil)
+	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag, state from _vt.vreplication where id=1", testSettingsResponse, nil)
 	dbClient.ExpectRequest("begin", nil, nil)
 	dbClient.ExpectRequest("insert into t values(1)", testDMLResponse, nil)
 	dbClient.ExpectRequestRE("update _vt.vreplication set pos='MariaDB/0-1-1235', time_updated=.*", testDMLResponse, nil)
@@ -132,7 +134,7 @@ func TestControllerTables(t *testing.T) {
 		},
 	}
 
-	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, ts, testCell, "replica", nil)
+	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, env.TopoServ, env.Cells[0], "replica", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +144,7 @@ func TestControllerTables(t *testing.T) {
 	}()
 
 	dbClient.Wait()
-	expectFBCRequest(t, fbc, wantTablet, testPos, []string{"table1", "funtables_one"}, nil)
+	expectFBCRequest(t, wantTablet, testPos, []string{"table1", "funtables_one"}, nil)
 }
 
 func TestControllerBadID(t *testing.T) {
@@ -176,21 +178,21 @@ func TestControllerStopped(t *testing.T) {
 }
 
 func TestControllerOverrides(t *testing.T) {
-	ts := createTopo()
-	fbc := newFakeBinlogClient()
-	wantTablet := addTablet(ts, 100, "0", topodatapb.TabletType_REPLICA, true, true)
+	resetBinlogClient()
+	wantTablet := addTablet(100, "0", topodatapb.TabletType_REPLICA, true, true)
+	defer deleteTablet(wantTablet)
 
 	params := map[string]string{
 		"id":           "1",
 		"state":        binlogplayer.BlpRunning,
-		"source":       `keyspace:"ks" shard:"0" key_range:<end:"\200" > `,
-		"cell":         testCell,
+		"source":       fmt.Sprintf(`keyspace:"%s" shard:"0" key_range:<end:"\200" > `, env.KeyspaceName),
+		"cell":         env.Cells[0],
 		"tablet_types": "replica",
 	}
 
 	dbClient := binlogplayer.NewMockDBClient(t)
 	dbClient.ExpectRequest("update _vt.vreplication set state='Running', message='' where id=1", testDMLResponse, nil)
-	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag from _vt.vreplication where id=1", testSettingsResponse, nil)
+	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag, state from _vt.vreplication where id=1", testSettingsResponse, nil)
 	dbClient.ExpectRequest("begin", nil, nil)
 	dbClient.ExpectRequest("insert into t values(1)", testDMLResponse, nil)
 	dbClient.ExpectRequestRE("update _vt.vreplication set pos='MariaDB/0-1-1235', time_updated=.*", testDMLResponse, nil)
@@ -199,7 +201,7 @@ func TestControllerOverrides(t *testing.T) {
 	dbClientFactory := func() binlogplayer.DBClient { return dbClient }
 	mysqld := &fakemysqldaemon.FakeMysqlDaemon{MysqlPort: 3306}
 
-	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, ts, testCell, "rdonly", nil)
+	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, env.TopoServ, env.Cells[0], "rdonly", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,22 +211,21 @@ func TestControllerOverrides(t *testing.T) {
 	}()
 
 	dbClient.Wait()
-	expectFBCRequest(t, fbc, wantTablet, testPos, nil, &topodatapb.KeyRange{End: []byte{0x80}})
+	expectFBCRequest(t, wantTablet, testPos, nil, &topodatapb.KeyRange{End: []byte{0x80}})
 }
 
 func TestControllerCanceledContext(t *testing.T) {
-	ts := createTopo()
-	_ = addTablet(ts, 100, "0", topodatapb.TabletType_REPLICA, true, true)
+	defer deleteTablet(addTablet(100, "0", topodatapb.TabletType_REPLICA, true, true))
 
 	params := map[string]string{
 		"id":     "1",
 		"state":  binlogplayer.BlpRunning,
-		"source": `keyspace:"ks" shard:"0" key_range:<end:"\200" > `,
+		"source": fmt.Sprintf(`keyspace:"%s" shard:"0" key_range:<end:"\200" > `, env.KeyspaceName),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	ct, err := newController(ctx, params, nil, nil, ts, testCell, "rdonly", nil)
+	ct, err := newController(ctx, params, nil, nil, env.TopoServ, env.Cells[0], "rdonly", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,24 +243,23 @@ func TestControllerRetry(t *testing.T) {
 	defer func() { *retryDelay = savedDelay }()
 	*retryDelay = 10 * time.Millisecond
 
-	ts := createTopo()
-	_ = newFakeBinlogClient()
-	_ = addTablet(ts, 100, "0", topodatapb.TabletType_REPLICA, true, true)
+	resetBinlogClient()
+	defer deleteTablet(addTablet(100, "0", topodatapb.TabletType_REPLICA, true, true))
 
 	params := map[string]string{
 		"id":           "1",
 		"state":        binlogplayer.BlpRunning,
-		"source":       `keyspace:"ks" shard:"0" key_range:<end:"\200" > `,
-		"cell":         testCell,
+		"source":       fmt.Sprintf(`keyspace:"%s" shard:"0" key_range:<end:"\200" > `, env.KeyspaceName),
+		"cell":         env.Cells[0],
 		"tablet_types": "replica",
 	}
 
 	dbClient := binlogplayer.NewMockDBClient(t)
 	dbClient.ExpectRequest("update _vt.vreplication set state='Running', message='' where id=1", testDMLResponse, nil)
-	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag from _vt.vreplication where id=1", nil, errors.New("(expected error)"))
-	dbClient.ExpectRequest("update _vt.vreplication set state='Error', message='error (expected error) in selecting vreplication settings select pos, stop_pos, max_tps, max_replication_lag from _vt.vreplication where id=1' where id=1", testDMLResponse, nil)
+	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag, state from _vt.vreplication where id=1", nil, errors.New("(expected error)"))
+	dbClient.ExpectRequest("update _vt.vreplication set state='Error', message='error (expected error) in selecting vreplication settings select pos, stop_pos, max_tps, max_replication_lag, state from _vt.vreplication where id=1' where id=1", testDMLResponse, nil)
 	dbClient.ExpectRequest("update _vt.vreplication set state='Running', message='' where id=1", testDMLResponse, nil)
-	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag from _vt.vreplication where id=1", testSettingsResponse, nil)
+	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag, state from _vt.vreplication where id=1", testSettingsResponse, nil)
 	dbClient.ExpectRequest("begin", nil, nil)
 	dbClient.ExpectRequest("insert into t values(1)", testDMLResponse, nil)
 	dbClient.ExpectRequestRE("update _vt.vreplication set pos='MariaDB/0-1-1235', time_updated=.*", testDMLResponse, nil)
@@ -267,7 +267,7 @@ func TestControllerRetry(t *testing.T) {
 	dbClientFactory := func() binlogplayer.DBClient { return dbClient }
 	mysqld := &fakemysqldaemon.FakeMysqlDaemon{MysqlPort: 3306}
 
-	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, ts, testCell, "rdonly", nil)
+	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, env.TopoServ, env.Cells[0], "rdonly", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,14 +277,14 @@ func TestControllerRetry(t *testing.T) {
 }
 
 func TestControllerStopPosition(t *testing.T) {
-	ts := createTopo()
-	fbc := newFakeBinlogClient()
-	wantTablet := addTablet(ts, 100, "0", topodatapb.TabletType_REPLICA, true, true)
+	resetBinlogClient()
+	wantTablet := addTablet(100, "0", topodatapb.TabletType_REPLICA, true, true)
+	defer deleteTablet(wantTablet)
 
 	params := map[string]string{
 		"id":     "1",
 		"state":  binlogplayer.BlpRunning,
-		"source": `keyspace:"ks" shard:"0" key_range:<end:"\200" > `,
+		"source": fmt.Sprintf(`keyspace:"%s" shard:"0" key_range:<end:"\200" > `, env.KeyspaceName),
 	}
 
 	dbClient := binlogplayer.NewMockDBClient(t)
@@ -299,10 +299,11 @@ func TestControllerStopPosition(t *testing.T) {
 				sqltypes.NewVarBinary("MariaDB/0-1-1235"),    // stop_pos
 				sqltypes.NewVarBinary("9223372036854775807"), // max_tps
 				sqltypes.NewVarBinary("9223372036854775807"), // max_replication_lag
+				sqltypes.NewVarBinary("Running"),             // state
 			},
 		},
 	}
-	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag from _vt.vreplication where id=1", withStop, nil)
+	dbClient.ExpectRequest("select pos, stop_pos, max_tps, max_replication_lag, state from _vt.vreplication where id=1", withStop, nil)
 	dbClient.ExpectRequest("begin", nil, nil)
 	dbClient.ExpectRequest("insert into t values(1)", testDMLResponse, nil)
 	dbClient.ExpectRequestRE("update _vt.vreplication set pos='MariaDB/0-1-1235', time_updated=.*", testDMLResponse, nil)
@@ -312,7 +313,7 @@ func TestControllerStopPosition(t *testing.T) {
 	dbClientFactory := func() binlogplayer.DBClient { return dbClient }
 	mysqld := &fakemysqldaemon.FakeMysqlDaemon{MysqlPort: 3306}
 
-	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, ts, testCell, "replica", nil)
+	ct, err := newController(context.Background(), params, dbClientFactory, mysqld, env.TopoServ, env.Cells[0], "replica", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,5 +330,5 @@ func TestControllerStopPosition(t *testing.T) {
 	}
 
 	dbClient.Wait()
-	expectFBCRequest(t, fbc, wantTablet, testPos, nil, &topodatapb.KeyRange{End: []byte{0x80}})
+	expectFBCRequest(t, wantTablet, testPos, nil, &topodatapb.KeyRange{End: []byte{0x80}})
 }

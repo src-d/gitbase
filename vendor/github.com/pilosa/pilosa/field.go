@@ -15,6 +15,7 @@
 package pilosa
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -27,8 +28,10 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pilosa/pilosa/internal"
+	"github.com/pilosa/pilosa/logger"
 	"github.com/pilosa/pilosa/pql"
 	"github.com/pilosa/pilosa/roaring"
+	"github.com/pilosa/pilosa/stats"
 	"github.com/pkg/errors"
 )
 
@@ -55,6 +58,10 @@ const (
 	FieldTypeBool  = "bool"
 )
 
+func defaultShardValidator(shard uint64) bool {
+	return true
+}
+
 // Field represents a container for views.
 type Field struct {
 	mu    sync.RWMutex
@@ -68,7 +75,7 @@ type Field struct {
 	rowAttrStore AttrStore
 
 	broadcaster broadcaster
-	Stats       StatsClient
+	Stats       stats.StatsClient
 
 	// Field options.
 	options FieldOptions
@@ -77,8 +84,9 @@ type Field struct {
 
 	// Shards with data on any node in the cluster, according to this node.
 	remoteAvailableShards *roaring.Bitmap
+	shardValidator        func(uint64) bool
 
-	logger Logger
+	logger logger.Logger
 }
 
 // FieldOption is a functional option type for pilosa.fieldOptions.
@@ -130,7 +138,9 @@ func OptFieldTypeInt(min, max int64) FieldOption {
 	}
 }
 
-func OptFieldTypeTime(timeQuantum TimeQuantum) FieldOption {
+// OptFieldTypeTime sets the field type to time.
+// Pass true to skip creation of the standard view.
+func OptFieldTypeTime(timeQuantum TimeQuantum, opt ...bool) FieldOption {
 	return func(fo *FieldOptions) error {
 		if fo.Type != "" {
 			return errors.Errorf("field type is already set to: %s", fo.Type)
@@ -140,6 +150,7 @@ func OptFieldTypeTime(timeQuantum TimeQuantum) FieldOption {
 		}
 		fo.Type = FieldTypeTime
 		fo.TimeQuantum = timeQuantum
+		fo.NoStandardView = len(opt) >= 1 && opt[0]
 		return nil
 	}
 }
@@ -195,13 +206,14 @@ func newField(path, index, name string, opts FieldOption) (*Field, error) {
 		rowAttrStore: nopStore,
 
 		broadcaster: NopBroadcaster,
-		Stats:       NopStatsClient,
+		Stats:       stats.NopStatsClient,
 
 		options: applyDefaultOptions(fo),
 
 		remoteAvailableShards: roaring.NewBitmap(),
 
-		logger: NopLogger,
+		shardValidator: defaultShardValidator,
+		logger:         logger.NopLogger,
 	}
 	return f, nil
 }
@@ -230,11 +242,10 @@ func (f *Field) AvailableShards() *roaring.Bitmap {
 	return b
 }
 
-// addRemoteAvailableShards merges the set of available shards into the current known set
+// AddRemoteAvailableShards merges the set of available shards into the current known set
 // and saves the set to a file.
-func (f *Field) addRemoteAvailableShards(b *roaring.Bitmap) error {
+func (f *Field) AddRemoteAvailableShards(b *roaring.Bitmap) error {
 	f.mergeRemoteAvailableShards(b)
-
 	// Save the updated bitmap to the data store.
 	return f.saveAvailableShards()
 }
@@ -244,6 +255,70 @@ func (f *Field) mergeRemoteAvailableShards(b *roaring.Bitmap) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.remoteAvailableShards = f.remoteAvailableShards.Union(b)
+}
+
+// loadAvailableShards reads remoteAvailableShards data for the field, if any.
+func (f *Field) loadAvailableShards() error {
+	bm := roaring.NewBitmap()
+	// Read data from meta file.
+	path := filepath.Join(f.path, ".available.shards")
+	buf, err := ioutil.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return errors.Wrap(err, "reading available shards")
+	} else {
+		if err := bm.UnmarshalBinary(buf); err != nil {
+			return errors.Wrap(err, "unmarshaling")
+		}
+	}
+	// Merge bitmap from file into field.
+	f.mergeRemoteAvailableShards(bm)
+
+	return nil
+}
+
+// saveAvailableShards writes remoteAvailableShards data for the field.
+func (f *Field) saveAvailableShards() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.unprotectedSaveAvailableShards()
+}
+
+func (f *Field) unprotectedSaveAvailableShards() error {
+	// Open or create file.
+	path := filepath.Join(f.path, ".available.shards")
+
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return errors.Wrap(err, "opening available shards file")
+	}
+	defer file.Close()
+
+	// Write available shards to file.
+	bw := bufio.NewWriter(file)
+	if _, err = f.remoteAvailableShards.WriteTo(bw); err != nil {
+		return errors.Wrap(err, "writing bitmap to buffer")
+	}
+	bw.Flush()
+
+	return nil
+}
+
+// RemoveAvailableShard removes a shard from the bitmap cache.
+//
+// NOTE: This can be overridden on the next sync so all nodes should be updated.
+func (f *Field) RemoveAvailableShard(v uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	b := f.remoteAvailableShards.Clone()
+	if _, err := b.Remove(v); err != nil {
+		return err
+	}
+	f.remoteAvailableShards = b
+
+	return f.unprotectedSaveAvailableShards()
 }
 
 // Type returns the field type.
@@ -382,6 +457,7 @@ func (f *Field) loadMeta() error {
 	f.options.Max = pb.Max
 	f.options.TimeQuantum = TimeQuantum(pb.TimeQuantum)
 	f.options.Keys = pb.Keys
+	f.options.NoStandardView = pb.NoStandardView
 
 	return nil
 }
@@ -406,13 +482,21 @@ func (f *Field) saveMeta() error {
 // applyOptions configures the field based on opt.
 func (f *Field) applyOptions(opt FieldOptions) error {
 	switch opt.Type {
-	case FieldTypeSet, "":
-		f.options.Type = FieldTypeSet
+	case FieldTypeSet, FieldTypeMutex, "":
+		fldType := opt.Type
+		if fldType == "" {
+			fldType = FieldTypeSet
+		}
+		f.options.Type = fldType
 		if opt.CacheType != "" {
 			f.options.CacheType = opt.CacheType
 		}
 		if opt.CacheSize != 0 {
-			f.options.CacheSize = opt.CacheSize
+			if opt.CacheType == CacheTypeNone {
+				f.options.CacheSize = 0
+			} else {
+				f.options.CacheSize = opt.CacheSize
+			}
 		}
 		f.options.Min = 0
 		f.options.Max = 0
@@ -448,23 +532,12 @@ func (f *Field) applyOptions(opt FieldOptions) error {
 		f.options.Min = 0
 		f.options.Max = 0
 		f.options.Keys = opt.Keys
+		f.options.NoStandardView = opt.NoStandardView
 		// Set the time quantum.
 		if err := f.setTimeQuantum(opt.TimeQuantum); err != nil {
 			f.Close()
 			return errors.Wrap(err, "setting time quantum")
 		}
-	case FieldTypeMutex:
-		f.options.Type = FieldTypeMutex
-		if opt.CacheType != "" {
-			f.options.CacheType = opt.CacheType
-		}
-		if opt.CacheSize != 0 {
-			f.options.CacheSize = opt.CacheSize
-		}
-		f.options.Min = 0
-		f.options.Max = 0
-		f.options.TimeQuantum = ""
-		f.options.Keys = opt.Keys
 	case FieldTypeBool:
 		f.options.Type = FieldTypeBool
 		f.options.CacheType = CacheTypeNone
@@ -475,47 +548,6 @@ func (f *Field) applyOptions(opt FieldOptions) error {
 		f.options.Keys = false
 	default:
 		return errors.New("invalid field type")
-	}
-
-	return nil
-}
-
-// loadAvailableShards reads remoteAvailableShards data for the field, if any.
-func (f *Field) loadAvailableShards() error {
-	bm := roaring.NewBitmap()
-
-	// Read data from meta file.
-	buf, err := ioutil.ReadFile(filepath.Join(f.path, ".available.shards"))
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return errors.Wrap(err, "reading available shards")
-	} else {
-		if err := bm.UnmarshalBinary(buf); err != nil {
-			return errors.Wrap(err, "unmarshaling")
-		}
-	}
-
-	// Merge bitmap from file into field.
-	f.mergeRemoteAvailableShards(bm)
-
-	return nil
-}
-
-// saveAvailableShards writes remoteAvailableShards data for the field.
-func (f *Field) saveAvailableShards() error {
-	// Open or create file.
-	file, err := os.OpenFile(filepath.Join(f.path, ".available.shards"), os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		return errors.Wrap(err, "opening available shards file")
-	}
-
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	// Write available shards to file.
-	if _, err := f.remoteAvailableShards.WriteTo(file); err != nil {
-		return errors.Wrap(err, "writing bitmap to buffer")
 	}
 
 	return nil
@@ -580,7 +612,9 @@ func (f *Field) createBSIGroup(bsig *bsiGroup) error {
 	if err := f.addBSIGroup(bsig); err != nil {
 		return err
 	}
-	f.saveMeta()
+	if err := f.saveMeta(); err != nil {
+		return errors.Wrap(err, "saving")
+	}
 	return nil
 }
 
@@ -728,6 +762,7 @@ func (f *Field) newView(path, name string) *view {
 	view.rowAttrStore = f.rowAttrStore
 	view.stats = f.Stats.WithTags(fmt.Sprintf("view:%s", name))
 	view.broadcaster = f.broadcaster
+	view.shardValidator = f.shardValidator
 	return view
 }
 
@@ -772,18 +807,19 @@ func (f *Field) Row(rowID uint64) (*Row, error) {
 // SetBit sets a bit on a view within the field.
 func (f *Field) SetBit(rowID, colID uint64, t *time.Time) (changed bool, err error) {
 	viewName := viewStandard
+	if !f.options.NoStandardView {
+		// Retrieve view. Exit if it doesn't exist.
+		view, err := f.createViewIfNotExists(viewName)
+		if err != nil {
+			return changed, errors.Wrap(err, "creating view")
+		}
 
-	// Retrieve view. Exit if it doesn't exist.
-	view, err := f.createViewIfNotExists(viewName)
-	if err != nil {
-		return changed, errors.Wrap(err, "creating view")
-	}
-
-	// Set non-time bit.
-	if v, err := view.setBit(rowID, colID); err != nil {
-		return changed, errors.Wrap(err, "setting on view")
-	} else if v {
-		changed = v
+		// Set non-time bit.
+		if v, err := view.setBit(rowID, colID); err != nil {
+			return changed, errors.Wrap(err, "setting on view")
+		} else if v {
+			changed = v
+		}
 	}
 
 	// Exit early if no timestamp is specified.
@@ -1024,11 +1060,25 @@ func (f *Field) Range(name string, op pql.Token, predicate int64) (*Row, error) 
 }
 
 // Import bulk imports data.
-func (f *Field) Import(rowIDs, columnIDs []uint64, timestamps []*time.Time) error {
+func (f *Field) Import(rowIDs, columnIDs []uint64, timestamps []*time.Time, opts ...ImportOption) error {
+
+	// Set up import options.
+	options := &ImportOptions{}
+	for _, opt := range opts {
+		err := opt(options)
+		if err != nil {
+			return errors.Wrap(err, "applying option")
+		}
+	}
+
 	// Determine quantum if timestamps are set.
 	q := f.TimeQuantum()
-	if hasTime(timestamps) && q == "" {
-		return errors.New("time quantum not set in field")
+	if hasTime(timestamps) {
+		if q == "" {
+			return errors.New("time quantum not set in field")
+		} else if options.Clear {
+			return errors.New("import clear is not supported with timestamps")
+		}
 	}
 
 	fieldType := f.Type()
@@ -1053,9 +1103,11 @@ func (f *Field) Import(rowIDs, columnIDs []uint64, timestamps []*time.Time) erro
 			standard = []string{viewStandard}
 		} else {
 			standard = viewsByTime(viewStandard, *timestamp, q)
-			// In order to match the logic of `SetBit()`, we want bits
-			// with timestamps to write to both time and standard views.
-			standard = append(standard, viewStandard)
+			if !f.options.NoStandardView {
+				// In order to match the logic of `SetBit()`, we want bits
+				// with timestamps to write to both time and standard views.
+				standard = append(standard, viewStandard)
+			}
 		}
 
 		// Attach bit to each standard view.
@@ -1077,10 +1129,10 @@ func (f *Field) Import(rowIDs, columnIDs []uint64, timestamps []*time.Time) erro
 
 		frag, err := view.CreateFragmentIfNotExists(key.Shard)
 		if err != nil {
-			return errors.Wrap(err, "creating view")
+			return errors.Wrap(err, "creating fragment")
 		}
 
-		if err := frag.bulkImport(data.RowIDs, data.ColumnIDs); err != nil {
+		if err := frag.bulkImport(data.RowIDs, data.ColumnIDs, options); err != nil {
 			return err
 		}
 	}
@@ -1089,7 +1141,7 @@ func (f *Field) Import(rowIDs, columnIDs []uint64, timestamps []*time.Time) erro
 }
 
 // importValue bulk imports range-encoded value data.
-func (f *Field) importValue(columnIDs []uint64, values []int64) error {
+func (f *Field) importValue(columnIDs []uint64, values []int64, options *ImportOptions) error {
 	viewName := viewBSIGroupPrefix + f.name
 	// Get the bsiGroup so we know bitDepth.
 	bsig := f.bsiGroup(f.name)
@@ -1137,7 +1189,7 @@ func (f *Field) importValue(columnIDs []uint64, values []int64) error {
 			baseValues[i] = uint64(value - bsig.Min)
 		}
 
-		if err := frag.importValue(data.ColumnIDs, baseValues, bsig.BitDepth()); err != nil {
+		if err := frag.importValue(data.ColumnIDs, baseValues, bsig.BitDepth(), options.Clear); err != nil {
 			return err
 		}
 	}
@@ -1145,9 +1197,10 @@ func (f *Field) importValue(columnIDs []uint64, values []int64) error {
 	return nil
 }
 
-func (f *Field) importRoaring(data []byte, shard uint64) error {
-	viewName := viewStandard
-
+func (f *Field) importRoaring(data []byte, shard uint64, viewName string, clear bool) error {
+	if viewName == "" {
+		viewName = viewStandard
+	}
 	view, err := f.createViewIfNotExists(viewName)
 	if err != nil {
 		return errors.Wrap(err, "creating view")
@@ -1158,7 +1211,7 @@ func (f *Field) importRoaring(data []byte, shard uint64) error {
 		return errors.Wrap(err, "creating fragment")
 	}
 
-	if err := frag.importRoaring(data); err != nil {
+	if err := frag.importRoaring(data, clear); err != nil {
 		return err
 	}
 
@@ -1186,13 +1239,14 @@ func (p fieldInfoSlice) Less(i, j int) bool { return p[i].Name < p[j].Name }
 
 // FieldOptions represents options to set when initializing a field.
 type FieldOptions struct {
-	Min         int64       `json:"min,omitempty"`
-	Max         int64       `json:"max,omitempty"`
-	Keys        bool        `json:"keys"`
-	CacheSize   uint32      `json:"cacheSize,omitempty"`
-	CacheType   string      `json:"cacheType,omitempty"`
-	Type        string      `json:"type,omitempty"`
-	TimeQuantum TimeQuantum `json:"timeQuantum,omitempty"`
+	Min            int64       `json:"min,omitempty"`
+	Max            int64       `json:"max,omitempty"`
+	Keys           bool        `json:"keys"`
+	NoStandardView bool        `json:"noStandardView,omitempty"`
+	CacheSize      uint32      `json:"cacheSize,omitempty"`
+	CacheType      string      `json:"cacheType,omitempty"`
+	Type           string      `json:"type,omitempty"`
+	TimeQuantum    TimeQuantum `json:"timeQuantum,omitempty"`
 }
 
 // applyDefaultOptions returns a new FieldOptions object
@@ -1218,13 +1272,14 @@ func encodeFieldOptions(o *FieldOptions) *internal.FieldOptions {
 		return nil
 	}
 	return &internal.FieldOptions{
-		Type:        o.Type,
-		CacheType:   o.CacheType,
-		CacheSize:   o.CacheSize,
-		Min:         o.Min,
-		Max:         o.Max,
-		TimeQuantum: string(o.TimeQuantum),
-		Keys:        o.Keys,
+		Type:           o.Type,
+		CacheType:      o.CacheType,
+		CacheSize:      o.CacheSize,
+		Min:            o.Min,
+		Max:            o.Max,
+		TimeQuantum:    string(o.TimeQuantum),
+		Keys:           o.Keys,
+		NoStandardView: o.NoStandardView,
 	}
 }
 
@@ -1256,13 +1311,15 @@ func (o *FieldOptions) MarshalJSON() ([]byte, error) {
 		})
 	case FieldTypeTime:
 		return json.Marshal(struct {
-			Type        string      `json:"type"`
-			TimeQuantum TimeQuantum `json:"timeQuantum"`
-			Keys        bool        `json:"keys"`
+			Type           string      `json:"type"`
+			TimeQuantum    TimeQuantum `json:"timeQuantum"`
+			Keys           bool        `json:"keys"`
+			NoStandardView bool        `json:"noStandardView"`
 		}{
 			o.Type,
 			o.TimeQuantum,
 			o.Keys,
+			o.NoStandardView,
 		})
 	case FieldTypeMutex:
 		return json.Marshal(struct {

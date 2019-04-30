@@ -62,6 +62,19 @@ func init() {
 	}
 }
 `
+	getSandbox(KsTestBadVSchema).VSchema = `
+	{
+	"sharded": true,
+	"tables": {
+		"t2": {
+                  "auto_increment": {
+                    "column": "id",
+                    "sequence": "id_seq"
+                  }
+		}
+              }
+	}
+	`
 	hcVTGateTest = discovery.NewFakeHealthCheck()
 	*transactionMode = "MULTI"
 	// The topo.Server is used to start watching the cells described
@@ -240,6 +253,9 @@ func TestVTGateExecute(t *testing.T) {
 	}
 
 	session, err := rpcVTGate.Begin(context.Background(), false)
+	if err != nil {
+		t.Error(err)
+	}
 	if !session.InTransaction {
 		t.Errorf("want true, got false")
 	}
@@ -269,7 +285,7 @@ func TestVTGateExecute(t *testing.T) {
 		t.Errorf("want 1, got %d", commitCount)
 	}
 
-	session, err = rpcVTGate.Begin(context.Background(), false)
+	session, _ = rpcVTGate.Begin(context.Background(), false)
 	rpcVTGate.Execute(
 		context.Background(),
 		session,
@@ -372,7 +388,7 @@ func TestVTGateExecuteShards(t *testing.T) {
 		t.Errorf("got ExecuteOptions \n%+v, want \n%+v", sbc.Options[0], executeOptions)
 	}
 
-	session, err := rpcVTGate.Begin(context.Background(), false)
+	session, _ := rpcVTGate.Begin(context.Background(), false)
 	if !session.InTransaction {
 		t.Errorf("want true, got false")
 	}
@@ -405,7 +421,7 @@ func TestVTGateExecuteShards(t *testing.T) {
 		t.Errorf("want 1, got %d", commitCount)
 	}
 
-	session, err = rpcVTGate.Begin(context.Background(), false)
+	session, _ = rpcVTGate.Begin(context.Background(), false)
 	rpcVTGate.ExecuteShards(context.Background(),
 		"query",
 		nil,
@@ -452,7 +468,7 @@ func TestVTGateExecuteKeyspaceIds(t *testing.T) {
 		t.Errorf("got ExecuteOptions \n%+v, want \n%+v", sbc1.Options[0], executeOptions)
 	}
 	// Test for successful execution in transaction
-	session, err := rpcVTGate.Begin(context.Background(), false)
+	session, _ := rpcVTGate.Begin(context.Background(), false)
 	if !session.InTransaction {
 		t.Errorf("want true, got false")
 	}
@@ -500,7 +516,7 @@ func TestVTGateExecuteKeyspaceIds(t *testing.T) {
 		t.Errorf("want 2, got %v", qr.RowsAffected)
 	}
 	// Test for multiple shards for DML
-	qr, err = rpcVTGate.ExecuteKeyspaceIds(context.Background(),
+	_, err = rpcVTGate.ExecuteKeyspaceIds(context.Background(),
 		"update table set a = b",
 		nil,
 		ks,
@@ -546,11 +562,11 @@ func TestVTGateExecuteKeyRanges(t *testing.T) {
 		t.Errorf("got ExecuteOptions \n%+v, want \n%+v", sbc1.Options[0], executeOptions)
 	}
 	// Test for successful execution in transaction
-	session, err := rpcVTGate.Begin(context.Background(), false)
+	session, _ := rpcVTGate.Begin(context.Background(), false)
 	if !session.InTransaction {
 		t.Errorf("want true, got false")
 	}
-	qr, err = rpcVTGate.ExecuteKeyRanges(context.Background(),
+	_, err = rpcVTGate.ExecuteKeyRanges(context.Background(),
 		"query",
 		nil,
 		ks,
@@ -635,7 +651,7 @@ func TestVTGateExecuteEntityIds(t *testing.T) {
 		t.Errorf("got ExecuteOptions \n%+v, want \n%+v", sbc1.Options[0], executeOptions)
 	}
 	// Test for successful execution in transaction
-	session, err := rpcVTGate.Begin(context.Background(), false)
+	session, _ := rpcVTGate.Begin(context.Background(), false)
 	if !session.InTransaction {
 		t.Errorf("want true, got false")
 	}
@@ -795,7 +811,7 @@ func TestVTGateExecuteBatchShards(t *testing.T) {
 		t.Errorf("got ExecuteOptions \n%+v, want \n%+v", sbc1.Options[0], executeOptions)
 	}
 
-	session, err := rpcVTGate.Begin(context.Background(), false)
+	session, _ := rpcVTGate.Begin(context.Background(), false)
 	rpcVTGate.ExecuteBatchShards(context.Background(),
 		[]*vtgatepb.BoundShardQuery{{
 			Query: &querypb.BoundQuery{
@@ -869,7 +885,7 @@ func TestVTGateExecuteBatchKeyspaceIds(t *testing.T) {
 		t.Errorf("got ExecuteOptions \n%+v, want \n%+v", sbc1.Options[0], executeOptions)
 	}
 
-	session, err := rpcVTGate.Begin(context.Background(), false)
+	session, _ := rpcVTGate.Begin(context.Background(), false)
 	rpcVTGate.ExecuteBatchKeyspaceIds(context.Background(),
 		[]*vtgatepb.BoundKeyspaceIdQuery{{
 			Query: &querypb.BoundQuery{
@@ -1309,7 +1325,7 @@ func TestVTGateMessageStreamRetry(t *testing.T) {
 	// which should make vtgate wait for 1s (5s/5) and retry.
 	start := time.Now()
 	<-ch
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 	if duration < 1*time.Second || duration > 2*time.Second {
 		t.Errorf("Retry duration should be around 1 second: %v", duration)
 	}
@@ -1350,7 +1366,7 @@ func TestVTGateMessageStreamUnavailable(t *testing.T) {
 	// Verify the 1s delay.
 	start := time.Now()
 	<-ch
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 	if duration < 1*time.Second || duration > 2*time.Second {
 		t.Errorf("Retry duration should be around 1 second: %v", duration)
 	}
@@ -1387,7 +1403,7 @@ func TestVTGateMessageStreamGracePeriod(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("MessageStream err: %v, must contain %s", err, want)
 	}
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 	if duration < 1*time.Second || duration > 2*time.Second {
 		t.Errorf("Retry duration should be around 1 second: %v", duration)
 	}
@@ -1503,7 +1519,7 @@ func TestVTGateSplitQueryUnsharded(t *testing.T) {
 		}
 		// Total number of splits should be number of shards (1) as our sandbox returns a single split
 		// for its fake implementation of SplitQuery.
-		if 1 != len(splits) {
+		if len(splits) != 1 {
 			t.Errorf("wrong number of splits, got %+v, want %+v. testCase:\n%+v",
 				len(splits), 1, testCase)
 			continue
@@ -2502,7 +2518,7 @@ func TestErrorIssuesRollback(t *testing.T) {
 		t.Errorf("want 0, got %d", sbc.RollbackCount.Get())
 	}
 	sbc.MustFailCodes[vtrpcpb.Code_ABORTED] = 20
-	session, _, err = rpcVTGate.Execute(
+	_, _, err = rpcVTGate.Execute(
 		context.Background(),
 		session,
 		"select id from t1",
@@ -2537,7 +2553,7 @@ func TestErrorIssuesRollback(t *testing.T) {
 		t.Errorf("want 0, got %d", sbc.RollbackCount.Get())
 	}
 	sbc.MustFailCodes[vtrpcpb.Code_RESOURCE_EXHAUSTED] = 20
-	session, _, err = rpcVTGate.Execute(
+	_, _, err = rpcVTGate.Execute(
 		context.Background(),
 		session,
 		"select id from t1",
@@ -2572,7 +2588,7 @@ func TestErrorIssuesRollback(t *testing.T) {
 		t.Errorf("want 0, got %d", sbc.RollbackCount.Get())
 	}
 	sbc.MustFailCodes[vtrpcpb.Code_ALREADY_EXISTS] = 20
-	session, _, err = rpcVTGate.Execute(
+	_, _, err = rpcVTGate.Execute(
 		context.Background(),
 		session,
 		"select id from t1",

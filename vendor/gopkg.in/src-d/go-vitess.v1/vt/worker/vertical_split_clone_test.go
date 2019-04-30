@@ -132,7 +132,7 @@ func TestVerticalSplitClone(t *testing.T) {
 		},
 	}
 	sourceRdonly.FakeMysqlDaemon.CurrentMasterPosition = mysql.Position{
-		GTIDSet: mysql.MariadbGTID{Domain: 12, Server: 34, Sequence: 5678},
+		GTIDSet: mysql.MariadbGTIDSet{mysql.MariadbGTID{Domain: 12, Server: 34, Sequence: 5678}},
 	}
 	sourceRdonly.FakeMysqlDaemon.ExpectedExecuteSuperQueryList = []string{
 		"STOP SLAVE",
@@ -181,7 +181,7 @@ func TestVerticalSplitClone(t *testing.T) {
 		"-min_rows_per_chunk", "10",
 		"-destination_writer_count", "10",
 		// This test uses only one healthy RDONLY tablet.
-		"-min_healthy_rdonly_tablets", "1",
+		"-min_healthy_tablets", "1",
 		"destination_ks/0",
 	}
 	if err := runCommand(t, wi, wi.wr, args); err != nil {

@@ -19,6 +19,9 @@ package mysql
 import (
 	"fmt"
 	"strings"
+
+	"gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 )
 
 // GTID represents a Global Transaction ID, also known as Transaction Group ID.
@@ -60,7 +63,7 @@ var gtidParsers = make(map[string]func(string) (GTID, error))
 func ParseGTID(flavor, value string) (GTID, error) {
 	parser := gtidParsers[flavor]
 	if parser == nil {
-		return nil, fmt.Errorf("parse error: unknown GTID flavor %#v", flavor)
+		return nil, vterrors.Errorf(vtrpc.Code_INTERNAL, "parse error: unknown GTID flavor %#v", flavor)
 	}
 	return parser(value)
 }

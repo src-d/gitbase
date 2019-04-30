@@ -1,3 +1,17 @@
+// Copyright 2017 Pilosa Corp.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package pilosa
 
 import (
@@ -8,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,6 +29,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash"
+	"github.com/pilosa/pilosa/logger"
 	"github.com/pkg/errors"
 )
 
@@ -29,10 +43,11 @@ const (
 )
 
 var (
-	ErrTranslateStoreClosed       = errors.New("pilosa: translate store closed")
-	ErrTranslateStoreReaderClosed = errors.New("pilosa: translate store reader closed")
-	ErrReplicationNotSupported    = errors.New("pilosa: replication not supported")
-	ErrTranslateStoreReadOnly     = errors.New("pilosa: translate store could not find or create key, translate store read only")
+	ErrTranslateStoreClosed          = errors.New("pilosa: translate store closed")
+	ErrTranslateStoreReaderClosed    = errors.New("pilosa: translate store reader closed")
+	ErrReplicationNotSupported       = errors.New("pilosa: replication not supported")
+	ErrTranslateStoreReadOnly        = errors.New("pilosa: translate store could not find or create key, translate store read only")
+	ErrTranslateReadTargetUndersized = errors.New("pilosa: translate read target is undersized")
 )
 
 // TranslateStore is the storage for translation string-to-uint64 values.
@@ -69,7 +84,7 @@ type TranslateFile struct {
 
 	Path    string
 	mapSize int
-
+	logger  logger.Logger
 	// If non-nil, data is streamed from a primary and this is a read-only store.
 	PrimaryTranslateStore TranslateStore
 	primaryID             string // unique ID used to identify the primary store
@@ -87,6 +102,12 @@ type TranslateFileOption func(f *TranslateFile) error
 func OptTranslateFileMapSize(mapSize int) TranslateFileOption {
 	return func(f *TranslateFile) error {
 		f.mapSize = mapSize
+		return nil
+	}
+}
+func OptTranslateFileLogger(l logger.Logger) TranslateFileOption {
+	return func(s *TranslateFile) error {
+		s.logger = l
 		return nil
 	}
 }
@@ -110,6 +131,8 @@ func NewTranslateFile(opts ...TranslateFileOption) *TranslateFile {
 		rows:        make(map[fieldKey]*index),
 
 		mapSize: defaultMapSize,
+
+		logger: logger.NopLogger,
 
 		replicationClosing: make(chan struct{}),
 		primaryStoreEvents: make(chan primaryStoreEvent),
@@ -187,12 +210,11 @@ func (s *TranslateFile) handlePrimaryStoreEvent(ev primaryStoreEvent) error {
 	}
 
 	// Stop translate store replication.
-	log.Printf("stop monitor replication")
 	close(s.replicationClosing)
 	s.repWG.Wait()
 
 	// Set the primary node for translate store replication.
-	log.Printf("set primary translate store to %s", ev.id)
+	s.logger.Debugf("set primary translate store to %s", ev.id)
 	s.primaryID = ev.id
 	if ev.id == "" {
 		s.PrimaryTranslateStore = nil
@@ -201,7 +223,6 @@ func (s *TranslateFile) handlePrimaryStoreEvent(ev primaryStoreEvent) error {
 	}
 
 	// Start translate store replication. Stream from primary, if available.
-	log.Printf("start monitor replication")
 	if s.PrimaryTranslateStore != nil {
 		s.replicationClosing = make(chan struct{})
 		s.repWG.Add(1)
@@ -363,14 +384,13 @@ func (s *TranslateFile) monitorReplication() {
 	// Keep attempting to replicate until the store closes.
 	for {
 		if err := s.replicate(ctx); err != nil {
-			log.Printf("pilosa: replication error: %s", err)
+			s.logger.Printf("pilosa: replication error: %s", err)
 		}
-
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(s.replicationRetryInterval):
-			log.Printf("pilosa: reconnecting to primary replica")
+			s.logger.Printf("pilosa: reconnecting to primary replica")
 		}
 	}
 }
@@ -378,7 +398,6 @@ func (s *TranslateFile) monitorReplication() {
 // monitorPrimaryStoreEvents is executed in a separate goroutine and listens for changes
 // to the primary store assignment.
 func (s *TranslateFile) monitorPrimaryStoreEvents() {
-	log.Printf("monitor primary store events")
 	// Keep handling events until the store closes.
 	for {
 		select {
@@ -386,7 +405,7 @@ func (s *TranslateFile) monitorPrimaryStoreEvents() {
 			return
 		case ev := <-s.primaryStoreEvents:
 			if err := s.handlePrimaryStoreEvent(ev); err != nil {
-				log.Printf("handle primary store event")
+				s.logger.Printf("handle primary store event")
 			}
 		}
 	}
@@ -396,7 +415,7 @@ func (s *TranslateFile) replicate(ctx context.Context) error {
 	off := s.size()
 
 	// Connect to remote primary.
-	log.Printf("pilosa: replicating from offset %d", off)
+	s.logger.Debugf("pilosa: replicating from offset %d", off)
 	rc, err := s.PrimaryTranslateStore.Reader(ctx, off)
 	if err != nil {
 		return err
@@ -406,22 +425,42 @@ func (s *TranslateFile) replicate(ctx context.Context) error {
 	// Wrap in bufferred I/O so it implements io.ByteReader.
 	bufr := bufio.NewReader(rc)
 
+	// we need a way to make an asynchronous routine hand us back an error,
+	// but we might not still be there to get it. so we have a buffer.
+	chErr := make(chan error, 1)
+
 	// Continually read new entries from primary and append to local store.
 	for {
 		// Read next available entry.
 		var entry LogEntry
-		if _, err := entry.ReadFrom(bufr); err == io.EOF {
+		if _, err = entry.ReadFrom(bufr); err == io.EOF {
 			return nil
 		} else if err != nil {
 			return err
 		}
-		s.mu.Lock()
-		// Write to local store.
-		if err := s.appendEntry(&entry); err != nil {
-			s.mu.Unlock()
-			return err
+		// note: we should never end up spawning two of this goroutine
+		// at once. either we end up reading the error from chErr below,
+		// and this loop continues, or we don't, and the whole function
+		// returns. if the function returns, we can write that single
+		// error to the empty channel with a buffer of 1, the goroutine
+		// terminates, and chErr becomes garbage-collectable.
+		go func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			// Write to local store.
+			err = s.appendEntry(&entry)
+			chErr <- err
+		}()
+		select {
+		case err = <-chErr:
+			if err != nil {
+				return err
+			}
+		case <-s.replicationClosing:
+			return nil
+		case <-ctx.Done():
+			return nil
 		}
-		s.mu.Unlock()
 	}
 }
 
@@ -1084,8 +1123,13 @@ func (r *translateFileReader) read(p []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	// Shorten buffer to maximum read size.
-	if max := sz - r.offset; int64(len(p)) > max {
+	if max := sz - r.offset; max > int64(len(p)) {
+		// If p is not large enough to hold a single entry,
+		// return an error so the client can increase the
+		// size of p and try again.
+		return 0, ErrTranslateReadTargetUndersized
+	} else if int64(len(p)) > max {
+		// Shorten buffer to maximum read size.
 		p = p[:max]
 	}
 

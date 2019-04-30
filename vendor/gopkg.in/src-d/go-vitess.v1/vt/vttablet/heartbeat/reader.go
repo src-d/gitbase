@@ -25,7 +25,6 @@ import (
 
 	"golang.org/x/net/context"
 
-	"gopkg.in/src-d/go-vitess.v1/hack"
 	"gopkg.in/src-d/go-vitess.v1/sqlescape"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/timer"
@@ -202,13 +201,13 @@ func (r *Reader) bindHeartbeatFetch() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return hack.String(bound), nil
+	return bound, nil
 }
 
 // parseHeartbeatResult turns a raw result into the timestamp for processing.
 func parseHeartbeatResult(res *sqltypes.Result) (int64, error) {
 	if len(res.Rows) != 1 {
-		return 0, fmt.Errorf("Failed to read heartbeat: writer query did not result in 1 row. Got %v", len(res.Rows))
+		return 0, fmt.Errorf("failed to read heartbeat: writer query did not result in 1 row. Got %v", len(res.Rows))
 	}
 	ts, err := sqltypes.ToInt64(res.Rows[0][0])
 	if err != nil {
@@ -226,4 +225,8 @@ func (r *Reader) recordError(err error) {
 	r.lagMu.Unlock()
 	r.errorLog.Errorf("%v", err)
 	readErrors.Add(1)
+}
+
+func (r *Reader) IsOpen() bool {
+	return r.isOpen
 }

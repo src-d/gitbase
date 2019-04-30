@@ -22,7 +22,7 @@ If you want to help but you aren't sure where to start, check out our [github la
 
 ### Development Environment
 
-- Ensure you have a recent version of [Go](https://golang.org/doc/install) installed. Pilosa generally supports the current and previous minor versions; check our [travis file](../master/.travis.yml) for the most up-to-date information.
+- Ensure you have a recent version of [Go](https://golang.org/doc/install) installed. Pilosa generally supports the current and previous minor versions; check our [CircleCI config file](../master/.circleci/config.yml) for the most up-to-date information.
 
 - Make sure `$GOPATH` environment variable points to your Go working directory and `$PATH` incudes `$GOPATH/bin`, as described [here](https://golang.org/doc/code.html#GOPATH).
 
@@ -41,12 +41,6 @@ If you want to help but you aren't sure where to start, check out our [github la
     cd ${GOPATH}/src/github.com/pilosa/pilosa
     ```
 
-- [Install](https://github.com/golang/dep/#installation) `dep` to manage dependencies:
-
-    ```sh
-    curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-    ```
-
 - Install Pilosa command line tools:
 
     ```sh
@@ -56,7 +50,7 @@ If you want to help but you aren't sure where to start, check out our [github la
     or
     
     ```
-    dep ensure && go install github.com/pilosa/pilosa/cmd/...
+    go install github.com/pilosa/pilosa/cmd/...
     ```
 
     Running `pilosa` should now run a Pilosa instance.
@@ -78,7 +72,7 @@ Pilosa includes a Makefile that automates several tasks:
     make install
     ```
 
-- Install build dependencies (dep and protoc):
+- Install build dependencies:
 
     ```sh
     make install-build-deps

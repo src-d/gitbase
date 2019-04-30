@@ -26,9 +26,12 @@ func BuildServerFlags(cmd *cobra.Command, srv *server.Command) {
 	flags := cmd.Flags()
 	flags.StringVarP(&srv.Config.DataDir, "data-dir", "d", srv.Config.DataDir, "Directory to store pilosa data files.")
 	flags.StringVarP(&srv.Config.Bind, "bind", "b", srv.Config.Bind, "Default URI on which pilosa should listen.")
+	flags.StringVar(&srv.Config.Advertise, "advertise", srv.Config.Advertise, "Address to advertise externally.")
 	flags.IntVarP(&srv.Config.MaxWritesPerRequest, "max-writes-per-request", "", srv.Config.MaxWritesPerRequest, "Number of write commands per request.")
 	flags.StringVar(&srv.Config.LogPath, "log-path", srv.Config.LogPath, "Log path")
 	flags.BoolVar(&srv.Config.Verbose, "verbose", srv.Config.Verbose, "Enable verbose logging")
+	flags.Uint64Var(&srv.Config.MaxMapCount, "max-map-count", srv.Config.MaxMapCount, "Limits the maximum number of active mmaps. Pilosa will fall back to reading files once this is exhausted. Set below your system's vm.max_map_count.")
+	flags.Uint64Var(&srv.Config.MaxFileCount, "max-file-count", srv.Config.MaxFileCount, "Soft limit on the maximum number of fragment files Pilosa keeps open simultaneously.")
 
 	// TLS
 	SetTLSConfig(flags, &srv.Config.TLS.CertificatePath, &srv.Config.TLS.CertificateKeyPath, &srv.Config.TLS.SkipVerify)
@@ -49,6 +52,9 @@ func BuildServerFlags(cmd *cobra.Command, srv *server.Command) {
 
 	// Gossip
 	flags.StringVarP(&srv.Config.Gossip.Port, "gossip.port", "", srv.Config.Gossip.Port, "Port to which pilosa should bind for internal state sharing.")
+	flags.StringVarP(&srv.Config.Gossip.AdvertiseHost, "gossip.advertise-host", "", srv.Config.Gossip.AdvertiseHost, "Host on which memberlist should advertise.")
+	flags.StringVarP(&srv.Config.Gossip.AdvertisePort, "gossip.advertise-port", "", srv.Config.Gossip.AdvertisePort, "Port on which memberlist should advertise.")
+
 	flags.StringSliceVarP(&srv.Config.Gossip.Seeds, "gossip.seeds", "", srv.Config.Gossip.Seeds, "Host with which to seed the gossip membership.")
 	flags.StringVarP(&srv.Config.Gossip.Key, "gossip.key", "", srv.Config.Gossip.Key, "The path to file of the encryption key for gossip. The contents of the file should be either 16, 24, or 32 bytes to select AES-128, AES-192, or AES-256.")
 	flags.DurationVarP((*time.Duration)(&srv.Config.Gossip.StreamTimeout), "gossip.stream-timeout", "", (time.Duration)(srv.Config.Gossip.StreamTimeout), "Timeout for establishing a stream connection with a remote node for a full state sync.")
@@ -64,8 +70,17 @@ func BuildServerFlags(cmd *cobra.Command, srv *server.Command) {
 	flags.DurationVarP((*time.Duration)(&srv.Config.AntiEntropy.Interval), "anti-entropy.interval", "", (time.Duration)(srv.Config.AntiEntropy.Interval), "Interval at which to run anti-entropy routine.")
 
 	// Metric
-	flags.StringVarP(&srv.Config.Metric.Service, "metric.service", "", srv.Config.Metric.Service, "Default URI on which pilosa should listen.")
-	flags.StringVarP(&srv.Config.Metric.Host, "metric.host", "", srv.Config.Metric.Host, "Default URI to send metrics.")
+	flags.StringVarP(&srv.Config.Metric.Service, "metric.service", "", srv.Config.Metric.Service, "Where to send stats: can be expvar (in-memory served at /debug/vars), statsd or none.")
+	flags.StringVarP(&srv.Config.Metric.Host, "metric.host", "", srv.Config.Metric.Host, "URI to send metrics when metric.service is statsd.")
 	flags.DurationVarP((*time.Duration)(&srv.Config.Metric.PollInterval), "metric.poll-interval", "", (time.Duration)(srv.Config.Metric.PollInterval), "Polling interval metrics.")
 	flags.BoolVarP((&srv.Config.Metric.Diagnostics), "metric.diagnostics", "", srv.Config.Metric.Diagnostics, "Enabled diagnostics reporting.")
+
+	// Tracing
+	flags.StringVarP(&srv.Config.Tracing.AgentHostPort, "tracing.agent-host-port", "", srv.Config.Tracing.AgentHostPort, "Jaeger agent host:port.")
+	flags.StringVarP(&srv.Config.Tracing.SamplerType, "tracing.sampler-type", "", srv.Config.Tracing.SamplerType, "Jaeger sampler type.")
+	flags.Float64VarP(&srv.Config.Tracing.SamplerParam, "tracing.sampler-param", "", srv.Config.Tracing.SamplerParam, "Jaeger sampler parameter.")
+
+	// Profiling
+	flags.IntVar(&srv.Config.Profile.BlockRate, "profile.block-rate", srv.Config.Profile.BlockRate, "Sampling rate for goroutine blocking profiler. One sample per <rate> ns.")
+	flags.IntVar(&srv.Config.Profile.MutexFraction, "profile.mutex-fraction", srv.Config.Profile.MutexFraction, "Sampling fraction for mutex contention profiling. Sample 1/<rate> of events.")
 }

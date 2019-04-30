@@ -85,8 +85,7 @@ func (vm *VSchemaManager) watchSrvVSchema(ctx context.Context, cell string) {
 			vschema, err = vindexes.BuildVSchema(v)
 			if err != nil {
 				log.Warningf("Error creating VSchema for cell %v (will try again next update): %v", cell, err)
-				v = nil
-				err = fmt.Errorf("Error creating VSchema for cell %v: %v", cell, err)
+				err = fmt.Errorf("error creating VSchema for cell %v: %v", cell, err)
 				if vschemaCounters != nil {
 					vschemaCounters.Add("Parsing", 1)
 				}
@@ -122,23 +121,26 @@ func (vm *VSchemaManager) watchSrvVSchema(ctx context.Context, cell string) {
 // UpdateVSchema propagates the updated vschema to the topo. The entry for
 // the given keyspace is updated in the global topo, and the full SrvVSchema
 // is updated in all known cells.
-func (vm *VSchemaManager) UpdateVSchema(ctx context.Context, keyspace string, vschema *vschemapb.SrvVSchema) error {
-	// update the global vschema, then update the SrvVschema for
-	// each cell
-	ks, _ := vschema.Keyspaces[keyspace]
-	err := vm.e.serv.GetTopoServer().SaveVSchema(ctx, keyspace, ks)
+func (vm *VSchemaManager) UpdateVSchema(ctx context.Context, ksName string, vschema *vschemapb.SrvVSchema) error {
+	topoServer, err := vm.e.serv.GetTopoServer()
 	if err != nil {
 		return err
 	}
 
-	cells, err := vm.e.serv.GetTopoServer().GetKnownCells(ctx)
+	ks := vschema.Keyspaces[ksName]
+	err = topoServer.SaveVSchema(ctx, ksName, ks)
+	if err != nil {
+		return err
+	}
+
+	cells, err := topoServer.GetKnownCells(ctx)
 	if err != nil {
 		return err
 	}
 
 	// even if one cell fails, continue to try the others
 	for _, cell := range cells {
-		cellErr := vm.e.serv.GetTopoServer().UpdateSrvVSchema(ctx, cell, vschema)
+		cellErr := topoServer.UpdateSrvVSchema(ctx, cell, vschema)
 		if cellErr != nil {
 			err = cellErr
 			log.Errorf("error updating vschema in cell %s: %v", cell, cellErr)

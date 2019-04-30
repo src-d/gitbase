@@ -192,7 +192,7 @@ type TestField struct {
 
 // NewTestField returns a new instance of TestField d/0.
 func NewTestField(opts FieldOption) *TestField {
-	path, err := ioutil.TempDir("", "pilosa-field-")
+	path, err := ioutil.TempDir(*TempDir, "pilosa-field-")
 	if err != nil {
 		panic(err)
 	}
@@ -349,7 +349,7 @@ func TestField_PersistAvailableShards(t *testing.T) {
 	// bm represents remote available shards.
 	bm := roaring.NewBitmap(1, 2, 3)
 
-	if err := f.addRemoteAvailableShards(bm); err != nil {
+	if err := f.AddRemoteAvailableShards(bm); err != nil {
 		t.Fatal(err)
 	}
 
@@ -357,6 +357,53 @@ func TestField_PersistAvailableShards(t *testing.T) {
 	if err := f.Reopen(); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(f.remoteAvailableShards.Slice(), bm.Slice()) {
+		t.Fatalf("unexpected available shards (reopen). expected: %v, but got: %v", bm.Slice(), f.remoteAvailableShards.Slice())
+	}
+
+}
+
+// Ensure that persisting available shards having a smaller footprint (for example,
+// when going from a bitmap to a smaller, RLE representation) succeeds.
+func TestField_PersistAvailableShardsFootprint(t *testing.T) {
+	f := MustOpenField(OptFieldTypeDefault())
+
+	// bm represents remote available shards.
+	bm := roaring.NewBitmap()
+	for i := uint64(0); i < 1204; i += 2 {
+		_, err := bm.Add(i)
+		if err != nil {
+			t.Fatalf("adding bits: %v", err)
+		}
+	}
+
+	if err := f.AddRemoteAvailableShards(bm); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reload field and verify that shard data is persisted.
+	if err := f.Reopen(); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(f.remoteAvailableShards.Slice(), bm.Slice()) {
+		t.Fatalf("unexpected available shards (reopen). expected: %v, but got: %v", bm.Slice(), f.remoteAvailableShards.Slice())
+	}
+
+	bm1 := roaring.NewBitmap()
+	for i := uint64(1); i < 1204; i += 2 {
+		_, err := bm1.Add(i)
+		if err != nil {
+			t.Fatalf("adding bits: %v", err)
+		}
+	}
+
+	if err := f.AddRemoteAvailableShards(bm1); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reload field and verify that shard data is persisted.
+	result := bm.Union(bm1)
+	if err := f.Reopen(); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(f.remoteAvailableShards.Slice(), result.Slice()) {
 		t.Fatalf("unexpected available shards (reopen). expected: %v, but got: %v", bm.Slice(), f.remoteAvailableShards.Slice())
 	}
 

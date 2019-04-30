@@ -67,7 +67,9 @@ func TestHolder_Open(t *testing.T) {
 		} else if err := os.Chmod(h.IndexPath("test"), 0000); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Chmod(h.IndexPath("test"), 0777)
+		defer func() {
+			_ = os.Chmod(h.IndexPath("test"), 0755)
+		}()
 
 		if err := h.Reopen(); err == nil || !strings.Contains(err.Error(), "permission denied") {
 			t.Fatalf("unexpected error: %s", err)
@@ -106,8 +108,9 @@ func TestHolder_Open(t *testing.T) {
 		} else if err := os.Chmod(filepath.Join(h.Path, "foo", "bar"), 0000); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Chmod(filepath.Join(h.Path, "foo", "bar"), 0777)
-
+		defer func() {
+			_ = os.Chmod(filepath.Join(h.Path, "foo", "bar"), 0755)
+		}()
 		if err := h.Reopen(); err == nil || !strings.Contains(err.Error(), "permission denied") {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -167,8 +170,9 @@ func TestHolder_Open(t *testing.T) {
 		} else if err := os.Chmod(filepath.Join(h.Path, "foo", "bar", "views", "standard", "fragments", "0"), 0000); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Chmod(filepath.Join(h.Path, "foo", "bar", "views", "standard", "fragments", "0"), 0666)
-
+		defer func() {
+			_ = os.Chmod(filepath.Join(h.Path, "foo", "bar", "views", "standard", "fragments", "0"), 0644)
+		}()
 		if err := h.Reopen(); err == nil || !strings.Contains(err.Error(), "permission denied") {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -391,19 +395,18 @@ func TestHolderSyncer_TimeQuantum(t *testing.T) {
 	hldr0 := &test.Holder{Holder: c[0].Server.Holder()}
 	hldr1 := &test.Holder{Holder: c[1].Server.Holder()}
 
-	// Set data on the local holder.
+	// Set data on the local holder for node0.
 	t1 := time.Date(2018, 8, 1, 12, 30, 0, 0, time.UTC)
 	t2 := time.Date(2018, 8, 2, 12, 30, 0, 0, time.UTC)
 	hldr0.SetBitTime("i", "f", 0, 1, &t1)
 	hldr0.SetBitTime("i", "f", 0, 2, &t2)
 
+	// Set data on node1.
+	hldr1.SetBitTime("i", "f", 0, 22, &t2)
+
 	err = c[0].Server.SyncData()
 	if err != nil {
 		t.Fatalf("syncing node 0: %v", err)
-	}
-	err = c[1].Server.SyncData()
-	if err != nil {
-		t.Fatalf("syncing node 1: %v", err)
 	}
 
 	// Verify data is the same on both nodes.
@@ -411,7 +414,7 @@ func TestHolderSyncer_TimeQuantum(t *testing.T) {
 		if a := hldr.RowTime("i", "f", 0, t1, quantum).Columns(); !reflect.DeepEqual(a, []uint64{1}) {
 			t.Errorf("unexpected columns(%d/0): %+v", i, a)
 		}
-		if a := hldr.RowTime("i", "f", 0, t2, quantum).Columns(); !reflect.DeepEqual(a, []uint64{2}) {
+		if a := hldr.RowTime("i", "f", 0, t2, quantum).Columns(); !reflect.DeepEqual(a, []uint64{2, 22}) {
 			t.Errorf("unexpected columns(%d/0): %+v", i, a)
 		}
 	}

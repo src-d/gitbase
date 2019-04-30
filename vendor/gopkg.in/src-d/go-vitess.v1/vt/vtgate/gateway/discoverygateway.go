@@ -87,8 +87,13 @@ type discoveryGateway struct {
 func createDiscoveryGateway(hc discovery.HealthCheck, serv srvtopo.Server, cell string, retryCount int) Gateway {
 	var topoServer *topo.Server
 	if serv != nil {
-		topoServer = serv.GetTopoServer()
+		var err error
+		topoServer, err = serv.GetTopoServer()
+		if err != nil {
+			log.Exitf("Unable to create new discoverygateway: %v", err)
+		}
 	}
+
 	dg := &discoveryGateway{
 		hc:                hc,
 		tsc:               discovery.NewTabletStatsCacheDoNotSetListener(topoServer, cell),
@@ -111,6 +116,10 @@ func createDiscoveryGateway(hc discovery.HealthCheck, serv srvtopo.Server, cell 
 		}
 		var tr discovery.TabletRecorder = dg.hc
 		if len(tabletFilters) > 0 {
+			if len(KeyspacesToWatch) > 0 {
+				log.Exitf("Only one of -keyspaces_to_watch and -tablet_filters may be specified at a time")
+			}
+
 			fbs, err := discovery.NewFilterByShard(dg.hc, tabletFilters)
 			if err != nil {
 				log.Exitf("Cannot parse tablet_filters parameter: %v", err)
@@ -201,12 +210,6 @@ func (dg *discoveryGateway) GetMasterCell(keyspace, shard string) (string, query
 	return cell, dg, err
 }
 
-// StreamHealth is not forwarded to any other tablet,
-// but we handle it directly here.
-func (dg *discoveryGateway) StreamHealth(ctx context.Context, callback func(*querypb.StreamHealthResponse) error) error {
-	return StreamHealthFromTargetStatsListener(ctx, dg.tsc, callback)
-}
-
 // Close shuts down underlying connections.
 // This function hides the inner implementation.
 func (dg *discoveryGateway) Close(ctx context.Context) error {
@@ -235,7 +238,7 @@ func (dg *discoveryGateway) CacheStatus() TabletCacheStatusList {
 // the middle of a transaction. While returning the error check if it maybe a result of
 // a resharding event, and set the re-resolve bit and let the upper layers
 // re-resolve and retry.
-func (dg *discoveryGateway) withRetry(ctx context.Context, target *querypb.Target, unused queryservice.QueryService, name string, inTransaction bool, inner func(ctx context.Context, target *querypb.Target, conn queryservice.QueryService) (error, bool)) error {
+func (dg *discoveryGateway) withRetry(ctx context.Context, target *querypb.Target, unused queryservice.QueryService, name string, inTransaction bool, inner func(ctx context.Context, target *querypb.Target, conn queryservice.QueryService) (bool, error)) error {
 	var tabletLastUsed *topodatapb.Tablet
 	var err error
 	invalidTablets := make(map[string]bool)
@@ -316,7 +319,7 @@ func (dg *discoveryGateway) withRetry(ctx context.Context, target *querypb.Targe
 
 		startTime := time.Now()
 		var canRetry bool
-		err, canRetry = inner(ctx, ts.Target, conn)
+		canRetry, err = inner(ctx, ts.Target, conn)
 		dg.updateStats(target, startTime, err)
 		if canRetry {
 			invalidTablets[ts.Key] = true
@@ -324,7 +327,7 @@ func (dg *discoveryGateway) withRetry(ctx context.Context, target *querypb.Targe
 		}
 		break
 	}
-	return NewShardError(err, target, tabletLastUsed, inTransaction)
+	return NewShardError(err, target, tabletLastUsed)
 }
 
 func shuffleTablets(cell string, tablets []discovery.TabletStats) {
@@ -375,7 +378,7 @@ func nextTablet(cell string, tablets []discovery.TabletStats, offset, length int
 }
 
 func (dg *discoveryGateway) updateStats(target *querypb.Target, startTime time.Time, err error) {
-	elapsed := time.Now().Sub(startTime)
+	elapsed := time.Since(startTime)
 	aggr := dg.getStatsAggregator(target)
 	aggr.UpdateQueryInfo("", target.TabletType, elapsed, err != nil)
 }

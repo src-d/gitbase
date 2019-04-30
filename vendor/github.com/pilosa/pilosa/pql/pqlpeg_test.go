@@ -1,6 +1,21 @@
+// Copyright 2017 Pilosa Corp.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package pql
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"testing"
@@ -8,7 +23,7 @@ import (
 
 func TestPEG(t *testing.T) {
 	p := PQL{Buffer: `
-SetBit(Union(Zitmap(row==4), Intersect(Qitmap(blah>4), Ritmap(field="http://zoo9.com=\\'hello' and \"hello\"")), Hitmap(row=ag-bee)), a="4z", b=5) Count(Union(Witmap(row=5.73, frame=.10), Range(zztop><[2, 9]))) TopN(blah, fields=["hello", "goodbye", "zero"])`[1:]}
+SetBit(Union(Zitmap(row==4), Intersect(Qitmap(blah>4), Ritmap(field="http://zoo9.com=\\'hello' and \"hello\"")), Hitmap(row=ag-bee)), a="4z", b=5) Count(Union(Witmap(row=5.73, frame=.10), Row(zztop><[2, 9]))) TopN(blah, fields=["hello", "goodbye", "zero"])`[1:]}
 	p.Init()
 	err := p.Parse()
 	if err != nil {
@@ -202,51 +217,59 @@ func TestPEGWorking(t *testing.T) {
 			ncalls: 1},
 		{
 			name:   "RangeLT",
-			input:  "Range(a < 4)",
+			input:  "Row(a < 4)",
 			ncalls: 1},
 		{
 			name:   "RangeGT",
-			input:  "Range(a > 4)",
+			input:  "Row(a > 4)",
 			ncalls: 1},
 		{
 			name:   "RangeLTE",
-			input:  "Range(a <= 4)",
+			input:  "Row(a <= 4)",
 			ncalls: 1},
 		{
 			name:   "RangeGTE",
-			input:  "Range(a >= 4)",
+			input:  "Row(a >= 4)",
 			ncalls: 1},
 		{
 			name:   "RangeEQ",
-			input:  "Range(a == 4)",
+			input:  "Row(a == 4)",
 			ncalls: 1},
 		{
 			name:   "RangeNEQ",
-			input:  "Range(a != null)",
+			input:  "Row(a != null)",
 			ncalls: 1},
 		{
 			name:   "RangeLTLT",
-			input:  "Range(4 < a < 9)",
+			input:  "Row(4 < a < 9)",
 			ncalls: 1},
 		{
 			name:   "RangeLTLTE",
-			input:  "Range(4 < a <= 9)",
+			input:  "Row(4 < a <= 9)",
 			ncalls: 1},
 		{
 			name:   "RangeLTELT",
-			input:  "Range(4 <= a < 9)",
+			input:  "Row(4 <= a < 9)",
 			ncalls: 1},
 		{
 			name:   "RangeLTELTE",
-			input:  "Range(4 <= a <= 9)",
+			input:  "Row(4 <= a <= 9)",
 			ncalls: 1},
 		{
 			name:   "RangeTime",
-			input:  "Range(a=4, 2010-07-04T00:00, 2010-08-04T00:00)",
+			input:  "Row(a=4, from=2010-07-04T00:00, to=2010-08-04T00:00)",
 			ncalls: 1},
 		{
 			name:   "RangeTimeQuotes",
-			input:  `Range(a=4, '2010-07-04T00:00', "2010-08-04T00:00")`,
+			input:  `Row(a=4, from='2010-07-04T00:00', to="2010-08-04T00:00")`,
+			ncalls: 1},
+		{
+			name:   "RangeTimeFromQuotes",
+			input:  `Row(a=4, from='2010-07-04T00:00')`,
+			ncalls: 1},
+		{
+			name:   "RangeTimeToQuotes",
+			input:  `Row(a=4, to="2010-08-04T00:00")`,
 			ncalls: 1},
 		{
 			name:   "Dashed Frame",
@@ -258,6 +281,10 @@ func TestPEGWorking(t *testing.T) {
 1,
 my-frame
 =9)`,
+			ncalls: 1},
+		{
+			name:   "OldRange",
+			input:  "Range(blah=1, 2019-04-07T00:00, 2019-08-07T00:00)",
 			ncalls: 1},
 	}
 
@@ -302,10 +329,10 @@ func TestPEGErrors(t *testing.T) {
 			input: "Clear(9)"},
 		{
 			name:  "RangeTimeGT",
-			input: "Range(a>4, 2010-07-04T00:00, 2010-08-04T00:00)"},
+			input: "Row(a>4, 2010-07-04T00:00, 2010-08-04T00:00)"},
 		{
 			name:  "RangeTimeOneStamp",
-			input: "Range(a=4, 2010-07-04T00:00)"},
+			input: "Row(a=4, 2010-07-04T00:00)"},
 	}
 
 	for i, test := range tests {
@@ -423,9 +450,9 @@ func TestPQLDeepEquality(t *testing.T) {
 			}},
 		{
 			name: "RangeEQ",
-			call: "Range(a==7)",
+			call: "Row(a==7)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    EQ,
@@ -435,9 +462,9 @@ func TestPQLDeepEquality(t *testing.T) {
 			}},
 		{
 			name: "RangeLT",
-			call: "Range(a<7)",
+			call: "Row(a<7)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    LT,
@@ -447,9 +474,9 @@ func TestPQLDeepEquality(t *testing.T) {
 			}},
 		{
 			name: "RangeLTE",
-			call: "Range(a<=7)",
+			call: "Row(a<=7)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    LTE,
@@ -459,9 +486,9 @@ func TestPQLDeepEquality(t *testing.T) {
 			}},
 		{
 			name: "RangeGTE",
-			call: "Range(a>=7)",
+			call: "Row(a>=7)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    GTE,
@@ -471,9 +498,9 @@ func TestPQLDeepEquality(t *testing.T) {
 			}},
 		{
 			name: "RangeGT",
-			call: "Range(a>7)",
+			call: "Row(a>7)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    GT,
@@ -483,9 +510,9 @@ func TestPQLDeepEquality(t *testing.T) {
 			}},
 		{
 			name: "RangeNEQ",
-			call: "Range(a!=null)",
+			call: "Row(a!=null)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    NEQ,
@@ -495,9 +522,33 @@ func TestPQLDeepEquality(t *testing.T) {
 			}},
 		{
 			name: "RangeLTELT",
-			call: "Range(4 <= a < 9)",
+			call: "Row(4 <= a < 9)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
+				Args: map[string]interface{}{
+					"a": &Condition{
+						Op:    BETWEEN,
+						Value: []interface{}{int64(4), int64(8)},
+					},
+				},
+			}},
+		{
+			name: "RangeLTLT",
+			call: "Row(4 < a < 9)",
+			exp: &Call{
+				Name: "Row",
+				Args: map[string]interface{}{
+					"a": &Condition{
+						Op:    BETWEEN,
+						Value: []interface{}{int64(5), int64(8)},
+					},
+				},
+			}},
+		{
+			name: "RangeLTELTE",
+			call: "Row(4 <= a <= 9)",
+			exp: &Call{
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    BETWEEN,
@@ -506,38 +557,14 @@ func TestPQLDeepEquality(t *testing.T) {
 				},
 			}},
 		{
-			name: "RangeLTLT",
-			call: "Range(4 < a < 9)",
+			name: "RangeLTLTE",
+			call: "Row(4 < a <= 9)",
 			exp: &Call{
-				Name: "Range",
+				Name: "Row",
 				Args: map[string]interface{}{
 					"a": &Condition{
 						Op:    BETWEEN,
 						Value: []interface{}{int64(5), int64(9)},
-					},
-				},
-			}},
-		{
-			name: "RangeLTELTE",
-			call: "Range(4 <= a <= 9)",
-			exp: &Call{
-				Name: "Range",
-				Args: map[string]interface{}{
-					"a": &Condition{
-						Op:    BETWEEN,
-						Value: []interface{}{int64(4), int64(10)},
-					},
-				},
-			}},
-		{
-			name: "RangeLTLTE",
-			call: "Range(4 < a <= 9)",
-			exp: &Call{
-				Name: "Range",
-				Args: map[string]interface{}{
-					"a": &Condition{
-						Op:    BETWEEN,
-						Value: []interface{}{int64(5), int64(10)},
 					},
 				},
 			}},
@@ -612,6 +639,43 @@ func TestPQLDeepEquality(t *testing.T) {
 					},
 				},
 			}},
+		{
+			name: "GroupBy",
+			call: "GroupBy(Rows(), filter=Row(a=1))",
+			exp: &Call{
+				Name: "GroupBy",
+				Args: map[string]interface{}{
+					"filter": &Call{
+						Name: "Row",
+						Args: map[string]interface{}{
+							"a": int64(1),
+						},
+					},
+				},
+				Children: []*Call{
+					{Name: "Rows"},
+				},
+			}},
+		{
+			name: "GroupByFilterRangeLTLT",
+			call: "GroupBy(Rows(), filter=Row(4 < a < 9))",
+			exp: &Call{
+				Name: "GroupBy",
+				Args: map[string]interface{}{
+					"filter": &Call{
+						Name: "Row",
+						Args: map[string]interface{}{
+							"a": &Condition{
+								Op:    BETWEEN,
+								Value: []interface{}{int64(5), int64(8)},
+							},
+						},
+					},
+				},
+				Children: []*Call{
+					{Name: "Rows"},
+				},
+			}},
 	}
 
 	for i, test := range tests {
@@ -623,6 +687,50 @@ func TestPQLDeepEquality(t *testing.T) {
 
 			if !reflect.DeepEqual(test.exp, q.Calls[0]) {
 				t.Fatalf("unexpected call:\n%s\ninstead of:\n%s\n'%#v'\ninstead of:\n'%#v'", q.Calls[0], test.exp, q.Calls[0], test.exp)
+			}
+		})
+	}
+}
+
+func TestDuplicateArgError(t *testing.T) {
+	tests := []struct {
+		name string
+		call string
+	}{
+		// case 1
+		{
+			name: "StringConditional",
+			call: "Row(a==foo, a==bar)",
+		},
+		// case 2
+		{
+			name: "StringValue",
+			call: "Row(a=foo, a=bar)",
+		},
+		// case 3
+		{
+			name: "IntConditional",
+			call: "Row(a>5, a>6)",
+		},
+		// case 4
+		{
+			name: "IntValue",
+			call: "Row(a=7, a=8)",
+		},
+		// case 5
+		{
+			name: "List",
+			call: "Row(a=[7], a=[7,8])",
+		},
+	}
+	for i, test := range tests {
+		t.Run(test.name+strconv.Itoa(i), func(t *testing.T) {
+			_, err := ParseString(test.call)
+			expErr := fmt.Sprintf("%s: a", duplicateArgErrorMessage)
+			if err == nil {
+				t.Fatalf("expected error for duplicate argument: %s", test.call)
+			} else if err.Error() != expErr {
+				t.Fatalf("expected error: %s, but got: %v", expErr, err.Error())
 			}
 		})
 	}

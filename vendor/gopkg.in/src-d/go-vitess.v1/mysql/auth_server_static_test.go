@@ -42,17 +42,61 @@ func TestJsonConfigParser(t *testing.T) {
 		t.Fatalf("mysql_user config size should be equal to 1")
 	}
 	// works with new format
-	jsonConfig = "{\"mysql_user\":[{\"Password\":\"123\", \"UserData\":\"dummy\", \"SourceHost\": \"localhost\"}, {\"Password\": \"123\", \"UserData\": \"mysql_user_all\"}]}"
+	jsonConfig = `{"mysql_user":[
+		{"Password":"123", "UserData":"dummy", "SourceHost": "localhost"},
+		{"Password": "123", "UserData": "mysql_user_all"},
+		{"Password": "456", "UserData": "mysql_user_with_groups", "Groups": ["user_group"]}
+	]}`
 	err = parseConfig([]byte(jsonConfig), &config)
 	if err != nil {
 		t.Fatalf("should not get an error, but got: %v", err)
 	}
-	if len(config["mysql_user"]) != 2 {
-		t.Fatalf("mysql_user config size should be equal to 2")
+	if len(config["mysql_user"]) != 3 {
+		t.Fatalf("mysql_user config size should be equal to 3")
 	}
 
 	if config["mysql_user"][0].SourceHost != "localhost" {
-		t.Fatalf("SourceHost should be equal localhost")
+		t.Fatalf("SourceHost should be equal to localhost")
+	}
+
+	if len(config["mysql_user"][2].Groups) != 1 || config["mysql_user"][2].Groups[0] != "user_group" {
+		t.Fatalf("Groups should be equal to [\"user_group\"]")
+	}
+
+	jsonConfig = `{
+		"mysql_user": [{"Password": "123", "UserData": "mysql_user_all", "InvalidKey": "oops"}]
+	}`
+	err = parseConfig([]byte(jsonConfig), &config)
+	if err == nil {
+		t.Fatalf("Invalid config should have errored, but didn't")
+	}
+}
+
+func TestValidateHashGetter(t *testing.T) {
+	jsonConfig := `{"mysql_user": [{"Password": "password", "UserData": "user.name", "Groups": ["user_group"]}]}`
+
+	auth := NewAuthServerStatic()
+	auth.loadConfigFromParams("", jsonConfig)
+	ip := net.ParseIP("127.0.0.1")
+	addr := &net.IPAddr{IP: ip, Zone: ""}
+
+	salt, err := NewSalt()
+	if err != nil {
+		t.Fatalf("error generating salt: %v", err)
+	}
+
+	scrambled := ScramblePassword(salt, []byte("password"))
+	getter, err := auth.ValidateHash(salt, "mysql_user", scrambled, addr)
+	if err != nil {
+		t.Fatalf("error validating password: %v", err)
+	}
+
+	callerId := getter.Get()
+	if callerId.Username != "user.name" {
+		t.Fatalf("getter username incorrect, expected \"user.name\", got %v", callerId.Username)
+	}
+	if len(callerId.Groups) != 1 || callerId.Groups[0] != "user_group" {
+		t.Fatalf("getter groups incorrect, expected [\"user_group\"], got %v", callerId.Groups)
 	}
 }
 
@@ -121,5 +165,74 @@ func hupTest(t *testing.T, tmpFile *os.File, oldStr, newStr string) {
 	}
 	if aStatic.Entries[newStr][0].Password != newStr {
 		t.Fatalf("%s's Password should be '%s'", newStr, newStr)
+	}
+}
+
+func TestStaticPasswords(t *testing.T) {
+	jsonConfig := `
+{
+	"user01": [{ "Password": "user01" }],
+	"user02": [{
+		"MysqlNativePassword": "*B3AD996B12F211BEA47A7C666CC136FB26DC96AF"
+	}],
+	"user03": [{
+		"MysqlNativePassword": "*211E0153B172BAED4352D5E4628BD76731AF83E7",
+		"Password": "invalid"
+	}],
+	"user04": [
+		{ "MysqlNativePassword": "*668425423DB5193AF921380129F465A6425216D0" },
+		{ "Password": "password2" }
+	]
+}`
+
+	tests := []struct {
+		user     string
+		password string
+		success  bool
+	}{
+		{"user01", "user01", true},
+		{"user01", "password", false},
+		{"user01", "", false},
+		{"user02", "user02", true},
+		{"user02", "password", false},
+		{"user02", "", false},
+		{"user03", "user03", true},
+		{"user03", "password", false},
+		{"user03", "invalid", false},
+		{"user03", "", false},
+		{"user04", "password1", true},
+		{"user04", "password2", true},
+		{"user04", "", false},
+		{"userXX", "", false},
+		{"userXX", "", false},
+		{"", "", false},
+		{"", "password", false},
+	}
+
+	auth := NewAuthServerStatic()
+	auth.loadConfigFromParams("", jsonConfig)
+	ip := net.ParseIP("127.0.0.1")
+	addr := &net.IPAddr{IP: ip, Zone: ""}
+
+	for _, c := range tests {
+		t.Run(fmt.Sprintf("%s-%s", c.user, c.password), func(t *testing.T) {
+			salt, err := NewSalt()
+			if err != nil {
+				t.Fatalf("error generating salt: %v", err)
+			}
+
+			scrambled := ScramblePassword(salt, []byte(c.password))
+			_, err = auth.ValidateHash(salt, c.user, scrambled, addr)
+
+			if c.success {
+				if err != nil {
+					t.Fatalf("authentication should have succeeded: %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("authentication should have failed")
+				}
+			}
+		})
 	}
 }

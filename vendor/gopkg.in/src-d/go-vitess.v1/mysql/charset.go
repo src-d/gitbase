@@ -21,6 +21,8 @@ import (
 	"strconv"
 
 	binlogdatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/binlogdata"
+	"gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 )
 
 // This file contains utility methods for Conn objects. Only useful on the client
@@ -34,10 +36,10 @@ func ExecuteFetchMap(conn *Conn, query string) (map[string]string, error) {
 		return nil, err
 	}
 	if len(qr.Rows) != 1 {
-		return nil, fmt.Errorf("query %#v returned %d rows, expected 1", query, len(qr.Rows))
+		return nil, vterrors.Errorf(vtrpc.Code_OUT_OF_RANGE, "query %#v returned %d rows, expected 1", query, len(qr.Rows))
 	}
 	if len(qr.Fields) != len(qr.Rows[0]) {
-		return nil, fmt.Errorf("query %#v returned %d column names, expected %d", query, len(qr.Fields), len(qr.Rows[0]))
+		return nil, vterrors.Errorf(vtrpc.Code_INTERNAL, "query %#v returned %d column names, expected %d", query, len(qr.Fields), len(qr.Rows[0]))
 	}
 
 	rowMap := make(map[string]string)

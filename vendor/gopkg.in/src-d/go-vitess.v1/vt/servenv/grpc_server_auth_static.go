@@ -23,9 +23,9 @@ import (
 	"io/ioutil"
 
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"gopkg.in/src-d/go-vitess.v1/vt/log"
 )
@@ -56,7 +56,7 @@ type StaticAuthPlugin struct {
 func (sa *StaticAuthPlugin) Authenticate(ctx context.Context, fullMethod string) (context.Context, error) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if len(md["username"]) == 0 || len(md["password"]) == 0 {
-			return nil, grpc.Errorf(codes.Unauthenticated, "username and password must be provided")
+			return nil, status.Errorf(codes.Unauthenticated, "username and password must be provided")
 		}
 		username := md["username"][0]
 		password := md["password"][0]
@@ -65,15 +65,15 @@ func (sa *StaticAuthPlugin) Authenticate(ctx context.Context, fullMethod string)
 				return ctx, nil
 			}
 		}
-		return nil, grpc.Errorf(codes.PermissionDenied, "auth failure: caller %q provided invalid credentials", username)
+		return nil, status.Errorf(codes.PermissionDenied, "auth failure: caller %q provided invalid credentials", username)
 	}
-	return nil, grpc.Errorf(codes.Unauthenticated, "username and password must be provided")
+	return nil, status.Errorf(codes.Unauthenticated, "username and password must be provided")
 }
 
 func staticAuthPluginInitializer() (Authenticator, error) {
 	entries := make([]StaticAuthConfigEntry, 0)
 	if *credsFile == "" {
-		err := fmt.Errorf("failed to load static auth plugin. Plugin configured but grpc_server_auth_static_file not provided")
+		err := fmt.Errorf("failed to load static auth plugin. Plugin configured but grpc_auth_static_password_file not provided")
 		return nil, err
 	}
 
@@ -91,7 +91,7 @@ func staticAuthPluginInitializer() (Authenticator, error) {
 	staticAuthPlugin := &StaticAuthPlugin{
 		entries: entries,
 	}
-	log.Info("static auth plugin have initialized successfully with config from grpc_server_auth_static_file")
+	log.Info("static auth plugin have initialized successfully with config from grpc_auth_static_password_file")
 	return staticAuthPlugin, nil
 }
 

@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
 	"gopkg.in/src-d/go-vitess.v1/vt/key"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 )
 
 var (
@@ -98,9 +99,9 @@ func (vind *Hash) Verify(_ VCursor, ids []sqltypes.Value, ksids [][]byte) ([]boo
 	for i := range ids {
 		num, err := sqltypes.ToUint64(ids[i])
 		if err != nil {
-			return nil, fmt.Errorf("hash.Verify: %v", err)
+			return nil, vterrors.Wrap(err, "hash.Verify")
 		}
-		out[i] = (bytes.Compare(vhash(num), ksids[i]) == 0)
+		out[i] = bytes.Compare(vhash(num), ksids[i]) == 0
 	}
 	return out, nil
 }

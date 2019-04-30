@@ -19,10 +19,8 @@ import (
 	"io"
 
 	"github.com/pilosa/pilosa"
-
-	"github.com/spf13/cobra"
-
 	"github.com/pilosa/pilosa/ctl"
+	"github.com/spf13/cobra"
 )
 
 var Importer *ctl.ImportCommand
@@ -55,6 +53,7 @@ omitted. If it is present then its format should be YYYY-MM-DDTHH:MM.
 	flags.StringVarP(&Importer.Field, "field", "f", "", "Field to import into.")
 	flags.BoolVar(&Importer.IndexOptions.Keys, "index-keys", false, "Specify keys=true when creating an index")
 	flags.BoolVar(&Importer.FieldOptions.Keys, "field-keys", false, "Specify keys=true when creating a field")
+	flags.StringVar(&Importer.FieldOptions.Type, "field-type", "", "Specify the field type when creating a field. One of: set, int, time, bool, mutex")
 	flags.Int64Var(&Importer.FieldOptions.Min, "field-min", 0, "Specify the minimum for an int field on creation")
 	flags.Int64Var(&Importer.FieldOptions.Max, "field-max", 0, "Specify the maximum for an int field on creation")
 	flags.StringVar(&Importer.FieldOptions.CacheType, "field-cache-type", pilosa.CacheTypeRanked, "Specify the cache type for a set field on creation. One of: none, lru, ranked")
@@ -63,6 +62,7 @@ omitted. If it is present then its format should be YYYY-MM-DDTHH:MM.
 	flags.IntVarP(&Importer.BufferSize, "buffer-size", "s", 10000000, "Number of bits to buffer/sort before importing.")
 	flags.BoolVarP(&Importer.Sort, "sort", "", false, "Enables sorting before import.")
 	flags.BoolVarP(&Importer.CreateSchema, "create", "e", false, "Create the schema if it does not exist before import.")
+	flags.BoolVarP(&Importer.Clear, "clear", "", false, "Clear the data provided in the import.")
 	ctl.SetTLSConfig(flags, &Importer.TLS.CertificatePath, &Importer.TLS.CertificateKeyPath, &Importer.TLS.SkipVerify)
 
 	return importCmd

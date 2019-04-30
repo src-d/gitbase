@@ -24,12 +24,22 @@ import (
 
 	"golang.org/x/net/context"
 	"gopkg.in/src-d/go-vitess.v1/sqltypes"
+	"gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc"
+	"gopkg.in/src-d/go-vitess.v1/vt/vterrors"
 )
 
 var (
 	// ErrNotSlave means there is no slave status.
 	// Returned by ShowSlaveStatus().
 	ErrNotSlave = errors.New("no slave status")
+)
+
+const (
+	// mariaDBReplicationHackPrefix is the prefix of a version for MariaDB 10.0
+	// versions, to work around replication bugs.
+	mariaDBReplicationHackPrefix = "5.5.5-"
+	// mariaDBVersionString is present in
+	mariaDBVersionString = "MariaDB"
 )
 
 // flavor is the abstract interface for a flavor.
@@ -44,6 +54,10 @@ type flavor interface {
 
 	// startSlave returns the command to start the slave.
 	startSlaveCommand() string
+
+	// startSlaveUntilAfter will restart replication, but only allow it
+	// to run until `pos` is reached. After reaching pos, replication will be stopped again
+	startSlaveUntilAfter(pos Position) string
 
 	// stopSlave returns the command to stop the slave.
 	stopSlaveCommand() string
@@ -84,13 +98,6 @@ type flavor interface {
 	enableBinlogPlaybackCommand() string
 	disableBinlogPlaybackCommand() string
 }
-
-// mariaDBReplicationHackPrefix is the prefix of a version for MariaDB 10.0
-// versions, to work around replication bugs.
-const mariaDBReplicationHackPrefix = "5.5.5-"
-
-// mariaDBVersionString is present in
-const mariaDBVersionString = "MariaDB"
 
 // fillFlavor fills in c.Flavor based on c.ServerVersion.
 // This is the same logic as the ConnectorJ java client. We try to recognize
@@ -144,6 +151,11 @@ func (c *Conn) MasterPosition() (Position, error) {
 // StartSlaveCommand returns the command to start the slave.
 func (c *Conn) StartSlaveCommand() string {
 	return c.flavor.startSlaveCommand()
+}
+
+// StartSlaveUntilAfterCommand returns the command to start the slave.
+func (c *Conn) StartSlaveUntilAfterCommand(pos Position) string {
+	return c.flavor.startSlaveUntilAfter(pos)
 }
 
 // StopSlaveCommand returns the command to stop the slave.
@@ -215,10 +227,10 @@ func resultToMap(qr *sqltypes.Result) (map[string]string, error) {
 		return nil, nil
 	}
 	if len(qr.Rows) > 1 {
-		return nil, fmt.Errorf("query returned %d rows, expected 1", len(qr.Rows))
+		return nil, vterrors.Errorf(vtrpc.Code_INTERNAL, "query returned %d rows, expected 1", len(qr.Rows))
 	}
 	if len(qr.Fields) != len(qr.Rows[0]) {
-		return nil, fmt.Errorf("query returned %d column names, expected %d", len(qr.Fields), len(qr.Rows[0]))
+		return nil, vterrors.Errorf(vtrpc.Code_INTERNAL, "query returned %d column names, expected %d", len(qr.Fields), len(qr.Rows[0]))
 	}
 
 	result := make(map[string]string, len(qr.Fields))

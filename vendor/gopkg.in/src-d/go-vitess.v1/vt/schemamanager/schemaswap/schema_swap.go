@@ -39,6 +39,7 @@ import (
 	topodatapb "gopkg.in/src-d/go-vitess.v1/vt/proto/topodata"
 	workflowpb "gopkg.in/src-d/go-vitess.v1/vt/proto/workflow"
 	"gopkg.in/src-d/go-vitess.v1/vt/topo"
+	"gopkg.in/src-d/go-vitess.v1/vt/topo/topoproto"
 	"gopkg.in/src-d/go-vitess.v1/vt/vtctl"
 	"gopkg.in/src-d/go-vitess.v1/vt/vttablet/tmclient"
 	"gopkg.in/src-d/go-vitess.v1/vt/workflow"
@@ -459,7 +460,7 @@ func (schemaSwap *Swap) stopAllHealthWatchers() {
 }
 
 // initializeSwap starts the schema swap process. If there is already a schema swap process started
-// the the method just picks up that. Otherwise it starts a new one and writes into the database that
+// the method just picks up that. Otherwise it starts a new one and writes into the database that
 // the process was started.
 func (schemaSwap *Swap) initializeSwap() error {
 	var waitGroup sync.WaitGroup
@@ -603,8 +604,8 @@ func (shardSwap *shardSchemaSwap) readShardMetadata(metadata *shardSwapMetadata,
 		return
 	}
 	query := fmt.Sprintf(
-		"SELECT name, value FROM _vt.shard_metadata WHERE name in ('%s', '%s', '%s')",
-		lastStartedMetadataName, lastFinishedMetadataName, currentSQLMetadataName)
+		"SELECT name, value FROM _vt.shard_metadata WHERE db_name = '%s' and name in ('%s', '%s', '%s')",
+		topoproto.TabletDbName(tablet), lastStartedMetadataName, lastFinishedMetadataName, currentSQLMetadataName)
 	queryResult, err := shardSwap.executeAdminQuery(tablet, query, 3 /* maxRows */)
 	if err != nil {
 		metadata.err = err
@@ -640,7 +641,9 @@ func (shardSwap *shardSchemaSwap) writeStartedSwap() error {
 		return err
 	}
 	queryBuf := bytes.Buffer{}
-	queryBuf.WriteString("INSERT INTO _vt.shard_metadata (name, value) VALUES ('")
+	queryBuf.WriteString("INSERT INTO _vt.shard_metadata (db_name, name, value) VALUES ('")
+	queryBuf.WriteString(topoproto.TabletDbName(tablet))
+	queryBuf.WriteString("',")
 	queryBuf.WriteString(currentSQLMetadataName)
 	queryBuf.WriteString("',")
 	sqlValue := sqltypes.NewVarChar(shardSwap.parent.sql)
@@ -666,13 +669,13 @@ func (shardSwap *shardSchemaSwap) writeFinishedSwap() error {
 		return err
 	}
 	query := fmt.Sprintf(
-		"INSERT INTO _vt.shard_metadata (name, value) VALUES ('%s', '%d') ON DUPLICATE KEY UPDATE value = '%d'",
-		lastFinishedMetadataName, shardSwap.parent.swapID, shardSwap.parent.swapID)
+		"INSERT INTO _vt.shard_metadata (db_name, name, value) VALUES ('%s', '%s', '%d') ON DUPLICATE KEY UPDATE value = '%d'",
+		topoproto.TabletDbName(tablet), lastFinishedMetadataName, shardSwap.parent.swapID, shardSwap.parent.swapID)
 	_, err = shardSwap.executeAdminQuery(tablet, query, 0 /* maxRows */)
 	if err != nil {
 		return err
 	}
-	query = fmt.Sprintf("DELETE FROM _vt.shard_metadata WHERE name = '%s'", currentSQLMetadataName)
+	query = fmt.Sprintf("DELETE FROM _vt.shard_metadata WHERE db_name = '%s' AND name = '%s'", topoproto.TabletDbName(tablet), currentSQLMetadataName)
 	_, err = shardSwap.executeAdminQuery(tablet, query, 0 /* maxRows */)
 	return err
 }
@@ -896,7 +899,7 @@ func (shardSwap *shardSchemaSwap) executeAdminQuery(tablet *topodatapb.Tablet, q
 func (shardSwap *shardSchemaSwap) isSwapApplied(tablet *topodatapb.Tablet) (bool, error) {
 	swapIDResult, err := shardSwap.executeAdminQuery(
 		tablet,
-		fmt.Sprintf("SELECT value FROM _vt.local_metadata WHERE name = '%s'", lastAppliedMetadataName),
+		fmt.Sprintf("SELECT value FROM _vt.local_metadata WHERE db_name = '%s' AND name = '%s'", topoproto.TabletDbName(tablet), lastAppliedMetadataName),
 		1 /* maxRows */)
 	if err != nil {
 		return false, err
@@ -1036,8 +1039,8 @@ func (shardSwap *shardSchemaSwap) applySeedSchemaChange() (err error) {
 		return err
 	}
 	updateAppliedSwapQuery := fmt.Sprintf(
-		"INSERT INTO _vt.local_metadata (name, value) VALUES ('%s', '%d') ON DUPLICATE KEY UPDATE value = '%d'",
-		lastAppliedMetadataName, shardSwap.parent.swapID, shardSwap.parent.swapID)
+		"INSERT INTO _vt.local_metadata (db_name, name, value) VALUES ('%s', '%s', '%d') ON DUPLICATE KEY UPDATE value = '%d'",
+		topoproto.TabletDbName(seedTablet), lastAppliedMetadataName, shardSwap.parent.swapID, shardSwap.parent.swapID)
 	_, err = shardSwap.parent.tabletClient.ExecuteFetchAsDba(
 		shardSwap.parent.ctx,
 		seedTablet,
@@ -1092,7 +1095,7 @@ func (shardSwap *shardSchemaSwap) takeSeedBackup() (err error) {
 	}
 
 	shardSwap.addShardLog(fmt.Sprintf("Taking backup on the seed tablet %v", seedTablet.Alias))
-	eventStream, err := shardSwap.parent.tabletClient.Backup(shardSwap.parent.ctx, seedTablet, *backupConcurrency)
+	eventStream, err := shardSwap.parent.tabletClient.Backup(shardSwap.parent.ctx, seedTablet, *backupConcurrency, false)
 	if err != nil {
 		return err
 	}
