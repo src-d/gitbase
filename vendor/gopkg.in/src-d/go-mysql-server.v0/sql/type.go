@@ -151,6 +151,17 @@ type Type interface {
 	fmt.Stringer
 }
 
+var maxTime = time.Date(9999, time.December, 31, 23, 59, 59, 0, time.UTC)
+
+// ValidateTime receives a time and returns either that time or nil if it's
+// not a valid time.
+func ValidateTime(t time.Time) interface{} {
+	if t.After(maxTime) {
+		return nil
+	}
+	return t
+}
+
 var (
 	// Null represents the null type.
 	Null nullT
@@ -863,4 +874,44 @@ func NumColumns(t Type) int {
 		return 1
 	}
 	return len(v)
+}
+
+// MySQLTypeName returns the MySQL display name for the given type.
+func MySQLTypeName(t Type) string {
+	switch t.Type() {
+	case sqltypes.Int8:
+		return "TINYINT"
+	case sqltypes.Uint8:
+		return "TINYINT UNSIGNED"
+	case sqltypes.Int16:
+		return "SMALLINT"
+	case sqltypes.Uint16:
+		return "SMALLINT UNSIGNED"
+	case sqltypes.Int32:
+		return "INTEGER"
+	case sqltypes.Int64:
+		return "BIGINT"
+	case sqltypes.Uint32:
+		return "INTEGER UNSIGNED"
+	case sqltypes.Uint64:
+		return "BIGINT UNSIGNED"
+	case sqltypes.Float32:
+		return "FLOAT"
+	case sqltypes.Float64:
+		return "DOUBLE"
+	case sqltypes.Timestamp:
+		return "DATETIME"
+	case sqltypes.Date:
+		return "DATE"
+	case sqltypes.Text, sqltypes.VarChar:
+		return "TEXT"
+	case sqltypes.Bit:
+		return "BIT"
+	case sqltypes.TypeJSON:
+		return "JSON"
+	case sqltypes.Blob:
+		return "BLOB"
+	default:
+		return "UNKNOWN"
+	}
 }
