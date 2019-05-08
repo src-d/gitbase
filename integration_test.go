@@ -345,6 +345,16 @@ func TestIntegration(t *testing.T) {
 			`,
 			[]sql.Row{{"worktree", int64(9)}},
 		},
+		// Uncomment after fix go-mysql-server, so we can call ARRAY_LENGTH on JSON arrays.
+		// {
+		// 	`SELECT repository_id, ARRAY_LENGTH(js)
+		// 	FROM (
+		// 		SELECT repository_id, JSON_EXTRACT(diff(repository_id, commit_hash), '$.status') as js
+		// 		FROM commits
+		// 		WHERE  commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'
+		// 	) as q`,
+		// 	[]sql.Row{{"worktree", int32(2)}},
+		// },
 	}
 
 	runTests := func(t *testing.T) {

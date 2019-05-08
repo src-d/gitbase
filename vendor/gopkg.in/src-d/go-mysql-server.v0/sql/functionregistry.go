@@ -13,7 +13,7 @@ var ErrFunctionNotFound = errors.NewKind("A function: '%s' not found.")
 
 // ErrInvalidArgumentNumber is returned when the number of arguments to call a
 // function is different from the function arity.
-var ErrInvalidArgumentNumber = errors.NewKind("A function: '%s' expected %d arguments, %d received.")
+var ErrInvalidArgumentNumber = errors.NewKind("A function: '%s' expected %v arguments, %d received.")
 
 // Function is a function defined by the user that can be applied in a SQL query.
 type Function interface {
