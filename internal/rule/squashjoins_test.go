@@ -41,6 +41,9 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	project, ok := exchange.Child.(*plan.Project)
 	require.True(ok)
 
+	project, ok = project.Child.(*plan.Project)
+	require.True(ok)
+
 	rt, ok := project.Child.(*plan.ResolvedTable)
 	require.True(ok)
 
@@ -76,6 +79,9 @@ func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 	require.Equal(2, exchange.Parallelism)
 
 	project, ok := exchange.Child.(*plan.Project)
+	require.True(ok)
+
+	project, ok = project.Child.(*plan.Project)
 	require.True(ok)
 
 	filter, ok := project.Child.(*plan.Filter)
