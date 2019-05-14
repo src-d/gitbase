@@ -347,13 +347,15 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
+	var pid uint64
 	runTests := func(t *testing.T) {
 		for _, tt := range testCases {
 			t.Run(tt.query, func(t *testing.T) {
 				require := require.New(t)
 
 				session := gitbase.NewSession(pool)
-				ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+				ctx := sql.NewContext(context.TODO(), sql.WithSession(session), sql.WithPid(pid))
+				pid++
 
 				_, iter, err := engine.Query(ctx, tt.query)
 				require.NoError(err)
