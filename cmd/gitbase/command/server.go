@@ -285,7 +285,7 @@ func (c *Server) addDirectory(directory string) error {
 	}
 
 	for _, match := range matches {
-		if err := c.addMatch(match); err != nil {
+		if err := c.addMatch(directory, match); err != nil {
 			logrus.WithFields(logrus.Fields{
 				"path":  match,
 				"error": err,
@@ -296,11 +296,12 @@ func (c *Server) addDirectory(directory string) error {
 	return nil
 }
 
-func (c *Server) addMatch(match string) error {
+func (c *Server) addMatch(prefix, match string) error {
 	root, err := filepath.Abs(match)
 	if err != nil {
 		return err
 	}
+
 	root, err = filepath.EvalSymlinks(root)
 	if err != nil {
 		return err
@@ -316,7 +317,7 @@ func (c *Server) addMatch(match string) error {
 		}
 
 		if info.IsDir() {
-			if err := c.addIfGitRepo(path); err != nil {
+			if err := c.addIfGitRepo(prefix, path); err != nil {
 				return err
 			}
 
@@ -329,8 +330,14 @@ func (c *Server) addMatch(match string) error {
 		}
 
 		if !c.DisableSiva &&
-			info.Mode().IsRegular() && gitbase.IsSivaFile(info.Name()) {
-			if err := c.pool.AddSivaFileWithID(info.Name(), path); err != nil {
+			info.Mode().IsRegular() &&
+			gitbase.IsSivaFile(info.Name()) {
+			id, err := gitbase.StripPrefix(prefix, path)
+			if err != nil {
+				return err
+			}
+
+			if err := c.pool.AddSivaFileWithID(id, path); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"path":  path,
 					"error": err,
@@ -346,7 +353,7 @@ func (c *Server) addMatch(match string) error {
 	})
 }
 
-func (c *Server) addIfGitRepo(path string) error {
+func (c *Server) addIfGitRepo(prefix, path string) error {
 	ok, err := gitbase.IsGitRepo(path)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -359,10 +366,14 @@ func (c *Server) addIfGitRepo(path string) error {
 
 	if ok {
 		if !c.DisableGit {
-			base := filepath.Base(path)
-			if err := c.pool.AddGitWithID(base, path); err != nil {
+			id, err := gitbase.StripPrefix(prefix, path)
+			if err != nil {
+				return err
+			}
+
+			if err := c.pool.AddGitWithID(id, path); err != nil {
 				logrus.WithFields(logrus.Fields{
-					"id":    base,
+					"id":    id,
 					"path":  path,
 					"error": err,
 				}).Error("repository could not be added")
