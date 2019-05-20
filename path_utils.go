@@ -11,6 +11,43 @@ import (
 // RegMatchChars matches a string with a glob expression inside.
 var RegMatchChars = regexp.MustCompile(`(^|[^\\])([*[?])`)
 
+// StripPrefix removes the root path from the given path. Root may be a glob.
+// The returned string has all backslashes replaced with slashes.
+func StripPrefix(root, path string) (string, error) {
+	var err error
+	root, err = filepath.Abs(cleanGlob(root))
+	if err != nil {
+		return "", err
+	}
+
+	if !strings.HasSuffix(root, "/") {
+		root += string(filepath.Separator)
+	}
+
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimPrefix(filepath.ToSlash(path), root), nil
+}
+
+// cleanGlob removes all the parts of a glob that are not fixed. It also
+// converts all slashes or backslashes to /.
+func cleanGlob(pattern string) string {
+	pattern = filepath.ToSlash(pattern)
+	var parts []string
+	for _, part := range strings.Split(pattern, "/") {
+		if strings.ContainsAny(part, "*?[\\") {
+			break
+		}
+
+		parts = append(parts, part)
+	}
+
+	return strings.Join(parts, "/")
+}
+
 // PatternMatches returns the paths matched and any error found.
 func PatternMatches(pattern string) ([]string, error) {
 	abs, err := filepath.Abs(pattern)
