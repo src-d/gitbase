@@ -99,6 +99,14 @@ func (c *CommitStatsCalculator) doChange(ch *object.Change) (*Stats, error) {
 			return nil, err
 		}
 
+		if src == nil {
+			src = make(FileInfo)
+		}
+
+		if dst == nil {
+			dst = make(FileInfo)
+		}
+
 		dst.Sub(src)
 		fi = dst
 	}
@@ -143,6 +151,9 @@ func NewFileInfo(f *object.Blob) (FileInfo, error) {
 	if err != nil {
 		return ff, err
 	}
+
+	defer ioutil.CheckClose(r, &err)
+
 	gocloc.AnalyzeReader("", languages.Langs["Go"], r, &gocloc.ClocOptions{
 		OnBlank:   ff.AddBlank,
 		OnCode:    ff.AddCode,

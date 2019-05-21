@@ -3,9 +3,9 @@ package function
 import (
 	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/src-d/gitbase"
+	"github.com/src-d/gitbase/internal/utils"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
@@ -41,8 +41,6 @@ func (f *CommitStats) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	span, ctx := ctx.Span("gitbase.CommitStats")
 	defer span.Finish()
 
-	s := time.Now()
-
 	val, err := f.Child.Eval(ctx, row)
 	if err != nil {
 		return nil, err
@@ -67,10 +65,8 @@ func (f *CommitStats) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, err
 	}
 
-	csc := NewCommitStatsCalculator(r, c)
-	fmt.Println(csc.Do())
-
-	return csc, nil
+	csc := utils.NewCommitStatsCalculator(r.Repository, c)
+	return csc.Do()
 }
 
 func resolveRepo(ctx *sql.Context, r sql.Row) (*gitbase.Repository, error) {
