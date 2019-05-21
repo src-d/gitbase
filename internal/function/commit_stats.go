@@ -66,7 +66,8 @@ func (f *CommitStats) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	}
 
 	csc := utils.NewCommitStatsCalculator(r.Repository, c)
-	return csc.Do()
+	stats, _ := csc.Do()
+	return stats, nil
 }
 
 func resolveRepo(ctx *sql.Context, r sql.Row) (*gitbase.Repository, error) {
