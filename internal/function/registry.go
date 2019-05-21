@@ -4,6 +4,7 @@ import "gopkg.in/src-d/go-mysql-server.v0/sql"
 
 // Functions for gitbase queries.
 var Functions = []sql.Function{
+	sql.Function1{Name: "commit_stats", Fn: NewCommitStats},
 	sql.Function1{Name: "is_tag", Fn: NewIsTag},
 	sql.Function1{Name: "is_remote", Fn: NewIsRemote},
 	sql.FunctionN{Name: "language", Fn: NewLanguage},
