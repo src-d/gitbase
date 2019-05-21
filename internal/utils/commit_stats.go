@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hhatto/gocloc"
-	"github.com/src-d/enry"
+	"gopkg.in/src-d/enry.v1"
 
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
