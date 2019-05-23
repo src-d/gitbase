@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/src-d/gitbase/cmd/gitbase/command"
 	"github.com/src-d/gitbase/internal/rule"
@@ -353,6 +354,30 @@ func TestIntegration(t *testing.T) {
 				AND r.repository_id = cf.repository_id
 			WHERE r.ref_name = 'HEAD' AND IS_VENDOR(cf.file_path)`,
 			[]sql.Row{{".gitignore"}, {"vendor/foo.go"}},
+		},
+		{
+			`
+			SELECT f.file_path, c.commit_author_when
+			FROM repositories r
+			NATURAL JOIN commits c
+			NATURAL JOIN commit_files cf
+			NATURAL JOIN files f
+			WHERE r.repository_id = 'worktree'
+				AND c.commit_hash = '6ecf0ef2c2dffb796033e5a02219af86ec6584e5'
+				AND f.file_path NOT REGEXP '^vendor.*'
+				AND NOT IS_BINARY(f.blob_content)
+			LIMIT 10
+			`,
+			[]sql.Row{
+				{".gitignore", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+				{"CHANGELOG", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+				{"LICENSE", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+				{"binary.jpg", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+				{"go/example.go", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+				{"json/long.json", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+				{"json/short.json", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+				{"php/crappy.php", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+			},
 		},
 	}
 

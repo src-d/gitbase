@@ -81,9 +81,6 @@ func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 	project, ok := exchange.Child.(*plan.Project)
 	require.True(ok)
 
-	project, ok = project.Child.(*plan.Project)
-	require.True(ok)
-
 	filter, ok := project.Child.(*plan.Filter)
 	require.True(ok)
 
