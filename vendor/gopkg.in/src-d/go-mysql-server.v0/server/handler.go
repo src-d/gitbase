@@ -150,12 +150,11 @@ func (h *Handler) ComQuery(
 // ComQuery callback if the result does not contain any fields,
 // or after the last ComQuery call completes.
 func (h *Handler) WarningCount(c *mysql.Conn) uint16 {
-	sess, ok := h.sm.sessions[c.ConnectionID]
-	if !ok {
-		return 0
+	if sess := h.sm.session(c); sess != nil {
+		return sess.WarningCount()
 	}
 
-	return sess.WarningCount()
+	return 0
 }
 
 func (h *Handler) handleKill(conn *mysql.Conn, query string) (bool, error) {
@@ -165,7 +164,7 @@ func (h *Handler) handleKill(conn *mysql.Conn, query string) (bool, error) {
 		return false, nil
 	}
 
-	id, err := strconv.ParseUint(s[2], 10, 64)
+	id, err := strconv.ParseUint(s[2], 10, 32)
 	if err != nil {
 		return false, err
 	}
@@ -182,15 +181,10 @@ func (h *Handler) handleKill(conn *mysql.Conn, query string) (bool, error) {
 	// - KILL CONNECTION is the same as KILL with no modifier:
 	// It terminates the connection associated with the given processlist_id,
 	// after terminating any statement the connection is executing.
-	if s[1] == "query" {
-		logrus.Infof("kill query: id %d", id)
-		h.e.Catalog.Kill(id)
-	} else {
-		connID, ok := h.e.Catalog.KillConnection(id)
-		if !ok {
-			return false, errConnectionNotFound.New(connID)
-		}
-		logrus.Infof("kill connection: id %d, pid: %d", connID, id)
+	connID := uint32(id)
+	h.e.Catalog.Kill(connID)
+	if s[1] != "query" {
+		logrus.Infof("kill connection: id %d", connID)
 
 		h.mu.Lock()
 		c, ok := h.c[connID]

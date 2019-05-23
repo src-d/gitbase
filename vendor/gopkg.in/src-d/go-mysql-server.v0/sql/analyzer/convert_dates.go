@@ -1,18 +1,11 @@
 package analyzer
 
 import (
-	"fmt"
-
 	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/expression/function"
 	"gopkg.in/src-d/go-mysql-server.v0/sql/plan"
 )
-
-type tableCol struct {
-	table string
-	col   string
-}
 
 // convertDates wraps all expressions of date and datetime type with converts
 // to ensure the date range is validated.
@@ -145,9 +138,8 @@ func addDateConvert(
 		// and propagate the changes up the chain.
 		if gf, ok := e.(*expression.GetField); ok && expressions[e.String()] && aliasRootProjections {
 			if _, ok := result.(*expression.GetField); !ok {
-				name := fmt.Sprintf("%s__%s", gf.Table(), gf.Name())
-				result = expression.NewAlias(result, name)
-				nodeReplacements[tableCol{gf.Table(), gf.Name()}] = name
+				result = expression.NewAlias(result, gf.Name())
+				nodeReplacements[tableCol{gf.Table(), gf.Name()}] = gf.Name()
 			}
 		}
 	}
