@@ -345,6 +345,15 @@ func TestIntegration(t *testing.T) {
 			`,
 			[]sql.Row{{"worktree", int64(9)}},
 		},
+		{
+			`SELECT cf.file_path
+			FROM refs r
+			INNER JOIN commit_files cf
+			ON r.commit_hash = cf.commit_hash
+				AND r.repository_id = cf.repository_id
+			WHERE r.ref_name = 'HEAD' AND IS_VENDOR(cf.file_path)`,
+			[]sql.Row{{".gitignore"}, {"vendor/foo.go"}},
+		},
 	}
 
 	var pid uint64
