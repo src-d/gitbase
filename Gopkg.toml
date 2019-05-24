@@ -84,6 +84,10 @@
   name = "gopkg.in/src-d/go-vitess.v1"
   version = "1.6.0"
 
+[[constraint]]
+  name = "github.com/hhatto/gocloc"
+  revision = "c5379f7427f9a9a5bec11accdf8a2ef7fa414d3e"
+
 [prune]
   [[prune.project]]
     name = "gopkg.in/src-d/go-mysql-server.v0"

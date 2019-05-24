@@ -1,8 +1,10 @@
 language: go
 
-go:
-  - 1.x
-  - tip
+matrix:
+  include:
+    - go: 1.x
+      env: DEPLOY_BUILD=true
+    - go: tip
 
 install:
   - go get -u github.com/golang/dep/cmd/dep
@@ -19,4 +21,5 @@ deploy:
     skip_cleanup: true
     script: curl -sL https://git.io/goreleaser | bash
     on:
+      condition: $DEPLOY_BUILD = true
       tags: true
