@@ -111,7 +111,32 @@ func squashProjects(parent, child *plan.Project) (sql.Node, bool) {
 	projections := make([]sql.Expression, len(parent.Expressions()))
 	schema := child.Child.Schema()
 
+	// When squashing two projects, it's possible that the parent project has
+	// a reference to a column defined in the child project.
+	// For that reason, we need to gather the new columns that were defined
+	// in the child project in order to replace the reference to those in the
+	// parent project with the new column definition.
+	var newColumns = make(map[string]sql.Expression)
+	for _, e := range child.Expressions() {
+		if _, ok := e.(*expression.GetField); !ok {
+			var name string
+			if n, ok := e.(sql.Nameable); ok {
+				name = n.Name()
+			} else {
+				name = e.String()
+			}
+
+			newColumns[name] = e
+		}
+	}
+
 	for i, e := range parent.Expressions() {
+		if f, ok := e.(*expression.GetField); ok && f.Table() == "" {
+			if expr, ok := newColumns[f.Name()]; ok {
+				e = expr
+			}
+		}
+
 		fe, err := fixFieldIndexes(e, schema)
 		if err != nil {
 			return nil, false
