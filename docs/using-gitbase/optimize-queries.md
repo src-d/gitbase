@@ -156,6 +156,43 @@ This has two advantages:
 
 As a result, your query could be orders of magnitude faster.
 
+#### Squashed table optimizations
+
+In squashed tables, data flows from the topmost table in terms of hierarchy towards the rest of the tables. That way, if a squashed table is made of `repositories`, `commits` and `commit_files` the process to generate the data is the following:
+
+1. Get a repository. If there are no more repositories, finish.
+2. If it satisfies the filters given to the `repositories` table go to step 3, otherwise, go to step 1 again.
+3. Get the next commit for the current repository. If there are no more commits for this repository, go to 1 again.
+4. If it satisfies the filters given to the `commits` table go to step 4, otherwise, go to step 3 again.
+5. Get the next commit file for the current commit. If there are no more commit files for this commit, go to 3 again.
+6. If it satisfies the filters given to the `commits_files` table return the composed row, otherwise, go to step 5 again.
+
+This way, the less data coming from the upper table, the less work the next table will have to do, and thus, the faster it will be. A good rule of thumb is to apply a filter as soon as possible. That is, if there is a filter by `repository_id` it's better to do `repositories.repository_id = 'SOME REPO'` than `commits.repository_id = 'SOME_REPO'`. Because even if the result will be the same, it will avoid doing a lot of useless computing for the repositories that do not satisfy that filter.
+
+To illustrate this, let's consider the following example:
+
+We have 2 repositories, `A` and `B`. Each repository has 3 commits.
+
+With this query we will get the three commits from `A`.
+
+```sql
+SELECT * FROM repositories NATURAL JOIN commits WHERE commits.repository_id = 'A'
+```
+
+But we have processed `B`'s commits as well, because the filter is done in commits. 2 repositories make it to the `commits` table, and then it generates 6 rows, 3 of which make it past the filters, resulting in 3 rows.
+
+With this query we will get the three commits from `A` as well.
+
+```sql
+SELECT * FROM repositories NATURAL JOIN commits WHERE repositories.repository_id = 'A'
+```
+
+However, this time, 1 repository makes it past the filters in the `repositories` table and is sent to the `commits` table, and then it generates 3 rows, resulting in 3 rows.
+
+The results are the same but we have reduced significantly the amount of computing needed for this query. Now consider having 1000 repositories with 1M commits each. Both of these queries would be generating 1M rows. The difference is the first one would be computing 1B rows, and the second only 1M.
+
+This advice can be applied to all squashed tables, not only `repository_id`.
+
 #### Limitations
 
 **Only works per repository**. This optimisation is built on top of some premises, one of them is the fact that all tables are joined by `repository_id`.
