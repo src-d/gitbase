@@ -292,10 +292,10 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 		if i.commits == nil {
 			var ref *plumbing.Reference
 			if i.head == nil {
-				var err_ error
-				ref, err_ = i.refs.Next()
-				if err_ != nil {
-					if err_ == io.EOF {
+				var err error
+				ref, err = i.refs.Next()
+				if err != nil {
+					if err == io.EOF {
 						i.repo.Close()
 						return nil, io.EOF
 					}
@@ -305,7 +305,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 					}
 
 					i.repo.Close()
-					return nil, err_
+					return nil, err
 				}
 			} else {
 				ref = plumbing.NewHashReference(plumbing.ReferenceName("HEAD"), i.head.Hash())
