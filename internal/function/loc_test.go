@@ -23,7 +23,7 @@ func TestLoc(t *testing.T) {
 		{"too many args given", sql.NewRow("foo.rb", "bar", "baz"), nil, sql.ErrInvalidArgumentNumber},
 		{"invalid blob type given", sql.NewRow("foo", 5), nil, sql.ErrInvalidType},
 		{"path and blob are given", sql.NewRow("foo", "#!/usr/bin/env python\n\nprint 'foo'"), &gocloc.ClocFile{
-			Code: 2, Comments: 0, Blanks: 1, Name: "foo", Lang: "",
+			Code: 2, Comments: 0, Blanks: 1, Name: "foo", Lang: "Python",
 		}, nil},
 	}
 
