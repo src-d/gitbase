@@ -9,8 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 	bblfsh "gopkg.in/bblfsh/client-go.v3"
 	derrors "gopkg.in/bblfsh/sdk.v2/driver/errors"
@@ -29,8 +32,37 @@ const (
 	defaultUASTMaxBlobSize = 5 * 1024 * 1024 // 5MB
 )
 
-var uastCache *lru.Cache
-var uastMaxBlobSize int
+var (
+	uastCache       *lru.Cache
+	uastMaxBlobSize int
+
+	hitCacheCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "gitbase",
+		Subsystem: "uast",
+		Name:      "hit_cache_counter",
+		Help:      "hit cache counter for getUAST function",
+		ConstLabels: map[string]string{
+			"defaultUASTCacheSize":   strconv.Itoa(defaultUASTCacheSize),
+			"defaultUASTMaxBlobSize": strconv.Itoa(defaultUASTMaxBlobSize),
+		},
+	})
+	missCacheCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "gitbase",
+		Subsystem: "uast",
+		Name:      "miss_cache_counter",
+		Help:      "miss cache counter for getUAST function",
+		ConstLabels: map[string]string{
+			"defaultUASTCacheSize":   strconv.Itoa(defaultUASTCacheSize),
+			"defaultUASTMaxBlobSize": strconv.Itoa(defaultUASTMaxBlobSize),
+		},
+	})
+	uastHistogram = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "gitbase",
+		Subsystem: "uast",
+		Name:      "get_uast_histogram_seconds",
+		Help:      "getUAST function histogram in seconds",
+	})
+)
 
 func init() {
 	s := os.Getenv(uastCacheSizeKey)
@@ -217,6 +249,8 @@ func (u *uastFunc) getUAST(
 	lang, xpath string,
 	mode bblfsh.Mode,
 ) (interface{}, error) {
+	finish := logMetrics(time.Now())
+
 	u.m.Lock()
 	key, err := computeKey(u.h, mode.String(), lang, blob)
 	u.m.Unlock()
@@ -263,7 +297,20 @@ func (u *uastFunc) getUAST(
 		return nil, nil
 	}
 
+	finish(ok)
+
 	return result, nil
+}
+
+func logMetrics(t time.Time) func(bool) {
+	return func(ok bool) {
+		uastHistogram.Observe(time.Since(t).Seconds())
+		if ok {
+			hitCacheCounter.Inc()
+		} else {
+			missCacheCounter.Inc()
+		}
+	}
 }
 
 // UAST returns an array of UAST nodes as blobs.

@@ -1,8 +1,10 @@
 package command
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/src-d/gitbase/internal/rule"
@@ -42,27 +45,29 @@ type Server struct {
 	pool     *gitbase.RepositoryPool
 	userAuth auth.Auth
 
-	Name          string         `long:"db" default:"gitbase" description:"Database name"`
-	Version       string         // Version of the application.
-	Directories   []string       `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
-	Depth         int            `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
-	Host          string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
-	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
-	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
-	Password      string         `short:"P" long:"password" default:"" description:"Password used for connection"`
-	UserFile      string         `short:"U" long:"user-file" env:"GITBASE_USER_FILE" default:"" description:"JSON file with credentials list"`
-	ConnTimeout   int            `short:"t" long:"timeout" env:"GITBASE_CONNECTION_TIMEOUT" description:"Timeout in seconds used for connections"`
-	IndexDir      string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
-	CacheSize     cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
-	Parallelism   uint           `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
-	DisableSquash bool           `long:"no-squash" description:"Disables the table squashing."`
-	TraceEnabled  bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
-	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
-	SkipGitErrors bool           // SkipGitErrors disables failing when Git errors are found.
-	DisableGit    bool           `long:"no-git" description:"disable the load of git standard repositories."`
-	DisableSiva   bool           `long:"no-siva" description:"disable the load of siva files."`
-	Verbose       bool           `short:"v" description:"Activates the verbose mode"`
-	LogLevel      string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
+	Name           string         `long:"db" default:"gitbase" description:"Database name"`
+	Version        string         // Version of the application.
+	Directories    []string       `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
+	Depth          int            `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
+	Host           string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
+	Port           int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
+	User           string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
+	Password       string         `short:"P" long:"password" default:"" description:"Password used for connection"`
+	UserFile       string         `short:"U" long:"user-file" env:"GITBASE_USER_FILE" default:"" description:"JSON file with credentials list"`
+	ConnTimeout    int            `short:"t" long:"timeout" env:"GITBASE_CONNECTION_TIMEOUT" description:"Timeout in seconds used for connections"`
+	IndexDir       string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
+	CacheSize      cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
+	Parallelism    uint           `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
+	DisableSquash  bool           `long:"no-squash" description:"Disables the table squashing."`
+	TraceEnabled   bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
+	MetricsEnabled bool           `long:"metrics" env:"GITBASE_METRICS" description:"Enables prometheus metrics"`
+	MetricsPort    int            `long:"metrics-port" env:"GITBASE_METRICS_PORT" default:"2112" description:"Port where the server is going to expose prometheus metrics"`
+	ReadOnly       bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
+	SkipGitErrors  bool           // SkipGitErrors disables failing when Git errors are found.
+	DisableGit     bool           `long:"no-git" description:"disable the load of git standard repositories."`
+	DisableSiva    bool           `long:"no-siva" description:"disable the load of siva files."`
+	Verbose        bool           `short:"v" description:"Activates the verbose mode"`
+	LogLevel       string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
 }
 
 type jaegerLogrus struct {
@@ -192,6 +197,23 @@ func (c *Server) Execute(args []string) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	if c.MetricsEnabled {
+		// metrics http server
+		metricsSrv := &http.Server{
+			Addr:    net.JoinHostPort(c.Host, strconv.Itoa(c.MetricsPort)),
+			Handler: promhttp.Handler(),
+		}
+		defer func() {
+			if err := metricsSrv.Shutdown(context.Background()); err != nil {
+				logrus.Errorln(err)
+			}
+		}()
+		go func() {
+			logrus.Infof("metrics server started and listening on %s", metricsSrv.Addr)
+			logrus.Errorln(metricsSrv.ListenAndServe())
+		}()
 	}
 
 	logrus.Infof("server started and listening on %s:%d", c.Host, c.Port)
