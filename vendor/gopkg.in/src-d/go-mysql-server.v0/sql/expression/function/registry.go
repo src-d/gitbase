@@ -31,6 +31,7 @@ var Defaults = []sql.Function{
 	},
 	sql.Function1{Name: "is_binary", Fn: NewIsBinary},
 	sql.FunctionN{Name: "substring", Fn: NewSubstring},
+	sql.Function3{Name: "substring_index", Fn: NewSubstringIndex},
 	sql.FunctionN{Name: "mid", Fn: NewSubstring},
 	sql.FunctionN{Name: "substr", Fn: NewSubstring},
 	sql.Function1{Name: "date", Fn: NewDate},
@@ -84,4 +85,7 @@ var Defaults = []sql.Function{
 	sql.FunctionN{Name: "date_sub", Fn: NewDateSub},
 	sql.FunctionN{Name: "greatest", Fn: NewGreatest},
 	sql.FunctionN{Name: "least", Fn: NewLeast},
+	sql.Function1{Name: "length", Fn: NewLength},
+	sql.Function1{Name: "char_length", Fn: NewCharLength},
+	sql.Function1{Name: "character_length", Fn: NewCharLength},
 }

@@ -1,6 +1,6 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "749adb47d4bf0620e578641e59e8c63192362849"
+  revision = "541fde3b92093b3a449e803342a7a18c686275e6"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -83,6 +83,10 @@
 [[constraint]]
   name = "gopkg.in/src-d/go-vitess.v1"
   version = "1.6.0"
+
+[[constraint]]
+  name = "github.com/hhatto/gocloc"
+  revision = "c5379f7427f9a9a5bec11accdf8a2ef7fa414d3e"
 
 [prune]
   [[prune.project]]
