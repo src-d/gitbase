@@ -179,11 +179,7 @@ func remoteToRow(repoID string, config *config.RemoteConfig, pos int) sql.Row {
 		url = config.URLs[pos]
 	}
 
-	var fetch interface{}
-	if pos < len(config.Fetch) {
-		fetch = config.Fetch[pos].String()
-	}
-
+	fetch := remoteFetchURL(config, pos)
 	return sql.NewRow(
 		repoID,
 		config.Name,
@@ -325,4 +321,16 @@ func (i *remotesIndexIter) Close() error {
 	}
 
 	return i.index.Close()
+}
+
+func remoteFetchURL(config *config.RemoteConfig, pos int) string {
+	if len(config.Fetch) > 0 {
+		var fpos = pos
+		if fpos >= len(config.Fetch) {
+			fpos = len(config.Fetch) - 1
+		}
+		return config.Fetch[fpos].String()
+	}
+
+	return config.URLs[pos]
 }

@@ -201,16 +201,11 @@ func (i *squashRemoteIter) Advance() error {
 			config = remote.Config()
 		}
 
-		fetch := i.urlPos
-		if fetch >= len(config.Fetch) {
-			fetch = len(config.Fetch) - 1
-		}
-
 		i.remote = &Remote{
 			RepoID: i.repo.ID,
 			Name:   config.Name,
 			URL:    config.URLs[i.urlPos],
-			Fetch:  config.Fetch[fetch].String(),
+			Fetch:  remoteFetchURL(config, i.urlPos),
 		}
 
 		i.row = sql.NewRow(
@@ -330,16 +325,11 @@ func (i *squashRepoRemotesIter) Advance() error {
 			config = remote.Config()
 		}
 
-		fetch := i.urlPos
-		if fetch >= len(config.Fetch) {
-			fetch = len(config.Fetch) - 1
-		}
-
 		i.remote = &Remote{
 			RepoID: i.repos.Repository().ID,
 			Name:   config.Name,
 			URL:    config.URLs[i.urlPos],
-			Fetch:  config.Fetch[fetch].String(),
+			Fetch:  remoteFetchURL(config, i.urlPos),
 		}
 
 		i.urlPos++
