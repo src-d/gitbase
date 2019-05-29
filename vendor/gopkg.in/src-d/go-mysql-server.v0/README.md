@@ -63,6 +63,7 @@ We support and actively test against certain third-party clients to ensure compa
 |`AVG(expr)`|Returns the average value of expr in all rows.|
 |`CEIL(number)`|Return the smallest integer value that is greater than or equal to `number`.|
 |`CEILING(number)`|Return the smallest integer value that is greater than or equal to `number`.|
+|`CHAR_LENGTH(str)`|Return the length of the string in characters.|
 |`COALESCE(...)`|The function returns the first non-null value in a list.|
 |`CONCAT(...)`|Concatenate any group of fields into a single string.|
 |`CONCAT_WS(sep, ...)`|Concatenate any group of fields into a single string. The first argument is the separator for the rest of the arguments. The separator is added between the strings to be concatenated. The separator can be a string, as can the rest of the arguments. If the separator is NULL, the result is NULL.|
@@ -83,6 +84,7 @@ We support and actively test against certain third-party clients to ensure compa
 |`IS_BINARY(blob)`|Returns whether a BLOB is a binary file or not.|
 |`JSON_EXTRACT(json_doc, path, ...)`|Extracts data from a json document using json paths.|
 |`LEAST(...)`|Returns the smaller numeric or string value.|
+|`LENGTH(str)`|Return the length of the string in bytes.|
 |`LN(X)`|Return the natural logarithm of X.|
 |`LOG(X), LOG(B, X)`|If called with one parameter, this function returns the natural logarithm of X. If called with two parameters, this function returns the logarithm of X to the base B. If X is less than or equal to 0, or if B is less than or equal to 1, then NULL is returned.|
 |`LOG10(X)`|Returns the base-10 logarithm of X.|
@@ -135,8 +137,8 @@ SET <variable name> = <value>
 |:-----|:-----|:------------|
 |`INMEMORY_JOINS`|environment|If set it will perform all joins in memory. Default is off.|
 |`inmemory_joins`|session|If set it will perform all joins in memory. Default is off. This has precedence over `INMEMORY_JOINS`.|
-|`MAX_MEMORY_INNER_JOIN`|environment|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in inner joins. Default is the 20% of all available physical memory.|
-|`max_memory_joins`|session|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in inner joins. Default is the 20% of all available physical memory. This has precedence over `MAX_MEMORY_INNER_JOIN`.|
+|`MAX_MEMORY_JOIN`|environment|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in joins. Default is the 20% of all available physical memory.|
+|`max_memory_joins`|session|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in joins. Default is the 20% of all available physical memory. This has precedence over `MAX_MEMORY_JOIN`.|
 |`DEBUG_ANALYZER`|environment|If set, the analyzer will print debug messages. Default is off.|
 |`PILOSA_INDEX_THREADS`|environment|Number of threads used in index creation. Default is the number of cores available in the machine.|
 |`pilosa_index_threads`|environment|Number of threads used in index creation. Default is the number of cores available in the machine. This has precedence over `PILOSA_INDEX_THREADS`.|

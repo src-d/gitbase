@@ -49,6 +49,7 @@ func AnalyzeReader(filename string, language *Language, file io.Reader, opts *Cl
 
 	clocFile := &ClocFile{
 		Name: filename,
+		Lang: language.Name,
 	}
 
 	isFirstLine := true

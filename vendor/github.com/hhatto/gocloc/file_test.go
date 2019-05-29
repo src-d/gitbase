@@ -39,6 +39,9 @@ class A:
 	if clocFile.Code != 3 {
 		t.Errorf("invalid logic. code=%v", clocFile.Code)
 	}
+	if clocFile.Lang != "Python" {
+		t.Errorf("invalid logic. lang=%v", clocFile.Lang)
+	}
 }
 
 func TestAnalayzeFile4PythonInvalid(t *testing.T) {
@@ -71,6 +74,9 @@ class A:
 	}
 	if clocFile.Code != 3 {
 		t.Errorf("invalid logic. code=%v", clocFile.Code)
+	}
+	if clocFile.Lang != "Python" {
+		t.Errorf("invalid logic. lang=%v", clocFile.Lang)
 	}
 }
 
@@ -105,6 +111,9 @@ func main() {
 	}
 	if clocFile.Code != 4 {
 		t.Errorf("invalid logic. code=%v", clocFile.Code)
+	}
+	if clocFile.Lang != "Go" {
+		t.Errorf("invalid logic. lang=%v", clocFile.Lang)
 	}
 }
 
@@ -141,6 +150,9 @@ func main() {
 	if clocFile.Code != 6 {
 		t.Errorf("invalid logic. code=%v", clocFile.Code)
 	}
+	if clocFile.Lang != "Go" {
+		t.Errorf("invalid logic. lang=%v", clocFile.Lang)
+	}
 }
 
 func TestAnalayzeFile4GoWithCommentInnerBlockComment(t *testing.T) {
@@ -174,6 +186,9 @@ func main() {
 	if clocFile.Code != 5 {
 		t.Errorf("invalid logic. code=%v", clocFile.Code)
 	}
+	if clocFile.Lang != "Go" {
+		t.Errorf("invalid logic. lang=%v", clocFile.Lang)
+	}
 }
 
 func TestAnalayzeReader(t *testing.T) {
@@ -199,5 +214,8 @@ class A:
 	}
 	if clocFile.Code != 3 {
 		t.Errorf("invalid logic. code=%v", clocFile.Code)
+	}
+	if clocFile.Lang != "Python" {
+		t.Errorf("invalid logic. lang=%v", clocFile.Lang)
 	}
 }
