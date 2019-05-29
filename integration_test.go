@@ -554,6 +554,21 @@ func TestSquashCorrectness(t *testing.T) {
 		ORDER BY num_files DESC
 		LIMIT 10`,
 
+		`SELECT
+			SUBSTRING(repository_id_part, 1, ARRAY_LENGTH(SPLIT(repository_id_part, ''))-4) AS repository_id,
+			commit_author_when,
+			commit_type
+		FROM (
+		SELECT
+			SUBSTRING(remote_fetch_url, 18) AS repository_id_part,
+			commit_author_when,
+			CASE ARRAY_LENGTH(commit_parents) WHEN 0 THEN 'Commit' WHEN 1 THEN 'Commit' ELSE 'Merge' END AS commit_type
+		FROM remotes
+		NATURAL JOIN refs
+		NATURAL JOIN commits
+		) AS q
+		LIMIT 1000`,
+
 		// Squash with non-squashable joins
 		`SELECT * FROM refs NATURAL JOIN blobs`,
 		`SELECT * FROM remotes NATURAL JOIN commits`,
