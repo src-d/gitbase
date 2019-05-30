@@ -219,3 +219,40 @@ class A:
 		t.Errorf("invalid logic. lang=%v", clocFile.Lang)
 	}
 }
+
+func TestAnalayzeReader_OnCallbacks(t *testing.T) {
+	buf := bytes.NewBuffer([]byte(`foo
+		"""bar
+
+`))
+
+	var lines int
+	language := NewLanguage("Python", []string{"#"}, [][]string{{"\"\"\"", "\"\"\""}})
+	clocOpts := NewClocOptions()
+	clocOpts.OnCode = func(line string) {
+		if line != "foo" {
+			t.Errorf("invalid logic. code_line=%v", line)
+		}
+		lines++
+	}
+
+	clocOpts.OnBlank = func(line string) {
+		if line != "" {
+			t.Errorf("invalid logic. blank_line=%v", line)
+		}
+		lines++
+	}
+
+	clocOpts.OnComment = func(line string) {
+		if line != "\"\"\"bar" {
+			t.Errorf("invalid logic. comment_line=%v", line)
+		}
+		lines++
+	}
+
+	AnalyzeReader("test.py", language, buf, clocOpts)
+
+	if lines != 3 {
+		t.Errorf("invalid logic. lines=%v", lines)
+	}
+}
