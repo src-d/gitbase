@@ -1,0 +1,335 @@
+# github.com/BurntSushi/toml v0.3.1
+github.com/BurntSushi/toml
+# github.com/alcortesm/tgz v0.0.0-20161220082320-9c5fe88206d7
+github.com/alcortesm/tgz
+# github.com/antchfx/xpath v0.0.0-20190319080838-ce1d48779e67
+github.com/antchfx/xpath
+# github.com/bblfsh/go-client/v4 v4.1.0
+github.com/bblfsh/go-client/v4
+github.com/bblfsh/go-client/v4/tools
+# github.com/bblfsh/sdk/v3 v3.1.0
+github.com/bblfsh/sdk/v3/driver/errors
+github.com/bblfsh/sdk/v3/uast
+github.com/bblfsh/sdk/v3/uast/nodes
+github.com/bblfsh/sdk/v3/uast/nodes/nodesproto
+github.com/bblfsh/sdk/v3/driver
+github.com/bblfsh/sdk/v3/driver/manifest
+github.com/bblfsh/sdk/v3/protocol
+github.com/bblfsh/sdk/v3/uast/query
+github.com/bblfsh/sdk/v3/uast/query/xpath
+github.com/bblfsh/sdk/v3/uast/role
+github.com/bblfsh/sdk/v3/uast/nodes/nodesproto/pio
+github.com/bblfsh/sdk/v3/uast/transformer
+github.com/bblfsh/sdk/v3/internal/buildmanifest
+# github.com/cespare/xxhash v1.1.0
+github.com/cespare/xxhash
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
+# github.com/emirpasic/gods v1.12.0
+github.com/emirpasic/gods/trees/binaryheap
+github.com/emirpasic/gods/containers
+github.com/emirpasic/gods/lists/arraylist
+github.com/emirpasic/gods/trees
+github.com/emirpasic/gods/utils
+github.com/emirpasic/gods/lists
+# github.com/go-sql-driver/mysql v1.4.1
+github.com/go-sql-driver/mysql
+# github.com/gogo/protobuf v1.2.1
+github.com/gogo/protobuf/gogoproto
+github.com/gogo/protobuf/proto
+github.com/gogo/protobuf/types
+github.com/gogo/protobuf/protoc-gen-gogo/descriptor
+github.com/gogo/protobuf/sortkeys
+# github.com/golang/protobuf v1.3.1
+github.com/golang/protobuf/ptypes/timestamp
+github.com/golang/protobuf/proto
+github.com/golang/protobuf/ptypes
+github.com/golang/protobuf/ptypes/any
+github.com/golang/protobuf/ptypes/duration
+# github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
+github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc
+# github.com/hashicorp/golang-lru v0.5.0
+github.com/hashicorp/golang-lru
+github.com/hashicorp/golang-lru/simplelru
+# github.com/hhatto/gocloc v0.0.0-20190523170610-c5379f7427f9
+github.com/hhatto/gocloc
+# github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
+github.com/jbenet/go-context/io
+# github.com/jessevdk/go-flags v1.4.0
+github.com/jessevdk/go-flags
+# github.com/kevinburke/ssh_config v0.0.0-20180830205328-81db2a75821e
+github.com/kevinburke/ssh_config
+# github.com/konsorten/go-windows-terminal-sequences v1.0.1
+github.com/konsorten/go-windows-terminal-sequences
+# github.com/kr/pretty v0.1.0
+github.com/kr/pretty
+# github.com/kr/text v0.1.0
+github.com/kr/text
+# github.com/mcuadros/go-lookup v0.0.0-20171110082742-5650f26be767
+github.com/mcuadros/go-lookup
+# github.com/mitchellh/go-homedir v1.0.0
+github.com/mitchellh/go-homedir
+# github.com/mitchellh/hashstructure v1.0.0
+github.com/mitchellh/hashstructure
+# github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
+github.com/oliveagle/jsonpath
+# github.com/opentracing/opentracing-go v1.1.0
+github.com/opentracing/opentracing-go
+github.com/opentracing/opentracing-go/log
+github.com/opentracing/opentracing-go/ext
+# github.com/pbnjay/memory v0.0.0-20190104145345-974d429e7ae4
+github.com/pbnjay/memory
+# github.com/pelletier/go-buffruneio v0.2.0
+github.com/pelletier/go-buffruneio
+# github.com/pilosa/pilosa v1.3.0
+github.com/pilosa/pilosa
+github.com/pilosa/pilosa/syswrap
+github.com/pilosa/pilosa/internal
+github.com/pilosa/pilosa/logger
+github.com/pilosa/pilosa/lru
+github.com/pilosa/pilosa/pql
+github.com/pilosa/pilosa/roaring
+github.com/pilosa/pilosa/shardwidth
+github.com/pilosa/pilosa/stats
+github.com/pilosa/pilosa/tracing
+# github.com/pkg/errors v0.8.1
+github.com/pkg/errors
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
+# github.com/rogpeppe/go-internal v1.3.0
+github.com/rogpeppe/go-internal/modfile
+github.com/rogpeppe/go-internal/module
+github.com/rogpeppe/go-internal/semver
+# github.com/satori/go.uuid v1.2.0
+github.com/satori/go.uuid
+# github.com/sergi/go-diff v1.0.0
+github.com/sergi/go-diff/diffmatchpatch
+# github.com/sirupsen/logrus v1.3.0
+github.com/sirupsen/logrus
+# github.com/spf13/cast v1.3.0
+github.com/spf13/cast
+# github.com/src-d/gcfg v1.4.0
+github.com/src-d/gcfg
+github.com/src-d/gcfg/scanner
+github.com/src-d/gcfg/token
+github.com/src-d/gcfg/types
+# github.com/src-d/go-mysql-server v0.4.1-0.20190531100547-4dcaf78ac20d
+github.com/src-d/go-mysql-server/server
+github.com/src-d/go-mysql-server/sql
+github.com/src-d/go-mysql-server/sql/expression
+github.com/src-d/go-mysql-server/sql/plan
+github.com/src-d/go-mysql-server
+github.com/src-d/go-mysql-server/auth
+github.com/src-d/go-mysql-server/sql/analyzer
+github.com/src-d/go-mysql-server/sql/index/pilosa
+github.com/src-d/go-mysql-server/internal/similartext
+github.com/src-d/go-mysql-server/internal/regex
+github.com/src-d/go-mysql-server/sql/expression/function
+github.com/src-d/go-mysql-server/sql/parse
+github.com/src-d/go-mysql-server/mem
+github.com/src-d/go-mysql-server/sql/expression/function/aggregation
+github.com/src-d/go-mysql-server/sql/index
+# github.com/src-d/go-oniguruma v1.0.0
+github.com/src-d/go-oniguruma
+# github.com/stretchr/testify v1.3.0
+github.com/stretchr/testify/require
+github.com/stretchr/testify/assert
+# github.com/toqueteos/trie v0.0.0-20150530104557-56fed4a05683
+github.com/toqueteos/trie
+# github.com/uber/jaeger-client-go v2.16.0+incompatible
+github.com/uber/jaeger-client-go/config
+github.com/uber/jaeger-client-go
+github.com/uber/jaeger-client-go/internal/baggage/remote
+github.com/uber/jaeger-client-go/internal/throttler/remote
+github.com/uber/jaeger-client-go/rpcmetrics
+github.com/uber/jaeger-client-go/transport
+github.com/uber/jaeger-client-go/internal/baggage
+github.com/uber/jaeger-client-go/internal/spanlog
+github.com/uber/jaeger-client-go/internal/throttler
+github.com/uber/jaeger-client-go/log
+github.com/uber/jaeger-client-go/thrift
+github.com/uber/jaeger-client-go/thrift-gen/jaeger
+github.com/uber/jaeger-client-go/thrift-gen/sampling
+github.com/uber/jaeger-client-go/thrift-gen/zipkincore
+github.com/uber/jaeger-client-go/utils
+github.com/uber/jaeger-client-go/thrift-gen/baggage
+github.com/uber/jaeger-client-go/thrift-gen/agent
+# github.com/uber/jaeger-lib v2.0.0+incompatible
+github.com/uber/jaeger-lib/metrics
+# github.com/xanzy/ssh-agent v0.2.0
+github.com/xanzy/ssh-agent
+# go.etcd.io/bbolt v1.3.2
+go.etcd.io/bbolt
+# golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+golang.org/x/crypto/ssh/terminal
+golang.org/x/crypto/openpgp
+golang.org/x/crypto/openpgp/armor
+golang.org/x/crypto/openpgp/errors
+golang.org/x/crypto/openpgp/packet
+golang.org/x/crypto/openpgp/s2k
+golang.org/x/crypto/cast5
+golang.org/x/crypto/openpgp/elgamal
+golang.org/x/crypto/ssh
+golang.org/x/crypto/ssh/knownhosts
+golang.org/x/crypto/ssh/agent
+golang.org/x/crypto/curve25519
+golang.org/x/crypto/ed25519
+golang.org/x/crypto/internal/chacha20
+golang.org/x/crypto/poly1305
+golang.org/x/crypto/ed25519/internal/edwards25519
+golang.org/x/crypto/internal/subtle
+# golang.org/x/net v0.0.0-20190520210107-018c4d40a106
+golang.org/x/net/context
+golang.org/x/net/trace
+golang.org/x/net/internal/timeseries
+golang.org/x/net/http2
+golang.org/x/net/http2/hpack
+golang.org/x/net/http/httpguts
+golang.org/x/net/idna
+# golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6
+golang.org/x/sync/errgroup
+# golang.org/x/sys v0.0.0-20190520201301-c432e742b0af
+golang.org/x/sys/windows
+golang.org/x/sys/unix
+golang.org/x/sys/cpu
+# golang.org/x/text v0.3.2
+golang.org/x/text/secure/bidirule
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
+golang.org/x/text/transform
+# google.golang.org/appengine v1.4.0
+google.golang.org/appengine/cloudsql
+# google.golang.org/genproto v0.0.0-20190516172635-bb713bdc0e52
+google.golang.org/genproto/googleapis/rpc/status
+# google.golang.org/grpc v1.20.1
+google.golang.org/grpc/connectivity
+google.golang.org/grpc
+google.golang.org/grpc/codes
+google.golang.org/grpc/status
+google.golang.org/grpc/grpclog
+google.golang.org/grpc/balancer
+google.golang.org/grpc/balancer/roundrobin
+google.golang.org/grpc/credentials
+google.golang.org/grpc/encoding
+google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/internal
+google.golang.org/grpc/internal/backoff
+google.golang.org/grpc/internal/balancerload
+google.golang.org/grpc/internal/binarylog
+google.golang.org/grpc/internal/channelz
+google.golang.org/grpc/internal/envconfig
+google.golang.org/grpc/internal/grpcrand
+google.golang.org/grpc/internal/grpcsync
+google.golang.org/grpc/internal/transport
+google.golang.org/grpc/keepalive
+google.golang.org/grpc/metadata
+google.golang.org/grpc/naming
+google.golang.org/grpc/peer
+google.golang.org/grpc/resolver
+google.golang.org/grpc/resolver/dns
+google.golang.org/grpc/resolver/passthrough
+google.golang.org/grpc/stats
+google.golang.org/grpc/tap
+google.golang.org/grpc/balancer/base
+google.golang.org/grpc/credentials/internal
+google.golang.org/grpc/binarylog/grpc_binarylog_v1
+google.golang.org/grpc/internal/syscall
+# gopkg.in/bblfsh/sdk.v1 v1.17.0
+gopkg.in/bblfsh/sdk.v1/protocol
+gopkg.in/bblfsh/sdk.v1/manifest
+gopkg.in/bblfsh/sdk.v1/uast
+# gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127
+gopkg.in/check.v1
+# gopkg.in/src-d/enry.v1 v1.7.2
+gopkg.in/src-d/enry.v1
+gopkg.in/src-d/enry.v1/data
+gopkg.in/src-d/enry.v1/internal/tokenizer
+gopkg.in/src-d/enry.v1/regex
+gopkg.in/src-d/enry.v1/data/rule
+# gopkg.in/src-d/go-billy-siva.v4 v4.2.2
+gopkg.in/src-d/go-billy-siva.v4
+# gopkg.in/src-d/go-billy.v4 v4.3.0
+gopkg.in/src-d/go-billy.v4
+gopkg.in/src-d/go-billy.v4/osfs
+gopkg.in/src-d/go-billy.v4/helper/chroot
+gopkg.in/src-d/go-billy.v4/helper/mount
+gopkg.in/src-d/go-billy.v4/util
+gopkg.in/src-d/go-billy.v4/helper/polyfill
+# gopkg.in/src-d/go-errors.v1 v1.0.0
+gopkg.in/src-d/go-errors.v1
+# gopkg.in/src-d/go-git-fixtures.v3 v3.5.0
+gopkg.in/src-d/go-git-fixtures.v3
+# gopkg.in/src-d/go-git.v4 v4.11.0
+gopkg.in/src-d/go-git.v4
+gopkg.in/src-d/go-git.v4/config
+gopkg.in/src-d/go-git.v4/plumbing
+gopkg.in/src-d/go-git.v4/plumbing/cache
+gopkg.in/src-d/go-git.v4/plumbing/filemode
+gopkg.in/src-d/go-git.v4/plumbing/format/idxfile
+gopkg.in/src-d/go-git.v4/plumbing/format/objfile
+gopkg.in/src-d/go-git.v4/plumbing/format/packfile
+gopkg.in/src-d/go-git.v4/plumbing/object
+gopkg.in/src-d/go-git.v4/plumbing/storer
+gopkg.in/src-d/go-git.v4/storage/filesystem
+gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit
+gopkg.in/src-d/go-git.v4/utils/ioutil
+gopkg.in/src-d/go-git.v4/internal/revision
+gopkg.in/src-d/go-git.v4/plumbing/format/gitignore
+gopkg.in/src-d/go-git.v4/plumbing/format/index
+gopkg.in/src-d/go-git.v4/plumbing/protocol/packp
+gopkg.in/src-d/go-git.v4/plumbing/protocol/packp/capability
+gopkg.in/src-d/go-git.v4/plumbing/protocol/packp/sideband
+gopkg.in/src-d/go-git.v4/plumbing/revlist
+gopkg.in/src-d/go-git.v4/plumbing/transport
+gopkg.in/src-d/go-git.v4/plumbing/transport/client
+gopkg.in/src-d/go-git.v4/storage
+gopkg.in/src-d/go-git.v4/storage/memory
+gopkg.in/src-d/go-git.v4/utils/diff
+gopkg.in/src-d/go-git.v4/utils/merkletrie
+gopkg.in/src-d/go-git.v4/utils/merkletrie/filesystem
+gopkg.in/src-d/go-git.v4/utils/merkletrie/index
+gopkg.in/src-d/go-git.v4/utils/merkletrie/noder
+gopkg.in/src-d/go-git.v4/internal/url
+gopkg.in/src-d/go-git.v4/plumbing/format/config
+gopkg.in/src-d/go-git.v4/utils/binary
+gopkg.in/src-d/go-git.v4/plumbing/format/diff
+gopkg.in/src-d/go-git.v4/plumbing/format/pktline
+gopkg.in/src-d/go-git.v4/plumbing/transport/file
+gopkg.in/src-d/go-git.v4/plumbing/transport/git
+gopkg.in/src-d/go-git.v4/plumbing/transport/http
+gopkg.in/src-d/go-git.v4/plumbing/transport/ssh
+gopkg.in/src-d/go-git.v4/utils/merkletrie/internal/frame
+gopkg.in/src-d/go-git.v4/plumbing/transport/internal/common
+gopkg.in/src-d/go-git.v4/plumbing/transport/server
+# gopkg.in/src-d/go-siva.v1 v1.3.0
+gopkg.in/src-d/go-siva.v1
+# gopkg.in/src-d/go-vitess.v1 v1.7.0
+gopkg.in/src-d/go-vitess.v1/mysql
+gopkg.in/src-d/go-vitess.v1/sqltypes
+gopkg.in/src-d/go-vitess.v1/vt/proto/query
+gopkg.in/src-d/go-vitess.v1/vt/sqlparser
+gopkg.in/src-d/go-vitess.v1/bucketpool
+gopkg.in/src-d/go-vitess.v1/netutil
+gopkg.in/src-d/go-vitess.v1/stats
+gopkg.in/src-d/go-vitess.v1/sync2
+gopkg.in/src-d/go-vitess.v1/tb
+gopkg.in/src-d/go-vitess.v1/vt/log
+gopkg.in/src-d/go-vitess.v1/vt/proto/binlogdata
+gopkg.in/src-d/go-vitess.v1/vt/proto/replicationdata
+gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc
+gopkg.in/src-d/go-vitess.v1/vt/vterrors
+gopkg.in/src-d/go-vitess.v1/vt/vttls
+gopkg.in/src-d/go-vitess.v1/bytes2
+gopkg.in/src-d/go-vitess.v1/hack
+gopkg.in/src-d/go-vitess.v1/vt/proto/vtgate
+gopkg.in/src-d/go-vitess.v1/vt/proto/topodata
+gopkg.in/src-d/go-vitess.v1/vt/logutil
+gopkg.in/src-d/go-vitess.v1/cache
+gopkg.in/src-d/go-vitess.v1/event
+gopkg.in/src-d/go-vitess.v1/vt/proto/logutil
+# gopkg.in/toqueteos/substring.v1 v1.0.2
+gopkg.in/toqueteos/substring.v1
+# gopkg.in/warnings.v0 v0.1.2
+gopkg.in/warnings.v0
+# gopkg.in/yaml.v2 v2.2.2
+gopkg.in/yaml.v2

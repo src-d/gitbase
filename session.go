@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
+	bblfsh "github.com/bblfsh/go-client/v4"
 	"github.com/sirupsen/logrus"
+	"github.com/src-d/go-mysql-server/server"
+	"github.com/src-d/go-mysql-server/sql"
 	"google.golang.org/grpc/connectivity"
-	bblfsh "gopkg.in/bblfsh/client-go.v3"
 	errors "gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/server"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 	"gopkg.in/src-d/go-vitess.v1/mysql"
 )
 
@@ -119,7 +119,7 @@ func (c *BblfshClient) SupportedLanguages(ctx context.Context) ([]string, error)
 	if len(c.supportedLanguages) == 0 {
 		driverManifests, err := c.Client.
 			NewSupportedLanguagesRequest().
-			Context(ctx).Do()
+			Context(ctx).DoV2()
 		if err != nil {
 			return nil, err
 		}

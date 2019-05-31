@@ -1,0 +1,161 @@
+sudo: false
+dist: trusty
+
+language: go
+go_import_path: gopkg.in/src-d/enry.v1
+
+go:
+  - '1.11.x'
+  - '1.10.x'
+env:
+  global:
+    - GO_VERSION_FOR_JVM='1.11.x'
+  matrix:
+    - ONIGURUMA=0
+    - ONIGURUMA=1
+matrix:
+  fast_finish: true
+
+addons:
+  apt:
+    packages:
+      - libonig-dev
+
+stages:
+  - name: test
+  - name: release
+    if: tag IS present
+  - name: publish
+    if: tag IS present
+
+stage: test
+install:
+  - if [[ -n "$ONIGURUMA" ]]; then tags="$tags oniguruma"; fi; go get -v -t --tags "$tags" ./...
+script:
+  - make test-coverage
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+
+jobs:
+  include:
+    - name: 'java unit-tests'
+      stage: test
+      language: scala
+      jdk: oraclejdk8
+      before_install:
+        # mimics exact behavior of 'go_import_path' for non-go build image
+        - export GOPATH=${TRAVIS_HOME}/gopath
+        - mkdir -p ${GOPATH}/src/gopkg.in/src-d/enry.v1
+        - tar -Pczf ${TRAVIS_TMPDIR}/src_archive.tar.gz -C ${TRAVIS_BUILD_DIR} . && tar -Pxzf ${TRAVIS_TMPDIR}/src_archive.tar.gz -C ${TRAVIS_HOME}/gopath/src/gopkg.in/src-d/enry.v1
+        - export TRAVIS_BUILD_DIR=${TRAVIS_HOME}/gopath/src/gopkg.in/src-d/enry.v1
+        - cd ${TRAVIS_HOME}/gopath/src/gopkg.in/src-d/enry.v1
+      install:
+        - eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=$GO_VERSION_FOR_JVM bash)"
+        - go version
+        - echo $PWD; echo $GOPATH
+        - go get -v ./...
+      before_script:
+        - cd java
+        - make
+      script:
+        - make test
+
+    - name: 'linux packages'
+      stage: release
+      install:
+        - go version
+        - go get -v -t ./...
+      script: make packages
+      deploy:
+        provider: releases
+        api_key:
+          secure: $GITHUB_TOKEN
+        file_glob: true
+        file: build/*.tar.gz
+        skip_cleanup: true
+        on:
+          tags: true
+
+    - name: 'linux shared lib'
+      stage: release
+      install:
+        - go version
+        - go get -v -t ./...
+      script: make linux-shared
+      deploy:
+        provider: releases
+        api_key:
+          secure: $GITHUB_TOKEN
+        file:
+          - ./.shared/linux-x86-64/libenry.so
+        skip_cleanup: true
+        on:
+          tags: true
+
+    - name: 'macOS shared lib'
+      stage: release
+      sudo: true
+      env:
+        - OSXCROSS_PACKAGE="osxcross_3034f7149716d815bc473d0a7b35d17e4cf175aa.tar.gz"
+        - OSXCROSS_URL="https://github.com/bblfsh/client-scala/releases/download/v1.5.2/${OSXCROSS_PACKAGE}"
+        - PATH="/$HOME/osxcross/bin:$PATH"
+      install:
+        - go version
+        - go get -v -t ./...
+        - sudo apt-get update
+        - sudo apt-get install -y --no-install-recommends clang g++ gcc gcc-multilib libc6-dev libc6-dev-i386 mingw-w64 patch xz-utils
+        - cd ${HOME}
+        - curl -sfSL ${OSXCROSS_URL} | tar -C ${HOME} -xzf -
+        - cd $GOPATH/src/gopkg.in/src-d/enry.v1
+      script: make darwin-shared
+      deploy:
+        provider: releases
+        api_key:
+          secure: $GITHUB_TOKEN
+        file: ./.shared/darwin/libenry.dylib
+        skip_cleanup: true
+        on:
+          tags: true
+
+    - name: 'java: publish to maven'
+      stage: publish
+      language: scala
+      jdk: oraclejdk8
+      before_install:
+        # mimics exact behavior of 'go_import_path' for non-go build image
+        - export GOPATH=${TRAVIS_HOME}/gopath
+        - mkdir -p ${GOPATH}/src/gopkg.in/src-d/enry.v1
+        - tar -Pczf ${TRAVIS_TMPDIR}/src_archive.tar.gz -C ${TRAVIS_BUILD_DIR} . && tar -Pxzf ${TRAVIS_TMPDIR}/src_archive.tar.gz -C ${TRAVIS_HOME}/gopath/src/gopkg.in/src-d/enry.v1
+        - export TRAVIS_BUILD_DIR=${TRAVIS_HOME}/gopath/src/gopkg.in/src-d/enry.v1
+        - cd ${TRAVIS_HOME}/gopath/src/gopkg.in/src-d/enry.v1
+      install:
+        - eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=$GO_VERSION_FOR_JVM bash)"
+        - go version
+        - go get -v -t ./...
+      before_script:
+        - cd java
+        - make
+        - curl -o ./shared/linux-x86-64/libenry.so -sfL "https://github.com/$TRAVIS_REPO_SLUG/releases/download/$TRAVIS_TAG/libenry.so" || travis_terminate 1
+        - mkdir -p ./shared/darwin
+        - curl -o ./shared/darwin/libenry.dylib -sfL "https://github.com/$TRAVIS_REPO_SLUG/releases/download/$TRAVIS_TAG/libenry.dylib" || travis_terminate 1
+        - openssl aes-256-cbc -K $encrypted_a0e1c69dbbc7_key -iv $encrypted_a0e1c69dbbc7_iv -in key.asc.enc -out key.asc -d
+        - gpg --no-default-keyring --primary-keyring ./project/.gnupg/pubring.gpg --secret-keyring ./project/.gnupg/secring.gpg --keyring ./project/.gnupg/pubring.gpg --fingerprint --import key.asc
+      script:
+        - make test # ensure the shared objects are functional
+        - ./sbt publishLocal
+        - ./sbt publishSigned
+        - ./sbt sonatypeRelease
+      before_deploy:
+        - rm ./target/enry-java-*-javadoc.jar
+        - rm ./target/enry-java-*-sources.jar
+        - rm ./target/enry-java-*-tests.jar
+        - rm ./target/enry-java-assembly-*.jar
+      deploy:
+        provider: releases
+        api_key:
+          secure: $GITHUB_TOKEN
+        file_glob: true
+        file: ./target/enry-java*.jar
+        skip_cleanup: true
+        on:
+          tags: true

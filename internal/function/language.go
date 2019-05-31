@@ -9,7 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	enry "gopkg.in/src-d/enry.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 )
 
 const (

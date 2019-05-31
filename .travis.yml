@@ -24,6 +24,7 @@ before_script:
   - docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
   - docker exec -it bblfshd bblfshctl driver install go bblfsh/go-driver
   - go get -v github.com/go-sql-driver/mysql/...
+  - go get gopkg.in/src-d/go-git-fixtures.v3/...
 
 script:
   - make test-coverage codecov

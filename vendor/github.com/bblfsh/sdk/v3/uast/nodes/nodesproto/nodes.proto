@@ -1,0 +1,75 @@
+syntax = "proto3";
+package gopkg.in.bblfsh.sdk.v2.uast.nodes;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.protosizer_all) = true;
+option (gogoproto.sizer_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option go_package = "nodesproto";
+
+// GraphHeader is the first message written over the wire before transfering graph nodes.
+//
+// It should be preceded by the magic number "\x00bgr" (4 bytes) and the version number 0x1
+// written as a little-endian 4 byte integer. Next, the length of the header message should be
+// written in varint encoding, directly followed by the message itself.
+message GraphHeader {
+    // LastID is a last node ID used by ID allocator for this graph. Implementation may reserve some
+    // IDs space by setting LastID > max(nodes.ID). If not set, max(nodes.ID) is assumed.
+    // Tools that manipulate the graph, but want to preserve IDs of the nodes should allocate IDs
+    // starting from LastID+1.
+    uint64 last_id = 1;
+    // Root is an optional ID of a global root for this graph. This field is used to preserve
+    // compatibility with tools that expect a tree-shaped data.
+    // Implementation may also store multiple roots by referencing an Array node, or may store
+    // multiple named roots by referencing an Object node.
+    // If not set explicitly, implementations that expect a tree should search the graph for
+    // unused nodes of type Object or Array and treat them as an array of roots.
+    uint64 root = 2;
+    // Metadata is an optional ID for a metadata node for this file. Should reference an Object.
+    // If set, implementations that expect a tree should exclude it from the list of roots.
+    uint64 metadata = 3;
+}
+
+// Node represents any node that can be stored in the graph.
+//
+// A list of Node messages follows directly after GraphHeader and each such message should be preceded by its length
+// written in varint encoding. Nodes in the list should always be sorted by ID (ascending).
+// ID of a node can be zero, in this case ID will be assigned automatically as prevNode.ID+1 (starting from 1).
+//
+// In general there is 3 kinds of nodes: Values, Arrays, Objects.
+// If Value oneof field is set, all other fields are ignored, and node is decoded as a value node (leaf).
+// If any of Keys or KeysFrom fields are set, the node is an Object (set of key-value pairs).
+// Only Keys/KeysFrom and Values fields are considered in this case.
+// In other cases a node is an Array, and only Values field is considered.
+message Node {
+    // ID is a unique file-local ID of the node.
+    // To implement global IDs, application should write additional data to the graph
+    // or keep a mapping from file-local IDs to global ones.
+    uint64 id = 1;
+    // Value is a union for primitive value types.
+    // These values are always leaf nodes, they should never store any references to other nodes,
+    // or other graph-specific information.
+    // It is assumed that encoded Value can be copied to a different Graph without any changes.
+    oneof value {
+        string string = 2;
+        int64  int    = 3;
+        uint64 uint   = 4;
+        double float  = 5;
+        bool   bool   = 6;
+    }
+    // Keys is an ordered set of Object keys. Corresponding values are stored in Values field.
+    repeated uint64 keys = 7;
+    // KeysFrom can refer to a node ID previously seen on the wire. In this case, Keys from that node
+    // are copied to Keys field of the current node. Thus, full list of Keys can be omitted.
+    uint64 keys_from = 10;
+    // Values stores an ordered list of node IDs. Zero ID represents a null node.
+    // For Array node this field represent an array itself, and for Object nodes
+    // this field is a set of values that corresponds to keys defined by Keys or KeysFrom.
+    repeated uint64 values = 8;
+    // IsObject is a helper field to distinguish between empty arrays and empty objects.
+    bool is_object = 9;
+    // ValuesOffs is an offset added to all value IDs. Used for compression.
+    uint64 values_offs = 11;
+}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/hhatto/gocloc"
 	"gopkg.in/src-d/enry.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 )
 
 var languages = gocloc.NewDefinedLanguages()

@@ -7,20 +7,22 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/BurntSushi/toml"
 	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 const (
-	lockFile      = "Gopkg.lock"
-	goMysqlServer = "gopkg.in/src-d/go-mysql-server.v0"
+	lockFile      = "go.sum"
+	goMysqlServer = "github.com/src-d/go-mysql-server"
 )
 
 type project struct {
@@ -49,12 +51,16 @@ func main() {
 		err error
 	)
 
-	flag.StringVar(&prj, "p", goMysqlServer, "project name (e.g.: gopkg.in/src-d/go-mysql-server.v0)")
-	flag.StringVar(&newRev, "r", "", "revision (by default the latest allowed by Gopkg.toml)")
+	flag.StringVar(&prj, "p", goMysqlServer, "project name (e.g.: github.com/src-d/go-mysql-server)")
+	flag.StringVar(&newRev, "r", "", "revision (by default the latest allowed by go.mod)")
 	flag.Parse()
 
 	if prj == "" {
 		log.Fatalln("Project's name cannot be an empty string")
+	}
+
+	if newRev == "" {
+		log.Fatalln("Missing revision.")
 	}
 
 	w, err = worktree()
@@ -62,7 +68,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	oldRev, err = revision(filepath.Join(w.Filesystem.Root(), "Gopkg.lock"), prj)
+	oldRev, err = revision(filepath.Join(w.Filesystem.Root(), lockFile), prj)
 	if err != nil {
 		log.Fatalf("Current revision of %s is an empty string (%s)", prj, err)
 	}
@@ -86,24 +92,12 @@ func main() {
 		}
 	}
 
-	if err = ensure(prj); err != nil {
+	if err = getPackage(prj, newRev); err != nil {
 		return
 	}
 
 	if prj == goMysqlServer {
-		if err = importDocs(); err != nil {
-			return
-		}
-	}
-
-	if newRev == "" {
-		newRev, err = revision(filepath.Join(w.Filesystem.Root(), "Gopkg.lock"), prj)
-		fmt.Printf("Project: %s\nOld rev: %s\nNew rev: %s\n", prj, oldRev, newRev)
-		if newRev == oldRev {
-			return
-		}
-
-		if err = replace(w, oldRev, newRev); err != nil {
+		if err = importDocs(newRev); err != nil {
 			return
 		}
 	}
@@ -125,16 +119,16 @@ func revision(gopkg string, prj string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var projects = projects{}
-	if err = toml.Unmarshal(data, &projects); err != nil {
-		return "", err
-	}
-	for _, p := range projects.Projects {
-		if p.Name == prj {
-			return p.Revision, nil
+
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, prj) {
+			if idx := strings.LastIndex(line, " h1:"); idx > 0 {
+				return goVersionToRevision(prj, strings.TrimSpace(line[len(prj):idx]))
+			}
 		}
 	}
-	return "", io.EOF
+
+	return "", fmt.Errorf("could not find version for %s in go.sum", prj)
 }
 
 func replace(w *git.Worktree, oldRev, newRev string) error {
@@ -190,12 +184,21 @@ func replace(w *git.Worktree, oldRev, newRev string) error {
 	return err
 }
 
-func ensure(prj string) error {
-	cmd := exec.Command("dep", "ensure", "-v", "-update", prj)
-	out, err := cmd.CombinedOutput()
-	fmt.Println(string(out))
-	if err != nil {
-		return err
+func getPackage(prj, rev string) error {
+	commands := [][]string{
+		{"get", prj + "@" + rev},
+		{"mod", "tidy"},
+		{"mod", "vendor"},
+	}
+
+	for _, cmd := range commands {
+		cmd := exec.Command("go", cmd...)
+		cmd.Env = append(os.Environ(), "GO111MODULE=on")
+		out, err := cmd.CombinedOutput()
+		fmt.Println(string(out))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -226,16 +229,48 @@ var docsToCopy = []struct {
 	},
 }
 
-func importDocs() error {
+func cloneRevision(url, path, revision string) error {
+	repo, err := git.PlainClone(path, false, &git.CloneOptions{
+		URL: "https://" + url,
+	})
+	if err != nil {
+		return err
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	return w.Checkout(&git.CheckoutOptions{
+		Hash:  plumbing.NewHash(revision),
+		Force: true,
+	})
+}
+
+func importDocs(revision string) error {
+	if err := os.Mkdir(".tmp", 0755); err != nil {
+		return err
+	}
+
+	defer func() {
+		_ = os.RemoveAll(".tmp")
+	}()
+
 	pwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	dirs := strings.Split(goMysqlServer, "/")
-	goMysqlServerPath := filepath.Join(append([]string{pwd, "vendor"}, dirs...)...)
+
+	goMysqlServerPath := []string{pwd, ".tmp", "go-mysql-server"}
+
+	err = cloneRevision(goMysqlServer, filepath.Join(goMysqlServerPath...), revision)
+	if err != nil {
+		return err
+	}
 
 	for _, c := range docsToCopy {
-		src := filepath.Join(append([]string{goMysqlServerPath}, c.from...)...)
+		src := filepath.Join(append(goMysqlServerPath, c.from...)...)
 		dst := filepath.Join(append([]string{pwd}, c.to...)...)
 
 		if len(c.blocks) == 0 {
@@ -313,4 +348,43 @@ func copyFileBlocks(src, dst string, blocks []string) error {
 
 	_, err = f.Write(fout)
 	return err
+}
+
+var goRevFormat = regexp.MustCompile(`^v.+-(0\.)?\d{14}-[a-zA-Z0-9]{12}$`)
+
+func goVersionToRevision(repo, version string) (string, error) {
+	if strings.HasSuffix(version, "+incompatible") {
+		version = version[:len("+incompatible")]
+	}
+
+	if goRevFormat.MatchString(version) {
+		version = version[strings.LastIndex(version, "-")+1:]
+	}
+
+	if !strings.HasPrefix(repo, "github.com/") {
+		return "", fmt.Errorf("cannot resolve revision of %s, it's not from github", repo)
+	}
+
+	repo = repo[len("github.com/"):]
+
+	url := fmt.Sprintf("https://api.github.com/repos/%s/commits/%s", repo, version)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Add("Accept", "application/vnd.github.VERSION.sha")
+
+	resp, err := (&http.Client{Timeout: 1 * time.Minute}).Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	content, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(content)), nil
 }

@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"hash"
 
-	"gopkg.in/bblfsh/client-go.v3/tools"
-	"gopkg.in/bblfsh/sdk.v2/uast/nodes/nodesproto"
+	"github.com/bblfsh/go-client/v4/tools"
+	"github.com/bblfsh/sdk/v3/uast/nodes/nodesproto"
 
 	"github.com/sirupsen/logrus"
 	"github.com/src-d/gitbase"
-	bblfsh "gopkg.in/bblfsh/client-go.v3"
-	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
+	bblfsh "github.com/bblfsh/go-client/v4"
+	"github.com/bblfsh/sdk/v3/uast/nodes"
 	errors "gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 )
 
 var (

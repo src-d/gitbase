@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Move to go modules and upgrade bblfsh client version.
+
 ## [0.20.0] - 2019-05-30
 ### Known Issues
 - After updating Vitess MySQL server, we are having some problems connecting from JDBC MariaDB drivers (https://github.com/src-d/gitbase/issues/807) (https://github.com/vitessio/vitess/issues/4603) 
