@@ -2,16 +2,14 @@ package gocloc
 
 import "testing"
 
-func TestContainComments(t *testing.T) {
-	line := "/* hoge */"
-	st := "/*"
-	ed := "*/"
-	if containComments(line, st, ed) {
+func TestContainsComment(t *testing.T) {
+	if !containsComment(`int a; /* A takes care of counts */`, [][]string{{"/*", "*/"}}) {
 		t.Errorf("invalid")
 	}
-
-	line = "/* comment"
-	if !containComments(line, st, ed) {
+	if !containsComment(`bool f; /* `, [][]string{{"/*", "*/"}}) {
+		t.Errorf("invalid")
+	}
+	if containsComment(`}`, [][]string{{"/*", "*/"}}) {
 		t.Errorf("invalid")
 	}
 }

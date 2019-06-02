@@ -86,7 +86,7 @@
 
 [[constraint]]
   name = "github.com/hhatto/gocloc"
-  revision = "c5379f7427f9a9a5bec11accdf8a2ef7fa414d3e"
+  revision = "b67c617afe9a31941bfabe8a97967042164310bb"
 
 [prune]
   [[prune.project]]

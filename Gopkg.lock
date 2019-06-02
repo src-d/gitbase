@@ -120,11 +120,11 @@
   version = "v0.5.0"
 
 [[projects]]
-  digest = "1:77a34ba830c71121c919c85bc19f49e4be456b3db6c42cd0f501c7a4dbc5cd70"
+  digest = "1:0849cae77545e092f5d1f74724bb277a002d8bed3bca88b3ba6f205e63fd839f"
   name = "github.com/hhatto/gocloc"
   packages = ["."]
   pruneopts = ""
-  revision = "c5379f7427f9a9a5bec11accdf8a2ef7fa414d3e"
+  revision = "b67c617afe9a31941bfabe8a97967042164310bb"
 
 [[projects]]
   branch = "master"
