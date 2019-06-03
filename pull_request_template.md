@@ -1,10 +1,7 @@
-<!--
-
-All PRs must keep the documentation up to date. If this PR changes or adds some new behavior don't forget to check:
-
-- Schema changes
-- Syntax changes
-- Add or update examples
-- `go run ./tools/rev-upgrade/main.go -p "gopkg.in/src-d/go-mysql-server.v0" [-r "revision"]`
-
- -->
+ <!-- Add PR description here -->
+ 
+ - [ ] I updated the documentation explaining the new behavior if any.
+ - [ ] I updated CHANGELOG.md file adding the new feature or bug fix.
+ - [ ] I updated go-mysql-server using `make upgrade` command if applicable.
+ - [ ] I added or updated examples if applicable.
+ - [ ] I checked that changes on schema are reflected into the documentation, if applicable.
