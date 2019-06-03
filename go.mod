@@ -14,6 +14,7 @@ require (
 	github.com/miekg/dns v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/sirupsen/logrus v1.3.0
+	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
 	github.com/src-d/go-mysql-server v0.4.1-0.20190531100547-4dcaf78ac20d
 	github.com/stretchr/testify v1.3.0
 	github.com/toqueteos/trie v0.0.0-20150530104557-56fed4a05683 // indirect
@@ -26,7 +27,7 @@ require (
 	gopkg.in/src-d/go-billy-siva.v4 v4.2.2
 	gopkg.in/src-d/go-billy.v4 v4.3.0
 	gopkg.in/src-d/go-errors.v1 v1.0.0
-	gopkg.in/src-d/go-git-fixtures.v3 v3.5.0
+	gopkg.in/src-d/go-git-fixtures.v3 v3.5.0 // indirect
 	gopkg.in/src-d/go-git.v4 v4.11.0
 	gopkg.in/src-d/go-siva.v1 v1.3.0 // indirect
 	gopkg.in/src-d/go-vitess.v1 v1.7.0

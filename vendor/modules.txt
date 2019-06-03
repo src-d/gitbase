@@ -113,6 +113,8 @@ github.com/src-d/gcfg
 github.com/src-d/gcfg/scanner
 github.com/src-d/gcfg/token
 github.com/src-d/gcfg/types
+# github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
+github.com/src-d/go-git-fixtures
 # github.com/src-d/go-mysql-server v0.4.1-0.20190531100547-4dcaf78ac20d
 github.com/src-d/go-mysql-server/server
 github.com/src-d/go-mysql-server/sql
@@ -257,8 +259,6 @@ gopkg.in/src-d/go-billy.v4/util
 gopkg.in/src-d/go-billy.v4/helper/polyfill
 # gopkg.in/src-d/go-errors.v1 v1.0.0
 gopkg.in/src-d/go-errors.v1
-# gopkg.in/src-d/go-git-fixtures.v3 v3.5.0
-gopkg.in/src-d/go-git-fixtures.v3
 # gopkg.in/src-d/go-git.v4 v4.11.0
 gopkg.in/src-d/go-git.v4
 gopkg.in/src-d/go-git.v4/config

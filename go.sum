@@ -196,6 +196,8 @@ github.com/spf13/pflag v1.0.3/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnIn
 github.com/spf13/viper v1.3.1/go.mod h1:ZiWeW+zYFKm7srdB9IoDzzZXaJaI5eL9QjNiN/DMA2s=
 github.com/src-d/gcfg v1.4.0 h1:xXbNR5AlLSA315x2UO+fTSSAXCDf+Ar38/6oyGbDKQ4=
 github.com/src-d/gcfg v1.4.0/go.mod h1:p/UMsR43ujA89BJY9duynAwIpvqEujIH/jFlfL7jWoI=
+github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible h1:A5bKevhs9C//Nh8QV0J+1KphEaIa25cDe1DTs/yPxDI=
+github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible/go.mod h1:XcIQp7L+k0pgfTqfbaTKj3kxlBv8kYOKZ/tKNXbZFLg=
 github.com/src-d/go-mysql-server v0.4.1-0.20190531100547-4dcaf78ac20d h1:wJoC2gVGP3UNz96Gsaq2PRtY/LPVeeUwHokSt0J+LwA=
 github.com/src-d/go-mysql-server v0.4.1-0.20190531100547-4dcaf78ac20d/go.mod h1:gX+I1R89v9OeNSMKvLnY6wkapOT8067nrGPkFP1+jNE=
 github.com/src-d/go-oniguruma v1.0.0 h1:JDk5PUAjreGsGAKLsoDLNmrsaryjJ5RqT3h+Si6aw/E=

@@ -4,15 +4,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/src-d/go-mysql-server/sql"
-
-	"gopkg.in/src-d/go-git-fixtures.v3"
+	"github.com/stretchr/testify/require"
 )
-
-func init() {
-	fixtures.RootFolder = "vendor/gopkg.in/src-d/go-git-fixtures.v3/"
-}
 
 const testDBName = "foo"
 

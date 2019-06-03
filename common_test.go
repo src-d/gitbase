@@ -10,16 +10,16 @@ import (
 	"sync"
 	"testing"
 
+	fixtures "github.com/src-d/go-git-fixtures"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/plan"
 	"github.com/stretchr/testify/require"
 	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	billy "gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-billy.v4/osfs"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
-	"github.com/src-d/go-mysql-server/sql"
-	"github.com/src-d/go-mysql-server/sql/plan"
 )
 
 type CleanupFunc func()
@@ -27,7 +27,6 @@ type CleanupFunc func()
 func setup(t *testing.T) (*sql.Context, string, CleanupFunc) {
 	require := require.New(t)
 	t.Helper()
-	require.NoError(fixtures.Init())
 	fxs := []*fixtures.Fixture{fixtures.ByTag("worktree").One()}
 	ctx, paths, cleanup := buildSession(t, fxs)
 	require.Len(paths, 1)
@@ -35,9 +34,7 @@ func setup(t *testing.T) (*sql.Context, string, CleanupFunc) {
 }
 
 func setupRepos(t *testing.T) (*sql.Context, []string, CleanupFunc) {
-	require := require.New(t)
 	t.Helper()
-	require.NoError(fixtures.Init())
 	return buildSession(t, fixtures.ByTag("worktree"))
 }
 
@@ -45,8 +42,6 @@ func buildSession(t *testing.T, repos fixtures.Fixtures,
 ) (ctx *sql.Context, paths []string, cleanup CleanupFunc) {
 	require := require.New(t)
 	t.Helper()
-
-	require.NoError(fixtures.Init())
 
 	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	for _, fixture := range repos {

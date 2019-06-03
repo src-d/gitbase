@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	bblfsh "github.com/bblfsh/go-client/v4"
 	"github.com/bblfsh/sdk/v3/uast/nodes"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	fixtures "github.com/src-d/go-git-fixtures"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
@@ -418,7 +418,6 @@ func bblfshFixtures(
 
 func setup(t *testing.T) (*sql.Context, func()) {
 	t.Helper()
-	require.NoError(t, fixtures.Init())
 
 	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
 	for _, f := range fixtures.ByTag("worktree") {

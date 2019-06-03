@@ -16,7 +16,7 @@ import (
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/stretchr/testify/require"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	fixtures "github.com/src-d/go-git-fixtures"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	sqle "github.com/src-d/go-mysql-server"
 	"github.com/src-d/go-mysql-server/auth"
@@ -26,7 +26,6 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
-	require.NoError(t, fixtures.Init())
 	defer func() {
 		require.NoError(t, fixtures.Clean())
 	}()
@@ -991,7 +990,6 @@ func deleteIndex(
 
 func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 	t.Helper()
-	require.NoError(t, fixtures.Init())
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())
 	}
