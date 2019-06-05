@@ -509,6 +509,18 @@ func TestIntegration(t *testing.T) {
 				{"vendor/foo.go"},
 			},
 		},
+		{
+			`
+				SELECT repository_id, JSON_EXTRACT(bl, "$.author[0]"),
+					   ARRAY_LENGTH(JSON_EXTRACT(bl, "$.file"))
+				FROM (
+					SELECT repository_id, BLAME(repository_id, commit_hash) as bl
+					FROM commits
+					WHERE  commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'
+				) as p
+			`,
+			[]sql.Row{{"worktree", "mcuadros@gmail.com", int32(7235)}},
+		},
 	}
 
 	var pid uint64

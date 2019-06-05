@@ -3,11 +3,10 @@ package function
 import (
 	"context"
 	"github.com/src-d/gitbase"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 	"testing"
 )
 
@@ -18,9 +17,8 @@ func TestBlameEval(t *testing.T) {
 		require.NoError(t, fixtures.Clean())
 	}()
 
-	path := fixtures.ByTag("worktree").One().Worktree().Root()
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	require.NoError(t, pool.AddGitWithID("worktree", path))
+	pool, cleanup := setupPool(t)
+	defer cleanup()
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))

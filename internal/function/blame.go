@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/src-d/gitbase"
 	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
@@ -41,24 +41,17 @@ func (*Blame) Type() sql.Type {
 	return sql.Array(sql.JSON)
 }
 
-// TransformUp implements the sql.Expression interface
-func (b *Blame) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	repo, err := b.repo.TransformUp(fn)
-	if err != nil {
-		return nil, err
+func (b *Blame) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 2 {
+		return nil, sql.ErrInvalidChildrenNumber.New(b, len(children), 2)
 	}
 
-	commit, err := b.commit.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
-	return fn(&Blame{repo, commit})
+	return NewBlame(children[0], children[1]), nil
 }
 
 // Children implements the Expression interface.
 func (b *Blame) Children() []sql.Expression {
-	return []sql.Expression{b.commit}
+	return []sql.Expression{b.repo, b.commit}
 }
 
 // IsNullable implements the Expression interface.
@@ -68,7 +61,7 @@ func (*Blame) IsNullable() bool {
 
 // Resolved implements the Expression interface.
 func (b *Blame) Resolved() bool {
-	return b.commit.Resolved()
+	return b.repo.Resolved() && b.commit.Resolved()
 }
 
 // Eval implements the sql.Expression interface.
