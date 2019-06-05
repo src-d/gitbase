@@ -120,11 +120,11 @@
   version = "v0.5.0"
 
 [[projects]]
-  digest = "1:77a34ba830c71121c919c85bc19f49e4be456b3db6c42cd0f501c7a4dbc5cd70"
+  digest = "1:1bab08fc98800a90c172f21a6b4b8fccea70cd8902ecd4f68397b24930c1c654"
   name = "github.com/hhatto/gocloc"
   packages = ["."]
   pruneopts = ""
-  revision = "c5379f7427f9a9a5bec11accdf8a2ef7fa414d3e"
+  revision = "1429cba568fb96d2d9084048d202437a851b678c"
 
 [[projects]]
   branch = "master"
@@ -782,6 +782,7 @@
     "github.com/jessevdk/go-flags",
     "github.com/opentracing/opentracing-go",
     "github.com/sirupsen/logrus",
+    "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
     "github.com/uber/jaeger-client-go/config",
     "google.golang.org/grpc/connectivity",
@@ -809,7 +810,9 @@
     "gopkg.in/src-d/go-git.v4/plumbing/storer",
     "gopkg.in/src-d/go-git.v4/storage/filesystem",
     "gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit",
+    "gopkg.in/src-d/go-git.v4/utils/binary",
     "gopkg.in/src-d/go-git.v4/utils/ioutil",
+    "gopkg.in/src-d/go-git.v4/utils/merkletrie",
     "gopkg.in/src-d/go-mysql-server.v0",
     "gopkg.in/src-d/go-mysql-server.v0/auth",
     "gopkg.in/src-d/go-mysql-server.v0/server",
