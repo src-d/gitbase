@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 )
 
 // CommitStats calculates the diff stats for a given commit.

@@ -5,9 +5,9 @@ import (
 	"io"
 	"testing"
 
+	"github.com/src-d/go-mysql-server/sql"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 func assertEncodeKey(t *testing.T, key indexKey) []byte {

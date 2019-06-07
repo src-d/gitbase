@@ -8,8 +8,8 @@ import (
 
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/index/pilosa"
 	yaml "gopkg.in/yaml.v2"
 )
 

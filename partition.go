@@ -3,8 +3,8 @@ package gitbase
 import (
 	"io"
 
+	"github.com/src-d/go-mysql-server/sql"
 	errors "gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 // partitioned is an embeddable helper that contains the methods for a table

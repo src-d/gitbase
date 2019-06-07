@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/src-d/go-mysql-server/sql"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 type filesTable struct {

@@ -18,11 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	sqle "gopkg.in/src-d/go-mysql-server.v0"
-	"gopkg.in/src-d/go-mysql-server.v0/auth"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
+	sqle "github.com/src-d/go-mysql-server"
+	"github.com/src-d/go-mysql-server/auth"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/analyzer"
+	"github.com/src-d/go-mysql-server/sql/index/pilosa"
 )
 
 func TestIntegration(t *testing.T) {

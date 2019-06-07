@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add COMMIT_STATS function
+- sql: implement EXPLODE and generators ([#720](https://github.com/src-d/go-mysql-server/pull/720))
+
+### Changed
+- Upgrade vitess to v1.8.0 ([#738](https://github.com/src-d/go-mysql-server/pull/738))
+
+### Fixed
+- Fix parsing of quoted identifiers in SHOW CREATE TABLE queries ([#737](https://github.com/src-d/go-mysql-server/pull/737))
+-  sql/analyzer: back-propagate expression names after adding convert ([#739](https://github.com/src-d/go-mysql-server/pull/739))
+- sql/expression: allow null literals in case branches ([#741](https://github.com/src-d/go-mysql-server/pull/741))
+- sql/plan: make LEFT and RIGHT join work as expected ([#743](https://github.com/src-d/go-mysql-server/pull/743))
+
 ## [0.20.0] - 2019-05-30
 ### Known Issues
 - After updating Vitess MySQL server, we are having some problems connecting from JDBC MariaDB drivers (https://github.com/src-d/gitbase/issues/807) (https://github.com/vitessio/vitess/issues/4603) 

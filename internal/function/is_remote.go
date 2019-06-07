@@ -5,8 +5,8 @@ import (
 	"reflect"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
 )
 
 // IsRemote checks the given string is a remote reference.

@@ -20,7 +20,7 @@ import (
 
 const (
 	lockFile      = "Gopkg.lock"
-	goMysqlServer = "gopkg.in/src-d/go-mysql-server.v0"
+	goMysqlServer = "github.com/src-d/go-mysql-server"
 )
 
 type project struct {
@@ -49,7 +49,7 @@ func main() {
 		err error
 	)
 
-	flag.StringVar(&prj, "p", goMysqlServer, "project name (e.g.: gopkg.in/src-d/go-mysql-server.v0)")
+	flag.StringVar(&prj, "p", goMysqlServer, "project name (e.g.: github.com/src-d/go-mysql-server)")
 	flag.StringVar(&newRev, "r", "", "revision (by default the latest allowed by Gopkg.toml)")
 	flag.Parse()
 

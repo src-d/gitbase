@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/connectivity"
 	bblfsh "gopkg.in/bblfsh/client-go.v3"
 	errors "gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/server"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/server"
+	"github.com/src-d/go-mysql-server/sql"
 	"gopkg.in/src-d/go-vitess.v1/mysql"
 )
 

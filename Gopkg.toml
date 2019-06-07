@@ -1,6 +1,6 @@
 [[constraint]]
-  name = "gopkg.in/src-d/go-mysql-server.v0"
-  revision = "541fde3b92093b3a449e803342a7a18c686275e6"
+  name = "github.com/src-d/go-mysql-server"
+  revision = "4a301c66be3a87ae7d542988ae5ca91c34b1c074"
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
@@ -90,7 +90,7 @@
 
 [prune]
   [[prune.project]]
-    name = "gopkg.in/src-d/go-mysql-server.v0"
+    name = "github.com/src-d/go-mysql-server"
     go-tests = true
     unused-packages = true
   [[prune.project]]

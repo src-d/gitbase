@@ -8,10 +8,10 @@ import (
 	"github.com/src-d/gitbase/internal/commitstats"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/src-d/go-git-fixtures.v3"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
+	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
 func TestCommitStatsEval(t *testing.T) {

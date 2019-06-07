@@ -7,9 +7,9 @@ import (
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
+	"github.com/src-d/go-mysql-server/sql"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
 )
 
 type refCommitsTable struct {

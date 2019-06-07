@@ -6,7 +6,7 @@ import (
 
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 )
 
 type remotesTable struct {

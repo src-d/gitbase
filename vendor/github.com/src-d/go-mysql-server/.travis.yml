@@ -1,0 +1,105 @@
+language: go
+go_import_path: github.com/src-d/go-mysql-server
+
+env:
+  global:
+    - LD_LIBRARY_PATH="/usr/local/lib":${LD_LIBRARY_PATH}
+    - GO111MODULE=on
+
+addons:
+  apt:
+    packages:
+      - libonig-dev
+      - libmysqlclient-dev
+
+matrix:
+  fast_finish: true
+
+sudo: required
+
+services:
+  - docker
+
+install:
+  - go get ./...
+  - make dependencies
+
+before_script:
+  - sudo service mysql stop
+
+script:
+  - make ci-script
+
+jobs:
+  include:
+    - go: 1.11.x
+    - go: 1.12.x
+
+    # Integration test builds for 3rd party clients
+    - go: 1.12.x
+      script:
+        - make TEST=go integration
+
+    - language: python
+      python: '3.6'
+      before_install:
+        - eval "$(gimme 1.12.4)"
+      install:
+        - go get ./...
+      script:
+        - make TEST=python-pymysql integration
+
+    - language: php
+      php: '7.1'
+      before_install:
+        - eval "$(gimme 1.12.4)"
+      install:
+        - go get ./...
+      script:
+        - make TEST=php integration
+
+    - language: ruby
+      ruby: '2.3'
+      before_install:
+        - eval "$(gimme 1.12.4)"
+      install:
+        - go get ./...
+      script:
+        - make TEST=ruby integration
+
+    - language: java
+      jdk: openjdk10
+      before_install:
+        - eval "$(gimme 1.12.4)"
+      install:
+        - go get ./...
+      script:
+        - make TEST=jdbc-mariadb integration
+
+    - language: node_js
+      node_js: '7'
+      before_install:
+        - eval "$(gimme 1.12.4)"
+      install:
+        - go get ./...
+      script:
+        - make TEST=javascript integration
+
+    - language: csharp
+      mono: none
+      dotnet: '2.1'
+      before_install:
+        - eval "$(gimme 1.12.4)"
+      install:
+        - go get ./...
+      script:
+        - make TEST=dotnet integration
+
+    - language: c
+      compiler: clang
+      before_install:
+        - eval "$(gimme 1.12.4)"
+      install:
+        - go get ./...
+      script:
+        - make TEST=c integration

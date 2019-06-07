@@ -16,14 +16,14 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/sirupsen/logrus"
+	sqle "github.com/src-d/go-mysql-server"
+	"github.com/src-d/go-mysql-server/auth"
+	"github.com/src-d/go-mysql-server/server"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/analyzer"
+	"github.com/src-d/go-mysql-server/sql/index/pilosa"
 	"github.com/uber/jaeger-client-go/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	sqle "gopkg.in/src-d/go-mysql-server.v0"
-	"gopkg.in/src-d/go-mysql-server.v0/auth"
-	"gopkg.in/src-d/go-mysql-server.v0/server"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/analyzer"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa"
 	"gopkg.in/src-d/go-vitess.v1/mysql"
 )
 

@@ -315,6 +315,29 @@
   version = "v1.3.0"
 
 [[projects]]
+  digest = "1:f363ad8089a0a76f2390c1b8dcb838465f54faad22707d208e9ea1a5718f7cc4"
+  name = "github.com/src-d/go-mysql-server"
+  packages = [
+    ".",
+    "auth",
+    "internal/regex",
+    "internal/similartext",
+    "mem",
+    "server",
+    "sql",
+    "sql/analyzer",
+    "sql/expression",
+    "sql/expression/function",
+    "sql/expression/function/aggregation",
+    "sql/index",
+    "sql/index/pilosa",
+    "sql/parse",
+    "sql/plan",
+  ]
+  pruneopts = "UT"
+  revision = "4a301c66be3a87ae7d542988ae5ca91c34b1c074"
+
+[[projects]]
   digest = "1:04977a807585d4c7392941d5e05220a00d118c2df2a9f88f407ae74b0d83aec6"
   name = "github.com/src-d/go-oniguruma"
   packages = ["."]
@@ -685,29 +708,6 @@
   source = "github.com/src-d/go-git"
 
 [[projects]]
-  digest = "1:66400843c0d9b0301d42e7da7511350925f889a662db47d904393e7f810310d9"
-  name = "gopkg.in/src-d/go-mysql-server.v0"
-  packages = [
-    ".",
-    "auth",
-    "internal/regex",
-    "internal/similartext",
-    "mem",
-    "server",
-    "sql",
-    "sql/analyzer",
-    "sql/expression",
-    "sql/expression/function",
-    "sql/expression/function/aggregation",
-    "sql/index",
-    "sql/index/pilosa",
-    "sql/parse",
-    "sql/plan",
-  ]
-  pruneopts = "UT"
-  revision = "541fde3b92093b3a449e803342a7a18c686275e6"
-
-[[projects]]
   digest = "1:f995136b53497081f1b3f29b99e78a597da6afb2bc6f22908382559a863df4ea"
   name = "gopkg.in/src-d/go-siva.v1"
   packages = ["."]
@@ -782,6 +782,15 @@
     "github.com/jessevdk/go-flags",
     "github.com/opentracing/opentracing-go",
     "github.com/sirupsen/logrus",
+    "github.com/src-d/go-mysql-server",
+    "github.com/src-d/go-mysql-server/auth",
+    "github.com/src-d/go-mysql-server/server",
+    "github.com/src-d/go-mysql-server/sql",
+    "github.com/src-d/go-mysql-server/sql/analyzer",
+    "github.com/src-d/go-mysql-server/sql/expression",
+    "github.com/src-d/go-mysql-server/sql/index/pilosa",
+    "github.com/src-d/go-mysql-server/sql/parse",
+    "github.com/src-d/go-mysql-server/sql/plan",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
     "github.com/uber/jaeger-client-go/config",
@@ -813,15 +822,6 @@
     "gopkg.in/src-d/go-git.v4/utils/binary",
     "gopkg.in/src-d/go-git.v4/utils/ioutil",
     "gopkg.in/src-d/go-git.v4/utils/merkletrie",
-    "gopkg.in/src-d/go-mysql-server.v0",
-    "gopkg.in/src-d/go-mysql-server.v0/auth",
-    "gopkg.in/src-d/go-mysql-server.v0/server",
-    "gopkg.in/src-d/go-mysql-server.v0/sql",
-    "gopkg.in/src-d/go-mysql-server.v0/sql/analyzer",
-    "gopkg.in/src-d/go-mysql-server.v0/sql/expression",
-    "gopkg.in/src-d/go-mysql-server.v0/sql/index/pilosa",
-    "gopkg.in/src-d/go-mysql-server.v0/sql/parse",
-    "gopkg.in/src-d/go-mysql-server.v0/sql/plan",
     "gopkg.in/src-d/go-vitess.v1/mysql",
     "gopkg.in/yaml.v2",
   ]

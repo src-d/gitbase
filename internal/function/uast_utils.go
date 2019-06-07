@@ -13,7 +13,7 @@ import (
 	bblfsh "gopkg.in/bblfsh/client-go.v3"
 	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
 	errors "gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 )
 
 var (
