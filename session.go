@@ -12,7 +12,7 @@ import (
 	"github.com/src-d/go-mysql-server/sql"
 	"google.golang.org/grpc/connectivity"
 	errors "gopkg.in/src-d/go-errors.v1"
-	"gopkg.in/src-d/go-vitess.v1/mysql"
+	"vitess.io/vitess/go/mysql"
 )
 
 // Session is the custom implementation of a gitbase session.
