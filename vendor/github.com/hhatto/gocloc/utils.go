@@ -20,20 +20,22 @@ func trimBOM(line string) string {
 	return line
 }
 
-func containComments(line, commentStart, commentEnd string) bool {
-	inComments := 0
-	for i := 0; i < len(line)-(len(commentStart)-1); i++ {
-		section := line[i : i+len(commentStart)]
-
-		if section == commentStart {
-			inComments++
-		} else if section == commentEnd {
-			if inComments != 0 {
-				inComments--
+func containsComment(line string, multiLines [][]string) bool {
+	for _, mlcomm := range multiLines {
+		for _, comm := range mlcomm {
+			if strings.Contains(line, comm) {
+				return true
 			}
 		}
 	}
-	return inComments != 0
+	return false
+}
+
+func nextRune(s string) rune {
+	for _, r := range s {
+		return r
+	}
+	return 0
 }
 
 func checkMD5Sum(path string, fileCache map[string]struct{}) (ignore bool) {

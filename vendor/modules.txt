@@ -53,7 +53,7 @@ github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc
 # github.com/hashicorp/golang-lru v0.5.0
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
-# github.com/hhatto/gocloc v0.0.0-20190523170610-c5379f7427f9
+# github.com/hhatto/gocloc v0.0.0-20190602072209-764f3f6ae21e
 github.com/hhatto/gocloc
 # github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
 github.com/jbenet/go-context/io
@@ -110,6 +110,13 @@ github.com/sergi/go-diff/diffmatchpatch
 github.com/sirupsen/logrus
 # github.com/spf13/cast v1.3.0
 github.com/spf13/cast
+# github.com/src-d/enry/v2 v2.0.0
+github.com/src-d/enry/v2
+github.com/src-d/enry/v2/data
+github.com/src-d/enry/v2/internal/tokenizer
+github.com/src-d/enry/v2/regex
+github.com/src-d/enry/v2/data/rule
+github.com/src-d/enry/v2/internal/tokenizer/flex
 # github.com/src-d/gcfg v1.4.0
 github.com/src-d/gcfg
 github.com/src-d/gcfg/scanner
@@ -133,12 +140,12 @@ github.com/src-d/go-mysql-server/sql/parse
 github.com/src-d/go-mysql-server/mem
 github.com/src-d/go-mysql-server/sql/expression/function/aggregation
 github.com/src-d/go-mysql-server/sql/index
-# github.com/src-d/go-oniguruma v1.0.0
+# github.com/src-d/go-oniguruma v1.1.0
 github.com/src-d/go-oniguruma
 # github.com/stretchr/testify v1.3.0
 github.com/stretchr/testify/require
 github.com/stretchr/testify/assert
-# github.com/toqueteos/trie v0.0.0-20150530104557-56fed4a05683
+# github.com/toqueteos/trie v1.0.0
 github.com/toqueteos/trie
 # github.com/uber/jaeger-client-go v2.16.0+incompatible
 github.com/uber/jaeger-client-go/config
@@ -261,6 +268,8 @@ gopkg.in/src-d/go-billy.v4/util
 gopkg.in/src-d/go-billy.v4/helper/polyfill
 # gopkg.in/src-d/go-errors.v1 v1.0.0
 gopkg.in/src-d/go-errors.v1
+# gopkg.in/src-d/go-git-fixtures.v3 v3.5.0
+gopkg.in/src-d/go-git-fixtures.v3
 # gopkg.in/src-d/go-git.v4 v4.11.0
 gopkg.in/src-d/go-git.v4
 gopkg.in/src-d/go-git.v4/config
@@ -275,6 +284,8 @@ gopkg.in/src-d/go-git.v4/plumbing/storer
 gopkg.in/src-d/go-git.v4/storage/filesystem
 gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit
 gopkg.in/src-d/go-git.v4/utils/ioutil
+gopkg.in/src-d/go-git.v4/utils/binary
+gopkg.in/src-d/go-git.v4/utils/merkletrie
 gopkg.in/src-d/go-git.v4/internal/revision
 gopkg.in/src-d/go-git.v4/plumbing/format/gitignore
 gopkg.in/src-d/go-git.v4/plumbing/format/index
@@ -287,22 +298,24 @@ gopkg.in/src-d/go-git.v4/plumbing/transport/client
 gopkg.in/src-d/go-git.v4/storage
 gopkg.in/src-d/go-git.v4/storage/memory
 gopkg.in/src-d/go-git.v4/utils/diff
-gopkg.in/src-d/go-git.v4/utils/merkletrie
 gopkg.in/src-d/go-git.v4/utils/merkletrie/filesystem
 gopkg.in/src-d/go-git.v4/utils/merkletrie/index
 gopkg.in/src-d/go-git.v4/utils/merkletrie/noder
 gopkg.in/src-d/go-git.v4/internal/url
 gopkg.in/src-d/go-git.v4/plumbing/format/config
-gopkg.in/src-d/go-git.v4/utils/binary
 gopkg.in/src-d/go-git.v4/plumbing/format/diff
+gopkg.in/src-d/go-git.v4/utils/merkletrie/internal/frame
 gopkg.in/src-d/go-git.v4/plumbing/format/pktline
 gopkg.in/src-d/go-git.v4/plumbing/transport/file
 gopkg.in/src-d/go-git.v4/plumbing/transport/git
 gopkg.in/src-d/go-git.v4/plumbing/transport/http
 gopkg.in/src-d/go-git.v4/plumbing/transport/ssh
-gopkg.in/src-d/go-git.v4/utils/merkletrie/internal/frame
 gopkg.in/src-d/go-git.v4/plumbing/transport/internal/common
 gopkg.in/src-d/go-git.v4/plumbing/transport/server
+# gopkg.in/src-d/go-mysql-server.v0 v0.5.1
+gopkg.in/src-d/go-mysql-server.v0/sql
+gopkg.in/src-d/go-mysql-server.v0/sql/expression
+gopkg.in/src-d/go-mysql-server.v0/internal/regex
 # gopkg.in/src-d/go-siva.v1 v1.3.0
 gopkg.in/src-d/go-siva.v1
 # gopkg.in/src-d/go-vitess.v1 v1.7.0
