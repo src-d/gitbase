@@ -24,7 +24,7 @@ import (
 	"github.com/src-d/go-mysql-server/sql/index/pilosa"
 	"github.com/uber/jaeger-client-go/config"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-vitess.v1/mysql"
+	"vitess.io/vitess/go/mysql"
 )
 
 const (

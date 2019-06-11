@@ -10,6 +10,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.0
 	github.com/hhatto/gocloc v0.0.0-20190602072209-764f3f6ae21e
 	github.com/jessevdk/go-flags v1.4.0
+	github.com/miekg/dns v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/sirupsen/logrus v1.3.0
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
@@ -17,6 +18,7 @@ require (
 	github.com/stretchr/testify v1.3.0
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
+	github.com/uber/jaeger-lib v2.0.0+incompatible // indirect
 	go.uber.org/atomic v1.4.0 // indirect
 	google.golang.org/grpc v1.20.1
 	gopkg.in/src-d/enry.v1 v1.7.2
@@ -25,8 +27,7 @@ require (
 	gopkg.in/src-d/go-errors.v1 v1.0.0
 	gopkg.in/src-d/go-git-fixtures.v3 v3.5.0
 	gopkg.in/src-d/go-git.v4 v4.11.0
-	gopkg.in/src-d/go-mysql-server.v0 v0.5.1
 	gopkg.in/src-d/go-siva.v1 v1.3.0 // indirect
-	gopkg.in/src-d/go-vitess.v1 v1.7.0
 	gopkg.in/yaml.v2 v2.2.2
+	vitess.io/vitess v3.0.0-rc.3.0.20190602171040-12bfde34629c+incompatible
 )
