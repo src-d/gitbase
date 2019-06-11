@@ -14,9 +14,9 @@ import (
 	"github.com/src-d/go-mysql-server/sql"
 
 	"github.com/sirupsen/logrus"
-	"gopkg.in/src-d/go-vitess.v1/mysql"
-	"gopkg.in/src-d/go-vitess.v1/sqltypes"
-	"gopkg.in/src-d/go-vitess.v1/vt/proto/query"
+	"vitess.io/vitess/go/mysql"
+	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/proto/query"
 )
 
 var regKillCmd = regexp.MustCompile(`^kill (?:(query|connection) )?(\d+)$`)
@@ -125,7 +125,12 @@ func (h *Handler) ComQuery(
 			return err
 		}
 
-		r.Rows = append(r.Rows, rowToSQL(schema, row))
+		outputRow, err := rowToSQL(schema, row)
+		if err != nil {
+			return err
+		}
+
+		r.Rows = append(r.Rows, outputRow)
 		r.RowsAffected++
 	}
 
@@ -203,13 +208,17 @@ func (h *Handler) handleKill(conn *mysql.Conn, query string) (bool, error) {
 	return true, nil
 }
 
-func rowToSQL(s sql.Schema, row sql.Row) []sqltypes.Value {
+func rowToSQL(s sql.Schema, row sql.Row) ([]sqltypes.Value, error) {
 	o := make([]sqltypes.Value, len(row))
+	var err error
 	for i, v := range row {
-		o[i] = s[i].Type.SQL(v)
+		o[i], err = s[i].Type.SQL(v)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return o
+	return o, nil
 }
 
 func schemaToFields(s sql.Schema) []*query.Field {

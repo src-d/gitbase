@@ -3,11 +3,11 @@ package analyzer
 import (
 	"strings"
 
-	"gopkg.in/src-d/go-errors.v1"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/src-d/go-mysql-server/sql/expression/function"
 	"github.com/src-d/go-mysql-server/sql/plan"
+	"gopkg.in/src-d/go-errors.v1"
 )
 
 const (
@@ -19,6 +19,7 @@ const (
 	validateIndexCreationRule   = "validate_index_creation"
 	validateCaseResultTypesRule = "validate_case_result_types"
 	validateIntervalUsageRule   = "validate_interval_usage"
+	validateExplodeUsageRule    = "validate_explode_usage"
 )
 
 var (
@@ -51,6 +52,11 @@ var (
 		"invalid use of an interval, which can only be used with DATE_ADD, " +
 			"DATE_SUB and +/- operators to subtract from or add to a date",
 	)
+	// ErrExplodeInvalidUse is returned when an EXPLODE function is used
+	// outside a Project node.
+	ErrExplodeInvalidUse = errors.NewKind(
+		"using EXPLODE is not supported outside a Project node",
+	)
 )
 
 // DefaultValidationRules to apply while analyzing nodes.
@@ -63,6 +69,7 @@ var DefaultValidationRules = []Rule{
 	{validateIndexCreationRule, validateIndexCreation},
 	{validateCaseResultTypesRule, validateCaseResultTypes},
 	{validateIntervalUsageRule, validateIntervalUsage},
+	{validateExplodeUsageRule, validateExplodeUsage},
 }
 
 func validateIsResolved(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
@@ -235,14 +242,14 @@ func validateCaseResultTypes(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Nod
 		case *expression.Case:
 			typ := e.Type()
 			for _, b := range e.Branches {
-				if b.Value.Type() != typ {
+				if b.Value.Type() != typ && b.Value.Type() != sql.Null {
 					err = ErrCaseResultType.New(typ, b.Value, b.Value.Type(), e)
 					return false
 				}
 			}
 
 			if e.Else != nil {
-				if e.Else.Type() != typ {
+				if e.Else.Type() != typ && e.Else.Type() != sql.Null {
 					err = ErrCaseResultType.New(typ, e.Else, e.Else.Type(), e)
 					return false
 				}
@@ -285,6 +292,31 @@ func validateIntervalUsage(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node,
 
 	if invalid {
 		return nil, ErrIntervalInvalidUse.New()
+	}
+
+	return n, nil
+}
+
+func validateExplodeUsage(ctx *sql.Context, a *Analyzer, n sql.Node) (sql.Node, error) {
+	var invalid bool
+	plan.InspectExpressions(n, func(e sql.Expression) bool {
+		// If it's already invalid just skip everything else.
+		if invalid {
+			return false
+		}
+
+		// All usage of Explode will be incorrect because the ones in projects
+		// would have already been converted to Generate, so we only have to
+		// look for those.
+		if _, ok := e.(*function.Explode); ok {
+			invalid = true
+		}
+
+		return true
+	})
+
+	if invalid {
+		return nil, ErrExplodeInvalidUse.New()
 	}
 
 	return n, nil

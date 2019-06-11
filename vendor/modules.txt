@@ -40,6 +40,8 @@ github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/types
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
+# github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+github.com/golang/glog
 # github.com/golang/protobuf v1.3.1
 github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/protobuf/proto
@@ -115,7 +117,7 @@ github.com/src-d/gcfg/token
 github.com/src-d/gcfg/types
 # github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
 github.com/src-d/go-git-fixtures
-# github.com/src-d/go-mysql-server v0.4.1-0.20190531100547-4dcaf78ac20d
+# github.com/src-d/go-mysql-server v0.4.1-0.20190607090451-cf9bb2a992da
 github.com/src-d/go-mysql-server/server
 github.com/src-d/go-mysql-server/sql
 github.com/src-d/go-mysql-server/sql/expression
@@ -305,26 +307,26 @@ gopkg.in/src-d/go-git.v4/plumbing/transport/server
 gopkg.in/src-d/go-siva.v1
 # gopkg.in/src-d/go-vitess.v1 v1.7.0
 gopkg.in/src-d/go-vitess.v1/mysql
-gopkg.in/src-d/go-vitess.v1/sqltypes
-gopkg.in/src-d/go-vitess.v1/vt/proto/query
-gopkg.in/src-d/go-vitess.v1/vt/sqlparser
 gopkg.in/src-d/go-vitess.v1/bucketpool
 gopkg.in/src-d/go-vitess.v1/netutil
+gopkg.in/src-d/go-vitess.v1/sqltypes
 gopkg.in/src-d/go-vitess.v1/stats
 gopkg.in/src-d/go-vitess.v1/sync2
 gopkg.in/src-d/go-vitess.v1/tb
 gopkg.in/src-d/go-vitess.v1/vt/log
 gopkg.in/src-d/go-vitess.v1/vt/proto/binlogdata
+gopkg.in/src-d/go-vitess.v1/vt/proto/query
 gopkg.in/src-d/go-vitess.v1/vt/proto/replicationdata
 gopkg.in/src-d/go-vitess.v1/vt/proto/vtrpc
+gopkg.in/src-d/go-vitess.v1/vt/sqlparser
 gopkg.in/src-d/go-vitess.v1/vt/vterrors
 gopkg.in/src-d/go-vitess.v1/vt/vttls
 gopkg.in/src-d/go-vitess.v1/bytes2
 gopkg.in/src-d/go-vitess.v1/hack
 gopkg.in/src-d/go-vitess.v1/vt/proto/vtgate
-gopkg.in/src-d/go-vitess.v1/vt/proto/topodata
 gopkg.in/src-d/go-vitess.v1/vt/logutil
 gopkg.in/src-d/go-vitess.v1/cache
+gopkg.in/src-d/go-vitess.v1/vt/proto/topodata
 gopkg.in/src-d/go-vitess.v1/event
 gopkg.in/src-d/go-vitess.v1/vt/proto/logutil
 # gopkg.in/toqueteos/substring.v1 v1.0.2
@@ -333,3 +335,27 @@ gopkg.in/toqueteos/substring.v1
 gopkg.in/warnings.v0
 # gopkg.in/yaml.v2 v2.2.2
 gopkg.in/yaml.v2
+# vitess.io/vitess v3.0.0-rc.3.0.20190602171040-12bfde34629c+incompatible
+vitess.io/vitess/go/mysql
+vitess.io/vitess/go/sqltypes
+vitess.io/vitess/go/vt/proto/query
+vitess.io/vitess/go/vt/sqlparser
+vitess.io/vitess/go/vt/log
+vitess.io/vitess/go/bucketpool
+vitess.io/vitess/go/netutil
+vitess.io/vitess/go/stats
+vitess.io/vitess/go/sync2
+vitess.io/vitess/go/tb
+vitess.io/vitess/go/vt/proto/binlogdata
+vitess.io/vitess/go/vt/proto/replicationdata
+vitess.io/vitess/go/vt/proto/vtrpc
+vitess.io/vitess/go/vt/vterrors
+vitess.io/vitess/go/vt/vttls
+vitess.io/vitess/go/bytes2
+vitess.io/vitess/go/hack
+vitess.io/vitess/go/vt/proto/vtgate
+vitess.io/vitess/go/vt/proto/topodata
+vitess.io/vitess/go/vt/logutil
+vitess.io/vitess/go/cache
+vitess.io/vitess/go/event
+vitess.io/vitess/go/vt/proto/logutil

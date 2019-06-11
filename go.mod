@@ -15,7 +15,7 @@ require (
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/sirupsen/logrus v1.3.0
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
-	github.com/src-d/go-mysql-server v0.4.1-0.20190531100547-4dcaf78ac20d
+	github.com/src-d/go-mysql-server v0.4.1-0.20190607090451-cf9bb2a992da
 	github.com/stretchr/testify v1.3.0
 	github.com/toqueteos/trie v0.0.0-20150530104557-56fed4a05683 // indirect
 	github.com/uber-go/atomic v1.4.0 // indirect
