@@ -329,3 +329,44 @@ This will pretty-print the analyzed tree of your query. If you see a node named 
 - `commit_files.file_path = files.file_path`
 - `commit_files.tree_hash = files.tree_hash`
 - `commit_files.blob_hash = files.blob_hash`
+
+## GROUP BY and ORDER BY memory optimization
+
+The way GROUP BY and ORDER BY are implemented, they hold all the rows their child node will return in memory and once all of them are present, the grouping/sort is computed.
+In order to optimise a query having an ORDER BY or GROUP BY is important to perform those operations as late as possible and with the least amount of data possible. Otherwise, they can have a very big impact on memory usage and performance.
+
+For example, consider the following query:
+
+```sql
+SELECT LANGUAGE(f.file_path) as lang, SUM(ARRAY_LENGTH(SPLIT(f.blob_content, "\n"))-1) as lines
+FROM ref_commits rc
+NATURAL JOIN commits c
+NATURAL JOIN commit_files cf
+NATURAL JOIN files f
+WHERE rc.ref_name = 'HEAD'
+	AND f.file_path NOT REGEXP '^vendor.*'
+	AND NOT IS_BINARY(f.blob_content)
+GROUP BY lang
+```
+
+This query returns the total number of lines of code per language in all files in the HEAD reference of all repositories. What happens here is that grouping will be done with a row that contains `blob_content`. This means a lot of data will be kept in memory to perform this aggregation. That could lead to tens of gigabytes of RAM usage if there are a lot of repositories in the dataset.
+
+Instead, the following query returns exactly the same rows, but only outputs what's necessary in a subquery, keeping way less data in memory.
+
+```sql
+SELECT lang, SUM(lines) AS lines
+FROM (
+    SELECT LANGUAGE(f.file_path, f.blob_content) as lang,
+        (ARRAY_LENGTH(SPLIT(f.blob_content, "\n"))-1) as lines
+    FROM ref_commits rc
+    NATURAL JOIN commits c
+    NATURAL JOIN commit_files cf
+    NATURAL JOIN files f
+    WHERE rc.ref_name = 'HEAD'
+        AND cf.file_path NOT REGEXP '^vendor.*'
+        AND NOT IS_BINARY(f.blob_content)
+) t
+GROUP BY lang
+```
+
+As a good rule of thumb: defer as much as possible GROUP BY and ORDER BY operations and only perform them with the minimum amount of data needed.
