@@ -7,7 +7,7 @@ CI_REPOSITORY ?= https://github.com/src-d/ci.git
 CI_PATH ?= $(shell pwd)/.ci
 CI_VERSION ?= v1
 
-UPGRADE_PRJ ?= "gopkg.in/src-d/go-mysql-server.v0"
+UPGRADE_PRJ ?= "github.com/src-d/go-mysql-server"
 UPGRADE_REV ?=  $(shell curl --silent "https://api.github.com/repos/src-d/go-mysql-server/commits/master" -H'Accept: application/vnd.github.VERSION.sha')
 
 MAKEFILE := $(CI_PATH)/Makefile.main

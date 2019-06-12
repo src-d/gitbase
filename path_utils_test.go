@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	fixtures "github.com/src-d/go-git-fixtures"
 )
 
 func TestPatternMatches(t *testing.T) {

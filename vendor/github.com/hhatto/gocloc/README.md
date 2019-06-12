@@ -1,4 +1,4 @@
-# gocloc [![travis-ci](https://travis-ci.org/hhatto/gocloc.svg?branch=master)](https://travis-ci.org/hhatto/gocloc) [![Patreon](https://img.shields.io/badge/patreon-become%20a%20patron-red.svg)](https://www.patreon.com/hhatto)
+# gocloc [![travis-ci](https://travis-ci.org/hhatto/gocloc.svg?branch=master)](https://travis-ci.org/hhatto/gocloc)
 
 A little fast [cloc(Count Lines Of Code)](https://github.com/AlDanial/cloc), written in Go.
 Inspired by [tokei](https://github.com/Aaronepower/tokei).

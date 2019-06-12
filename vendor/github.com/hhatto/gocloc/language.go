@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode"
 
-	enry "gopkg.in/src-d/enry.v1"
+	enry "github.com/src-d/enry/v2"
 )
 
 // ClocLanguage is provide for xml-cloc and json format

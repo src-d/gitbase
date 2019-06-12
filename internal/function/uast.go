@@ -12,13 +12,13 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/sirupsen/logrus"
-	bblfsh "gopkg.in/bblfsh/client-go.v3"
-	derrors "gopkg.in/bblfsh/sdk.v2/driver/errors"
-	"gopkg.in/bblfsh/sdk.v2/uast"
-	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
+	bblfsh "github.com/bblfsh/go-client/v4"
+	derrors "github.com/bblfsh/sdk/v3/driver/errors"
+	"github.com/bblfsh/sdk/v3/uast"
+	"github.com/bblfsh/sdk/v3/uast/nodes"
 
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
 )
 
 const (

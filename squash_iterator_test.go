@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	fixtures "github.com/src-d/go-git-fixtures"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/stretchr/testify/require"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
 )
 
 func TestAllReposIter(t *testing.T) {
@@ -717,8 +717,6 @@ func setupIter(t *testing.T) (*sql.Context, func()) {
 }
 
 func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Context, func()) {
-	require.NoError(t, fixtures.Init())
-
 	pool := NewRepositoryPool(cache.DefaultMaxSize)
 	if badRepo {
 		// TODO: add repo with errors

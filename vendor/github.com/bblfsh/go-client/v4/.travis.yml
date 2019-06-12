@@ -1,0 +1,29 @@
+language: go
+
+env:
+  global:
+    - BBLFSHD_VERSION=v2.12.1
+    - BBLFSH_PYTHON_VERSION=v2.9.0
+    - GO111MODULE=on
+install:
+  - |
+    if [[ $TRAVIS_OS_NAME = linux ]]; then
+      docker run --privileged -d -p 9432:9432 --name bblfshd bblfsh/bblfshd:$BBLFSHD_VERSION
+      docker exec bblfshd bblfshctl driver install bblfsh/python-driver:$BBLFSH_PYTHON_VERSION
+    fi
+  - go mod download
+
+script:
+  - |
+    if [[ $TRAVIS_OS_NAME = linux ]]; then
+      make test-coverage codecov
+    else
+      make GO_TEST_ARGS="-v -short" test-coverage codecov
+    fi
+
+jobs:
+  include:
+    - {go: 1.11.x,  os: linux, sudo: required, dist: trusty, services: [docker]}
+    - {go: 1.12.x, os: linux, sudo: required, dist: trusty, services: [docker]}
+    - {go: 1.11.x,  os: osx, osx_image: xcode9.3}
+    - {go: 1.12.x, os: osx, osx_image: xcode9.3}

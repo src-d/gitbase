@@ -47,15 +47,24 @@ type Regexp struct {
 	namedGroupInfo NamedGroupInfo
 }
 
+// NewRegexp creates and initializes a new Regexp with the given pattern and option.
 func NewRegexp(pattern string, option int) (re *Regexp, err error) {
-	re = &Regexp{pattern: pattern}
-	patternCharPtr := C.CString(pattern)
-	defer C.free(unsafe.Pointer(patternCharPtr))
+	return initRegexp(&Regexp{pattern: pattern, encoding: C.ONIG_ENCODING_UTF8}, option)
+}
 
+// NewRegexpASCII is equivalent to NewRegexp, but with the encoding restricted to ASCII.
+func NewRegexpASCII(pattern string, option int) (re *Regexp, err error) {
+	return initRegexp(&Regexp{pattern: pattern, encoding: C.ONIG_ENCODING_ASCII}, option)
+}
+
+func initRegexp(re *Regexp, option int) (*Regexp, error) {
+	var err error
+	patternCharPtr := C.CString(re.pattern)
+	defer C.free(unsafe.Pointer(patternCharPtr))
 	mutex.Lock()
 	defer mutex.Unlock()
-	error_code := C.NewOnigRegex(patternCharPtr, C.int(len(pattern)), C.int(option), &re.regex, &re.region, &re.encoding, &re.errorInfo, &re.errorBuf)
-	if error_code != C.ONIG_NORMAL {
+	errorCode := C.NewOnigRegex(patternCharPtr, C.int(len(re.pattern)), C.int(option), &re.regex, &re.region, &re.encoding, &re.errorInfo, &re.errorBuf)
+	if errorCode != C.ONIG_NORMAL {
 		err = errors.New(C.GoString(re.errorBuf))
 	} else {
 		err = nil
@@ -89,6 +98,15 @@ func CompileWithOption(str string, option int) (*Regexp, error) {
 
 func MustCompileWithOption(str string, option int) *Regexp {
 	regexp, error := NewRegexp(str, option)
+	if error != nil {
+		panic("regexp: compiling " + str + ": " + error.Error())
+	}
+	return regexp
+}
+
+// MustCompileASCII is equivalent to MustCompile, but with the encoding restricted to ASCII.
+func MustCompileASCII(str string) *Regexp {
+	regexp, error := NewRegexpASCII(str, ONIG_OPTION_DEFAULT)
 	if error != nil {
 		panic("regexp: compiling " + str + ": " + error.Error())
 	}

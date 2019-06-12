@@ -1,19 +1,15 @@
 .PHONY: test build
 
 build:
-	go build
 	mkdir -p bin
-	go build -o ./bin/gocloc cmd/gocloc/main.go
-
-update-vendor:
-	dep ensure
+	GO111MODULE=on go build -o ./bin/gocloc cmd/gocloc/main.go
 
 update-package:
-	go get -u github.com/hhatto/gocloc
+	GO111MODULE=on go get -u github.com/hhatto/gocloc
 
 run-example:
-	go run examples/languages.go
-	go run examples/files.go
+	GO111MODULE=on go run examples/languages.go
+	GO111MODULE=on go run examples/files.go
 
 test:
-	go test -v
+	GO111MODULE=on go test -v

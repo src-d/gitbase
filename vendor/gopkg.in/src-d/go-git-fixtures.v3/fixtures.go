@@ -67,6 +67,10 @@ var fixtures = Fixtures{{
 	URL:        "https://github.com/git-fixtures/basic.git",
 	DotGitHash: plumbing.NewHash("935e5ac17c41c309c356639816ea0694a568c484"),
 }, {
+	Tags:       []string{".git", "end-of-index-entry"},
+	URL:        "https://github.com/git-fixtures/basic.git",
+	DotGitHash: plumbing.NewHash("ab06771a67110b976953d34400d4dbc465ccd2d9"),
+}, {
 	Tags:         []string{"worktree"},
 	URL:          "https://github.com/git-fixtures/basic.git",
 	WorktreeHash: plumbing.NewHash("d2e42ddd68eacbb6034e7724e0dd4117ff1f01ee"),
@@ -143,6 +147,22 @@ var fixtures = Fixtures{{
 }, {
 	Tags:         []string{"worktree", "dirty"},
 	WorktreeHash: plumbing.NewHash("7203669c66103305e56b9dcdf940a7fbeb515f28"),
+}, {
+	Tags:         []string{"packfile", "standalone"}, // standalone packfile that does not have any dependencies nor is part of any other fixture repo
+	PackfileHash: plumbing.NewHash("3638209d310e10ea8d90c362d568be65dd5e03a6"),
+}, {
+	Tags:         []string{"thinpack"}, // adds commit on top of spinnaker fixture 06ce06d0fc49646c4de733c45b7788aabad98a6f via a thin pack
+	PackfileHash: plumbing.NewHash("ee4fef0ef8be5053ebae4ce75acf062ddf3031fb"),
+	Head:         plumbing.NewHash("ee372bb08322c1e6e7c6c4f953cc6bf72784e7fb"), // the thin pack adds this commit
+}, {
+	Tags:       []string{"merge-base"},
+	DotGitHash: plumbing.NewHash("26baa505b9f6fb2024b9999c140b75514718c988"),
+}, {
+	Tags:         []string{"commit-graph"},
+	Head:         plumbing.NewHash("b9d69064b190e7aedccf84731ca1d917871f8a1c"),
+	PackfileHash: plumbing.NewHash("769137af7784db501bca677fbd56fef8b52515b7"),
+	DotGitHash:   plumbing.NewHash("cf717ccadce761d60bb4a8557a7b9a2efd23816a"),
+	ObjectsCount: 31,
 }}
 
 func All() Fixtures {
@@ -314,10 +334,20 @@ func Init() error {
 		rf := filepath.Join(
 			src, "gopkg.in/src-d/go-git-fixtures.v3",
 		)
-
-		if _, err := os.Stat(rf); err == nil {
+		if _, err := os.Stat(filepath.Join(rf, DataFolder)); err == nil {
 			RootFolder = rf
 			return nil
+		}
+	}
+
+	// Try the modules local cache
+	if dir, err := os.Getwd(); err == nil {
+		if pkg, err := build.Default.Import("gopkg.in/src-d/go-git-fixtures.v3", dir, build.FindOnly); err == nil {
+			if _, err := os.Stat(filepath.Join(pkg.Dir, DataFolder)); err == nil {
+				RootFolder = pkg.Dir
+				return nil
+			}
+
 		}
 	}
 

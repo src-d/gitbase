@@ -5,7 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
