@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 )
 
 type ClocFile struct {
@@ -53,146 +54,127 @@ func AnalyzeReader(filename string, language *Language, file io.Reader, opts *Cl
 	}
 
 	isFirstLine := true
-	isInComments := false
-	isInCommentsSame := false
+	inComments := [][2]string{}
 	buf := getByteSlice()
 	defer putByteSlice(buf)
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(buf, 1024*1024)
+
+scannerloop:
 	for scanner.Scan() {
 		lineOrg := scanner.Text()
 		line := strings.TrimSpace(lineOrg)
 
 		if len(strings.TrimSpace(line)) == 0 {
-			clocFile.Blanks++
-			if opts.OnBlank != nil {
-				opts.OnBlank(line)
-			}
-
-			if opts.Debug {
-				fmt.Printf("[BLNK,cd:%d,cm:%d,bk:%d,iscm:%v] %s\n",
-					clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
-			}
+			onBlank(clocFile, opts, len(inComments) > 0, line, lineOrg)
 			continue
 		}
 
 		// shebang line is 'code'
 		if isFirstLine && strings.HasPrefix(line, "#!") {
-			clocFile.Code++
-			if opts.OnCode != nil {
-				opts.OnCode(line)
-			}
-
+			onCode(clocFile, opts, len(inComments) > 0, line, lineOrg)
 			isFirstLine = false
-			if opts.Debug {
-				fmt.Printf("[CODE,cd:%d,cm:%d,bk:%d,iscm:%v] %s\n",
-					clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
-			}
 			continue
 		}
 
-		if len(language.lineComments) > 0 {
-			isSingleComment := false
+		if len(inComments) == 0 {
 			if isFirstLine {
 				line = trimBOM(line)
 			}
+
+		singleloop:
 			for _, singleComment := range language.lineComments {
 				if strings.HasPrefix(line, singleComment) {
-					clocFile.Comments++
-					if opts.OnComment != nil {
-						opts.OnComment(line)
+					// check if single comment is a prefix of multi comment
+					for _, ml := range language.multiLines {
+						if strings.HasPrefix(line, ml[0]) {
+							break singleloop
+						}
 					}
+					onComment(clocFile, opts, len(inComments) > 0, line, lineOrg)
+					continue scannerloop
+				}
+			}
 
-					isSingleComment = true
-					break
-				}
+			if len(language.multiLines) == 0 {
+				onCode(clocFile, opts, len(inComments) > 0, line, lineOrg)
+				continue scannerloop
 			}
-			if isSingleComment {
-				if opts.Debug {
-					fmt.Printf("[COMM,cd:%d,cm:%d,bk:%d,iscm:%v] %s\n",
-						clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
-				}
-				continue
-			}
+		}
+
+		if len(inComments) == 0 && !containsComment(line, language.multiLines) {
+			onCode(clocFile, opts, len(inComments) > 0, line, lineOrg)
+			continue scannerloop
 		}
 
 		isCode := false
-		multiLine := ""
-		multiLineEnd := ""
-		for i := range language.multiLines {
-			multiLine = language.multiLines[i][0]
-			multiLineEnd = language.multiLines[i][1]
-			if multiLine != "" {
-				if strings.HasPrefix(line, multiLine) {
-					isInComments = true
-				} else if strings.HasSuffix(line, multiLineEnd) {
-					isInComments = true
-				} else if containComments(line, multiLine, multiLineEnd) {
-					isInComments = true
-					if (multiLine != multiLineEnd) &&
-						(strings.HasSuffix(line, multiLine) || strings.HasPrefix(line, multiLineEnd)) {
-						clocFile.Code++
-						if opts.OnCode != nil {
-							opts.OnCode(line)
-						}
+		lenLine := len(line)
+		for pos := 0; pos < lenLine; {
+			for _, ml := range language.multiLines {
+				begin, end := ml[0], ml[1]
+				lenBegin := len(begin)
 
-						isCode = true
-						if opts.Debug {
-							fmt.Printf("[CODE,cd:%d,cm:%d,bk:%d,iscm:%v] %s\n",
-								clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
-						}
-						continue
+				if pos+lenBegin <= lenLine && strings.HasPrefix(line[pos:], begin) && (begin != end || len(inComments) == 0) {
+					pos += lenBegin
+					inComments = append(inComments, [2]string{begin, end})
+					continue
+				}
+
+				if n := len(inComments); n > 0 {
+					last := inComments[n-1]
+					if pos+len(last[1]) <= lenLine && strings.HasPrefix(line[pos:], last[1]) {
+						inComments = inComments[:n-1]
+						pos += len(last[1])
 					}
-				}
-				if isInComments {
-					break
-				}
-			}
-		}
-
-		if isInComments && isCode {
-			continue
-		}
-
-		if isInComments {
-			if multiLine == multiLineEnd {
-				if strings.Count(line, multiLineEnd) == 2 {
-					isInComments = false
-					isInCommentsSame = false
-				} else if strings.HasPrefix(line, multiLineEnd) ||
-					strings.HasSuffix(line, multiLineEnd) {
-					if isInCommentsSame {
-						isInComments = false
-					}
-					isInCommentsSame = !isInCommentsSame
-				}
-			} else {
-				if strings.Contains(line, multiLineEnd) {
-					isInComments = false
+				} else if pos < lenLine && !unicode.IsSpace(nextRune(line[pos:])) {
+					isCode = true
 				}
 			}
-			clocFile.Comments++
-			if opts.OnComment != nil {
-				opts.OnComment(line)
-			}
-
-			if opts.Debug {
-				fmt.Printf("[COMM,cd:%d,cm:%d,bk:%d,iscm:%v,iscms:%v] %s\n",
-					clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, isInCommentsSame, lineOrg)
-			}
-			continue
+			pos++
 		}
 
-		clocFile.Code++
-		if opts.OnCode != nil {
-			opts.OnCode(line)
-		}
-
-		if opts.Debug {
-			fmt.Printf("[CODE,cd:%d,cm:%d,bk:%d,iscm:%v] %s\n",
-				clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
+		if isCode {
+			onCode(clocFile, opts, len(inComments) > 0, line, lineOrg)
+		} else {
+			onComment(clocFile, opts, len(inComments) > 0, line, lineOrg)
 		}
 	}
 
 	return clocFile
+}
+
+func onBlank(clocFile *ClocFile, opts *ClocOptions, isInComments bool, line, lineOrg string) {
+	clocFile.Blanks++
+	if opts.OnBlank != nil {
+		opts.OnBlank(line)
+	}
+
+	if opts.Debug {
+		fmt.Printf("[BLNK, cd:%d, cm:%d, bk:%d, iscm:%v] %s\n",
+			clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
+	}
+}
+
+func onComment(clocFile *ClocFile, opts *ClocOptions, isInComments bool, line, lineOrg string) {
+	clocFile.Comments++
+	if opts.OnComment != nil {
+		opts.OnComment(line)
+	}
+
+	if opts.Debug {
+		fmt.Printf("[COMM, cd:%d, cm:%d, bk:%d, iscm:%v] %s\n",
+			clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
+	}
+}
+
+func onCode(clocFile *ClocFile, opts *ClocOptions, isInComments bool, line, lineOrg string) {
+	clocFile.Code++
+	if opts.OnCode != nil {
+		opts.OnCode(line)
+	}
+
+	if opts.Debug {
+		fmt.Printf("[CODE, cd:%d, cm:%d, bk:%d, iscm:%v] %s\n",
+			clocFile.Code, clocFile.Comments, clocFile.Blanks, isInComments, lineOrg)
+	}
 }

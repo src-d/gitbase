@@ -62,8 +62,7 @@ const (
 	Base64
 )
 
-// Response is a basic response, never used directly. The Response.Status field should always be
-// checked to be protocol.Ok before further processing.
+// Response basic response, never used directly.
 type Response struct {
 	// Status is the status of the parsing request.
 	Status Status `json:"status"`
@@ -92,8 +91,7 @@ type ParseRequest struct {
 	Timeout time.Duration `json:"timeout"`
 }
 
-// ParseResponse is the reply to ParseRequest. The Response.Status field should always
-// be checked to be protocol.Ok before further processing.
+// ParseResponse is the reply to ParseRequest.
 //proteus:generate
 type ParseResponse struct {
 	Response

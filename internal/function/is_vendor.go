@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	enry "gopkg.in/src-d/enry.v1"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
 )
 
 // IsVendor reports whether files are vendored or not.

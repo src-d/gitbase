@@ -11,11 +11,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	billy "gopkg.in/src-d/go-billy.v4"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	fixtures "github.com/src-d/go-git-fixtures"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
+	"github.com/src-d/go-mysql-server/sql"
 )
 
 func TestFSErrorTables(t *testing.T) {
@@ -51,8 +51,6 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 	require := require.New(t)
 
 	t.Helper()
-
-	require.NoError(fixtures.Init())
 
 	fixture := fixtures.ByTag("worktree").One()
 	baseFS := fixture.Worktree()

@@ -6,15 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/require"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestChecksum(t *testing.T) {
 	require := require.New(t)
 
-	require.NoError(fixtures.Init())
 	defer func() {
 		require.NoError(fixtures.Clean())
 	}()
@@ -68,7 +67,6 @@ func TestChecksumSiva(t *testing.T) {
 func TestChecksumStable(t *testing.T) {
 	require := require.New(t)
 
-	require.NoError(fixtures.Init())
 	defer func() {
 		require.NoError(fixtures.Clean())
 	}()

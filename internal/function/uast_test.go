@@ -6,16 +6,16 @@ import (
 	"reflect"
 	"testing"
 
-	"gopkg.in/bblfsh/sdk.v2/uast"
+	"github.com/bblfsh/sdk/v3/uast"
 
 	"github.com/src-d/gitbase"
 	"github.com/stretchr/testify/require"
-	bblfsh "gopkg.in/bblfsh/client-go.v3"
-	"gopkg.in/bblfsh/sdk.v2/uast/nodes"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	bblfsh "github.com/bblfsh/go-client/v4"
+	"github.com/bblfsh/sdk/v3/uast/nodes"
+	fixtures "github.com/src-d/go-git-fixtures"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-mysql-server.v0/sql"
-	"gopkg.in/src-d/go-mysql-server.v0/sql/expression"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
 )
 
 const testCode = `
@@ -418,7 +418,6 @@ func bblfshFixtures(
 
 func setup(t *testing.T) (*sql.Context, func()) {
 	t.Helper()
-	require.NoError(t, fixtures.Init())
 
 	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
 	for _, f := range fixtures.ByTag("worktree") {
