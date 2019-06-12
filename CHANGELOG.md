@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0-beta1] - 2019-06-12
+
 ### Added
 - Moved to Go modules.
 - Add COMMIT_STATS function
@@ -18,10 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fix parsing of quoted identifiers in SHOW CREATE TABLE queries ([#737](https://github.com/src-d/go-mysql-server/pull/737))
--  sql/analyzer: back-propagate expression names after adding convert ([#739](https://github.com/src-d/go-mysql-server/pull/739))
+- sql/analyzer: back-propagate expression names after adding convert ([#739](https://github.com/src-d/go-mysql-server/pull/739))
 - sql/expression: allow null literals in case branches ([#741](https://github.com/src-d/go-mysql-server/pull/741))
 - sql/plan: make LEFT and RIGHT join work as expected ([#743](https://github.com/src-d/go-mysql-server/pull/743))
-
 
 ## [0.20.0] - 2019-05-30
 ### Known Issues
