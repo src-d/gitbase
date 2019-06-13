@@ -12,17 +12,20 @@ import (
 
 	"github.com/src-d/gitbase/cmd/gitbase/command"
 	"github.com/src-d/gitbase/internal/rule"
+	"github.com/src-d/go-borges/plain"
+	"github.com/src-d/go-borges/siva"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
-	"github.com/stretchr/testify/require"
 	fixtures "github.com/src-d/go-git-fixtures"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	sqle "github.com/src-d/go-mysql-server"
 	"github.com/src-d/go-mysql-server/auth"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/analyzer"
 	"github.com/src-d/go-mysql-server/sql/index/pilosa"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-billy.v4/osfs"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestIntegration(t *testing.T) {
@@ -31,9 +34,29 @@ func TestIntegration(t *testing.T) {
 	}()
 
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
+	pathLib := path + "-lib"
+	pathRepo := filepath.Join(pathLib, "worktree")
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	require.NoError(t, pool.AddGitWithID("worktree", path))
+	err := os.MkdirAll(pathLib, 0777)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, os.RemoveAll(pathLib))
+	}()
+
+	err = os.Rename(path, pathRepo)
+	require.NoError(t, err)
+
+	lib := plain.NewLibrary("plain")
+	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
+	require.NoError(t, err)
+	lib.AddLocation(loc)
+
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+	// require.NoError(t, pool.AddGitWithID("worktree", path))
+
+	// lib, pool, err := test.NewMultiPool()
+	// require.NoError(err)
+	// require.NoError(t, lib.AddPlain("worktree", path, 0))
 
 	engine := newBaseEngine(pool)
 
@@ -613,27 +636,17 @@ func queryResults(
 func TestMissingHeadRefs(t *testing.T) {
 	require := require.New(t)
 
-	path := filepath.Join(
-		os.Getenv("GOPATH"),
-		"src", "github.com", "src-d", "gitbase",
-		"_testdata",
-	)
+	cwd, err := os.Getwd()
+	require.NoError(err)
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	require.NoError(
-		filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
+	path := filepath.Join(cwd, "_testdata")
 
-			if gitbase.IsSivaFile(path) {
-				require.NoError(pool.AddSivaFile(path))
-			}
+	lib, err := siva.NewLibrary("siva", osfs.New(path), siva.LibraryOptions{
+		RootedRepo: true,
+	})
+	require.NoError(err)
 
-			return nil
-		}),
-	)
-
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
 	engine := newBaseEngine(pool)
 
 	session := gitbase.NewSession(pool)
@@ -643,7 +656,7 @@ func TestMissingHeadRefs(t *testing.T) {
 
 	rows, err := sql.RowIterToRows(iter)
 	require.NoError(err)
-	require.Len(rows, 56)
+	require.Len(rows, 57)
 }
 
 func BenchmarkQueries(b *testing.B) {
@@ -990,13 +1003,29 @@ func deleteIndex(
 
 func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 	t.Helper()
+
+	// create library directory and move repo inside
+
+	path := fixtures.ByTag("worktree").One().Worktree().Root()
+	pathLib := path + "-lib"
+	pathRepo := filepath.Join(pathLib, "worktree")
+
+	err := os.MkdirAll(pathLib, 0777)
+	require.NoError(t, err)
+
+	err = os.Rename(path, pathRepo)
+	require.NoError(t, err)
+
+	lib := plain.NewLibrary("plain")
+	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
+	require.NoError(t, err)
+	lib.AddLocation(loc)
+
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())
-	}
-
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	for _, f := range fixtures.ByTag("worktree") {
-		pool.AddGitWithID("worktree", f.Worktree().Root())
+		require.NoError(t, os.RemoveAll(pathLib))
 	}
 
 	return newBaseEngine(pool), pool, cleanup

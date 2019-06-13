@@ -158,7 +158,7 @@ func (i *remotesRowIter) Next() (sql.Row, error) {
 			continue
 		}
 
-		row := remoteToRow(i.repo.ID, config, i.urlPos)
+		row := remoteToRow(i.repo.ID(), config, i.urlPos)
 		i.urlPos++
 
 		return row, nil
@@ -267,12 +267,12 @@ func (i *remotesKeyValueIter) Next() ([]interface{}, []byte, error) {
 
 		i.urlPos++
 
-		key, err := encodeIndexKey(&remoteIndexKey{i.repo.ID, i.pos, i.urlPos - 1})
+		key, err := encodeIndexKey(&remoteIndexKey{i.repo.ID(), i.pos, i.urlPos - 1})
 		if err != nil {
 			return nil, nil, err
 		}
 
-		row := remoteToRow(i.repo.ID, cfg, i.urlPos-1)
+		row := remoteToRow(i.repo.ID(), cfg, i.urlPos-1)
 		values, err := rowIndexValues(row, i.columns, RemotesSchema)
 		if err != nil {
 			return nil, nil, err

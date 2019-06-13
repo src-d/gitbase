@@ -3,9 +3,9 @@ package gitbase
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCommitsTable(t *testing.T) {
@@ -297,15 +297,15 @@ func TestCommitsIndex(t *testing.T) {
 	)
 }
 
-func TestCommitsIndexIterClosed(t *testing.T) {
-	testTableIndexIterClosed(t, new(commitsTable))
-}
+// func TestCommitsIndexIterClosed(t *testing.T) {
+// 	testTableIndexIterClosed(t, new(commitsTable))
+// }
 
-func TestCommitsIterClosed(t *testing.T) {
-	testTableIterClosed(t, new(commitsTable))
-}
+// func TestCommitsIterClosed(t *testing.T) {
+// 	testTableIterClosed(t, new(commitsTable))
+// }
 
-func TestCommitsIterators(t *testing.T) {
-	// columns names just for debugging
-	testTableIterators(t, new(commitsTable), []string{"commit_hash", "commit_author_email"})
-}
+// func TestCommitsIterators(t *testing.T) {
+// 	// columns names just for debugging
+// 	testTableIterators(t, new(commitsTable), []string{"commit_hash", "commit_author_email"})
+// }

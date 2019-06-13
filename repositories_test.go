@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
+	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestRepositoriesTable(t *testing.T) {
@@ -18,10 +19,14 @@ func TestRepositoriesTable(t *testing.T) {
 		"seven", "eight", "nine",
 	}
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	lib, err := newMultiLibrary()
+	require.NoError(err)
 
+	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+
+	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 	for _, id := range repoIDs {
-		pool.Add(gitRepo(id, "", pool.cache))
+		lib.AddPlain(id, path, nil)
 	}
 
 	session := NewSession(pool)

@@ -92,7 +92,7 @@ func (i *squashReposIter) Advance() error {
 
 		i.done = true
 
-		i.row = sql.NewRow(i.repo.ID)
+		i.row = sql.NewRow(i.repo.ID())
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
 			if err != nil {
@@ -202,7 +202,7 @@ func (i *squashRemoteIter) Advance() error {
 		}
 
 		i.remote = &Remote{
-			RepoID: i.repo.ID,
+			RepoID: i.repo.ID(),
 			Name:   config.Name,
 			URL:    config.URLs[i.urlPos],
 			Fetch:  remoteFetchURL(config, i.urlPos),
@@ -291,7 +291,7 @@ func (i *squashRepoRemotesIter) Advance() error {
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"iter":  "repoRemoteIter",
-					"repo":  i.repos.Repository().ID,
+					"repo":  i.repos.Repository().ID(),
 					"error": err,
 				}).Error("unable to retrieve repository remotes")
 
@@ -326,7 +326,7 @@ func (i *squashRepoRemotesIter) Advance() error {
 		}
 
 		i.remote = &Remote{
-			RepoID: i.repos.Repository().ID,
+			RepoID: i.repos.Repository().ID(),
 			Name:   config.Name,
 			URL:    config.URLs[i.urlPos],
 			Fetch:  remoteFetchURL(config, i.urlPos),
@@ -483,8 +483,8 @@ func (i *squashRefIter) Advance() error {
 			continue
 		}
 
-		i.ref = &Ref{i.repo.ID, ref}
-		i.row = referenceToRow(i.repo.ID, ref)
+		i.ref = &Ref{i.repo.ID(), ref}
+		i.row = referenceToRow(i.repo.ID(), ref)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -540,7 +540,7 @@ func (i *squashRefIndexIter) New(ctx *sql.Context, repo *Repository) (ChainableI
 		return nil, err
 	}
 
-	values, err := i.index.Values(RepositoryPartition(repo.ID))
+	values, err := i.index.Values(RepositoryPartition(repo.ID()))
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +573,7 @@ func (i *squashRefIndexIter) Advance() error {
 		}
 
 		repoID := i.row[0].(string)
-		if i.repo == nil || repoID != i.repo.ID {
+		if i.repo == nil || repoID != i.repo.ID() {
 			i.repo, err = i.pool.GetRepo(repoID)
 			if err != nil {
 				if i.skipGitErrors {
@@ -686,7 +686,7 @@ func (i *squashRepoRefsIter) Advance() error {
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
-					"repo":  i.repos.Repository().ID,
+					"repo":  i.repos.Repository().ID(),
 				}).Error("unable to retrieve references")
 
 				if i.skipGitErrors {
@@ -728,7 +728,7 @@ func (i *squashRepoRefsIter) Advance() error {
 			continue
 		}
 
-		i.ref = &Ref{i.repos.Repository().ID, ref}
+		i.ref = &Ref{i.repos.Repository().ID(), ref}
 		if i.virtual {
 			i.row = i.repos.Row()
 		} else {
@@ -824,7 +824,7 @@ func (i *squashRemoteRefsIter) Advance() error {
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
 					"error": err,
-					"repo":  i.Repository().ID,
+					"repo":  i.Repository().ID(),
 				}).Error("unable to retrieve references")
 
 				if i.skipGitErrors {
@@ -969,7 +969,7 @@ func (i *squashRefRefCommitsIter) Advance() error {
 			commit, err := resolveCommit(i.Repository(), i.refs.Ref().Hash())
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
-					"repo":  i.Repository().ID,
+					"repo":  i.Repository().ID(),
 					"error": err,
 				}).Error("unable to get commit")
 
@@ -996,7 +996,7 @@ func (i *squashRefRefCommitsIter) Advance() error {
 		i.commit = commit
 		i.row = append(
 			i.refs.Row(),
-			i.Repository().ID,
+			i.Repository().ID(),
 			commit.Hash.String(),
 			i.refs.Ref().Name().String(),
 			int64(idx),
@@ -1075,7 +1075,7 @@ func (i *squashRefHeadRefCommitsIter) Advance() error {
 		i.commit, err = resolveCommit(i.Repository(), i.refs.Ref().Hash())
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
-				"repo":  i.Repository().ID,
+				"repo":  i.Repository().ID(),
 				"error": err,
 			}).Error("unable to get commit")
 
@@ -1088,7 +1088,7 @@ func (i *squashRefHeadRefCommitsIter) Advance() error {
 
 		i.row = append(
 			i.refs.Row(),
-			i.Repository().ID,
+			i.Repository().ID(),
 			i.commit.Hash.String(),
 			i.refs.Ref().Name().String(),
 			int64(0),
@@ -1142,7 +1142,7 @@ func (i *squashRefCommitsIndexIter) New(ctx *sql.Context, repo *Repository) (Cha
 		return nil, err
 	}
 
-	values, err := i.index.Values(RepositoryPartition(repo.ID))
+	values, err := i.index.Values(RepositoryPartition(repo.ID()))
 	if err != nil {
 		return nil, err
 	}
@@ -1165,7 +1165,7 @@ func (i *squashRefCommitsIndexIter) Advance() error {
 		}
 
 		repoID := i.row[0]
-		if i.repo == nil || repoID != i.repo.ID {
+		if i.repo == nil || repoID != i.repo.ID() {
 			i.repo.Close()
 
 			i.repo, err = i.pool.GetRepo(i.row[0].(string))
@@ -1259,7 +1259,7 @@ func (i *squashRefCommitCommitsIter) Advance() error {
 		commit := i.refCommits.Commit()
 		i.row = append(
 			i.refCommits.Row(),
-			commitToRow(i.Repository().ID, commit)...,
+			commitToRow(i.Repository().ID(), commit)...,
 		)
 
 		if i.filters != nil {
@@ -1321,7 +1321,7 @@ func (i *squashCommitsIter) New(ctx *sql.Context, repo *Repository) (ChainableIt
 		})
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"repo":  repo.ID,
+			"repo":  repo.ID(),
 			"error": err,
 		}).Error("unable to get commit iterator")
 
@@ -1365,7 +1365,7 @@ func (i *squashCommitsIter) Advance() error {
 			return err
 		}
 
-		i.row = commitToRow(i.repo.ID, i.commit)
+		i.row = commitToRow(i.repo.ID(), i.commit)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -1418,7 +1418,7 @@ func (i *squashCommitsIndexIter) New(ctx *sql.Context, repo *Repository) (Chaina
 		return nil, err
 	}
 
-	values, err := i.index.Values(RepositoryPartition(repo.ID))
+	values, err := i.index.Values(RepositoryPartition(repo.ID()))
 	if err != nil {
 		return nil, err
 	}
@@ -1445,7 +1445,7 @@ func (i *squashCommitsIndexIter) Advance() error {
 			return err
 		}
 
-		if i.repo == nil || i.repo.ID != i.iter.repoID {
+		if i.repo == nil || i.repo.ID() != i.iter.repoID {
 			i.repo.Close()
 
 			i.repo, err = i.pool.GetRepo(i.iter.repoID)
@@ -1551,7 +1551,7 @@ func (i *squashRepoCommitsIter) Advance() error {
 				})
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
-					"repo":  i.repos.Repository().ID,
+					"repo":  i.repos.Repository().ID(),
 					"error": err,
 				}).Error("unable to get commit iterator")
 
@@ -1576,7 +1576,7 @@ func (i *squashRepoCommitsIter) Advance() error {
 
 		i.row = append(
 			i.repos.Row(),
-			commitToRow(i.repos.Repository().ID, i.commit)...,
+			commitToRow(i.repos.Repository().ID(), i.commit)...,
 		)
 
 		if i.filters != nil {
@@ -1681,7 +1681,7 @@ func (i *squashRefHeadCommitsIter) Advance() error {
 		} else {
 			i.row = append(
 				i.refs.Row(),
-				commitToRow(i.Repository().ID, i.commit)...,
+				commitToRow(i.Repository().ID(), i.commit)...,
 			)
 		}
 
@@ -1749,7 +1749,7 @@ func (i *squashCommitTreesIndexIter) New(ctx *sql.Context, repo *Repository) (Ch
 		return nil, err
 	}
 
-	values, err := i.index.Values(RepositoryPartition(repo.ID))
+	values, err := i.index.Values(RepositoryPartition(repo.ID()))
 	if err != nil {
 		return nil, err
 	}
@@ -1772,7 +1772,7 @@ func (i *squashCommitTreesIndexIter) Advance() error {
 		}
 
 		repoID := i.row[0]
-		if i.repo == nil || repoID != i.repo.ID {
+		if i.repo == nil || repoID != i.repo.ID() {
 			i.repo, err = i.pool.GetRepo(i.row[0].(string))
 			if err != nil {
 				if i.skipGitErrors {
@@ -1920,7 +1920,7 @@ func (i *squashCommitTreesIter) Advance() error {
 		} else {
 			i.row = append(
 				i.commits.Row(),
-				i.Repository().ID,
+				i.Repository().ID(),
 				i.commits.Commit().Hash.String(),
 				i.tree.Hash.String(),
 			)
@@ -2038,7 +2038,7 @@ func (i *squashRepoTreeEntriesIter) Advance() error {
 		i.cursor++
 		i.row = append(
 			i.repos.Row(),
-			treeEntryToRow(i.Repository().ID, i.entry)...,
+			treeEntryToRow(i.Repository().ID(), i.entry)...,
 		)
 
 		if i.filters != nil {
@@ -2141,7 +2141,7 @@ func (i *squashCommitMainTreeIter) Advance() error {
 		} else {
 			i.row = append(
 				i.commits.Row(),
-				i.Repository().ID,
+				i.Repository().ID(),
 				i.commits.Commit().Hash.String(),
 				i.tree.Hash.String(),
 			)
@@ -2358,7 +2358,7 @@ func (i *squashTreeEntriesIter) Advance() error {
 
 		i.entry = &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
 		i.cursor++
-		i.row = treeEntryToRow(i.repo.ID, i.entry)
+		i.row = treeEntryToRow(i.repo.ID(), i.entry)
 
 		if i.filters != nil {
 			ok, err := evalFilters(i.ctx, i.row, i.filters)
@@ -2404,7 +2404,7 @@ func (i *squashTreeEntriesIndexIter) New(ctx *sql.Context, repo *Repository) (Ch
 		return nil, err
 	}
 
-	values, err := i.index.Values(RepositoryPartition(repo.ID))
+	values, err := i.index.Values(RepositoryPartition(repo.ID()))
 	if err != nil {
 		return nil, err
 	}
@@ -2432,7 +2432,7 @@ func (i *squashTreeEntriesIndexIter) Advance() error {
 			return err
 		}
 
-		if i.repo == nil || i.repo.ID != i.iter.repoID {
+		if i.repo == nil || i.repo.ID() != i.iter.repoID {
 			i.repo, err = i.pool.GetRepo(i.iter.repoID)
 			if err != nil {
 				if i.skipGitErrors {
@@ -2544,7 +2544,7 @@ func (i *squashTreeTreeEntriesIter) Advance() error {
 		} else {
 			i.row = append(
 				i.trees.Row(),
-				treeEntryToRow(i.Repository().ID, i.entry)...,
+				treeEntryToRow(i.Repository().ID(), i.entry)...,
 			)
 		}
 
@@ -2605,7 +2605,7 @@ func (i *squashCommitBlobsIndexIter) New(ctx *sql.Context, repo *Repository) (Ch
 		return nil, err
 	}
 
-	values, err := i.index.Values(RepositoryPartition(repo.ID))
+	values, err := i.index.Values(RepositoryPartition(repo.ID()))
 	if err != nil {
 		return nil, err
 	}
@@ -2628,7 +2628,7 @@ func (i *squashCommitBlobsIndexIter) Advance() error {
 		}
 
 		repoID := i.row[0]
-		if i.repo == nil || repoID != i.repo.ID {
+		if i.repo == nil || repoID != i.repo.ID() {
 			i.repo, err = i.pool.GetRepo(i.row[0].(string))
 			if err != nil {
 				if i.skipGitErrors {
@@ -2750,7 +2750,7 @@ func (i *squashCommitBlobsIter) Advance() error {
 			i.tree, err = i.Repository().TreeObject(i.commits.Commit().TreeHash)
 			if err != nil {
 				logrus.WithFields(logrus.Fields{
-					"repo":      i.Repository().ID,
+					"repo":      i.Repository().ID(),
 					"tree_hash": i.commits.Commit().TreeHash.String(),
 					"error":     err,
 				}).Error("unable to retrieve tree object")
@@ -2782,7 +2782,7 @@ func (i *squashCommitBlobsIter) Advance() error {
 
 		i.row = append(
 			i.commits.Row(),
-			i.Repository().ID,
+			i.Repository().ID(),
 			i.commits.Commit().Hash.String(),
 			i.file.Blob.Hash.String(),
 		)
@@ -2884,7 +2884,7 @@ func (i *squashRepoBlobsIter) Advance() error {
 			return err
 		}
 
-		row, err := blobToRow(i.Repository().ID, i.blob, i.readContent)
+		row, err := blobToRow(i.Repository().ID(), i.blob, i.readContent)
 		if err != nil {
 			return err
 		}
@@ -2978,7 +2978,7 @@ func (i *squashTreeEntryBlobsIter) Advance() error {
 		i.blob, err = i.Repository().BlobObject(entry.Hash)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
-				"repo":  i.Repository().ID,
+				"repo":  i.Repository().ID(),
 				"error": err,
 				"blob":  entry.Hash,
 			}).Error("blob object found not be found")
@@ -2990,7 +2990,7 @@ func (i *squashTreeEntryBlobsIter) Advance() error {
 			return err
 		}
 
-		row, err := blobToRow(i.Repository().ID, i.blob, i.readContent)
+		row, err := blobToRow(i.Repository().ID(), i.blob, i.readContent)
 		if err != nil {
 			return err
 		}
@@ -3069,7 +3069,7 @@ func (i *squashCommitBlobBlobsIter) Advance() error {
 		}
 
 		blob := i.commitBlobs.Blob()
-		row, err := blobToRow(i.Repository().ID, blob, i.readContent)
+		row, err := blobToRow(i.Repository().ID(), blob, i.readContent)
 		if err != nil {
 			return err
 		}
@@ -3162,7 +3162,7 @@ func (i *squashCommitFilesIter) Advance() error {
 				if i.skipGitErrors {
 					logrus.WithFields(logrus.Fields{
 						"err":    err,
-						"repo":   i.Repository().ID,
+						"repo":   i.Repository().ID(),
 						"commit": i.commit.Hash.String(),
 					}).Error("could not get files for commit")
 					continue
@@ -3183,7 +3183,7 @@ func (i *squashCommitFilesIter) Advance() error {
 			if i.skipGitErrors {
 				logrus.WithFields(logrus.Fields{
 					"err":    err,
-					"repo":   i.Repository().ID,
+					"repo":   i.Repository().ID(),
 					"commit": i.commit.Hash.String(),
 				}).Error("could not get files for commit")
 				continue
@@ -3248,7 +3248,7 @@ func NewIndexCommitFilesIter(index sql.IndexLookup, filters sql.Expression) File
 }
 
 func (i *squashIndexCommitFilesIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
-	values, err := i.index.Values(RepositoryPartition(repo.ID))
+	values, err := i.index.Values(RepositoryPartition(repo.ID()))
 	if err != nil {
 		return nil, err
 	}
@@ -3281,7 +3281,7 @@ func (i *squashIndexCommitFilesIter) Advance() error {
 
 		i.file = commitFile.File
 
-		if i.repo == nil || i.repo.ID != commitFile.Repository {
+		if i.repo == nil || i.repo.ID() != commitFile.Repository {
 			i.repo.Close()
 
 			i.repo, err = i.pool.GetRepo(commitFile.Repository)
@@ -3379,7 +3379,7 @@ func (i *squashCommitFileFilesIter) Advance() error {
 		}
 
 		f := i.files.File()
-		row, err := fileToRow(i.Repository().ID, i.files.TreeHash(), f, i.readContent)
+		row, err := fileToRow(i.Repository().ID(), i.files.TreeHash(), f, i.readContent)
 		if err != nil {
 			return err
 		}

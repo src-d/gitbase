@@ -7,15 +7,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/src-d/gitbase/internal/rule"
+	"github.com/src-d/go-borges/libraries"
+	"github.com/src-d/go-borges/plain"
+	"github.com/src-d/go-borges/siva"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/sirupsen/logrus"
+	"github.com/src-d/go-borges"
 	sqle "github.com/src-d/go-mysql-server"
 	"github.com/src-d/go-mysql-server/auth"
 	"github.com/src-d/go-mysql-server/server"
@@ -23,6 +26,7 @@ import (
 	"github.com/src-d/go-mysql-server/sql/analyzer"
 	"github.com/src-d/go-mysql-server/sql/index/pilosa"
 	"github.com/uber/jaeger-client-go/config"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"vitess.io/vitess/go/mysql"
 )
@@ -42,10 +46,15 @@ type Server struct {
 	pool     *gitbase.RepositoryPool
 	userAuth auth.Auth
 
+	rootLibrary  *libraries.Libraries
+	plainLibrary *plain.Library
+	sharedCache  cache.Object
+
 	Name          string         `long:"db" default:"gitbase" description:"Database name"`
 	Version       string         // Version of the application.
-	Directories   []string       `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
-	Depth         int            `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
+	Directories   []string       `short:"d" long:"directories" description:"Path where standard git repositories are located, multiple directories can be defined."`
+	Siva          []string       `short:"s" long:"siva" description:"Path where siva git repositories are located, multiple directories can be defined."`
+	Bucket        int            `long:"bucket" default:"2" description:"Bucketing level to use with siva libraries"`
 	Host          string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
@@ -59,8 +68,6 @@ type Server struct {
 	TraceEnabled  bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
 	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
 	SkipGitErrors bool           // SkipGitErrors disables failing when Git errors are found.
-	DisableGit    bool           `long:"no-git" description:"disable the load of git standard repositories."`
-	DisableSiva   bool           `long:"no-siva" description:"disable the load of siva files."`
 	Verbose       bool           `short:"v" description:"Activates the verbose mode"`
 	LogLevel      string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
 }
@@ -208,7 +215,10 @@ func (c *Server) buildDatabase() error {
 		)
 	}
 
-	c.pool = gitbase.NewRepositoryPool(c.CacheSize * cache.MiByte)
+	c.rootLibrary = libraries.New(libraries.Options{})
+	c.pool = gitbase.NewRepositoryPool(c.CacheSize*cache.MiByte, c.rootLibrary)
+
+	c.sharedCache = cache.NewObjectLRU(512 * cache.MiByte)
 
 	if err := c.addDirectories(); err != nil {
 		return err
@@ -251,140 +261,49 @@ func (c *Server) registerDrivers() error {
 }
 
 func (c *Server) addDirectories() error {
-	if len(c.Directories) == 0 {
+	if len(c.Directories) == 0 && len(c.Siva) == 0 {
 		logrus.Error("At least one folder should be provided.")
 	}
 
-	if c.DisableGit && c.DisableSiva {
-		logrus.Warn("The load of git repositories and siva files are disabled," +
-			" no repository will be added.")
-
-		return nil
+	sivaOpts := siva.LibraryOptions{
+		Transactional: true,
+		RootedRepo:    true,
+		Cache:         c.sharedCache,
+		Bucket:        c.Bucket,
+		Performance:   true,
+		RegistryCache: 100000,
 	}
 
-	if c.Depth < 1 {
-		logrus.Warn("--depth flag set to a number less than 1," +
-			" no repository will be added.")
-
-		return nil
-	}
-
-	for _, directory := range c.Directories {
-		if err := c.addDirectory(directory); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (c *Server) addDirectory(directory string) error {
-	matches, err := gitbase.PatternMatches(directory)
-	if err != nil {
-		return err
-	}
-
-	for _, match := range matches {
-		if err := c.addMatch(directory, match); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"path":  match,
-				"error": err,
-			}).Error("path couldn't be inspected")
-		}
-	}
-
-	return nil
-}
-
-func (c *Server) addMatch(prefix, match string) error {
-	root, err := filepath.Abs(match)
-	if err != nil {
-		return err
-	}
-
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return err
-	}
-
-	initDepth := strings.Count(root, string(os.PathSeparator))
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	for _, d := range c.Siva {
+		lib, err := siva.NewLibrary(d, osfs.New(d), sivaOpts)
 		if err != nil {
-			if os.IsPermission(err) {
-				return filepath.SkipDir
-			}
 			return err
 		}
 
-		if info.IsDir() {
-			if err := c.addIfGitRepo(prefix, path); err != nil {
-				return err
-			}
-
-			depth := strings.Count(path, string(os.PathSeparator)) - initDepth
-			if depth >= c.Depth {
-				return filepath.SkipDir
-			}
-
-			return nil
+		err = c.rootLibrary.Add(lib)
+		if err != nil {
+			return err
 		}
+	}
 
-		if !c.DisableSiva &&
-			info.Mode().IsRegular() &&
-			gitbase.IsSivaFile(info.Name()) {
-			id, err := gitbase.StripPrefix(prefix, path)
-			if err != nil {
-				return err
-			}
-
-			if err := c.pool.AddSivaFileWithID(id, path); err != nil {
-				logrus.WithFields(logrus.Fields{
-					"path":  path,
-					"error": err,
-				}).Error("repository could not be addded")
-
-				return nil
-			}
-
-			logrus.WithField("path", path).Debug("repository added")
-		}
-
+	if len(c.Directories) == 0 {
 		return nil
-	})
-}
-
-func (c *Server) addIfGitRepo(prefix, path string) error {
-	ok, err := gitbase.IsGitRepo(path)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"path":  path,
-			"error": err,
-		}).Error("path couldn't be inspected")
-
-		return filepath.SkipDir
 	}
 
-	if ok {
-		if !c.DisableGit {
-			id, err := gitbase.StripPrefix(prefix, path)
-			if err != nil {
-				return err
-			}
+	plainOpts := &plain.LocationOptions{
+		Cache:       c.sharedCache,
+		Performance: true,
+	}
 
-			if err := c.pool.AddGitWithID(id, path); err != nil {
-				logrus.WithFields(logrus.Fields{
-					"id":    id,
-					"path":  path,
-					"error": err,
-				}).Error("repository could not be added")
-			}
-
-			logrus.WithField("path", path).Debug("repository added")
+	p := plain.NewLibrary(borges.LibraryID("plain"))
+	for _, d := range c.Directories {
+		loc, err := plain.NewLocation(borges.LocationID(d), osfs.New(d), plainOpts)
+		if err != nil {
+			return err
 		}
 
-		// either the repository is added or not, the path must be skipped
-		return filepath.SkipDir
+		p.AddLocation(loc)
 	}
 
-	return nil
+	return c.rootLibrary.Add(p)
 }

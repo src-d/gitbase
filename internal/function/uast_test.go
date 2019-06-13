@@ -3,19 +3,23 @@ package function
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/bblfsh/sdk/v3/uast"
 
-	"github.com/src-d/gitbase"
-	"github.com/stretchr/testify/require"
 	bblfsh "github.com/bblfsh/go-client/v4"
 	"github.com/bblfsh/sdk/v3/uast/nodes"
+	"github.com/src-d/gitbase"
+	"github.com/src-d/go-borges/plain"
 	fixtures "github.com/src-d/go-git-fixtures"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-billy.v4/osfs"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 const testCode = `
@@ -419,10 +423,29 @@ func bblfshFixtures(
 func setup(t *testing.T) (*sql.Context, func()) {
 	t.Helper()
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	for _, f := range fixtures.ByTag("worktree") {
-		pool.AddGit(f.Worktree().Root())
-	}
+	// pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
+	// for _, f := range fixtures.ByTag("worktree") {
+	// 	pool.AddGit(f.Worktree().Root())
+	// }
+
+	// create library directory and move repo inside
+
+	path := fixtures.ByTag("worktree").One().Worktree().Root()
+	pathLib := path + "-lib"
+	pathRepo := filepath.Join(pathLib, "worktree")
+
+	err := os.MkdirAll(pathLib, 0777)
+	require.NoError(t, err)
+
+	err = os.Rename(path, pathRepo)
+	require.NoError(t, err)
+
+	lib := plain.NewLibrary("plain")
+	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
+	require.NoError(t, err)
+	lib.AddLocation(loc)
+
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))

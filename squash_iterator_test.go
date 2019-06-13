@@ -2,14 +2,17 @@ package gitbase
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/plain"
 	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 )
 
 func TestAllReposIter(t *testing.T) {
@@ -40,9 +43,16 @@ func TestSquashContextCancelled(t *testing.T) {
 	session, err := getSession(ctx)
 	require.NoError(err)
 
+	pool := session.Pool
+	iter, err := pool.RepoIter()
+	require.NoError(err)
+
+	repo, err := iter.Next()
+	require.NoError(err)
+
 	for _, it := range iters {
-		repo, err := session.Pool.GetPos(0)
-		require.NoError(err)
+		// repo, err := session.Pool.GetPos(0)
+		// require.NoError(err)
 
 		iter, err := it.New(ctx, repo)
 		require.NoError(err)
@@ -700,12 +710,14 @@ func TestCommitBlobsIter(t *testing.T) {
 }
 
 func chainableIterRowsError(t *testing.T, ctx *sql.Context, iter ChainableIter) {
+	t.Helper()
 	table := newSquashTable(iter)
 	_, err := tableToRows(ctx, table)
 	require.Error(t, err)
 }
 
 func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql.Row {
+	t.Helper()
 	table := newSquashTable(iter)
 	rows, err := tableToRows(ctx, table)
 	require.NoError(t, err)
@@ -713,29 +725,42 @@ func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql
 }
 
 func setupIter(t *testing.T) (*sql.Context, func()) {
+	t.Helper()
+	println("should not be bad repo")
 	return setupIterWithErrors(t, false, false)
 }
 
 func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Context, func()) {
-	pool := NewRepositoryPool(cache.DefaultMaxSize)
+	println("setupIterWithErrors")
+	t.Helper()
+	require := require.New(t)
+
+	lib, pool, err := newMultiPool()
+	require.NoError(err)
+
 	if badRepo {
+		println("bad repo", badRepo)
 		// TODO: add repo with errors
-		pool.Add(gitRepo("bad_repo", "bad_path", pool.cache))
+		loc, err := plain.NewLocation(borges.LocationID("bad"), osfs.New("/does/not/exist"), nil)
+		require.NoError(err)
+
+		lib.plain.AddLocation(loc)
 	}
 
 	for _, f := range fixtures.ByTag("worktree") {
 		path := f.Worktree().Root()
 		ok, err := IsGitRepo(path)
-		require.NoError(t, err)
+		require.NoError(err)
 		if ok {
-			pool.AddGit(f.Worktree().Root())
+			lib.AddPlain(pathToName(path), path, nil)
+			// pool.AddGit(f.Worktree().Root())
 		}
 	}
 
 	session := NewSession(pool, WithSkipGitErrors(skipErrors))
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 	cleanup := func() {
-		require.NoError(t, fixtures.Clean())
+		require.NoError(fixtures.Clean())
 	}
 
 	return ctx, cleanup
@@ -909,9 +934,18 @@ func setupWithIndex(
 }
 
 func TestRefsIterSiva(t *testing.T) {
-	path := filepath.Join("_testdata", "05893125684f2d3943cd84a7ab2b75e53668fba1.siva")
-	pool := NewRepositoryPool(cache.DefaultMaxSize)
-	require.NoError(t, pool.AddSivaFile(path))
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	path := filepath.Join(cwd, "_testdata", "05893125684f2d3943cd84a7ab2b75e53668fba1.siva")
+	// pool := NewRepositoryPool(cache.DefaultMaxSize)
+	// require.NoError(t, pool.AddSivaFile(path))
+
+	lib, pool, err := newMultiPool()
+	require.NoError(t, err)
+
+	err = lib.AddSiva(path, nil)
+	require.NoError(t, err)
 
 	session := NewSession(pool)
 	ctx := sql.NewContext(context.Background(), sql.WithSession(session))
@@ -927,12 +961,14 @@ func TestRefsIterSiva(t *testing.T) {
 	expected := []sql.Row{
 		{
 			path,
-			"refs/heads/HEAD/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			// "refs/heads/HEAD/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			"HEAD",
 			"dbfab055c70379219cbcf422f05316fdf4e1aed3",
 		},
 		{
 			path,
-			"refs/heads/master/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			// "refs/heads/master/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			"refs/heads/master",
 			"dbfab055c70379219cbcf422f05316fdf4e1aed3",
 		},
 	}

@@ -3,9 +3,9 @@ package gitbase
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBlobsTable(t *testing.T) {
@@ -238,10 +238,10 @@ func TestBlobsIndex(t *testing.T) {
 	)
 }
 
-func TestBlobsIndexIterClosed(t *testing.T) {
-	testTableIndexIterClosed(t, new(blobsTable))
-}
+// func TestBlobsIndexIterClosed(t *testing.T) {
+// 	testTableIndexIterClosed(t, new(blobsTable))
+// }
 
-func TestBlobsIterClosed(t *testing.T) {
-	testTableIterClosed(t, new(blobsTable))
-}
+// func TestBlobsIterClosed(t *testing.T) {
+// 	testTableIterClosed(t, new(blobsTable))
+// }

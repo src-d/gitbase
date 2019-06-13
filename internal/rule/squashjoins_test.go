@@ -5,21 +5,24 @@ import (
 	"testing"
 
 	"github.com/src-d/gitbase"
-	"github.com/stretchr/testify/require"
-	errors "gopkg.in/src-d/go-errors.v1"
+	"github.com/src-d/go-borges/libraries"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/analyzer"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/src-d/go-mysql-server/sql/parse"
 	"github.com/src-d/go-mysql-server/sql/plan"
+	"github.com/stretchr/testify/require"
+	errors "gopkg.in/src-d/go-errors.v1"
 )
 
 func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	require := require.New(t)
 
+	lib := libraries.New(libraries.Options{})
+
 	catalog := sql.NewCatalog()
 	catalog.AddDatabase(
-		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0)),
+		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0, lib)),
 	)
 	a := analyzer.NewBuilder(catalog).
 		WithParallelism(2).
@@ -54,9 +57,11 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 	require := require.New(t)
 
+	lib := libraries.New(libraries.Options{})
+
 	catalog := sql.NewCatalog()
 	catalog.AddDatabase(
-		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0)),
+		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0, lib)),
 	)
 	a := analyzer.NewBuilder(catalog).
 		WithParallelism(2).
@@ -2237,7 +2242,8 @@ func TestIsJoinLeafSquashable(t *testing.T) {
 }
 
 func TestOrderedTableNames(t *testing.T) {
-	tables := gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0)).Tables()
+	lib := libraries.New(libraries.Options{})
+	tables := gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0, lib)).Tables()
 
 	input := []sql.Table{
 		tables[gitbase.BlobsTableName],
@@ -2778,5 +2784,6 @@ func (l dummyLookup) Indexes() []string {
 }
 
 func gitbaseTables() map[string]sql.Table {
-	return gitbase.NewDatabase("", gitbase.NewRepositoryPool(0)).Tables()
+	lib := libraries.New(libraries.Options{})
+	return gitbase.NewDatabase("", gitbase.NewRepositoryPool(0, lib)).Tables()
 }
