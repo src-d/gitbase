@@ -3,6 +3,7 @@ package function
 import (
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/commitstats"
 
@@ -81,7 +82,7 @@ func (f *CommitStats) Children() []sql.Expression {
 
 // IsNullable implements the Expression interface.
 func (*CommitStats) IsNullable() bool {
-	return false
+	return true
 }
 
 // Resolved implements the Expression interface.
@@ -98,20 +99,39 @@ func (f *CommitStats) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	r, err := f.resolveRepo(ctx, row)
 	if err != nil {
-		return nil, err
+		ctx.Warn(0, "commit_stats: unable to resolve repository")
+		logrus.WithField("err", err).Error("commit_stats: unable to resolve repository")
+		return nil, nil
 	}
+
+	log := logrus.WithField("repository", r)
 
 	to, err := f.resolveCommit(ctx, r, row, f.To)
 	if err != nil {
-		return nil, err
+		ctx.Warn(0, "commit_stats: unable to resolve 'to' commit of repository: %v", r)
+		log.WithField("err", err).Error("commit_stats: unable to resolve 'to' commit")
+		return nil, nil
 	}
 
 	from, err := f.resolveCommit(ctx, r, row, f.From)
 	if err != nil {
-		return nil, err
+		ctx.Warn(0, "commit_stats: unable to resolve 'from' commit of repository: %v", r)
+		log.WithField("err", err).Error("commit_stats: unable to resolve from commit")
+		return nil, nil
 	}
 
-	return commitstats.Calculate(r.Repository, from, to)
+	result, err := commitstats.Calculate(r.Repository, from, to)
+	if err != nil {
+		ctx.Warn(0, "commit_stats: unable to calculate for repository: %v, from: %v, to: %v", r, from, to)
+		log.WithFields(logrus.Fields{
+			"err":  err,
+			"from": from,
+			"to":   to,
+		}).Error("commit_stats: unable to calculate")
+		return nil, nil
+	}
+
+	return result, nil
 }
 
 func (f *CommitStats) resolveRepo(ctx *sql.Context, r sql.Row) (*gitbase.Repository, error) {
