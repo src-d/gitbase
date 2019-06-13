@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Removed vendor folder.
+
 ## [0.21.0-beta1] - 2019-06-12
 
 ### Added

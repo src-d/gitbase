@@ -1,8 +1,0 @@
-.idea
-
-# ci files
-Makefile.main
-.ci
-bin
-coverage.txt
-profile.out
