@@ -180,7 +180,7 @@ func (i *commitRowIter) Next() (sql.Row, error) {
 			return nil, err
 		}
 
-		return commitToRow(i.repo.ID, c), nil
+		return commitToRow(i.repo.ID(), c), nil
 	}
 }
 
@@ -409,8 +409,7 @@ func newCommitsKeyValueIter(
 	columns []string,
 ) (sql.IndexKeyValueIter, error) {
 	var err error
-	r := pool.repositories[repo.ID]
-	idx, err := newRepositoryIndex(r)
+	idx, err := newRepositoryIndex(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +444,7 @@ func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
 	}
 
 	key, err := encodeIndexKey(&packOffsetIndexKey{
-		Repository: i.repo.ID,
+		Repository: i.repo.ID(),
 		Packfile:   packfile.String(),
 		Offset:     offset,
 		Hash:       hash,
@@ -454,7 +453,7 @@ func (i *commitsKeyValueIter) Next() ([]interface{}, []byte, error) {
 		return nil, nil, err
 	}
 
-	row := commitToRow(i.repo.ID, commit)
+	row := commitToRow(i.repo.ID(), commit)
 	values, err := rowIndexValues(row, i.columns, CommitsSchema)
 	if err != nil {
 		return nil, nil, err

@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
@@ -18,9 +17,23 @@ type checksumable struct {
 
 func (c *checksumable) Checksum() (string, error) {
 	hash := sha1.New()
-	for _, id := range c.pool.idOrder {
-		repo := c.pool.repositories[id]
-		hash.Write([]byte(id))
+	iter, err := c.pool.RepoIter()
+	if err != nil {
+		return "", err
+	}
+	defer iter.Close()
+
+	var checksums checksums
+	for {
+		hash.Reset()
+
+		repo, err := iter.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
 
 		bytes, err := readChecksum(repo)
 		if err != nil {
@@ -39,12 +52,28 @@ func (c *checksumable) Checksum() (string, error) {
 		if _, err = hash.Write(bytes); err != nil {
 			return "", err
 		}
+
+		c := checksum{
+			name: repo.ID(),
+			hash: hash.Sum(nil),
+		}
+
+		checksums = append(checksums, c)
+	}
+
+	sort.Stable(checksums)
+	hash.Reset()
+
+	for _, c := range checksums {
+		if _, err = hash.Write(c.hash); err != nil {
+			return "", err
+		}
 	}
 
 	return base64.StdEncoding.EncodeToString(hash.Sum(nil)), nil
 }
 
-func readChecksum(r repository) ([]byte, error) {
+func readChecksum(r *Repository) ([]byte, error) {
 	fs, err := r.FS()
 	if err != nil {
 		return nil, err
@@ -99,15 +128,23 @@ func (b byHashAndName) Less(i, j int) bool {
 	return strings.Compare(b[i].name, b[j].name) < 0
 }
 
-func readRefs(r repository) ([]byte, error) {
-	repo, err := r.Repo()
-	if err != nil {
-		if err == git.ErrRepositoryNotExists {
-			return nil, nil
-		}
-		return nil, err
-	}
+type checksum struct {
+	name string
+	hash []byte
+}
 
+type checksums []checksum
+
+func (b checksums) Len() int      { return len(b) }
+func (b checksums) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b checksums) Less(i, j int) bool {
+	if cmp := bytes.Compare(b[i].hash, b[j].hash); cmp != 0 {
+		return cmp < 0
+	}
+	return strings.Compare(b[i].name, b[j].name) < 0
+}
+
+func readRefs(repo *Repository) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 
 	refs, err := repo.References()

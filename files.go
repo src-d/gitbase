@@ -85,7 +85,7 @@ func (r *filesTable) PartitionRows(
 				return nil, err
 			}
 
-			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+			if len(repos) > 0 && !stringContains(repos, repo.ID()) {
 				return noRows, nil
 			}
 
@@ -288,7 +288,7 @@ func (i *filesRowIter) Next() (sql.Row, error) {
 			continue
 		}
 
-		return fileToRow(i.repo.ID, i.treeHash, f, i.readContent)
+		return fileToRow(i.repo.ID(), i.treeHash, f, i.readContent)
 	}
 }
 
@@ -414,8 +414,7 @@ type filesKeyValueIter struct {
 }
 
 func newFilesKeyValueIter(pool *RepositoryPool, repo *Repository, columns []string) (sql.IndexKeyValueIter, error) {
-	r := pool.repositories[repo.ID]
-	idx, err := newRepositoryIndex(r)
+	idx, err := newRepositoryIndex(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +474,7 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 		}
 
 		key, err := encodeIndexKey(&fileIndexKey{
-			Repository: i.repo.ID,
+			Repository: i.repo.ID(),
 			Packfile:   packfile.String(),
 			Hash:       hash,
 			Offset:     offset,
@@ -487,7 +486,7 @@ func (i *filesKeyValueIter) Next() ([]interface{}, []byte, error) {
 			return nil, nil, err
 		}
 
-		row, err := fileToRow(i.repo.ID, i.commit.TreeHash, f, stringContains(i.columns, "blob_content"))
+		row, err := fileToRow(i.repo.ID(), i.commit.TreeHash, f, stringContains(i.columns, "blob_content"))
 		if err != nil {
 			return nil, nil, err
 		}

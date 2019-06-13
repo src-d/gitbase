@@ -3,10 +3,10 @@ package gitbase
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-git.v4/plumbing"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func TestTreeEntriesTable(t *testing.T) {
@@ -684,10 +684,10 @@ func TestEncodeTreeEntriesIndexKey(t *testing.T) {
 	require.Equal(k, k3)
 }
 
-func TestTreeEntriesIndexIterClosed(t *testing.T) {
-	testTableIndexIterClosed(t, new(treeEntriesTable))
-}
+// func TestTreeEntriesIndexIterClosed(t *testing.T) {
+// 	testTableIndexIterClosed(t, new(treeEntriesTable))
+// }
 
-func TestTreeEntriesIterClosed(t *testing.T) {
-	testTableIterClosed(t, new(treeEntriesTable))
-}
+// func TestTreeEntriesIterClosed(t *testing.T) {
+// 	testTableIterClosed(t, new(treeEntriesTable))
+// }

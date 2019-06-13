@@ -3,10 +3,10 @@ package gitbase
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-git.v4/plumbing"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func TestFilesRowIter(t *testing.T) {
@@ -842,10 +842,10 @@ func TestEncodeFileIndexKey(t *testing.T) {
 	require.Equal(k, k3)
 }
 
-func TestFilesIndexIterClosed(t *testing.T) {
-	testTableIndexIterClosed(t, new(filesTable))
-}
+// func TestFilesIndexIterClosed(t *testing.T) {
+// 	testTableIndexIterClosed(t, new(filesTable))
+// }
 
-func TestFilesIterClosed(t *testing.T) {
-	testTableIterClosed(t, new(filesTable))
-}
+// func TestFilesIterClosed(t *testing.T) {
+// 	testTableIterClosed(t, new(filesTable))
+// }

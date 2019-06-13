@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/src-d/go-borges/libraries"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,8 @@ const testDBName = "foo"
 func TestDatabase_Tables(t *testing.T) {
 	require := require.New(t)
 
-	db := getDB(t, testDBName, NewRepositoryPool(0))
+	lib := libraries.New(libraries.Options{})
+	db := getDB(t, testDBName, NewRepositoryPool(0, lib))
 
 	tables := db.Tables()
 	var tableNames []string
@@ -43,7 +45,8 @@ func TestDatabase_Tables(t *testing.T) {
 func TestDatabase_Name(t *testing.T) {
 	require := require.New(t)
 
-	db := getDB(t, testDBName, NewRepositoryPool(0))
+	lib := libraries.New(libraries.Options{})
+	db := getDB(t, testDBName, NewRepositoryPool(0, lib))
 	require.Equal(testDBName, db.Name())
 }
 
