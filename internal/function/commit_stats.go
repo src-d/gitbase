@@ -8,11 +8,13 @@ import (
 	"github.com/src-d/gitbase/internal/commitstats"
 
 	"github.com/src-d/go-mysql-server/sql"
+	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
-// CommitStats calculates the diff stats for a given commit.
+// CommitStats calculates the diff stats for a given commit. Vendored files
+// are completely ignored for the output of this function.
 type CommitStats struct {
 	Repository sql.Expression
 	From       sql.Expression
@@ -94,51 +96,27 @@ func (f *CommitStats) Resolved() bool {
 
 // Eval implements the Expression interface.
 func (f *CommitStats) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
-	span, ctx := ctx.Span("gitbase.CommitStats")
-	defer span.Finish()
-
-	r, err := f.resolveRepo(ctx, row)
-	if err != nil {
-		ctx.Warn(0, "commit_stats: unable to resolve repository")
-		logrus.WithField("err", err).Error("commit_stats: unable to resolve repository")
-		return nil, nil
-	}
-
-	log := logrus.WithField("repository", r)
-
-	to, err := f.resolveCommit(ctx, r, row, f.To)
-	if err != nil {
-		ctx.Warn(0, "commit_stats: unable to resolve 'to' commit of repository: %v", r)
-		log.WithField("err", err).Error("commit_stats: unable to resolve 'to' commit")
-		return nil, nil
-	}
-
-	from, err := f.resolveCommit(ctx, r, row, f.From)
-	if err != nil {
-		ctx.Warn(0, "commit_stats: unable to resolve 'from' commit of repository: %v", r)
-		log.WithField("err", err).Error("commit_stats: unable to resolve from commit")
-		return nil, nil
-	}
-
-	result, err := commitstats.Calculate(r.Repository, from, to)
-	if err != nil {
-		ctx.Warn(0, "commit_stats: unable to calculate for repository: %v, from: %v, to: %v", r, from, to)
-		log.WithFields(logrus.Fields{
-			"err":  err,
-			"from": from,
-			"to":   to,
-		}).Error("commit_stats: unable to calculate")
-		return nil, nil
-	}
-
-	return result, nil
+	return evalStatsFunc(
+		ctx,
+		"commit_stats",
+		row,
+		f.Repository, f.From, f.To,
+		func(r *git.Repository, from, to *object.Commit) (interface{}, error) {
+			return commitstats.Calculate(r, from, to)
+		},
+	)
 }
 
-func (f *CommitStats) resolveRepo(ctx *sql.Context, r sql.Row) (*gitbase.Repository, error) {
-	repoID, err := exprToString(ctx, f.Repository, r)
+func resolveRepo(
+	ctx *sql.Context,
+	r sql.Row,
+	repo sql.Expression,
+) (*gitbase.Repository, error) {
+	repoID, err := exprToString(ctx, repo, r)
 	if err != nil {
 		return nil, err
 	}
+
 	s, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
@@ -146,8 +124,11 @@ func (f *CommitStats) resolveRepo(ctx *sql.Context, r sql.Row) (*gitbase.Reposit
 	return s.Pool.GetRepo(repoID)
 }
 
-func (f *CommitStats) resolveCommit(
-	ctx *sql.Context, r *gitbase.Repository, row sql.Row, e sql.Expression,
+func resolveCommit(
+	ctx *sql.Context,
+	r *gitbase.Repository,
+	row sql.Row,
+	e sql.Expression,
 ) (*object.Commit, error) {
 	str, err := exprToString(ctx, e, row)
 	if err != nil {
@@ -165,4 +146,51 @@ func (f *CommitStats) resolveCommit(
 	}
 
 	return r.CommitObject(*commitHash)
+}
+
+func evalStatsFunc(
+	ctx *sql.Context,
+	name string,
+	row sql.Row,
+	repoExpr, fromExpr, toExpr sql.Expression,
+	fn func(r *git.Repository, from, to *object.Commit) (interface{}, error),
+) (interface{}, error) {
+	span, ctx := ctx.Span("gitbase." + name)
+	defer span.Finish()
+
+	r, err := resolveRepo(ctx, row, repoExpr)
+	if err != nil {
+		ctx.Warn(0, name+": unable to resolve repository")
+		logrus.WithField("err", err).Error(name + ": unable to resolve repository")
+		return nil, nil
+	}
+
+	log := logrus.WithField("repository", r)
+
+	to, err := resolveCommit(ctx, r, row, toExpr)
+	if err != nil {
+		ctx.Warn(0, name+": unable to resolve 'to' commit of repository: %v", r)
+		log.WithField("err", err).Error(name + ": unable to resolve 'to' commit")
+		return nil, nil
+	}
+
+	from, err := resolveCommit(ctx, r, row, fromExpr)
+	if err != nil {
+		ctx.Warn(0, name+": unable to resolve 'from' commit of repository: %v", r)
+		log.WithField("err", err).Error(name + ": unable to resolve from commit")
+		return nil, nil
+	}
+
+	result, err := fn(r.Repository, from, to)
+	if err != nil {
+		ctx.Warn(0, name+": unable to calculate for repository: %v, from: %v, to: %v", r, from, to)
+		log.WithFields(logrus.Fields{
+			"err":  err,
+			"from": from,
+			"to":   to,
+		}).Error(name + ": unable to calculate")
+		return nil, nil
+	}
+
+	return result, nil
 }

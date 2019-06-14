@@ -8,19 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `commit_file_stats` function.
 - Added documentation about `commit_stats`.
 
 ### Changed
 
 - internal/function: gracefully handle errors in commit_stats.
+- Removed vendor folder.
 
 ### Fixed
 
 - internal/function: take into account if repository is resolved in commit_stats ([#863](https://github.com/src-d/gitbase/pull/863))
-
-### Changed
-
-- Removed vendor folder.
+- internal/function: `Files` field in `commit_stats` contains now proper results.
 
 ## [0.21.0-beta1] - 2019-06-12
 
