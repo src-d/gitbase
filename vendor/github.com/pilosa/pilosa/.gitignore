@@ -1,6 +1,0 @@
-default.etcd/
-*.test
-vendor
-.protoc-gen-gofast
-.DS_Store
-build
