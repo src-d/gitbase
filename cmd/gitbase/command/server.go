@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/src-d/gitbase"
@@ -384,10 +385,10 @@ func parseDirectory(dir directory) (directory, error) {
 		}
 
 		val := v[0]
-		switch k {
+		switch strings.ToLower(k) {
 		case "format":
 			if val != "siva" && val != "git" {
-				logrus.Errorf("invalid format in directory, it can only "+
+				logrus.Errorf("invalid value in format, it can only "+
 					"be siva or git %v", val)
 				return dir, ErrInvalid
 			}
@@ -395,7 +396,7 @@ func parseDirectory(dir directory) (directory, error) {
 
 		case "bare":
 			if val != "true" && val != "false" {
-				logrus.Errorf("invalid format in bare, it can only "+
+				logrus.Errorf("invalid value in bare, it can only "+
 					"be true or false %v", val)
 				return dir, ErrInvalid
 			}
@@ -403,7 +404,7 @@ func parseDirectory(dir directory) (directory, error) {
 
 		case "rooted":
 			if val != "true" && val != "false" {
-				logrus.Errorf("invalid format in rooted, it can only "+
+				logrus.Errorf("invalid value in rooted, it can only "+
 					"be true or false %v", val)
 				return dir, ErrInvalid
 			}
@@ -412,7 +413,7 @@ func parseDirectory(dir directory) (directory, error) {
 		case "bucket":
 			num, err := strconv.Atoi(val)
 			if err != nil {
-				logrus.Errorf("invalid number in bucket: %v", val)
+				logrus.Errorf("invalid value in bucket: %v", val)
 				return dir, ErrInvalid
 			}
 			dir.Bucket = num
