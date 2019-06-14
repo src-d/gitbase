@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/hhatto/gocloc"
-	"gopkg.in/src-d/enry.v1"
+	"github.com/src-d/enry/v2"
 	"github.com/src-d/go-mysql-server/sql"
 )
 

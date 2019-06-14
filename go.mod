@@ -13,6 +13,7 @@ require (
 	github.com/miekg/dns v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/sirupsen/logrus v1.3.0
+	github.com/src-d/enry/v2 v2.0.0
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
 	github.com/src-d/go-mysql-server v0.4.1-0.20190607090451-cf9bb2a992da
 	github.com/stretchr/testify v1.3.0
@@ -21,7 +22,6 @@ require (
 	github.com/uber/jaeger-lib v2.0.0+incompatible // indirect
 	go.uber.org/atomic v1.4.0 // indirect
 	google.golang.org/grpc v1.20.1
-	gopkg.in/src-d/enry.v1 v1.7.2
 	gopkg.in/src-d/go-billy-siva.v4 v4.2.2
 	gopkg.in/src-d/go-billy.v4 v4.3.0
 	gopkg.in/src-d/go-errors.v1 v1.0.0

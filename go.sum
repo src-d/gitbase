@@ -304,8 +304,6 @@ gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127/go.mod h1:Co6ibVJAznAaIkqp8
 gopkg.in/errgo.v2 v2.1.0/go.mod h1:hNsd1EY+bozCKY1Ytp96fpM3vjJbqLJn88ws8XvfDNI=
 gopkg.in/fsnotify.v1 v1.4.7/go.mod h1:Tz8NjZHkW78fSQdbUxIjBTcgA1z1m8ZHf0WmKUhAMys=
 gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2/go.mod h1:Xk6kEKp8OKb+X14hQBKWaSkCsqBpgog8nAV2xsGOxlo=
-gopkg.in/src-d/enry.v1 v1.7.2 h1:f0eHdxIHq2Ox30Vfiqqpmi4ZcXzKKiYAD6PA4got+jA=
-gopkg.in/src-d/enry.v1 v1.7.2/go.mod h1:lDDelHa5/fOO+o8klI8JOOoMszXxhqCYOgqFS2mnxQA=
 gopkg.in/src-d/go-billy-siva.v4 v4.2.2 h1:HvklDMblrg/Zknu4tAFJayg34QUOvuojXjMQGqA2FtM=
 gopkg.in/src-d/go-billy-siva.v4 v4.2.2/go.mod h1:4wKeCzOCSsdyFeM5+58M6ObU6FM+lZT12p7zm7A+9n0=
 gopkg.in/src-d/go-billy.v4 v4.2.1/go.mod h1:tm33zBoOwxjYHZIE+OV8bxTWFMJLrconzFMd38aARFk=
