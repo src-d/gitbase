@@ -6,9 +6,9 @@ import (
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/commitstats"
 
+	"github.com/src-d/go-mysql-server/sql"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	"github.com/src-d/go-mysql-server/sql"
 )
 
 // CommitStats calculates the diff stats for a given commit.
@@ -86,7 +86,9 @@ func (*CommitStats) IsNullable() bool {
 
 // Resolved implements the Expression interface.
 func (f *CommitStats) Resolved() bool {
-	return f.To.Resolved() && (f.From == nil || f.From.Resolved())
+	return f.Repository.Resolved() &&
+		f.To.Resolved() &&
+		(f.From == nil || f.From.Resolved())
 }
 
 // Eval implements the Expression interface.
@@ -127,7 +129,6 @@ func (f *CommitStats) resolveRepo(ctx *sql.Context, r sql.Row) (*gitbase.Reposit
 func (f *CommitStats) resolveCommit(
 	ctx *sql.Context, r *gitbase.Repository, row sql.Row, e sql.Expression,
 ) (*object.Commit, error) {
-
 	str, err := exprToString(ctx, e, row)
 	if err != nil {
 		return nil, err

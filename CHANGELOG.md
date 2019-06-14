@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- internal/function: take into account if repository is resolved in commit_stats ([#863](https://github.com/src-d/gitbase/pull/863))
+
 ### Changed
 
 - Removed vendor folder.
