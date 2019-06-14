@@ -8,10 +8,10 @@ import (
 	"github.com/src-d/gitbase/internal/commitstats"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/src-d/go-git-fixtures.v3"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestCommitStatsEval(t *testing.T) {
@@ -34,7 +34,7 @@ func TestCommitStatsEval(t *testing.T) {
 		from     sql.Expression
 		to       sql.Expression
 		row      sql.Row
-		expected *commitstats.CommitStats
+		expected interface{}
 	}{
 		{
 			name: "init commit",
@@ -48,6 +48,30 @@ func TestCommitStatsEval(t *testing.T) {
 				Total: commitstats.KindStats{Additions: 22, Deletions: 0},
 			},
 		},
+		{
+			name:     "invalid repository id",
+			repo:     expression.NewGetField(0, sql.Text, "repository_id", false),
+			from:     nil,
+			to:       expression.NewGetField(1, sql.Text, "commit_hash", false),
+			row:      sql.NewRow("foobar", "b029517f6300c2da0f4b651b8642506cd6aaf45d"),
+			expected: nil,
+		},
+		{
+			name:     "invalid to",
+			repo:     expression.NewGetField(0, sql.Text, "repository_id", false),
+			from:     nil,
+			to:       expression.NewGetField(1, sql.Text, "commit_hash", false),
+			row:      sql.NewRow("worktree", "foobar"),
+			expected: nil,
+		},
+		{
+			name:     "invalid from",
+			repo:     expression.NewGetField(0, sql.Text, "repository_id", false),
+			from:     expression.NewGetField(2, sql.Text, "commit_hash", false),
+			to:       expression.NewGetField(1, sql.Text, "commit_hash", false),
+			row:      sql.NewRow("worktree", "b029517f6300c2da0f4b651b8642506cd6aaf45d", "foobar"),
+			expected: nil,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -58,10 +82,7 @@ func TestCommitStatsEval(t *testing.T) {
 			result, err := diff.Eval(ctx, tc.row)
 			require.NoError(t, err)
 
-			stats, ok := result.(*commitstats.CommitStats)
-			require.True(t, ok)
-
-			require.EqualValues(t, tc.expected, stats)
+			require.EqualValues(t, tc.expected, result)
 		})
 	}
 }

@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added documentation about `commit_stats`.
+
+### Changed
+
+- internal/function: gracefully handle errors in commit_stats.
+
 ### Fixed
 
 - internal/function: take into account if repository is resolved in commit_stats ([#863](https://github.com/src-d/gitbase/pull/863))
