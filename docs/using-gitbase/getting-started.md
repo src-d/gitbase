@@ -126,9 +126,16 @@ If all the directories are in the same format you can set it globally with these
 * `--format`: it can be either `git` for filesystem repositories or `siva` for siva archives
 * `--bare`: specifies that git archives are bare, can only be used with `git` format
 * `--bucket`: sets the number of characters to use for bucketing, used with `siva` libraries
-* `--rooted`: enables or disables rooted reposotories management in `siva` libraries
+* `--non-rooted`: disables rooted repositories management in `siva` libraries
 
-If you are mixing formats you can specify each directory as a `file://` url with the same global parameters. For example:
+If you are mixing formats you can specify each directory as a `file://` URL with these parameters:
+
+* `format`: can be `git` or `siva`
+* `bare`: `true` or `false`
+* `bucket`: the characters to use for directory bucketing
+* `rooted`: `true` or `false`
+
+For example:
 
 ```
 -d 'file:///path/to/git?format=git&bare=true' -d 'file:///path/to/sivas?format=siva&rooted=false&bucket=0'
