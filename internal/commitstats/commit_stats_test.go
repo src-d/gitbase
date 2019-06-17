@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
+	"gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
@@ -43,7 +43,7 @@ func TestCalculate(t *testing.T) {
 			fixture: fixtures.Basic().One(),
 			to:      plumbing.NewHash("b029517f6300c2da0f4b651b8642506cd6aaf45d"),
 			expected: &CommitStats{
-				Files: 1,
+				Files: 2,
 				Other: KindStats{Additions: 22, Deletions: 0},
 				Total: KindStats{Additions: 22, Deletions: 0},
 			},
@@ -68,7 +68,7 @@ func TestCalculate(t *testing.T) {
 			fixture: fixtures.Basic().One(),
 			to:      plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"),
 			expected: &CommitStats{
-				Files: 0,
+				Files: 1,
 			},
 		},
 		"with_from": {
@@ -101,4 +101,32 @@ func TestCalculate(t *testing.T) {
 			assert.Equal(t, test.expected, stats)
 		})
 	}
+}
+
+func TestNewFileStats(t *testing.T) {
+	require := require.New(t)
+
+	err := fixtures.Init()
+	require.NoError(err)
+
+	defer func() {
+		err := fixtures.Clean()
+		require.NoError(err)
+	}()
+
+	f := fixtures.Basic().One()
+
+	r, err := git.Open(filesystem.NewStorage(f.DotGit(), cache.NewObjectLRUDefault()), nil)
+	require.NoError(err)
+
+	b, err := r.BlobObject(plumbing.NewHash("9a48f23120e880dfbe41f7c9b7b708e9ee62a492"))
+	require.NoError(err)
+
+	fs, err := newFileStats(b, "PHP")
+	require.NoError(err)
+
+	require.Equal(17, fs["}"].Count)
+	require.Equal(Code, fs["}"].Kind)
+	require.Equal(10, fs["*/"].Count)
+	require.Equal(Comment, fs["*/"].Kind)
 }

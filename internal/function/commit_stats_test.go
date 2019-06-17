@@ -43,7 +43,7 @@ func TestCommitStatsEval(t *testing.T) {
 			to:   expression.NewGetField(1, sql.Text, "commit_hash", false),
 			row:  sql.NewRow("worktree", "b029517f6300c2da0f4b651b8642506cd6aaf45d"),
 			expected: &commitstats.CommitStats{
-				Files: 1,
+				Files: 2,
 				Other: commitstats.KindStats{Additions: 22, Deletions: 0},
 				Total: commitstats.KindStats{Additions: 22, Deletions: 0},
 			},
