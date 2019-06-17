@@ -196,6 +196,8 @@ github.com/src-d/enry/v2 v2.0.0 h1:2ADqfDHhroFwL1RGhMS9e15NkEwln8P4AABwVvIdAlo=
 github.com/src-d/enry/v2 v2.0.0/go.mod h1:qQeCMRwzMF3ckeGr+h0tJLdxXnq+NVZsIDMELj0t028=
 github.com/src-d/gcfg v1.4.0 h1:xXbNR5AlLSA315x2UO+fTSSAXCDf+Ar38/6oyGbDKQ4=
 github.com/src-d/gcfg v1.4.0/go.mod h1:p/UMsR43ujA89BJY9duynAwIpvqEujIH/jFlfL7jWoI=
+github.com/src-d/go-git v4.7.0+incompatible h1:IYSSnbAHeKmsfbQFi9ozbid+KNh0bKjlorMfQehQbcE=
+github.com/src-d/go-git v4.7.0+incompatible/go.mod h1:1bQciz+hn0jzPQNsYj0hDFZHLJBdV7gXE2mWhC7EkFk=
 github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible h1:A5bKevhs9C//Nh8QV0J+1KphEaIa25cDe1DTs/yPxDI=
 github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible/go.mod h1:XcIQp7L+k0pgfTqfbaTKj3kxlBv8kYOKZ/tKNXbZFLg=
 github.com/src-d/go-mysql-server v0.4.1-0.20190607090451-cf9bb2a992da h1:k98uJPIP1kysgYtidyDRgYXIXKj0HZ4d7jf9d+ztSmg=
@@ -304,8 +306,6 @@ gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127/go.mod h1:Co6ibVJAznAaIkqp8
 gopkg.in/errgo.v2 v2.1.0/go.mod h1:hNsd1EY+bozCKY1Ytp96fpM3vjJbqLJn88ws8XvfDNI=
 gopkg.in/fsnotify.v1 v1.4.7/go.mod h1:Tz8NjZHkW78fSQdbUxIjBTcgA1z1m8ZHf0WmKUhAMys=
 gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2/go.mod h1:Xk6kEKp8OKb+X14hQBKWaSkCsqBpgog8nAV2xsGOxlo=
-gopkg.in/src-d/enry.v1 v1.7.2 h1:f0eHdxIHq2Ox30Vfiqqpmi4ZcXzKKiYAD6PA4got+jA=
-gopkg.in/src-d/enry.v1 v1.7.2/go.mod h1:lDDelHa5/fOO+o8klI8JOOoMszXxhqCYOgqFS2mnxQA=
 gopkg.in/src-d/go-billy-siva.v4 v4.2.2 h1:HvklDMblrg/Zknu4tAFJayg34QUOvuojXjMQGqA2FtM=
 gopkg.in/src-d/go-billy-siva.v4 v4.2.2/go.mod h1:4wKeCzOCSsdyFeM5+58M6ObU6FM+lZT12p7zm7A+9n0=
 gopkg.in/src-d/go-billy.v4 v4.2.1/go.mod h1:tm33zBoOwxjYHZIE+OV8bxTWFMJLrconzFMd38aARFk=
