@@ -102,8 +102,8 @@ github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/hashicorp/memberlist v0.1.3 h1:EmmoJme1matNzb+hMpDuR/0sbJSUisxyqBGG676r31M=
 github.com/hashicorp/memberlist v0.1.3/go.mod h1:ajVTdAv/9Im8oMAAj5G31PhhMCZJV2pPBoIllUwCN7I=
-github.com/hhatto/gocloc v0.0.0-20190602072209-764f3f6ae21e h1:y/6xya/cMhR45BsfYSba5ql3v+NPXrcD9ROAwIiKi8A=
-github.com/hhatto/gocloc v0.0.0-20190602072209-764f3f6ae21e/go.mod h1:hLWkKLYoVZDsIVygx3HklyE9kOgrnQCY32pEdbK9F2M=
+github.com/hhatto/gocloc v0.3.0 h1:n3+d1hf8qTIlN3bbhegtP4RSRuSjtv378uLQqgwjQyU=
+github.com/hhatto/gocloc v0.3.0/go.mod h1:hLWkKLYoVZDsIVygx3HklyE9kOgrnQCY32pEdbK9F2M=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 h1:BQSFePA1RWJOlocH6Fxy8MmwDt+yVQYULKfN0RoTN8A=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99/go.mod h1:1lJo3i6rXxKeerYnT8Nvf0QmHCRC1n8sfWVwXF2Frvo=

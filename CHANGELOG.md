@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - internal/function: gracefully handle errors in commit_stats.
 - Removed vendor folder.
 - Upgrade `enry` to version `v2.0.0`.
+- Switch `gocloc` to version `v0.3.0`.
 
 ### Fixed
 
