@@ -234,6 +234,7 @@ You can find the full list of conditions that need to be met for the squash to b
 ```
 repositories -> refs -> ref_commits -> commits -> commit_trees -> tree_entries -> blobs
 repositories -> refs -> ref_commits -> commits -> commit_blobs -> blobs
+repositories -> refs -> ref_commits -> commits -> commit_files -> blobs
 repositories -> refs -> ref_commits -> commits -> commit_files -> files
 repositories -> remotes -> refs -> (any of the other hierarchies)
 ```
@@ -323,6 +324,10 @@ This will pretty-print the analyzed tree of your query. If you see a node named 
 ### `tree_entries` with `blobs`
 
 - `tree_entries.blob_hash = blobs.blob_hash`
+
+### `commit_files` with `blobs`
+
+- `commit_files.blob_hash = blobs.blob_hash`
 
 ### `commit_files` with `files`
 
