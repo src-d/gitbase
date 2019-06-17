@@ -14,7 +14,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
-func TestCommitStatsEval(t *testing.T) {
+func TestCommitFileStats(t *testing.T) {
 	require.NoError(t, fixtures.Init())
 	defer func() {
 		require.NoError(t, fixtures.Clean())
@@ -42,10 +42,13 @@ func TestCommitStatsEval(t *testing.T) {
 			from: nil,
 			to:   expression.NewGetField(1, sql.Text, "commit_hash", false),
 			row:  sql.NewRow("worktree", "b029517f6300c2da0f4b651b8642506cd6aaf45d"),
-			expected: &commitstats.CommitStats{
-				Files: 1,
-				Other: commitstats.KindStats{Additions: 22, Deletions: 0},
-				Total: commitstats.KindStats{Additions: 22, Deletions: 0},
+			expected: []interface{}{
+				commitstats.CommitFileStats{
+					Path:     "LICENSE",
+					Language: "Text",
+					Other:    commitstats.KindStats{Additions: 22},
+					Total:    commitstats.KindStats{Additions: 22},
+				},
 			},
 		},
 		{
@@ -76,7 +79,7 @@ func TestCommitStatsEval(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			diff, err := NewCommitStats(tc.repo, tc.from, tc.to)
+			diff, err := NewCommitFileStats(tc.repo, tc.from, tc.to)
 			require.NoError(t, err)
 
 			result, err := diff.Eval(ctx, tc.row)
