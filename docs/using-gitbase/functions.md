@@ -6,7 +6,8 @@ To make some common tasks easier for the user, there are some functions to inter
 
 |     Name     |                                               Description                                                                      |
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
-|`commit_stats(repository_id, [from_commit_hash], to_commit_hash)`|returns the stats between two commits for a repository. If from is empty, it will compare the given `to_commit_hash` with its parent commit|
+|`commit_stats(repository_id, [from_commit_hash], to_commit_hash)`|returns the stats between two commits for a repository. If from is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function.|
+|`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash)`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If from is not given, the parent commit will be used. Vendored files stats are not included in the result of this function.|
 |`is_remote(reference_name)bool`| check if the given reference name is from a remote one                                                          |
 |`is_tag(reference_name)bool`| check if the given reference name is a tag                                                                         |
 |`is_vendor(file_path)bool`| check if the given file name is a vendored file                                                                         |
