@@ -208,8 +208,6 @@ func TestRepositoryPoolSiva(t *testing.T) {
 			return nil
 		}))
 
-		println("i", i, repo.ID(), result[id])
-
 		i++
 	}
 

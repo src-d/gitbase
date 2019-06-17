@@ -726,12 +726,10 @@ func chainableIterRows(t *testing.T, ctx *sql.Context, iter ChainableIter) []sql
 
 func setupIter(t *testing.T) (*sql.Context, func()) {
 	t.Helper()
-	println("should not be bad repo")
 	return setupIterWithErrors(t, false, false)
 }
 
 func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Context, func()) {
-	println("setupIterWithErrors")
 	t.Helper()
 	require := require.New(t)
 
@@ -739,7 +737,6 @@ func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Cont
 	require.NoError(err)
 
 	if badRepo {
-		println("bad repo", badRepo)
 		// TODO: add repo with errors
 		loc, err := plain.NewLocation(borges.LocationID("bad"), osfs.New("/does/not/exist"), nil)
 		require.NoError(err)

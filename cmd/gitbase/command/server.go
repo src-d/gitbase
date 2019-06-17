@@ -3,22 +3,25 @@ package command
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
 	"github.com/src-d/gitbase/internal/rule"
-	"github.com/src-d/go-borges/libraries"
-	"github.com/src-d/go-borges/plain"
-	"github.com/src-d/go-borges/siva"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/sirupsen/logrus"
 	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/libraries"
+	"github.com/src-d/go-borges/plain"
+	"github.com/src-d/go-borges/siva"
 	sqle "github.com/src-d/go-mysql-server"
 	"github.com/src-d/go-mysql-server/auth"
 	"github.com/src-d/go-mysql-server/server"
@@ -53,8 +56,10 @@ type Server struct {
 	Name          string         `long:"db" default:"gitbase" description:"Database name"`
 	Version       string         // Version of the application.
 	Directories   []string       `short:"d" long:"directories" description:"Path where standard git repositories are located, multiple directories can be defined."`
-	Siva          []string       `short:"s" long:"siva" description:"Path where siva git repositories are located, multiple directories can be defined."`
+	Format        string         `long:"format" default:"git" choice:"git" choice:"siva" description:"Library format"`
 	Bucket        int            `long:"bucket" default:"2" description:"Bucketing level to use with siva libraries"`
+	Bare          bool           `long:"bare" description:"Sets the library to use bare git repositories, used only with git format libraries"`
+	NonRooted     bool           `long:"non-rooted" description:"Disables treating siva files as rooted repositories"`
 	Host          string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
@@ -261,21 +266,45 @@ func (c *Server) registerDrivers() error {
 }
 
 func (c *Server) addDirectories() error {
-	if len(c.Directories) == 0 && len(c.Siva) == 0 {
-		logrus.Error("At least one folder should be provided.")
+	if len(c.Directories) == 0 {
+		logrus.Error("at least one folder should be provided.")
 	}
 
-	sivaOpts := siva.LibraryOptions{
-		Transactional: true,
-		RootedRepo:    true,
-		Cache:         c.sharedCache,
-		Bucket:        c.Bucket,
-		Performance:   true,
-		RegistryCache: 100000,
+	for _, d := range c.Directories {
+		dir := directory{
+			Path:   d,
+			Format: c.Format,
+			Bare:   c.Bare,
+			Bucket: c.Bucket,
+			Rooted: !c.NonRooted,
+		}
+
+		dir, err := parseDirectory(dir)
+		if err != nil {
+			return err
+		}
+
+		err = c.addDirectory(dir)
+		if err != nil {
+			return err
+		}
 	}
 
-	for _, d := range c.Siva {
-		lib, err := siva.NewLibrary(d, osfs.New(d), sivaOpts)
+	return nil
+}
+
+func (c *Server) addDirectory(d directory) error {
+	if d.Format == "siva" {
+		sivaOpts := siva.LibraryOptions{
+			Transactional: true,
+			RootedRepo:    d.Rooted,
+			Cache:         c.sharedCache,
+			Bucket:        d.Bucket,
+			Performance:   true,
+			RegistryCache: 100000,
+		}
+
+		lib, err := siva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
 		if err != nil {
 			return err
 		}
@@ -284,26 +313,116 @@ func (c *Server) addDirectories() error {
 		if err != nil {
 			return err
 		}
-	}
 
-	if len(c.Directories) == 0 {
 		return nil
 	}
 
 	plainOpts := &plain.LocationOptions{
 		Cache:       c.sharedCache,
 		Performance: true,
+		Bare:        d.Bare,
 	}
 
-	p := plain.NewLibrary(borges.LibraryID("plain"))
-	for _, d := range c.Directories {
-		loc, err := plain.NewLocation(borges.LocationID(d), osfs.New(d), plainOpts)
+	if c.plainLibrary == nil {
+		c.plainLibrary = plain.NewLibrary(borges.LibraryID("plain"))
+		err := c.rootLibrary.Add(c.plainLibrary)
 		if err != nil {
 			return err
 		}
-
-		p.AddLocation(loc)
 	}
 
-	return c.rootLibrary.Add(p)
+	loc, err := plain.NewLocation(
+		borges.LocationID(d.Path),
+		osfs.New(d.Path),
+		plainOpts)
+	if err != nil {
+		return err
+	}
+
+	c.plainLibrary.AddLocation(loc)
+
+	return nil
+}
+
+type directory struct {
+	Path   string
+	Format string
+	Bucket int
+	Rooted bool
+	Bare   bool
+}
+
+var (
+	uriReg     = regexp.MustCompile(`^\w+:.*`)
+	ErrInvalid = fmt.Errorf("invalid option")
+)
+
+func parseDirectory(dir directory) (directory, error) {
+	d := dir.Path
+
+	if !uriReg.Match([]byte(d)) {
+		return dir, nil
+	}
+
+	u, err := url.ParseRequestURI(d)
+	if err != nil {
+		logrus.Errorf("invalid directory format %v", d)
+		return dir, err
+	}
+
+	if u.Scheme != "file" {
+		logrus.Errorf("only file scheme is supported: %v", d)
+		return dir, fmt.Errorf("scheme not suported in directory %v", d)
+	}
+
+	dir.Path = filepath.Join(u.Hostname(), u.Path)
+	query := u.Query()
+
+	for k, v := range query {
+		if len(v) != 1 {
+			logrus.Errorf("invalid number of options for %v", v)
+			return dir, ErrInvalid
+		}
+
+		val := v[0]
+		switch strings.ToLower(k) {
+		case "format":
+			if val != "siva" && val != "git" {
+				logrus.Errorf("invalid value in format, it can only "+
+					"be siva or git %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Format = val
+
+		case "bare":
+			if val != "true" && val != "false" {
+				logrus.Errorf("invalid value in bare, it can only "+
+					"be true or false %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Bare = (val == "true")
+
+		case "rooted":
+			if val != "true" && val != "false" {
+				logrus.Errorf("invalid value in rooted, it can only "+
+					"be true or false %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Rooted = (val == "true")
+
+		case "bucket":
+			num, err := strconv.Atoi(val)
+			if err != nil {
+				logrus.Errorf("invalid value in bucket: %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Bucket = num
+
+		default:
+			logrus.Errorf("invalid option: %v", k)
+			return dir, ErrInvalid
+		}
+	}
+
+	return dir, nil
 }

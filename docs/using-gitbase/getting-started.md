@@ -116,3 +116,27 @@ As of MySQL 8.0 [the default authentication method is `caching_sha2_password`](h
 ```
 mysql -q -u root -h 127.0.0.1 --default-auth=mysql_native_password
 ```
+
+## Library format specification
+
+By default the directories added to github should contain normal git repositories. If the format of the repositories is different you have two ways to specify it.
+
+If all the directories are in the same format you can set it globally with these parameters:
+
+* `--format`: it can be either `git` for filesystem repositories or `siva` for siva archives
+* `--bare`: specifies that git archives are bare, can only be used with `git` format
+* `--bucket`: sets the number of characters to use for bucketing, used with `siva` libraries
+* `--non-rooted`: disables rooted repositories management in `siva` libraries
+
+If you are mixing formats you can specify each directory as a `file://` URL with these parameters:
+
+* `format`: can be `git` or `siva`
+* `bare`: `true` or `false`
+* `bucket`: the characters to use for directory bucketing
+* `rooted`: `true` or `false`
+
+For example:
+
+```
+-d 'file:///path/to/git?format=git&bare=true' -d 'file:///path/to/sivas?format=siva&rooted=false&bucket=0'
+```

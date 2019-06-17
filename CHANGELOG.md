@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Changed cli to be able to specify different formats ([#866](https://github.com/src-d/gitbase/issues/866))
+
 ## [0.21.0-beta1] - 2019-06-12
 
 ### Added
