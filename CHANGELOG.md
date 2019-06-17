@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - internal/function: gracefully handle errors in commit_stats.
 - Removed vendor folder.
+- Upgrade `enry` to version `v2.0.0`.
 
 ### Fixed
 
@@ -41,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.20.0] - 2019-05-30
 ### Known Issues
-- After updating Vitess MySQL server, we are having some problems connecting from JDBC MariaDB drivers (https://github.com/src-d/gitbase/issues/807) (https://github.com/vitessio/vitess/issues/4603) 
+- After updating Vitess MySQL server, we are having some problems connecting from JDBC MariaDB drivers (https://github.com/src-d/gitbase/issues/807) (https://github.com/vitessio/vitess/issues/4603)
 
 ### Added
 - function: implement is_vendor function (#830)
