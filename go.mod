@@ -13,7 +13,7 @@ require (
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/sirupsen/logrus v1.3.0
 	github.com/src-d/enry/v2 v2.0.0
-	github.com/src-d/go-borges v0.0.0-20190612145759-4a1316c4e456
+	github.com/src-d/go-borges v0.0.0-20190618164343-97e287320def
 	github.com/src-d/go-git v4.7.0+incompatible
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
 	github.com/src-d/go-mysql-server v0.4.1-0.20190619104848-eaab1795353a
@@ -22,6 +22,10 @@ require (
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
 	github.com/uber/jaeger-lib v2.0.0+incompatible // indirect
 	go.uber.org/atomic v1.4.0 // indirect
+	golang.org/x/crypto v0.0.0-20190617133340-57b3e21c3d56 // indirect
+	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980 // indirect
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect
+	golang.org/x/sys v0.0.0-20190618155005-516e3c20635f // indirect
 	google.golang.org/grpc v1.20.1
 	gopkg.in/src-d/go-billy-siva.v4 v4.5.1
 	gopkg.in/src-d/go-billy.v4 v4.3.0
