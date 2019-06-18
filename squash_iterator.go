@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/src-d/go-mysql-server/sql"
 	errors "gopkg.in/src-d/go-errors.v1"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
-	"github.com/src-d/go-mysql-server/sql"
 
 	"github.com/sirupsen/logrus"
 )
@@ -3407,6 +3407,81 @@ func (i *squashCommitFileFilesIter) Schema() sql.Schema {
 	return append(i.files.Schema(), FilesSchema...)
 }
 func (i *squashCommitFileFilesIter) Close() error {
+	return i.files.Close()
+}
+
+type squashCommitFileBlobsIter struct {
+	files       FilesIter
+	readContent bool
+	row         sql.Row
+	filters     sql.Expression
+	ctx         *sql.Context
+}
+
+// NewCommitFileBlobsIter returns all blobs for the commit files in the given
+// iterator.
+func NewCommitFileBlobsIter(
+	files FilesIter,
+	filters sql.Expression,
+	readContent bool,
+) ChainableIter {
+	return &squashCommitFileBlobsIter{
+		files:       files,
+		filters:     filters,
+		readContent: readContent,
+	}
+}
+
+func (i *squashCommitFileBlobsIter) New(ctx *sql.Context, repo *Repository) (ChainableIter, error) {
+	iter, err := i.files.New(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &squashCommitFileBlobsIter{
+		files:       iter.(FilesIter),
+		ctx:         ctx,
+		filters:     i.filters,
+		readContent: i.readContent,
+	}, nil
+}
+
+func (i *squashCommitFileBlobsIter) Advance() error {
+	for {
+		err := i.files.Advance()
+		if err != nil {
+			return err
+		}
+
+		f := i.files.File()
+		row, err := blobToRow(i.Repository().ID, &f.Blob, i.readContent)
+		if err != nil {
+			return err
+		}
+
+		i.row = append(i.files.Row(), row...)
+
+		if i.filters != nil {
+			ok, err := evalFilters(i.ctx, i.row, i.filters)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				continue
+			}
+		}
+
+		return nil
+	}
+}
+
+func (i *squashCommitFileBlobsIter) Repository() *Repository { return i.files.Repository() }
+func (i *squashCommitFileBlobsIter) Row() sql.Row            { return i.row }
+func (i *squashCommitFileBlobsIter) Schema() sql.Schema {
+	return append(i.files.Schema(), BlobsSchema...)
+}
+func (i *squashCommitFileBlobsIter) Close() error {
 	return i.files.Close()
 }
 

@@ -699,6 +699,45 @@ func TestCommitBlobsIter(t *testing.T) {
 	require.Len(rows, 52)
 }
 
+func TestCommitFileBlobsIter(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	rows := chainableIterRows(
+		t, ctx,
+		NewCommitFileBlobsIter(
+			NewAllCommitFilesIter(nil).(FilesIter),
+			nil,
+			true,
+		),
+	)
+
+	expected := chainableIterRows(
+		t, ctx,
+		NewCommitFileFilesIter(
+			NewAllCommitFilesIter(nil).(FilesIter),
+			nil,
+			true,
+		),
+	)
+
+	// transform the result of the files table into the expected for blobs
+	offset := len(CommitFilesSchema)
+	size := offset + len(BlobsSchema)
+	for i, e := range expected {
+		var newRow = make(sql.Row, size)
+		copy(newRow[:offset], e[:offset])
+		newRow[offset] = e[offset]     // repository_id
+		newRow[offset+1] = e[offset+2] // blob_hash
+		newRow[offset+2] = e[offset+6] // blob_size
+		newRow[offset+3] = e[offset+5] // blob_content
+		expected[i] = newRow
+	}
+
+	require.ElementsMatch(expected, rows)
+}
+
 func chainableIterRowsError(t *testing.T, ctx *sql.Context, iter ChainableIter) {
 	table := newSquashTable(iter)
 	_, err := tableToRows(ctx, table)

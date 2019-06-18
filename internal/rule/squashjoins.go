@@ -5,11 +5,11 @@ import (
 	"reflect"
 
 	"github.com/src-d/gitbase"
-	errors "gopkg.in/src-d/go-errors.v1"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/analyzer"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/src-d/go-mysql-server/sql/plan"
+	errors "gopkg.in/src-d/go-errors.v1"
 )
 
 // SquashJoinsRule name.
@@ -764,6 +764,19 @@ func buildSquashedTable(
 				}
 
 				iter = gitbase.NewTreeEntryBlobsIter(it, f, readContent)
+			case gitbase.FilesIter:
+				var f sql.Expression
+				f, filters, err = filtersForJoin(
+					gitbase.CommitFilesTableName,
+					gitbase.BlobsTableName,
+					filters,
+					append(it.Schema(), gitbase.BlobsSchema...),
+				)
+				if err != nil {
+					return nil, err
+				}
+
+				iter = gitbase.NewCommitFileBlobsIter(it, f, readContent)
 			default:
 				addUnsquashable(gitbase.BlobsTableName)
 				continue
@@ -985,8 +998,8 @@ var tableHierarchy = []string{
 	gitbase.CommitTreesTableName,
 	gitbase.TreeEntriesTableName,
 	gitbase.CommitBlobsTableName,
-	gitbase.BlobsTableName,
 	gitbase.CommitFilesTableName,
+	gitbase.BlobsTableName,
 	gitbase.FilesTableName,
 }
 
@@ -1539,6 +1552,11 @@ func isRedundantFilter(f sql.Expression, t1, t2 string) bool {
 		return isEq(
 			isCol(gitbase.ReferencesTableName, "commit_hash"),
 			isCol(gitbase.CommitFilesTableName, "commit_hash"),
+		)(f)
+	case t1 == gitbase.CommitFilesTableName && t2 == gitbase.BlobsTableName:
+		return isEq(
+			isCol(gitbase.CommitFilesTableName, "blob_hash"),
+			isCol(gitbase.BlobsTableName, "blob_hash"),
 		)(f)
 	}
 	return false

@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/src-d/gitbase"
-	"github.com/stretchr/testify/require"
-	errors "gopkg.in/src-d/go-errors.v1"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/analyzer"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/src-d/go-mysql-server/sql/parse"
 	"github.com/src-d/go-mysql-server/sql/plan"
+	"github.com/stretchr/testify/require"
+	errors "gopkg.in/src-d/go-errors.v1"
 )
 
 func TestAnalyzeSquashJoinsExchange(t *testing.T) {
@@ -407,6 +407,7 @@ func TestBuildSquashedTable(t *testing.T) {
 	refsCommitFilesSchema := append(gitbase.RefsSchema, gitbase.CommitFilesSchema...)
 	commitsCommitFilesSchema := append(gitbase.CommitsSchema, gitbase.CommitFilesSchema...)
 	commitFilesFilesSchema := append(gitbase.CommitFilesSchema, gitbase.FilesSchema...)
+	commitFilesBlobsSchema := append(gitbase.CommitFilesSchema, gitbase.BlobsSchema...)
 
 	repoFilter := eq(
 		col(0, gitbase.RepositoriesTableName, "repository_id"),
@@ -711,6 +712,16 @@ func TestBuildSquashedTable(t *testing.T) {
 	filesFilter := eq(
 		col(0, gitbase.FilesTableName, "file_path"),
 		col(0, gitbase.FilesTableName, "file_path"),
+	)
+
+	commitFilesBlobsRedundantFilter := eq(
+		col(0, gitbase.CommitFilesTableName, "blob_hash"),
+		col(0, gitbase.BlobsTableName, "blob_hash"),
+	)
+
+	commitFilesBlobsFilter := eq(
+		col(0, gitbase.CommitFilesTableName, "commit_hash"),
+		col(0, gitbase.BlobsTableName, "blob_size"),
 	)
 
 	idx1, idx2 := &dummyLookup{1}, &dummyLookup{2}
@@ -2083,6 +2094,41 @@ func TestBuildSquashedTable(t *testing.T) {
 				nil,
 				gitbase.CommitFilesTableName,
 				gitbase.FilesTableName,
+			)),
+		},
+		{
+			"commit_files with blobs",
+			[]sql.Table{commitFiles, blobs},
+			[]sql.Expression{
+				blobFilter,
+				commitFilesFilter,
+				commitFilesBlobsFilter,
+				commitFilesBlobsRedundantFilter,
+			},
+			nil,
+			nil,
+			nil,
+			plan.NewResolvedTable(gitbase.NewSquashedTable(
+				gitbase.NewCommitFileBlobsIter(
+					gitbase.NewAllCommitFilesIter(
+						fixIdx(t, commitFilesFilter, gitbase.CommitFilesSchema),
+					),
+					and(
+						fixIdx(t, blobFilter, commitFilesBlobsSchema),
+						fixIdx(t, commitFilesBlobsFilter, commitFilesBlobsSchema),
+					),
+					false,
+				),
+				nil,
+				[]sql.Expression{
+					blobFilter,
+					commitFilesFilter,
+					commitFilesBlobsFilter,
+					commitFilesBlobsRedundantFilter,
+				},
+				nil,
+				gitbase.CommitFilesTableName,
+				gitbase.BlobsTableName,
 			)),
 		},
 		{
