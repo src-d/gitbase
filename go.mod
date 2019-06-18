@@ -8,7 +8,7 @@ require (
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/hashicorp/golang-lru v0.5.0
-	github.com/hhatto/gocloc v0.0.0-20190602072209-764f3f6ae21e
+	github.com/hhatto/gocloc v0.3.0
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/miekg/dns v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
