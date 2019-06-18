@@ -9,13 +9,15 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
-	lru "github.com/hashicorp/golang-lru"
-	"github.com/sirupsen/logrus"
 	bblfsh "github.com/bblfsh/go-client/v4"
 	derrors "github.com/bblfsh/sdk/v3/driver/errors"
 	"github.com/bblfsh/sdk/v3/uast"
 	"github.com/bblfsh/sdk/v3/uast/nodes"
+	"github.com/go-kit/kit/metrics/discard"
+	lru "github.com/hashicorp/golang-lru"
+	"github.com/sirupsen/logrus"
 
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
@@ -28,6 +30,28 @@ const (
 	uastMaxBlobSizeKey     = "GITBASE_MAX_UAST_BLOB_SIZE"
 	defaultUASTMaxBlobSize = 5 * 1024 * 1024 // 5MB
 )
+
+var (
+	// UastHitCacheCounter describes a metric that accumulates number of hit cache uast queries monotonically.
+	UastHitCacheCounter = discard.NewCounter()
+
+	// UastMissCacheCounter describes a metric that accumulates number of miss cache uast queries monotonically.
+	UastMissCacheCounter = discard.NewCounter()
+
+	// UastQueryHistogram describes a uast queries latency.
+	UastQueryHistogram = discard.NewHistogram()
+)
+
+func observeQuery(lang, xpath string, t time.Time) func(bool) {
+	return func(ok bool) {
+		UastQueryHistogram.With("lang", lang, "xpath", xpath, "duration", "seconds").Observe(time.Since(t).Seconds())
+		if ok {
+			UastHitCacheCounter.With("lang", lang, "xpath", xpath).Add(1)
+		} else {
+			UastMissCacheCounter.With("lang", lang, "xpath", xpath).Add(1)
+		}
+	}
+}
 
 var uastCache *lru.Cache
 var uastMaxBlobSize int
@@ -217,6 +241,8 @@ func (u *uastFunc) getUAST(
 	lang, xpath string,
 	mode bblfsh.Mode,
 ) (interface{}, error) {
+	finish := observeQuery(lang, xpath, time.Now())
+
 	u.m.Lock()
 	key, err := computeKey(u.h, mode.String(), lang, blob)
 	u.m.Unlock()
@@ -262,6 +288,8 @@ func (u *uastFunc) getUAST(
 			Error("unable to marshal UAST nodes")
 		return nil, nil
 	}
+
+	finish(ok)
 
 	return result, nil
 }
