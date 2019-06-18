@@ -42,5 +42,3 @@ ci-e2e: packages
 	-must-run \
 	-gitbase-bin="$(TRAVIS_BUILD_DIR)/build/gitbase_linux_amd64/gitbase" \
 	-gitbase-repos="$(TRAVIS_BUILD_DIR)/.." -v
-dependencies:
-	GO111MODULE=on go get -v ./...
