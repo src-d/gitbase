@@ -4,8 +4,8 @@ import (
 	"io"
 
 	"github.com/src-d/go-borges"
-	errors "gopkg.in/src-d/go-errors.v1"
 	"github.com/src-d/go-mysql-server/sql"
+	errors "gopkg.in/src-d/go-errors.v1"
 )
 
 // partitioned is an embeddable helper that contains the methods for a table
@@ -49,10 +49,9 @@ func (p RepositoryPartition) Key() []byte {
 }
 
 type repositoryPartitionIter struct {
-	// repos []string
-	// pos   int
-	repoIter borges.RepositoryIterator
-	lib      borges.Library
+	repoIter   borges.RepositoryIterator
+	lib        borges.Library
+	skipErrors bool
 }
 
 func newRepositoryPartitionIter(ctx *sql.Context) (sql.PartitionIter, error) {
@@ -67,32 +66,29 @@ func newRepositoryPartitionIter(ctx *sql.Context) (sql.PartitionIter, error) {
 	}
 
 	return &repositoryPartitionIter{
-		repoIter: it,
-		lib:      s.Pool.library,
+		repoIter:   it,
+		lib:        s.Pool.library,
+		skipErrors: s.SkipGitErrors,
 	}, nil
-
-	// return &repositoryPartitionIter{repos: s.Pool.idOrder}, nil
 }
 
 func (i *repositoryPartitionIter) Next() (sql.Partition, error) {
-	// if i.pos >= len(i.repos) {
-	// 	return nil, io.EOF
-	// }
-
-	// i.pos++
-	// return RepositoryPartition(i.repos[i.pos-1]), nil
-
-	r, err := i.repoIter.Next()
-	if err != nil {
-		return nil, err
+	var r borges.Repository
+	var err error
+	for {
+		r, err = i.repoIter.Next()
+		if err == nil {
+			break
+		}
+		if err == io.EOF || !i.skipErrors {
+			return nil, err
+		}
 	}
 
-	// br := borgesRepo(i.lib, r, cache.NewObjectLRU(64*cache.MiByte))
 	return RepositoryPartition(r.ID().String()), nil
 }
 
 func (i *repositoryPartitionIter) Close() error {
-	// i.pos = len(i.repos)
 	if i.repoIter != nil {
 		i.repoIter.Close()
 	}

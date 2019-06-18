@@ -51,9 +51,6 @@ func TestSquashContextCancelled(t *testing.T) {
 	require.NoError(err)
 
 	for _, it := range iters {
-		// repo, err := session.Pool.GetPos(0)
-		// require.NoError(err)
-
 		iter, err := it.New(ctx, repo)
 		require.NoError(err)
 
@@ -789,7 +786,6 @@ func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Cont
 		require.NoError(err)
 		if ok {
 			lib.AddPlain(pathToName(path), path, nil)
-			// pool.AddGit(f.Worktree().Root())
 		}
 	}
 
@@ -974,8 +970,6 @@ func TestRefsIterSiva(t *testing.T) {
 	require.NoError(t, err)
 
 	path := filepath.Join(cwd, "_testdata", "05893125684f2d3943cd84a7ab2b75e53668fba1.siva")
-	// pool := NewRepositoryPool(cache.DefaultMaxSize)
-	// require.NoError(t, pool.AddSivaFile(path))
 
 	lib, pool, err := newMultiPool()
 	require.NoError(t, err)
@@ -996,14 +990,12 @@ func TestRefsIterSiva(t *testing.T) {
 
 	expected := []sql.Row{
 		{
-			path,
-			// "refs/heads/HEAD/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			"015da2f4-6d89-7ec8-5ac9-a38329ea875b",
 			"HEAD",
 			"dbfab055c70379219cbcf422f05316fdf4e1aed3",
 		},
 		{
-			path,
-			// "refs/heads/master/015da2f4-6d89-7ec8-5ac9-a38329ea875b",
+			"015da2f4-6d89-7ec8-5ac9-a38329ea875b",
 			"refs/heads/master",
 			"dbfab055c70379219cbcf422f05316fdf4e1aed3",
 		},
