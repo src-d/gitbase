@@ -169,10 +169,10 @@ func TestCommitTreesRowKeyMapper(t *testing.T) {
 	require.Equal(row, row2)
 }
 
-// func TestCommitTreesIndexIterClosed(t *testing.T) {
-// 	testTableIndexIterClosed(t, new(commitTreesTable))
-// }
+func TestCommitTreesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(commitTreesTable))
+}
 
-// func TestCommitTreesIterClosed(t *testing.T) {
-// 	testTableIterClosed(t, new(commitTreesTable))
-// }
+func TestCommitTreesIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(commitTreesTable))
+}

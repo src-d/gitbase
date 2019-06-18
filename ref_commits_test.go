@@ -183,10 +183,10 @@ func TestRefCommitsRowKeyMapper(t *testing.T) {
 	require.Equal(row, row2)
 }
 
-// func TestRefCommitsIndexIterClosed(t *testing.T) {
-// 	testTableIndexIterClosed(t, new(refCommitsTable))
-// }
+func TestRefCommitsIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(refCommitsTable))
+}
 
-// func TestRefCommitsIterClosed(t *testing.T) {
-// 	testTableIterClosed(t, new(refCommitsTable))
-// }
+func TestRefCommitsIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(refCommitsTable))
+}

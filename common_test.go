@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/src-d/go-borges"
@@ -78,221 +79,194 @@ func tableToRows(ctx *sql.Context, t sql.Table) ([]sql.Row, error) {
 	return sql.NodeToRows(ctx, plan.NewResolvedTable(t))
 }
 
-// /*
+/*
 
-// The following code adds utilities to test that siva files are properly closed.
-// Instead of using normal setup you can use setupSivaCloseRepos, it returns
-// a context with a pool with all the sivas in "_testdata" directory. It also
-// tracks all siva filesystems opened. Its closed state can be checked with
-// closedSiva.Check().
+The following code adds utilities to test that siva files are properly closed.
+Instead of using normal setup you can use setupSivaCloseRepos, it returns
+a context with a pool with all the sivas in "_testdata" directory. It also
+tracks all siva filesystems opened. Its closed state can be checked with
+closedLib.Check().
 
-// */
+*/
 
-// type closedSiva struct {
-// 	closed []bool
-// 	m      sync.Mutex
-// }
+type closedRepository struct {
+	borges.Repository
+	closed bool
+}
 
-// func (c *closedSiva) NewFS(path string) (billy.Filesystem, error) {
-// 	c.m.Lock()
-// 	defer c.m.Unlock()
+func (c *closedRepository) Close() error {
+	c.closed = true
+	return c.Repository.Close()
+}
 
-// 	localfs := osfs.New(filepath.Dir(path))
+type closedLibrary struct {
+	*multiLibrary
+	repos []*closedRepository
+	m     sync.Mutex
+}
 
-// 	tmpDir, err := ioutil.TempDir(os.TempDir(), "gitbase-siva")
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func (c *closedLibrary) trackRepo(r borges.Repository) *closedRepository {
+	c.m.Lock()
+	defer c.m.Unlock()
 
-// 	tmpfs := osfs.New(tmpDir)
+	closed := &closedRepository{Repository: r}
+	c.repos = append(c.repos, closed)
 
-// 	fs, err := sivafs.NewFilesystem(localfs, filepath.Base(path), tmpfs)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	return closed
+}
 
-// 	pos := len(c.closed)
-// 	c.closed = append(c.closed, false)
+func (c *closedLibrary) Check() bool {
+	for _, r := range c.repos {
+		if !r.closed {
+			return false
+		}
+	}
+	return true
+}
 
-// 	fun := func() {
-// 		c.m.Lock()
-// 		defer c.m.Unlock()
-// 		c.closed[pos] = true
-// 	}
+func (c *closedLibrary) Get(
+	r borges.RepositoryID,
+	m borges.Mode,
+) (borges.Repository, error) {
+	repo, err := c.multiLibrary.Get(r, m)
+	if err != nil {
+		return nil, err
+	}
 
-// 	return &closedSivaFilesystem{fs, fun}, nil
-// }
+	return c.trackRepo(repo), nil
+}
 
-// func (c *closedSiva) Check() bool {
-// 	for _, f := range c.closed {
-// 		if !f {
-// 			return false
-// 		}
-// 	}
+func (c *closedLibrary) Repositories(m borges.Mode) (borges.RepositoryIterator, error) {
+	iter, err := c.multiLibrary.Repositories(m)
+	if err != nil {
+		return nil, err
+	}
 
-// 	return true
-// }
+	return &closedIter{
+		RepositoryIterator: iter,
+		c:                  c,
+	}, nil
+}
 
-// type closedSivaFilesystem struct {
-// 	sivafs.SivaFS
-// 	closeFunc func()
-// }
+type closedIter struct {
+	borges.RepositoryIterator
+	c *closedLibrary
+}
 
-// func (c *closedSivaFilesystem) Sync() error {
-// 	if c.closeFunc != nil {
-// 		c.closeFunc()
-// 	}
+func (i *closedIter) Next() (borges.Repository, error) {
+	repo, err := i.RepositoryIterator.Next()
+	if err != nil {
+		return nil, err
+	}
 
-// 	return c.SivaFS.Sync()
-// }
+	return i.c.trackRepo(repo), nil
+}
 
-// var _ *Repository = new(closedSivaRepository)
+// setupSivaCloseRepos creates a pool with siva files that can be checked
+// if they've been closed.
+func setupSivaCloseRepos(t *testing.T, dir string) (*sql.Context, *closedLibrary) {
+	require := require.New(t)
 
-// type closedSivaRepository struct {
-// 	*git.Repository
-// 	path  string
-// 	siva  *closedSiva
-// 	cache cache.Object
-// }
+	t.Helper()
 
-// func (c *closedSivaRepository) ID() string {
-// 	return c.path
-// }
+	lib, err := newMultiLibrary()
+	require.NoError(err)
 
-// // func (c *closedSivaRepository) Repo() (*Repository, error) {
-// // 	fs, err := c.FS()
-// // 	if err != nil {
-// // 		return nil, err
-// // 	}
+	closedLib := &closedLibrary{multiLibrary: lib}
+	pool := NewRepositoryPool(cache.DefaultMaxSize, closedLib)
 
-// // 	s := fs.(*closedSivaFilesystem)
-// // 	closeFunc := func() { s.Sync() }
+	cwd, err := os.Getwd()
+	require.NoError(err)
+	cwdFS := osfs.New(cwd)
 
-// // 	sto := filesystem.NewStorageWithOptions(fs, c.Cache(), gitStorerOptions)
-// // 	repo, err := git.Open(sto, nil)
-// // 	if err != nil {
-// // 		return nil, err
+	filepath.Walk(dir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
 
-// // 	}
+			if IsSivaFile(path) {
+				require.NoError(lib.AddSiva(path, cwdFS))
+			}
 
-// // 	return NewRepository(c.path, repo, closeFunc), nil
-// // }
+			return nil
+		},
+	)
 
-// func (c *closedSivaRepository) FS() (billy.Filesystem, error) {
-// 	return c.siva.NewFS(c.path)
-// }
+	session := NewSession(pool, WithSkipGitErrors(true))
+	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
-// func (c *closedSivaRepository) Path() string {
-// 	return c.path
-// }
+	return ctx, closedLib
+}
 
-// func (c *closedSivaRepository) Cache() cache.Object {
-// 	if c.cache == nil {
-// 		c.cache = cache.NewObjectLRUDefault()
-// 	}
+func testTableIndexIterClosed(t *testing.T, table sql.IndexableTable) {
+	t.Helper()
 
-// 	return c.cache
-// }
+	require := require.New(t)
+	ctx, closed := setupSivaCloseRepos(t, "_testdata")
 
-// // setupSivaCloseRepos creates a pool with siva files that can be checked
-// // if they've been closed.
-// func setupSivaCloseRepos(t *testing.T, dir string) (*sql.Context, *closedSiva) {
-// 	require := require.New(t)
+	iter, err := table.IndexKeyValues(ctx, nil)
+	require.NoError(err)
 
-// 	t.Helper()
+	for {
+		_, i, err := iter.Next()
+		if err != nil {
+			require.Equal(io.EOF, err)
+			break
+		}
 
-// 	lib, err := newMultiLibrary()
-// 	require.NoError(err)
+		i.Close()
+	}
 
-// 	cs := new(closedSiva)
-// 	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	iter.Close()
+	require.True(closed.Check())
+}
 
-// 	filepath.Walk(dir,
-// 		func(path string, info os.FileInfo, err error) error {
-// 			if strings.HasSuffix(path, ".siva") {
-// 				repo := &closedSivaRepository{path: path, siva: cs}
-// 				err := pool.Add(repo)
-// 				require.NoError(err)
-// 			}
+func testTableIterators(t *testing.T, table sql.IndexableTable, columns []string) {
+	t.Helper()
 
-// 			return nil
-// 		},
-// 	)
+	require := require.New(t)
+	ctx, closed := setupSivaCloseRepos(t, "_testdata")
 
-// 	session := NewSession(pool, WithSkipGitErrors(true))
-// 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
+	rows, _ := tableToRows(ctx, table)
+	expected := len(rows)
 
-// 	return ctx, cs
-// }
+	iter, err := table.IndexKeyValues(ctx, columns)
+	require.NoError(err)
+	actual := 0
+	for {
+		_, i, err := iter.Next()
+		if err != nil {
+			require.Equal(io.EOF, err)
+			break
+		}
+		for {
+			_, _, err := i.Next()
+			if err != nil {
+				require.Equal(io.EOF, err)
+				break
+			}
+			actual++
+		}
 
-// func testTableIndexIterClosed(t *testing.T, table sql.IndexableTable) {
-// 	t.Helper()
+		i.Close()
+	}
+	iter.Close()
+	require.True(closed.Check())
 
-// 	require := require.New(t)
-// 	ctx, closed := setupSivaCloseRepos(t, "_testdata")
+	require.EqualValues(expected, actual)
+}
 
-// 	iter, err := table.IndexKeyValues(ctx, nil)
-// 	require.NoError(err)
+func testTableIterClosed(t *testing.T, table sql.IndexableTable) {
+	t.Helper()
 
-// 	for {
-// 		_, i, err := iter.Next()
-// 		if err != nil {
-// 			require.Equal(io.EOF, err)
-// 			break
-// 		}
+	require := require.New(t)
+	ctx, closed := setupSivaCloseRepos(t, "_testdata")
+	_, err := tableToRows(ctx, table)
+	require.NoError(err)
 
-// 		i.Close()
-// 	}
-
-// 	iter.Close()
-// 	require.True(closed.Check())
-// }
-
-// func testTableIterators(t *testing.T, table sql.IndexableTable, columns []string) {
-// 	t.Helper()
-
-// 	require := require.New(t)
-// 	ctx, closed := setupSivaCloseRepos(t, "_testdata")
-
-// 	rows, _ := tableToRows(ctx, table)
-// 	expected := len(rows)
-
-// 	iter, err := table.IndexKeyValues(ctx, columns)
-// 	require.NoError(err)
-// 	actual := 0
-// 	for {
-// 		_, i, err := iter.Next()
-// 		if err != nil {
-// 			require.Equal(io.EOF, err)
-// 			break
-// 		}
-// 		for {
-// 			_, _, err := i.Next()
-// 			if err != nil {
-// 				require.Equal(io.EOF, err)
-// 				break
-// 			}
-// 			actual++
-// 		}
-
-// 		i.Close()
-// 	}
-// 	iter.Close()
-// 	require.True(closed.Check())
-
-// 	require.EqualValues(expected, actual)
-// }
-
-// func testTableIterClosed(t *testing.T, table sql.IndexableTable) {
-// 	t.Helper()
-
-// 	require := require.New(t)
-// 	ctx, closed := setupSivaCloseRepos(t, "_testdata")
-// 	_, err := tableToRows(ctx, table)
-// 	require.NoError(err)
-
-// 	require.True(closed.Check())
-// }
+	require.True(closed.Check())
+}
 
 func poolFromCtx(t *testing.T, ctx *sql.Context) *RepositoryPool {
 	t.Helper()
