@@ -156,11 +156,11 @@ func TestEncodeRemoteIndexKey(t *testing.T) {
 	require.Equal(k, k2)
 }
 
-// func TestRemotesIndexIterClosed(t *testing.T) {
-// 	testTableIndexIterClosed(t, new(remotesTable))
-// }
+func TestRemotesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(remotesTable))
+}
 
-// func TestRemotesIterators(t *testing.T) {
-// 	// columns names just for debugging
-// 	testTableIterators(t, new(remotesTable), []string{"remote_name", "remote_push_url"})
-// }
+func TestRemotesIterators(t *testing.T) {
+	// columns names just for debugging
+	testTableIterators(t, new(remotesTable), []string{"remote_name", "remote_push_url"})
+}

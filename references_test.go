@@ -133,15 +133,15 @@ func TestRefRowKeyMapper(t *testing.T) {
 	require.Equal(row, row2)
 }
 
-// func TestReferencesIndexIterClosed(t *testing.T) {
-// 	testTableIndexIterClosed(t, new(referencesTable))
-// }
+func TestReferencesIndexIterClosed(t *testing.T) {
+	testTableIndexIterClosed(t, new(referencesTable))
+}
 
-// func TestReferencesIterClosed(t *testing.T) {
-// 	testTableIterClosed(t, new(referencesTable))
-// }
+func TestReferencesIterClosed(t *testing.T) {
+	testTableIterClosed(t, new(referencesTable))
+}
 
-// func TestReferencesIterators(t *testing.T) {
-// 	// columns names just for debugging
-// 	testTableIterators(t, new(referencesTable), []string{"ref_name", "commit_hash"})
-// }
+func TestReferencesIterators(t *testing.T) {
+	// columns names just for debugging
+	testTableIterators(t, new(referencesTable), []string{"ref_name", "commit_hash"})
+}
