@@ -52,12 +52,6 @@ func TestIntegration(t *testing.T) {
 	lib.AddLocation(loc)
 
 	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
-	// require.NoError(t, pool.AddGitWithID("worktree", path))
-
-	// lib, pool, err := test.NewMultiPool()
-	// require.NoError(err)
-	// require.NoError(t, lib.AddPlain("worktree", path, 0))
-
 	engine := newBaseEngine(pool)
 
 	testCases := []struct {
