@@ -6,12 +6,14 @@ require (
 	github.com/bblfsh/go-client/v4 v4.1.0
 	github.com/bblfsh/sdk/v3 v3.1.0
 	github.com/emirpasic/gods v1.12.0 // indirect
+	github.com/go-kit/kit v0.8.0
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/hashicorp/golang-lru v0.5.0
 	github.com/hhatto/gocloc v0.3.0
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/miekg/dns v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
+	github.com/prometheus/client_golang v1.0.0
 	github.com/sirupsen/logrus v1.3.0
 	github.com/src-d/enry/v2 v2.0.0
 	github.com/src-d/go-git v4.7.0+incompatible
