@@ -6,20 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0-beta2] - 2019-06-18
+
 ### Added
 
+- Added `json_unquote` function.
 - Added `commit_file_stats` function.
 - Added documentation about `commit_stats`.
--  Add metrics (engine, analyzer, regex, pilosa) based on go-kit interface. ([#744](https://github.com/src-d/go-mysql-server/pull/744))
+- Add metrics (engine, analyzer, regex, pilosa) based on go-kit interface. ([#744](https://github.com/src-d/go-mysql-server/pull/744))
+
 ### Changed
 
-- internal/function: gracefully handle errors in commit_stats.
 - Removed vendor folder.
 - Upgrade `enry` to version `v2.0.0`.
 - Switch `gocloc` to version `v0.3.0`.
 
 ### Fixed
 
+- internal/function: gracefully handle errors in commit_stats.
 - internal/function: take into account if repository is resolved in commit_stats ([#863](https://github.com/src-d/gitbase/pull/863))
 - internal/function: `Files` field in `commit_stats` contains now proper results.
 
