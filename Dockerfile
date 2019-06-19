@@ -1,7 +1,7 @@
 #================================
 # Stage 1: Build Gitbase
 #================================
-FROM golang:1.12-alpine as builder
+FROM golang:1.11-alpine as builder
 
 ENV GITBASE_REPO=github.com/src-d/gitbase
 ENV GITBASE_PATH=$GOPATH/src/$GITBASE_REPO
