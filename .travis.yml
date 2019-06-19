@@ -22,10 +22,7 @@ before_install:
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
 
 before_script:
-  - docker run -d --name bblfshd --privileged -p 9432:9432 -v /var/lib/bblfshd:/var/lib/bblfshd bblfsh/bblfshd
-  - docker exec -it bblfshd bblfshctl driver install python bblfsh/python-driver
-  - docker exec -it bblfshd bblfshctl driver install php bblfsh/php-driver
-  - docker exec -it bblfshd bblfshctl driver install go bblfsh/go-driver
+  - docker run -d --name bblfshd --privileged -p 9432:9432 -v /var/lib/bblfshd:/var/lib/bblfshd bblfsh/bblfshd:v2.14.0-drivers
   - go get -v github.com/go-sql-driver/mysql/...
   - go get gopkg.in/src-d/go-git-fixtures.v3/...
 

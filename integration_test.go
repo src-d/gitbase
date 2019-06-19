@@ -15,14 +15,14 @@ import (
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
-	"github.com/stretchr/testify/require"
 	fixtures "github.com/src-d/go-git-fixtures"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	sqle "github.com/src-d/go-mysql-server"
 	"github.com/src-d/go-mysql-server/auth"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/analyzer"
 	"github.com/src-d/go-mysql-server/sql/index/pilosa"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestIntegration(t *testing.T) {
@@ -330,20 +330,20 @@ func TestIntegration(t *testing.T) {
 		},
 		{
 			`
-			SELECT
-				repository_id,
-				contributor_count
-			FROM (
-				SELECT
-					repository_id,
-					COUNT(DISTINCT commit_author_email) AS contributor_count
-				FROM commits
-				GROUP BY repository_id
-			) AS q
-			ORDER BY contributor_count DESC
-			LIMIT 10
+			SELECT 
+	      		repository_id, 
+	      		COUNT(commit_author_email) as contributor_count 
+      		FROM (
+	      		SELECT DISTINCT 
+		      		repository_id, 
+		      		commit_author_email 
+	      		FROM commits
+      		) as q 
+      		GROUP BY repository_id  
+      		ORDER BY contributor_count DESC 
+      		LIMIT 10
 			`,
-			[]sql.Row{{"worktree", int64(9)}},
+			[]sql.Row{{"worktree", int64(2)}},
 		},
 		{
 			`SELECT cf.file_path
@@ -394,7 +394,6 @@ func TestIntegration(t *testing.T) {
 				require.NoError(err)
 				rows, err := sql.RowIterToRows(iter)
 				require.NoError(err)
-
 				require.ElementsMatch(tt.result, rows)
 			})
 		}
