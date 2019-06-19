@@ -19,30 +19,8 @@ import (
 )
 
 func TestCommitStatsEval(t *testing.T) {
-	require.NoError(t, fixtures.Init())
-	defer func() {
-		require.NoError(t, fixtures.Clean())
-	}()
-
-	path := fixtures.ByTag("worktree").One().Worktree().Root()
-	pathLib := path + "-lib"
-	pathRepo := filepath.Join(pathLib, "worktree")
-
-	err := os.MkdirAll(pathLib, 0777)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, os.RemoveAll(pathLib))
-	}()
-
-	err = os.Rename(path, pathRepo)
-	require.NoError(t, err)
-
-	lib := plain.NewLibrary("plain")
-	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
-	require.NoError(t, err)
-	lib.AddLocation(loc)
-
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool, cleanup := setupPool(t)
+	defer cleanup()
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -104,4 +82,33 @@ func TestCommitStatsEval(t *testing.T) {
 			require.EqualValues(t, tc.expected, result)
 		})
 	}
+}
+
+func setupPool(t *testing.T) (*gitbase.RepositoryPool, func()) {
+	t.Helper()
+	require.NoError(t, fixtures.Init())
+
+	path := fixtures.ByTag("worktree").One().Worktree().Root()
+	pathLib := path + "-lib"
+	pathRepo := filepath.Join(pathLib, "worktree")
+
+	cleanup := func() {
+		require.NoError(t, fixtures.Clean())
+		require.NoError(t, os.RemoveAll(pathLib))
+	}
+
+	err := os.MkdirAll(pathLib, 0777)
+	require.NoError(t, err)
+
+	err = os.Rename(path, pathRepo)
+	require.NoError(t, err)
+
+	lib := plain.NewLibrary("plain")
+	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
+	require.NoError(t, err)
+	lib.AddLocation(loc)
+
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+
+	return pool, cleanup
 }
