@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0-beta3] - 2019-06-19
+
+### Fixed
+
+- bblfsh aliases are now handled correctly ([#728](https://github.com/src-d/gitbase/issues/728)).
+- sql: correctly handle nulls in SQL type conversion ([#753](https://github.com/src-d/go-mysql-server/pull/753))
+- sql/parse: error for unsupported distinct on aggregations ([#869](https://github.com/src-d/gitbase/issues/869))
+
 ## [0.21.0-beta2] - 2019-06-18
 
 ### Added

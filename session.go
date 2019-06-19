@@ -105,7 +105,7 @@ func (c *BblfshClient) IsLanguageSupported(ctx context.Context, lang string) (bo
 	}
 
 	for _, lng := range langs {
-		if lng == strings.ToLower(lang) {
+		if strings.ToLower(lng) == strings.ToLower(lang) {
 			return true, nil
 		}
 	}
@@ -126,6 +126,7 @@ func (c *BblfshClient) SupportedLanguages(ctx context.Context) ([]string, error)
 
 		for _, dm := range driverManifests {
 			c.supportedLanguages = append(c.supportedLanguages, dm.Language)
+			c.supportedLanguages = append(c.supportedLanguages, dm.Aliases...)
 		}
 	}
 

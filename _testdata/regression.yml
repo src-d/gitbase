@@ -23,7 +23,19 @@
   ID: 'query04'
   Name: 'Top 10 repositories by contributor count (all branches)'
   Statements:
-    - SELECT repository_id,contributor_count FROM (SELECT repository_id, COUNT(DISTINCT commit_author_email) AS contributor_count FROM commits GROUP BY repository_id) AS q ORDER BY contributor_count DESC LIMIT 10
+    - >
+      SELECT 
+        repository_id, 
+        COUNT(commit_author_email) as contributor_count 
+      FROM (
+        SELECT DISTINCT 
+          repository_id, 
+          commit_author_email 
+        FROM commits
+      ) as q 
+      GROUP BY repository_id  
+      ORDER BY contributor_count DESC 
+      LIMIT 10
 -
   ID: 'query05'
   Name: 'Query all files from HEAD'

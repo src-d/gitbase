@@ -4,7 +4,7 @@
 
 `gitbase` optional dependencies that should be running on your system if you're planning on using certain functionality.
 
-- [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.10.0 (only if you're planning to use the `UAST` functionality provided in gitbase)
+- [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.14.0 (only if you're planning to use the `UAST` functionality provided in gitbase)
 
 ## Installing gitbase
 
