@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Now gitbase uses [go-borges](https://github.com/src-d/go-borges) to access repositories
+  - The type of files in each directory has to be specified ([#867](https://github.com/src-d/gitbase/pull/867))
+  - Supports new rooted repository format and separates references and objects from each repo (https://github.com/src-d/borges/issues/389)
 - Changed cli to be able to specify different formats ([#866](https://github.com/src-d/gitbase/issues/866))
 
 ## [0.21.0-beta3] - 2019-06-19
