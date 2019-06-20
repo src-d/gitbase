@@ -108,8 +108,10 @@ func TestRepositoryPoolIterator(t *testing.T) {
 	require.NoError(err)
 
 	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
-	lib.AddPlain("0", path, nil)
-	lib.AddPlain("1", path, nil)
+	err = lib.AddPlain("0", path, nil)
+	require.NoError(err)
+	err = lib.AddPlain("1", path, nil)
+	require.NoError(err)
 
 	iter, err := pool.RepoIter()
 	require.NoError(err)

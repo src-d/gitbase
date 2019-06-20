@@ -321,8 +321,15 @@ func newMultiLibrary() (*multiLibrary, error) {
 	}
 
 	libs := libraries.New(libraries.Options{})
-	libs.Add(plainLib)
-	libs.Add(sivaLib)
+
+	err = libs.Add(plainLib)
+	if err != nil {
+		return nil, err
+	}
+	err = libs.Add(sivaLib)
+	if err != nil {
+		return nil, err
+	}
 
 	return &multiLibrary{
 		lib:     libs,
@@ -465,8 +472,8 @@ func copyFile(
 
 	_, err = io.Copy(fd, fo)
 	if err != nil {
-		fd.Close()
-		dstFS.Remove(dst)
+		_ = fd.Close()
+		_ = dstFS.Remove(dst)
 		return err
 	}
 

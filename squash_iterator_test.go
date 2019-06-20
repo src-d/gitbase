@@ -785,7 +785,8 @@ func setupIterWithErrors(t *testing.T, badRepo bool, skipErrors bool) (*sql.Cont
 		ok, err := IsGitRepo(path)
 		require.NoError(err)
 		if ok {
-			lib.AddPlain(pathToName(path), path, nil)
+			err = lib.AddPlain(pathToName(path), path, nil)
+			require.NoError(err)
 		}
 	}
 

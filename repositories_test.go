@@ -26,7 +26,8 @@ func TestRepositoriesTable(t *testing.T) {
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 	for _, id := range repoIDs {
-		lib.AddPlain(id, path, nil)
+		err = lib.AddPlain(id, path, nil)
+		require.NoError(err)
 	}
 
 	session := NewSession(pool)
