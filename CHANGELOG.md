@@ -6,10 +6,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0-beta1] - 2019-06-20
+
+### Added
+
 - Now gitbase uses [go-borges](https://github.com/src-d/go-borges) to access repositories
   - The type of files in each directory has to be specified ([#867](https://github.com/src-d/gitbase/pull/867))
   - Supports new rooted repository format and separates references and objects from each repo (https://github.com/src-d/borges/issues/389)
+
+### Changed
+
 - Changed cli to be able to specify different formats ([#866](https://github.com/src-d/gitbase/issues/866))
+
+### Fixed
+
+- function: correctly transform up explode nodes ([#757](https://github.com/src-d/go-mysql-server/pull/757)) 
+
+## [0.21.0] - 2019-06-20
+
+### Known bugs
+- https://github.com/src-d/gitbase/issues/886
+
+### Added
+- Added `json_unquote` function.
+- Added `commit_file_stats` function.
+- Added documentation about `commit_stats`.
+- Add metrics (engine, analyzer, regex, pilosa) based on go-kit interface. ([#744](https://github.com/src-d/go-mysql-server/pull/744))
+- `commit_files` is now squashable with `blobs`.
+- Moved to Go modules.
+- Add COMMIT_STATS function
+- sql: implement EXPLODE and generators ([#720](https://github.com/src-d/go-mysql-server/pull/720))
+
+### Changed
+
+- Removed vendor folder.
+- Upgrade `enry` to version `v2.0.0`.
+- Switch `gocloc` to version `v0.3.0`.
+- Upgrade vitess to v1.8.0 ([#738](https://github.com/src-d/go-mysql-server/pull/738))
+- Upgrade bblfsh to v4.1.0.
+- Upgrade gocloc to latest master 764f3f6ae21e.
+
+### Fixed
+
+- bblfsh aliases are now handled correctly ([#728](https://github.com/src-d/gitbase/issues/728)).
+- sql: correctly handle nulls in SQL type conversion ([#753](https://github.com/src-d/go-mysql-server/pull/753))
+- sql/parse: error for unsupported distinct on aggregations ([#869](https://github.com/src-d/gitbase/issues/869))
+- internal/function: gracefully handle errors in commit_stats.
+- internal/function: take into account if repository is resolved in commit_stats ([#863](https://github.com/src-d/gitbase/pull/863))
+- internal/function: `Files` field in `commit_stats` contains now proper results.
+- Fix parsing of quoted identifiers in SHOW CREATE TABLE queries ([#737](https://github.com/src-d/go-mysql-server/pull/737))
+- sql/analyzer: back-propagate expression names after adding convert ([#739](https://github.com/src-d/go-mysql-server/pull/739))
+- sql/expression: allow null literals in case branches ([#741](https://github.com/src-d/go-mysql-server/pull/741))
+- sql/plan: make LEFT and RIGHT join work as expected ([#743](https://github.com/src-d/go-mysql-server/pull/743))
 
 ## [0.21.0-beta3] - 2019-06-19
 
