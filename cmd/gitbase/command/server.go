@@ -290,7 +290,16 @@ func (c *Server) addDirectories() error {
 		}
 	}
 
-	return nil
+	repos, err := c.rootLibrary.Repositories(borges.ReadOnlyMode)
+	if err != nil {
+		return err
+	}
+
+	return repos.ForEach(func(r borges.Repository) error {
+		id := r.ID().String()
+		logrus.WithField("id", id).Debug("repository added")
+		return r.Close()
+	})
 }
 
 func (c *Server) addDirectory(d directory) error {
