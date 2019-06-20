@@ -347,12 +347,7 @@ func newBlobsKeyValueIter(
 		return nil, err
 	}
 
-	r, err := pool.GetRepo(repo.ID())
-	if err != nil {
-		return nil, err
-	}
-
-	idx, err := newRepositoryIndex(r)
+	idx, err := newRepositoryIndex(repo)
 	if err != nil {
 		return nil, err
 	}

@@ -14,21 +14,6 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
-// func TestRepository(t *testing.T) {
-// 	require := require.New(t)
-
-// 	gitRepo := &git.Repository{}
-// 	repo := NewRepository(borges.RepositoryID("identifier"), gitRepo, nil)
-
-// 	require.Equal("identifier", repo.ID())
-// 	require.Equal(gitRepo, repo.Repository)
-
-// 	repo = NewRepository("/other/path", nil, nil)
-
-// 	require.Equal("/other/path", repo.ID())
-// 	require.Nil(repo.Repository)
-// }
-
 func TestRepositoryPoolBasic(t *testing.T) {
 	require := require.New(t)
 

@@ -85,6 +85,9 @@ func (i *repositoryPartitionIter) Next() (sql.Partition, error) {
 		}
 	}
 
+	// TODO: RepositoryPartition should hold the repository so we don't
+	// get it twice.
+	defer r.Close()
 	return RepositoryPartition(r.ID().String()), nil
 }
 
