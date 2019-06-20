@@ -10,20 +10,11 @@ import (
 
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestCommitFileStats(t *testing.T) {
-	require.NoError(t, fixtures.Init())
-	defer func() {
-		require.NoError(t, fixtures.Clean())
-	}()
-
-	path := fixtures.ByTag("worktree").One().Worktree().Root()
-
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	require.NoError(t, pool.AddGitWithID("worktree", path))
+	pool, cleanup := setupPool(t)
+	defer cleanup()
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))

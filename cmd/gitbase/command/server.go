@@ -3,8 +3,10 @@ package command
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -16,6 +18,10 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/sirupsen/logrus"
+	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/libraries"
+	"github.com/src-d/go-borges/plain"
+	"github.com/src-d/go-borges/siva"
 	sqle "github.com/src-d/go-mysql-server"
 	"github.com/src-d/go-mysql-server/auth"
 	"github.com/src-d/go-mysql-server/server"
@@ -23,6 +29,7 @@ import (
 	"github.com/src-d/go-mysql-server/sql/analyzer"
 	"github.com/src-d/go-mysql-server/sql/index/pilosa"
 	"github.com/uber/jaeger-client-go/config"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"vitess.io/vitess/go/mysql"
 )
@@ -42,10 +49,17 @@ type Server struct {
 	pool     *gitbase.RepositoryPool
 	userAuth auth.Auth
 
+	rootLibrary  *libraries.Libraries
+	plainLibrary *plain.Library
+	sharedCache  cache.Object
+
 	Name          string         `long:"db" default:"gitbase" description:"Database name"`
 	Version       string         // Version of the application.
-	Directories   []string       `short:"d" long:"directories" description:"Path where the git repositories are located (standard and siva), multiple directories can be defined. Accepts globs."`
-	Depth         int            `long:"depth" default:"1000" description:"load repositories looking at less than <depth> nested subdirectories."`
+	Directories   []string       `short:"d" long:"directories" description:"Path where standard git repositories are located, multiple directories can be defined."`
+	Format        string         `long:"format" default:"git" choice:"git" choice:"siva" description:"Library format"`
+	Bucket        int            `long:"bucket" default:"2" description:"Bucketing level to use with siva libraries"`
+	Bare          bool           `long:"bare" description:"Sets the library to use bare git repositories, used only with git format libraries"`
+	NonRooted     bool           `long:"non-rooted" description:"Disables treating siva files as rooted repositories"`
 	Host          string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
 	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
@@ -59,8 +73,6 @@ type Server struct {
 	TraceEnabled  bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
 	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
 	SkipGitErrors bool           // SkipGitErrors disables failing when Git errors are found.
-	DisableGit    bool           `long:"no-git" description:"disable the load of git standard repositories."`
-	DisableSiva   bool           `long:"no-siva" description:"disable the load of siva files."`
 	Verbose       bool           `short:"v" description:"Activates the verbose mode"`
 	LogLevel      string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
 }
@@ -208,7 +220,10 @@ func (c *Server) buildDatabase() error {
 		)
 	}
 
-	c.pool = gitbase.NewRepositoryPool(c.CacheSize * cache.MiByte)
+	c.rootLibrary = libraries.New(libraries.Options{})
+	c.pool = gitbase.NewRepositoryPool(c.CacheSize*cache.MiByte, c.rootLibrary)
+
+	c.sharedCache = cache.NewObjectLRU(512 * cache.MiByte)
 
 	if err := c.addDirectories(); err != nil {
 		return err
@@ -252,139 +267,162 @@ func (c *Server) registerDrivers() error {
 
 func (c *Server) addDirectories() error {
 	if len(c.Directories) == 0 {
-		logrus.Error("At least one folder should be provided.")
+		logrus.Error("at least one folder should be provided.")
 	}
 
-	if c.DisableGit && c.DisableSiva {
-		logrus.Warn("The load of git repositories and siva files are disabled," +
-			" no repository will be added.")
-
-		return nil
-	}
-
-	if c.Depth < 1 {
-		logrus.Warn("--depth flag set to a number less than 1," +
-			" no repository will be added.")
-
-		return nil
-	}
-
-	for _, directory := range c.Directories {
-		if err := c.addDirectory(directory); err != nil {
-			return err
+	for _, d := range c.Directories {
+		dir := directory{
+			Path:   d,
+			Format: c.Format,
+			Bare:   c.Bare,
+			Bucket: c.Bucket,
+			Rooted: !c.NonRooted,
 		}
-	}
 
-	return nil
-}
-
-func (c *Server) addDirectory(directory string) error {
-	matches, err := gitbase.PatternMatches(directory)
-	if err != nil {
-		return err
-	}
-
-	for _, match := range matches {
-		if err := c.addMatch(directory, match); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"path":  match,
-				"error": err,
-			}).Error("path couldn't be inspected")
-		}
-	}
-
-	return nil
-}
-
-func (c *Server) addMatch(prefix, match string) error {
-	root, err := filepath.Abs(match)
-	if err != nil {
-		return err
-	}
-
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return err
-	}
-
-	initDepth := strings.Count(root, string(os.PathSeparator))
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		dir, err := parseDirectory(dir)
 		if err != nil {
-			if os.IsPermission(err) {
-				return filepath.SkipDir
-			}
 			return err
 		}
 
-		if info.IsDir() {
-			if err := c.addIfGitRepo(prefix, path); err != nil {
-				return err
-			}
-
-			depth := strings.Count(path, string(os.PathSeparator)) - initDepth
-			if depth >= c.Depth {
-				return filepath.SkipDir
-			}
-
-			return nil
+		err = c.addDirectory(dir)
+		if err != nil {
+			return err
 		}
-
-		if !c.DisableSiva &&
-			info.Mode().IsRegular() &&
-			gitbase.IsSivaFile(info.Name()) {
-			id, err := gitbase.StripPrefix(prefix, path)
-			if err != nil {
-				return err
-			}
-
-			if err := c.pool.AddSivaFileWithID(id, path); err != nil {
-				logrus.WithFields(logrus.Fields{
-					"path":  path,
-					"error": err,
-				}).Error("repository could not be addded")
-
-				return nil
-			}
-
-			logrus.WithField("path", path).Debug("repository added")
-		}
-
-		return nil
-	})
-}
-
-func (c *Server) addIfGitRepo(prefix, path string) error {
-	ok, err := gitbase.IsGitRepo(path)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"path":  path,
-			"error": err,
-		}).Error("path couldn't be inspected")
-
-		return filepath.SkipDir
-	}
-
-	if ok {
-		if !c.DisableGit {
-			id, err := gitbase.StripPrefix(prefix, path)
-			if err != nil {
-				return err
-			}
-
-			if err := c.pool.AddGitWithID(id, path); err != nil {
-				logrus.WithFields(logrus.Fields{
-					"id":    id,
-					"path":  path,
-					"error": err,
-				}).Error("repository could not be added")
-			}
-
-			logrus.WithField("path", path).Debug("repository added")
-		}
-
-		// either the repository is added or not, the path must be skipped
-		return filepath.SkipDir
 	}
 
 	return nil
+}
+
+func (c *Server) addDirectory(d directory) error {
+	if d.Format == "siva" {
+		sivaOpts := siva.LibraryOptions{
+			Transactional: true,
+			RootedRepo:    d.Rooted,
+			Cache:         c.sharedCache,
+			Bucket:        d.Bucket,
+			Performance:   true,
+			RegistryCache: 100000,
+		}
+
+		lib, err := siva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
+		if err != nil {
+			return err
+		}
+
+		err = c.rootLibrary.Add(lib)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	plainOpts := &plain.LocationOptions{
+		Cache:       c.sharedCache,
+		Performance: true,
+		Bare:        d.Bare,
+	}
+
+	if c.plainLibrary == nil {
+		c.plainLibrary = plain.NewLibrary(borges.LibraryID("plain"))
+		err := c.rootLibrary.Add(c.plainLibrary)
+		if err != nil {
+			return err
+		}
+	}
+
+	loc, err := plain.NewLocation(
+		borges.LocationID(d.Path),
+		osfs.New(d.Path),
+		plainOpts)
+	if err != nil {
+		return err
+	}
+
+	c.plainLibrary.AddLocation(loc)
+
+	return nil
+}
+
+type directory struct {
+	Path   string
+	Format string
+	Bucket int
+	Rooted bool
+	Bare   bool
+}
+
+var (
+	uriReg     = regexp.MustCompile(`^\w+:.*`)
+	ErrInvalid = fmt.Errorf("invalid option")
+)
+
+func parseDirectory(dir directory) (directory, error) {
+	d := dir.Path
+
+	if !uriReg.Match([]byte(d)) {
+		return dir, nil
+	}
+
+	u, err := url.ParseRequestURI(d)
+	if err != nil {
+		logrus.Errorf("invalid directory format %v", d)
+		return dir, err
+	}
+
+	if u.Scheme != "file" {
+		logrus.Errorf("only file scheme is supported: %v", d)
+		return dir, fmt.Errorf("scheme not suported in directory %v", d)
+	}
+
+	dir.Path = filepath.Join(u.Hostname(), u.Path)
+	query := u.Query()
+
+	for k, v := range query {
+		if len(v) != 1 {
+			logrus.Errorf("invalid number of options for %v", v)
+			return dir, ErrInvalid
+		}
+
+		val := v[0]
+		switch strings.ToLower(k) {
+		case "format":
+			if val != "siva" && val != "git" {
+				logrus.Errorf("invalid value in format, it can only "+
+					"be siva or git %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Format = val
+
+		case "bare":
+			if val != "true" && val != "false" {
+				logrus.Errorf("invalid value in bare, it can only "+
+					"be true or false %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Bare = (val == "true")
+
+		case "rooted":
+			if val != "true" && val != "false" {
+				logrus.Errorf("invalid value in rooted, it can only "+
+					"be true or false %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Rooted = (val == "true")
+
+		case "bucket":
+			num, err := strconv.Atoi(val)
+			if err != nil {
+				logrus.Errorf("invalid value in bucket: %v", val)
+				return dir, ErrInvalid
+			}
+			dir.Bucket = num
+
+		default:
+			logrus.Errorf("invalid option: %v", k)
+			return dir, ErrInvalid
+		}
+	}
+
+	return dir, nil
 }

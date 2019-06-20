@@ -2,28 +2,25 @@ package function
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/commitstats"
+	"github.com/src-d/go-borges/plain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 func TestCommitStatsEval(t *testing.T) {
-	require.NoError(t, fixtures.Init())
-	defer func() {
-		require.NoError(t, fixtures.Clean())
-	}()
-
-	path := fixtures.ByTag("worktree").One().Worktree().Root()
-
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	require.NoError(t, pool.AddGitWithID("worktree", path))
+	pool, cleanup := setupPool(t)
+	defer cleanup()
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -85,4 +82,33 @@ func TestCommitStatsEval(t *testing.T) {
 			require.EqualValues(t, tc.expected, result)
 		})
 	}
+}
+
+func setupPool(t *testing.T) (*gitbase.RepositoryPool, func()) {
+	t.Helper()
+	require.NoError(t, fixtures.Init())
+
+	path := fixtures.ByTag("worktree").One().Worktree().Root()
+	pathLib := path + "-lib"
+	pathRepo := filepath.Join(pathLib, "worktree")
+
+	cleanup := func() {
+		require.NoError(t, fixtures.Clean())
+		require.NoError(t, os.RemoveAll(pathLib))
+	}
+
+	err := os.MkdirAll(pathLib, 0777)
+	require.NoError(t, err)
+
+	err = os.Rename(path, pathRepo)
+	require.NoError(t, err)
+
+	lib := plain.NewLibrary("plain")
+	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
+	require.NoError(t, err)
+	lib.AddLocation(loc)
+
+	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+
+	return pool, cleanup
 }

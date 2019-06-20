@@ -85,7 +85,7 @@ func (t *commitTreesTable) PartitionRows(
 				return nil, err
 			}
 
-			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+			if len(repos) > 0 && !stringContains(repos, repo.ID()) {
 				return noRows, nil
 			}
 
@@ -293,7 +293,7 @@ func (i *commitTreesRowIter) next() (sql.Row, error) {
 
 		if tree != nil {
 			return sql.NewRow(
-				i.repo.ID,
+				i.repo.ID(),
 				i.commit.Hash.String(),
 				tree.Hash.String(),
 			), nil
@@ -316,7 +316,7 @@ func (i *commitTreesRowIter) next() (sql.Row, error) {
 		}
 
 		return sql.NewRow(
-			i.repo.ID,
+			i.repo.ID(),
 			i.commit.Hash.String(),
 			entry.Hash.String(),
 		), nil

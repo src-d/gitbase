@@ -4,11 +4,11 @@ import (
 	"io"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-git.v4/plumbing"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/src-d/go-mysql-server/sql/plan"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func TestCommitBlobsTableRowIter(t *testing.T) {

@@ -84,7 +84,7 @@ func (t *commitBlobsTable) PartitionRows(
 				return nil, err
 			}
 
-			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+			if len(repos) > 0 && !stringContains(repos, repo.ID()) {
 				return noRows, nil
 			}
 
@@ -307,7 +307,7 @@ func (i *commitBlobsRowIter) next() (sql.Row, error) {
 		}
 
 		return sql.NewRow(
-			i.repo.ID, i.currCommit.Hash.String(), file.Blob.Hash.String(),
+			i.repo.ID(), i.currCommit.Hash.String(), file.Blob.Hash.String(),
 		), nil
 	}
 }

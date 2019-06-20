@@ -199,7 +199,7 @@ func (i *treeEntriesRowIter) next() (sql.Row, error) {
 		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
 		i.cursor++
 
-		return treeEntryToRow(i.repo.ID, entry), nil
+		return treeEntryToRow(i.repo.ID(), entry), nil
 	}
 }
 
@@ -231,7 +231,7 @@ func (i *treeEntriesRowIter) nextByHash() (sql.Row, error) {
 		entry := &TreeEntry{i.tree.Hash, i.tree.Entries[i.cursor]}
 		i.cursor++
 
-		return treeEntryToRow(i.repo.ID, entry), nil
+		return treeEntryToRow(i.repo.ID(), entry), nil
 	}
 }
 
@@ -343,8 +343,7 @@ func newTreeEntriesKeyValueIter(
 		return nil, err
 	}
 
-	r := pool.repositories[repo.ID]
-	idx, err := newRepositoryIndex(r)
+	idx, err := newRepositoryIndex(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +387,7 @@ func (i *treeEntriesKeyValueIter) Next() ([]interface{}, []byte, error) {
 		}
 
 		key, err := encodeIndexKey(&treeEntriesIndexKey{
-			Repository: i.repo.ID,
+			Repository: i.repo.ID(),
 			Packfile:   packfile.String(),
 			Offset:     offset,
 			Pos:        i.pos - 1,
@@ -398,7 +397,7 @@ func (i *treeEntriesKeyValueIter) Next() ([]interface{}, []byte, error) {
 			return nil, nil, err
 		}
 
-		row := treeEntryToRow(i.repo.ID, &TreeEntry{i.tree.Hash, entry})
+		row := treeEntryToRow(i.repo.ID(), &TreeEntry{i.tree.Hash, entry})
 		values, err := rowIndexValues(row, i.columns, TreeEntriesSchema)
 		if err != nil {
 			return nil, nil, err
