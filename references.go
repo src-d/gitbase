@@ -290,7 +290,7 @@ func (i *refRowIter) next() (sql.Row, error) {
 			}
 
 			return sql.NewRow(
-				i.repo.ID,
+				i.repo.ID(),
 				"HEAD",
 				o.Hash().String(),
 			), nil
@@ -313,7 +313,7 @@ func (i *refRowIter) next() (sql.Row, error) {
 			continue
 		}
 
-		return referenceToRow(i.repo.ID, o), nil
+		return referenceToRow(i.repo.ID(), o), nil
 	}
 }
 

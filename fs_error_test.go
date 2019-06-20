@@ -3,19 +3,20 @@ package gitbase
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/plain"
+	fixtures "github.com/src-d/go-git-fixtures"
+	"github.com/src-d/go-mysql-server/sql"
 	"github.com/stretchr/testify/require"
 	billy "gopkg.in/src-d/go-billy.v4"
-	fixtures "github.com/src-d/go-git-fixtures"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem"
-	"github.com/src-d/go-mysql-server/sql"
+	"gopkg.in/src-d/go-billy.v4/osfs"
 )
 
 func TestFSErrorTables(t *testing.T) {
@@ -54,20 +55,49 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 
 	fixture := fixtures.ByTag("worktree").One()
 	baseFS := fixture.Worktree()
-
-	pool := NewRepositoryPool(cache.DefaultMaxSize)
-
-	fs, err := brokenFS(brokenPackfile, baseFS)
+	tmpDir, err := ioutil.TempDir("", "gitbase")
 	require.NoError(err)
-	pool.Add(billyRepo("packfile", fs))
 
-	fs, err = brokenFS(brokenIndex, baseFS)
-	require.NoError(err)
-	pool.Add(billyRepo("index", fs))
+	var rootFS billy.Filesystem = osfs.New(tmpDir)
 
-	fs, err = brokenFS(0, baseFS)
+	lib, pool, err := newMultiPool()
 	require.NoError(err)
-	pool.Add(billyRepo("ok", fs))
+
+	repos := []struct {
+		name string
+		t    brokenType
+	}{
+		{
+			name: "packfile",
+			t:    brokenPackfile,
+		},
+		{
+			name: "index",
+			t:    brokenIndex,
+		},
+		{
+			name: "ok",
+			t:    brokenNone,
+		},
+	}
+
+	var fs billy.Filesystem
+	for _, repo := range repos {
+		err = rootFS.MkdirAll(repo.name, 0777)
+		require.NoError(err)
+		fs, err = rootFS.Chroot(repo.name)
+		require.NoError(err)
+		err = recursiveCopy(repo.name, fs, ".git", baseFS)
+		require.NoError(err)
+		fs, err = brokenFS(repo.t, fs)
+		require.NoError(err)
+
+		loc, err := plain.NewLocation(borges.LocationID(repo.name), fs, &plain.LocationOptions{
+			Bare: true,
+		})
+		require.NoError(err)
+		lib.plain.AddLocation(loc)
+	}
 
 	session := NewSession(pool, WithSkipGitErrors(true))
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
@@ -75,6 +105,7 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 	cleanup := func() {
 		t.Helper()
 		require.NoError(fixtures.Clean())
+		require.NoError(os.RemoveAll(tmpDir))
 	}
 
 	return ctx, cleanup
@@ -84,16 +115,11 @@ func brokenFS(
 	brokenType brokenType,
 	fs billy.Filesystem,
 ) (billy.Filesystem, error) {
-	dotFS, err := fs.Chroot(".git")
-	if err != nil {
-		return nil, err
-	}
-
 	var brokenFS billy.Filesystem
 	if brokenType == brokenNone {
-		brokenFS = dotFS
+		brokenFS = fs
 	} else {
-		brokenFS = NewBrokenFS(brokenType, dotFS)
+		brokenFS = NewBrokenFS(brokenType, fs)
 	}
 
 	return brokenFS, nil
@@ -114,43 +140,6 @@ func testTable(t *testing.T, tableName string, number int) {
 			tableName, len(rows), number)
 		t.FailNow()
 	}
-}
-
-type billyRepository struct {
-	id    string
-	fs    billy.Filesystem
-	cache cache.Object
-}
-
-func billyRepo(id string, fs billy.Filesystem) repository {
-	return &billyRepository{id, fs, cache.NewObjectLRUDefault()}
-}
-
-func (r *billyRepository) ID() string {
-	return r.id
-}
-
-func (r *billyRepository) Repo() (*Repository, error) {
-	storage := filesystem.NewStorage(r.fs, r.cache)
-
-	repo, err := git.Open(storage, r.fs)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewRepository(r.id, repo, nil), nil
-}
-
-func (r *billyRepository) FS() (billy.Filesystem, error) {
-	return r.fs, nil
-}
-
-func (r *billyRepository) Path() string {
-	return r.id
-}
-
-func (r *billyRepository) Cache() cache.Object {
-	return r.cache
 }
 
 type brokenType uint64
@@ -223,6 +212,11 @@ func (fs *BrokenFS) ReadDir(path string) ([]os.FileInfo, error) {
 	}
 
 	return files, err
+}
+
+func (fs *BrokenFS) Stat(path string) (os.FileInfo, error) {
+	stat, err := fs.Filesystem.Stat(path)
+	return stat, err
 }
 
 type BrokenFile struct {

@@ -86,37 +86,35 @@ Help Options:
 
 [server command options]
           --db=                                        Database name (default: gitbase)
-      -d, --directories=                               Path where the git repositories are located
-                                                       (standard and siva), multiple directories can
-                                                       be defined. Accepts globs.
-          --depth=                                     load repositories looking at less than
-                                                       <depth> nested subdirectories. (default: 1000)
-          --host=                                      Host where the server is going to listen
-                                                       (default: localhost)
-      -p, --port=                                      Port where the server is going to listen
-                                                       (default: 3306)
+      -d, --directories=                               Path where standard git repositories are located,
+                                                       multiple directories can be defined.
+          --format=[git|siva]                          Library format (default: git)
+          --bucket=                                    Bucketing level to use with siva libraries (default: 2)
+          --bare                                       Sets the library to use bare git repositories, used
+                                                       only with git format libraries
+          --non-rooted                                 Disables treating siva files as rooted repositories
+          --host=                                      Host where the server is going to listen (default:
+                                                       localhost)
+      -p, --port=                                      Port where the server is going to listen (default:
+                                                       3306)
       -u, --user=                                      User name used for connection (default: root)
       -P, --password=                                  Password used for connection
-      -U, --user-file=                                 JSON file with credentials list
-                                                       [$GITBASE_USER_FILE]
+      -U, --user-file=                                 JSON file with credentials list [$GITBASE_USER_FILE]
       -t, --timeout=                                   Timeout in seconds used for connections
                                                        [$GITBASE_CONNECTION_TIMEOUT]
-      -i, --index=                                     Directory where the gitbase indexes
-                                                       information will be persisted. (default:
-                                                       /var/lib/gitbase/index) [$GITBASE_INDEX_DIR]
+      -i, --index=                                     Directory where the gitbase indexes information will
+                                                       be persisted. (default: /var/lib/gitbase/index)
+                                                       [$GITBASE_INDEX_DIR]
           --cache=                                     Object cache size in megabytes (default: 512)
                                                        [$GITBASE_CACHESIZE_MB]
-          --parallelism=                               Maximum number of parallel threads per table.
-                                                       By default, it's the number of CPU cores. 0
-                                                       means default, 1 means disabled.
+          --parallelism=                               Maximum number of parallel threads per table. By
+                                                       default, it's the number of CPU cores. 0 means
+                                                       default, 1 means disabled.
           --no-squash                                  Disables the table squashing.
           --trace                                      Enables jaeger tracing [$GITBASE_TRACE]
-      -r, --readonly                                   Only allow read queries. This disables
-                                                       creating and deleting indexes as well. Cannot
-                                                       be used with --user-file. [$GITBASE_READONLY]
-          --no-git                                     disable the load of git standard repositories.
-          --no-siva                                    disable the load of siva files.
+      -r, --readonly                                   Only allow read queries. This disables creating and
+                                                       deleting indexes as well. Cannot be used with
+                                                       --user-file. [$GITBASE_READONLY]
       -v                                               Activates the verbose mode
-          --log-level=[info|debug|warning|error|fatal] logging level (default: info)
-                                                       [$GITBASE_LOG_LEVEL]
+          --log-level=[info|debug|warning|error|fatal] logging level (default: info) [$GITBASE_LOG_LEVEL]
 ```

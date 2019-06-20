@@ -11,7 +11,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/filesystem/dotgit"
 	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 
-	"gopkg.in/src-d/go-billy-siva.v4"
+	sivafs "gopkg.in/src-d/go-billy-siva.v4"
 	"gopkg.in/src-d/go-billy.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/idxfile"
@@ -45,7 +45,7 @@ type repositoryIndex struct {
 	closeFunc func()
 }
 
-func newRepositoryIndex(repo repository) (*repositoryIndex, error) {
+func newRepositoryIndex(repo *Repository) (*repositoryIndex, error) {
 	fs, err := repo.FS()
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func findDotGit(fs billy.Filesystem) (billy.Filesystem, error) {
 	return fs, nil
 }
 
-func getUnpackedObject(repo repository, hash plumbing.Hash) (o object.Object, err error) {
+func getUnpackedObject(repo *Repository, hash plumbing.Hash) (o object.Object, err error) {
 	fs, err := repo.FS()
 	if err != nil {
 		return nil, err
@@ -212,7 +212,7 @@ type repoObjectDecoder struct {
 }
 
 func newRepoObjectDecoder(
-	repo repository,
+	repo *Repository,
 	hash plumbing.Hash,
 ) (*repoObjectDecoder, error) {
 	fs, err := repo.FS()
@@ -290,6 +290,11 @@ func (d *objectDecoder) decode(
 	offset int64,
 	hash plumbing.Hash,
 ) (object.Object, error) {
+	repo, err := d.pool.GetRepo(repository)
+	if err != nil {
+		return nil, err
+	}
+
 	if offset >= 0 {
 		if d.decoder == nil || !d.decoder.equals(repository, packfile) {
 			if d.decoder != nil {
@@ -299,7 +304,7 @@ func (d *objectDecoder) decode(
 			}
 
 			var err error
-			d.decoder, err = newRepoObjectDecoder(d.pool.repositories[repository], packfile)
+			d.decoder, err = newRepoObjectDecoder(repo, packfile)
 			if err != nil {
 				return nil, err
 			}
@@ -308,7 +313,7 @@ func (d *objectDecoder) decode(
 		return d.decoder.get(offset)
 	}
 
-	return getUnpackedObject(d.pool.repositories[repository], hash)
+	return getUnpackedObject(repo, hash)
 }
 
 func (d *objectDecoder) Close() error {

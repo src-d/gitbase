@@ -88,7 +88,7 @@ func (t *refCommitsTable) PartitionRows(
 				return nil, err
 			}
 
-			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+			if len(repos) > 0 && !stringContains(repos, repo.ID()) {
 				return noRows, nil
 			}
 
@@ -346,7 +346,7 @@ func (i *refCommitsRowIter) next() (sql.Row, error) {
 		}
 
 		return sql.NewRow(
-			i.repo.ID,
+			i.repo.ID(),
 			commit.Hash.String(),
 			i.ref.Name().String(),
 			int64(idx),

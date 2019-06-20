@@ -146,7 +146,7 @@ func (i *repositoriesRowIter) Next() (sql.Row, error) {
 	}
 
 	i.visited = true
-	return sql.NewRow(i.repo.ID), nil
+	return sql.NewRow(i.repo.ID()), nil
 }
 
 func (i *repositoriesRowIter) Close() error {

@@ -90,7 +90,7 @@ func (t *commitFilesTable) PartitionRows(
 				return nil, err
 			}
 
-			if len(repos) > 0 && !stringContains(repos, repo.ID) {
+			if len(repos) > 0 && !stringContains(repos, repo.ID()) {
 				return noRows, nil
 			}
 
@@ -257,7 +257,7 @@ func (i *commitFilesRowIter) next() (sql.Row, error) {
 			if err != nil {
 				if i.skipGitErrors && err != io.EOF {
 					logrus.WithFields(logrus.Fields{
-						"repo": i.repo.ID,
+						"repo": i.repo.ID(),
 						"err":  err,
 					}).Error("skipped commit in commit_files")
 					continue
@@ -269,7 +269,7 @@ func (i *commitFilesRowIter) next() (sql.Row, error) {
 			if err != nil {
 				if i.skipGitErrors {
 					logrus.WithFields(logrus.Fields{
-						"repo":   i.repo.ID,
+						"repo":   i.repo.ID(),
 						"err":    err,
 						"commit": i.commit.Hash.String(),
 					}).Error("can't get files for commit")
@@ -287,7 +287,7 @@ func (i *commitFilesRowIter) next() (sql.Row, error) {
 
 			if i.skipGitErrors {
 				logrus.WithFields(logrus.Fields{
-					"repo":   i.repo.ID,
+					"repo":   i.repo.ID(),
 					"err":    err,
 					"commit": i.commit.Hash.String(),
 				}).Error("can't get next file for commit")
@@ -307,7 +307,7 @@ func (i *commitFilesRowIter) next() (sql.Row, error) {
 
 func newCommitFilesRow(repo *Repository, commit *object.Commit, file *object.File) sql.Row {
 	return sql.NewRow(
-		repo.ID,
+		repo.ID(),
 		commit.Hash.String(),
 		file.Name,
 		file.Blob.Hash.String(),
@@ -435,8 +435,7 @@ func newCommitFilesKeyValueIter(
 	repo *Repository,
 	columns []string,
 ) (sql.IndexKeyValueIter, error) {
-	r := pool.repositories[repo.ID]
-	idx, err := newRepositoryIndex(r)
+	idx, err := newRepositoryIndex(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +485,7 @@ func (i *commitFilesKeyValueIter) Next() ([]interface{}, []byte, error) {
 		}
 
 		key, err := encodeIndexKey(&commitFileIndexKey{
-			Repository: i.repo.ID,
+			Repository: i.repo.ID(),
 			Packfile:   packfile.String(),
 			Hash:       f.Blob.Hash.String(),
 			Offset:     offset,
