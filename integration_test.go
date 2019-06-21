@@ -347,18 +347,18 @@ func TestIntegration(t *testing.T) {
 		},
 		{
 			`
-			SELECT 
-	      		repository_id, 
-	      		COUNT(commit_author_email) as contributor_count 
-      		FROM (
-	      		SELECT DISTINCT 
-		      		repository_id, 
-		      		commit_author_email 
-	      		FROM commits
-      		) as q 
-      		GROUP BY repository_id  
-      		ORDER BY contributor_count DESC 
-      		LIMIT 10
+			SELECT
+		  		repository_id,
+		  		COUNT(commit_author_email) as contributor_count
+			FROM (
+		  		SELECT DISTINCT
+		      		repository_id,
+		      		commit_author_email
+		  		FROM commits
+			) as q
+			GROUP BY repository_id
+			ORDER BY contributor_count DESC
+			LIMIT 10
 			`,
 			[]sql.Row{{"worktree", int64(2)}},
 		},
@@ -393,6 +393,107 @@ func TestIntegration(t *testing.T) {
 				{"json/long.json", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
 				{"json/short.json", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
 				{"php/crappy.php", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC)},
+			},
+		},
+		{
+			`
+			SELECT repository_id, commit_author_when,
+			CASE WHEN ARRAY_LENGTH(commit_parents) > 1 THEN 'Merge' ELSE 'Commit' END AS commit_type
+			FROM commits
+			ORDER BY 2
+			`,
+			[]sql.Row{
+				{"worktree", time.Date(2015, time.March, 31, 11, 42, 21, 0, time.UTC), "Commit"},
+				{"worktree", time.Date(2015, time.March, 31, 11, 44, 52, 0, time.UTC), "Commit"},
+				{"worktree", time.Date(2015, time.March, 31, 11, 46, 24, 0, time.UTC), "Commit"},
+				{"worktree", time.Date(2015, time.March, 31, 11, 47, 14, 0, time.UTC), "Merge"},
+				{"worktree", time.Date(2015, time.March, 31, 11, 48, 14, 0, time.UTC), "Merge"},
+				{"worktree", time.Date(2015, time.March, 31, 11, 51, 51, 0, time.UTC), "Commit"},
+				{"worktree", time.Date(2015, time.March, 31, 11, 56, 18, 0, time.UTC), "Commit"},
+				{"worktree", time.Date(2015, time.March, 31, 12, 00, 8, 0, time.UTC), "Commit"},
+				{"worktree", time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC), "Commit"},
+			},
+		},
+		{
+			`
+			SELECT repo,
+			CASE
+				WHEN day_index = 2 THEN '1 - Monday'
+				WHEN day_index = 3 THEN '2 - Tuesday'
+				WHEN day_index = 4 THEN '3 - Wednesday'
+				WHEN day_index = 5 THEN '4 - Thursday'
+				WHEN day_index = 6 THEN '5 - Friday'
+				WHEN day_index = 7 THEN '6 - Saturday'
+				ELSE '7 - Sunday'
+			END AS day,
+			CASE
+				WHEN n_parents > 1 THEN 'Merge commit'
+				ELSE 'Non-merge commit'
+			END AS commit_type
+			FROM (
+				SELECT
+					repository_id AS repo,
+					committer_name AS developer,
+					DAYOFWEEK(committer_when) AS day_index,
+					ARRAY_LENGTH(commit_parents) AS n_parents
+				FROM commits
+				) t
+			`,
+			[]sql.Row{
+				{"worktree", "7 - Sunday", "Non-merge commit"},
+				{"worktree", "2 - Tuesday", "Non-merge commit"},
+				{"worktree", "2 - Tuesday", "Non-merge commit"},
+				{"worktree", "2 - Tuesday", "Merge commit"},
+				{"worktree", "2 - Tuesday", "Non-merge commit"},
+				{"worktree", "2 - Tuesday", "Merge commit"},
+				{"worktree", "2 - Tuesday", "Non-merge commit"},
+				{"worktree", "2 - Tuesday", "Non-merge commit"},
+				{"worktree", "2 - Tuesday", "Non-merge commit"},
+			},
+		},
+		{
+			`
+			SELECT added, deleted, commit_author_when, commit_hash, repository_id,
+			CASE WHEN deleted < (added+deleted)*0.1 THEN 'Added' WHEN added < (added+deleted)*0.1 THEN 'Deleted' ELSE 'Changed' END AS commit_type
+			FROM (
+					SELECT
+						JSON_EXTRACT(stats, "$.Total.Additions") as added,
+						JSON_EXTRACT(stats, "$.Total.Deletions") as deleted,
+						commit_author_when,
+						commit_hash,
+						repository_id
+					FROM (
+						SELECT
+							repository_id,
+							commit_author_when,
+							commit_hash,
+							commit_stats(repository_id, commit_hash) as stats
+						FROM refs
+						natural join ref_commits
+						natural join commits
+						ORDER BY commit_author_when
+					) q
+				) q2`,
+			[]sql.Row{
+				{float64(1), float64(0), time.Date(2015, time.March, 31, 12, 00, 8, 0, time.UTC), "e8d3ffab552895c19b9fcf7aa264d277cde33881", "worktree", "Changed"},
+				{float64(0), float64(0), time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "worktree", "Changed"},
+				{float64(0), float64(0), time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "worktree", "Changed"},
+				{float64(0), float64(0), time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "worktree", "Changed"},
+			},
+		},
+		{
+			`
+			SELECT
+				JSON_UNQUOTE(JSON_EXTRACT(SPLIT(committer_email, '@'), '$[1]')) as domain,
+				COUNT(*) as n
+			FROM commits
+			WHERE committer_email LIKE '%%@%%' and committer_email NOT LIKE '%%@github.com'
+			GROUP BY domain
+			ORDER BY n DESC
+			`,
+			[]sql.Row{
+				{"gmail.com", int64(8)},
+				{"lordran.local", int64(1)},
 			},
 		},
 	}
