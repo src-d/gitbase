@@ -6,8 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0-rc1] - 2019-06-21
+
+### Added
+
+- Now gitbase uses [go-borges](https://github.com/src-d/go-borges) to access repositories
+  - The type of files in each directory has to be specified ([#867](https://github.com/src-d/gitbase/pull/867))
+  - Supports new rooted repository format and separates references and objects from each repo (https://github.com/src-d/borges/issues/389)
+
+### Changed
+
+- Changed cli to be able to specify different formats ([#866](https://github.com/src-d/gitbase/issues/866))
+
+### Fixed
+
+- function: correctly transform up explode nodes ([#757](https://github.com/src-d/go-mysql-server/pull/757)) 
 - git libraries bare or non bare format is automatically detected ([#897](https://github.com/src-d/gitbase/pull/897))
 - Fix bug that created multiple object cache with incorrect size ([#898](https://github.com/src-d/gitbase/pull/898))
+- sql/expression: handle null values in arithmetic expressions ([#760](https://github.com/src-d/go-mysql-server/pull/760)) 
 
 ## [0.22.0-beta1] - 2019-06-20
 
