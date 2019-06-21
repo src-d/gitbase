@@ -20,7 +20,7 @@ func TestRepositoryPoolBasic(t *testing.T) {
 	lib, err := newMultiLibrary()
 	require.NoError(err)
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 
 	iter, err := pool.RepoIter()
 	require.NoError(err)
@@ -66,7 +66,7 @@ func TestRepositoryPoolGit(t *testing.T) {
 	lib, err := newMultiLibrary()
 	require.NoError(err)
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 
 	require.NoError(lib.AddPlain(path, path, nil))
 
@@ -107,7 +107,7 @@ func TestRepositoryPoolIterator(t *testing.T) {
 	lib, err := newMultiLibrary()
 	require.NoError(err)
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 	err = lib.AddPlain("0", path, nil)
 	require.NoError(err)
 	err = lib.AddPlain("1", path, nil)
@@ -145,7 +145,7 @@ func TestRepositoryPoolSiva(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(err)
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 	path := filepath.Join(cwd, "_testdata")
 
 	require.NoError(

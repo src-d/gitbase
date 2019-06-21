@@ -9,6 +9,7 @@ import (
 
 	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func TestDirectories(t *testing.T) {
@@ -272,4 +273,49 @@ func bareTestName(d directory, err bool) string {
 	}
 
 	return fmt.Sprintf("%s_%s", d.Path, bare)
+}
+
+func TestCache(t *testing.T) {
+	require := require.New(t)
+
+	tmpDir, err := ioutil.TempDir("", "gitbase")
+	require.NoError(err)
+	func() {
+		require.NoError(os.RemoveAll(tmpDir))
+	}()
+
+	server := &Server{
+		CacheSize:   512,
+		Format:      "siva",
+		Bucket:      0,
+		LogLevel:    "debug",
+		Directories: []string{"../../../_testdata"},
+		IndexDir:    tmpDir,
+	}
+
+	err = server.buildDatabase()
+	require.NoError(err)
+
+	cache := server.sharedCache
+	pool := server.pool
+	hash := plumbing.NewHash("dbfab055c70379219cbcf422f05316fdf4e1aed3")
+
+	_, ok := cache.Get(hash)
+	require.False(ok)
+
+	repo, err := pool.GetRepo("015da2f4-6d89-7ec8-5ac9-a38329ea875b")
+	require.NoError(err)
+
+	_, ok = repo.Cache().Get(hash)
+	require.False(ok)
+	require.Equal(cache, repo.Cache())
+
+	_, err = repo.CommitObject(hash)
+	require.NoError(err)
+
+	_, ok = cache.Get(hash)
+	require.True(ok)
+
+	_, ok = repo.Cache().Get(hash)
+	require.True(ok)
 }

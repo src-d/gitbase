@@ -74,13 +74,13 @@ type RepositoryPool struct {
 	library borges.Library
 }
 
-// NewRepositoryPool initializes a new RepositoryPool with LRU cache.
+// NewRepositoryPool holds a repository library and a shared object cache.
 func NewRepositoryPool(
-	maxCacheSize cache.FileSize,
+	c cache.Object,
 	lib borges.Library,
 ) *RepositoryPool {
 	return &RepositoryPool{
-		cache:   cache.NewObjectLRU(maxCacheSize),
+		cache:   c,
 		library: lib,
 	}
 }

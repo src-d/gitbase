@@ -423,11 +423,6 @@ func bblfshFixtures(
 func setup(t *testing.T) (*sql.Context, func()) {
 	t.Helper()
 
-	// pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize)
-	// for _, f := range fixtures.ByTag("worktree") {
-	// 	pool.AddGit(f.Worktree().Root())
-	// }
-
 	// create library directory and move repo inside
 
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
@@ -445,7 +440,7 @@ func setup(t *testing.T) (*sql.Context, func()) {
 	require.NoError(t, err)
 	lib.AddLocation(loc)
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := gitbase.NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 
 	session := gitbase.NewSession(pool)
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
