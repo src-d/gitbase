@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/require"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestDirectories(t *testing.T) {
@@ -154,11 +154,9 @@ func TestDirectories(t *testing.T) {
 }
 
 func TestDiscoverBare(t *testing.T) {
-	err := fixtures.Init()
-	require.NoError(t, err)
 	defer func() {
-		_ = fixtures.Clean()
-	}
+		require.NoError(t, fixtures.Clean())
+	}()
 
 	tmpDir, err := ioutil.TempDir("", "gitbase")
 	require.NoError(t, err)
