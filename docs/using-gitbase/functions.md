@@ -6,8 +6,8 @@ To make some common tasks easier for the user, there are some functions to inter
 
 |     Name     |                                               Description                                                                      |
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
-|`commit_stats(repository_id, [from_commit_hash], to_commit_hash)`|returns the stats between two commits for a repository. If from is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function.|
-|`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash)`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If from is not given, the parent commit will be used. Vendored files stats are not included in the result of this function.|
+|`commit_stats(repository_id, [from_commit_hash], to_commit_hash) json`|returns the stats between two commits for a repository. If from is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
+|`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash) json array`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If from is not given, the parent commit will be used. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
 |`is_remote(reference_name)bool`| check if the given reference name is from a remote one                                                          |
 |`is_tag(reference_name)bool`| check if the given reference name is a tag                                                                         |
 |`is_vendor(file_path)bool`| check if the given file name is a vendored file                                                                         |
@@ -18,6 +18,7 @@ To make some common tasks easier for the user, there are some functions to inter
 |`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes                                       |
 |`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array              |
 |`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines |
+|`version() text`| returns the gitbase version in the following format `8.0.11-{GITBASE_VERSION}` for compatibility with MySQL versioning |
 ## Standard functions
 
 These are all functions that are available because they are implemented in `go-mysql-server`, used by gitbase.
@@ -165,3 +166,121 @@ Nodes that have no value for the requested property will not be present in any w
 Also, if you want to retrieve values from a non common property, you can pass it directly
 
 > uast_extract(nodes_column, 'some-property')
+
+## How to use `commit_file_stats`
+
+`commit_file_stats` will return statistics about the line changes in all files in the given range of commits classifying them in 4 categories: code, comments, blank lines and other.
+
+It can be used in two ways:
+- To get the statistics of files in a specific commit `COMMIT_FILE_STATS(repository_id, commit_hash)`
+- To get the statistics of files in a commit range `COMMIT_FILE_STATS(repository_id, from_commit, to_commit)`
+
+The result of this function is an array of JSON documents with the following shape:
+
+```
+{
+	"Path": file path,
+	"Language": file language,
+	"Code": {
+		"Additions": number of code additions in this file,
+		"Deletions": number of code deletions in this file,
+	},
+	"Comment": {
+		"Additions": number of comment line additions in this file,
+		"Deletions": number of comment line deletions in this file,
+	},
+	"Blank": {
+		"Additions": number of blank line additions in this file,
+		"Deletions": number of blank line deletions in this file,
+	},
+	"Other": {
+		"Additions": number of other additions in this file,
+		"Deletions": number of other deletions in this file,
+	},
+	"Total": {
+		"Additions": number of total additions in this file,
+		"Deletions": number of total deletions in this file,
+	},
+}
+```
+
+**NOTE:** Files that are considered vendored files are ignored for the purpose of computing these statistics. Note that `.gitignore` is considered a vendored file.
+
+Because the result of this function is an array of JSON documents, we will need two functions to make use of its data effectively:
+- `EXPLODE` which will make each element in the array have its own row
+- `JSON_EXTRACT` to get data from inside the documents
+
+For example, to get the stats of the HEAD commits:
+```sql
+SELECT
+	repository_id,
+	EXPLODE(COMMIT_FILE_STATS(repository_id, commit_hash)) AS stats
+FROM refs
+WHERE ref_name = 'HEAD'
+```
+
+`EXPLODE` here will make sure a single row is returned for every single result returned by `COMMIT_FILE_STATS` instead of an array with all of them combined.
+
+Then, to extract code additions from this:
+
+```sql
+SELECT
+	repository_id
+	JSON_EXTRACT(stats, '$.Code.Additions')
+FROM (
+	SELECT
+		repository_id,
+		EXPLODE(COMMIT_FILE_STATS(repository_id, commit_hash)) AS stats
+	FROM refs
+	WHERE ref_name = 'HEAD'
+) t
+```
+
+**NOTE:** When extracting `Path` or `Language` using `JSON_EXTRACT`, by the way that function works, the result will be quoted (e.g. `"Python"` instead of `Python`). For that reason, for these two string fields `JSON_EXTRACT` should be combined with `JSON_UNQUOTE` like `JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Path'))`.
+
+## How to use `commit_stats`
+
+`commit_stats` will return statistics about the line changes in the given range of commits classifying them in 4 categories: code, comments, blank lines and other.
+
+It can be used in two ways:
+- To get the statistics of a specific commit `COMMIT_STATS(repository_id, commit_hash)`
+- To get the statistics of a the diff of a commit range `COMMIT_STATS(repository_id, from_commit, to_commit)`
+
+`commit_stats` it's pretty much an aggregation of the result of `commit_file_stats`. While `commit_file_stats` has the stats for each file in a commit, `commit_stats` has the global stats of all files in the commit. As a result, it outputs a single structure instead of an array of them.
+
+The shape of the result returned by this function is the following:
+
+```
+{
+	"Files": number of files changed in this commit,
+	"Code": {
+		"Additions": number of code additions in this commit,
+		"Deletions": number of code deletions in this commit,
+	},
+	"Comment": {
+		"Additions": number of comment line additions in this commit,
+		"Deletions": number of comment line deletions in this commit,
+	},
+	"Blank": {
+		"Additions": number of blank line additions in this commit,
+		"Deletions": number of blank line deletions in this commit,
+	},
+	"Other": {
+		"Additions": number of other additions in this commit,
+		"Deletions": number of other deletions in this commit,
+	},
+	"Total": {
+		"Additions": number of total additions in this commit,
+		"Deletions": number of total deletions in this commit,
+	},
+}
+```
+
+**NOTE:** Files that are considered vendored files are ignored for the purpose of computing these statistics. Note that `.gitignore` is considered a vendored file.
+
+The result returned by this function is a JSON, which means to access its fields, the use of `JSON_EXTRACT is needed.
+
+For example, code additions would be accessed like this:
+```sql
+JSON_EXTRACT(COMMIT_STATS(repository_id, commit_hash), '$.Code.Additions')
+```

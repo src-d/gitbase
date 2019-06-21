@@ -76,7 +76,7 @@ GROUP BY committer_email,
          repo_id;
 ```
 
-## Report of line count per file from HEAD references 
+## Report of line count per file from HEAD references
 
 ```sql
 SELECT
@@ -139,6 +139,69 @@ CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_cont
 
 ```sql
 DROP INDEX files_lang_idx ON files;
+```
+
+## Calculating code line changes in the last commit
+
+This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in the last commit of each repository.
+
+```
+SELECT
+    repo,
+    JSON_EXTRACT(stats, '$.Code.Additions') AS code_lines_added,
+    JSON_EXTRACT(stats, '$.Code.Deletions') AS code_lines_removed
+FROM (
+    SELECT
+        repository_id AS repo,
+        COMMIT_STATS(repository_id, commit_hash) AS stats
+    FROM refs
+    WHERE ref_name = 'HEAD'
+) t;
+```
+
+The output will be similar to this:
+
+```
++-----------------+------------------+--------------------+
+| repo            | code_lines_added | code_lines_removed |
++-----------------+------------------+--------------------+
+| salty-wombat    | 56               | 2                  |
+| sugar-boogaloo  | 11               | 1                  |
++-----------------+------------------+--------------------+
+```
+
+## Calculating code line changes for files in the last commit
+
+This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in each file of the last commit of each repository. It's similar to the previous example. `COMMIT_STATS` is an aggregation over the result of `COMMIT_FILE_STATS` so to speak.
+We will only report those files that whose language has been identified.
+
+```
+SELECT
+    repo,
+    JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Path')) AS file_path,
+    JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Language')) AS file_language,
+    JSON_EXTRACT(stats, '$.Code.Additions') AS code_lines_added,
+    JSON_EXTRACT(stats, '$.Code.Deletions') AS code_lines_removed
+FROM (
+    SELECT
+        repository_id AS repo,
+        EXPLODE(COMMIT_FILE_STATS(repository_id, commit_hash)) AS stats
+    FROM refs
+    WHERE ref_name = 'HEAD'
+) t
+WHERE file_language <> '';
+```
+
+The output will be similar to this:
+
+```
++-----------------+--------------------------------------+---------------+------------------+--------------------+
+| repo            | file_path                            | file_language | code_lines_added | code_lines_removed |
++-----------------+--------------------------------------+---------------+------------------+--------------------+
+| salty-wombat    | main.py                              | Python        | 40               | 0                  |
+| salty-wombat    | __init__.py                          | Python        | 16               | 2                  |
+| sugar-boogaloo  | server.go                            | Go            | 11               | 1                  |
++-----------------+--------------------------------------+---------------+------------------+--------------------+
 ```
 
 # UAST UDFs Examples
