@@ -182,7 +182,7 @@ func TestDiscoverBare(t *testing.T) {
 
 	tests := []struct {
 		path     string
-		bare     bareness
+		bare     bareOpt
 		expected bool
 		err      bool
 	}{

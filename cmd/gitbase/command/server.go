@@ -372,10 +372,10 @@ func (c *Server) addDirectory(d directory) error {
 	return nil
 }
 
-type bareness int
+type bareOpt int
 
 const (
-	bareAuto bareness = iota
+	bareAuto bareOpt = iota
 	bareOn
 	bareOff
 )
@@ -385,7 +385,7 @@ type directory struct {
 	Format string
 	Bucket int
 	Rooted bool
-	Bare   bareness
+	Bare   bareOpt
 }
 
 var (
@@ -431,11 +431,6 @@ func parseDirectory(dir directory) (directory, error) {
 			dir.Format = val
 
 		case "bare":
-			if val != "true" && val != "false" && val != "auto" {
-				logrus.Errorf("invalid value in bare, it can only "+
-					"be true, false, or auto %v", val)
-				return dir, ErrInvalid
-			}
 			switch val {
 			case "true":
 				dir.Bare = bareOn
@@ -443,6 +438,10 @@ func parseDirectory(dir directory) (directory, error) {
 				dir.Bare = bareOff
 			case "auto":
 				dir.Bare = bareAuto
+			default:
+				logrus.Errorf("invalid value in bare, it can only "+
+					"be true, false, or auto %v", val)
+				return dir, ErrInvalid
 			}
 
 		case "rooted":
