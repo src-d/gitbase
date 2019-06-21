@@ -294,6 +294,7 @@ func (c *Server) addDirectories() error {
 	if err != nil {
 		return err
 	}
+	defer repos.Close()
 
 	return repos.ForEach(func(r borges.Repository) error {
 		id := r.ID().String()
