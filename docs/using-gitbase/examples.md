@@ -1,16 +1,16 @@
 # Examples
 
-## Get all the repositories where a specific user contributes on HEAD reference
+## Repositories where a given user contributed to the main branch (HEAD)
 
 ```sql
-SELECT refs.repository_id
-FROM refs
+SELECT DISTINCT repository_id
+FROM ref_commits
 NATURAL JOIN commits
-WHERE commits.commit_author_name = 'Johnny Bravo'
-  AND refs.ref_name = 'HEAD';
+WHERE ref_name = 'HEAD'
+  AND commit_author_name = 'Johnny Bravo';
 ```
 
-## Get all the HEAD references from all the repositories
+## HEAD references from all the repositories
 
 ```sql
 SELECT *
@@ -21,59 +21,51 @@ WHERE ref_name = 'HEAD';
 ## First commit on HEAD history for all repositories
 
 ```sql
-SELECT file_path,
-       ref_commits.repository_id
-FROM commit_files
-NATURAL JOIN ref_commits
-WHERE ref_commits.ref_name = 'HEAD'
-  AND ref_commits.history_index = 0;
+SELECT *
+FROM ref_commits
+NATURAL JOIN commits
+WHERE ref_name = 'HEAD'
+  AND history_index = 0;
 ```
 
 ## Commits that appear in more than one reference
 
 ```sql
-SELECT *
-FROM
-  (SELECT COUNT(c.commit_hash) AS num,
-          c.commit_hash
-   FROM ref_commits r
-   NATURAL JOIN commits c
-   GROUP BY c.commit_hash) t
-WHERE num > 1;
+SELECT repository_id,
+       commit_hash,
+       COUNT(commit_hash) AS count
+FROM ref_commits
+NATURAL JOIN commits
+GROUP BY commit_hash
+HAVING count > 1;
 ```
 
-## Get the number of blobs per HEAD commit
+## Repositories ordered by number of files in latest version
 
 ```sql
-SELECT COUNT(commit_hash),
-       commit_hash
-FROM ref_commits
+SELECT repository_id,
+       COUNT(commit_hash)
+FROM refs
 NATURAL JOIN commits
 NATURAL JOIN commit_blobs
 WHERE ref_name = 'HEAD'
-GROUP BY commit_hash;
+GROUP BY repository_id
+ORDER BY 2 DESC;
 ```
 
-## Get commits per committer, per year and month
+## Commits per year, month and author email
 
 ```sql
-SELECT YEAR,
-       MONTH,
-       repo_id,
+SELECT YEAR(committer_when) AS year,
+       MONTH(committer_when) AS month,
+       repository_id,
        committer_email,
-       COUNT(*) AS num_commits
-FROM
-  (SELECT YEAR(committer_when) AS YEAR,
-          MONTH(committer_when) AS MONTH,
-          repository_id AS repo_id,
-          committer_email
-   FROM ref_commits
-   NATURAL JOIN commits
-   WHERE ref_name = 'HEAD') AS t
-GROUP BY committer_email,
-         YEAR,
-         MONTH,
-         repo_id;
+       COUNT(*) AS commits
+FROM ref_commits
+NATURAL JOIN commits
+WHERE ref_name = 'HEAD'
+GROUP BY 1, 2, 3, 4
+ORDER BY 1, 2, 3, 4;
 ```
 
 ## Report of line count per file from HEAD references
@@ -92,19 +84,18 @@ WHERE ref_name='HEAD'
 GROUP BY lang;
 ```
 
-## Files from first 6 commits from HEAD references that contains some key and are not in vendor directory
+## Files in latest version (HEAD) that contain a key and are not in a vendor directory
 
 ```sql
-SELECT file_path,
-       repository_id,
-       blob_content
-FROM files
+SELECT repository_id,
+       commit_hash,
+       file_path
+FROM refs
 NATURAL JOIN commit_files
-NATURAL JOIN ref_commits
+NATURAL JOIN files
 WHERE ref_name = 'HEAD'
-  AND ref_commits.history_index BETWEEN 0 AND 5
-  AND is_binary(blob_content) = FALSE
-  AND files.file_path NOT REGEXP '^vendor.*'
+  AND NOT IS_BINARY(blob_content)
+  AND NOT IS_VENDOR(file_path)
   AND (blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
        OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
        OR blob_content REGEXP '(?i)github.*[\'\\"][0-9a-zA-Z]{35,40}[\'\\"]'
@@ -117,35 +108,11 @@ WHERE ref_name = 'HEAD'
        OR blob_content REGEXP '.*-----BEGIN OPENSSH PRIVATE KEY-----.*');
 ```
 
-## Create an index for columns on a table
-
-You can create an index either on a specific column or on several columns:
-
-```sql
-CREATE INDEX commits_hash_idx ON commits USING pilosa (commit_hash);
-
-CREATE INDEX files_commit_path_blob_idx ON commit_files USING pilosa (commit_hash, file_path, blob_hash);
-```
-
-## Create an index for an expression on a table
-
-Note that just one expression at a time is allowed to be indexed.
-
-```sql
-CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_content));
-```
-
-## Drop a table's index
-
-```sql
-DROP INDEX files_lang_idx ON files;
-```
-
 ## Calculating code line changes in the last commit
 
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in the last commit of each repository.
 
-```
+```sql
 SELECT
     repo,
     JSON_EXTRACT(stats, '$.Code.Additions') AS code_lines_added,
@@ -175,7 +142,7 @@ The output will be similar to this:
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in each file of the last commit of each repository. It's similar to the previous example. `COMMIT_STATS` is an aggregation over the result of `COMMIT_FILE_STATS` so to speak.
 We will only report those files that whose language has been identified.
 
-```
+```sql
 SELECT
     repo,
     JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Path')) AS file_path,
@@ -280,4 +247,28 @@ To kill a query that's currently running you can use the value in `Id`. If we we
 
 ```sql
 KILL QUERY 168;
+```
+
+## Create an index for columns on a table
+
+You can create an index either on a specific column or on several columns:
+
+```sql
+CREATE INDEX commits_hash_idx ON commits USING pilosa (commit_hash);
+
+CREATE INDEX files_commit_path_blob_idx ON commit_files USING pilosa (commit_hash, file_path, blob_hash);
+```
+
+## Create an index for an expression on a table
+
+Note that just one expression at a time is allowed to be indexed.
+
+```sql
+CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_content));
+```
+
+## Drop a table's index
+
+```sql
+DROP INDEX files_lang_idx ON files;
 ```
