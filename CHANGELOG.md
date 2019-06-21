@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- git libraries bare or non bare format is automatically detected ([#897](https://github.com/src-d/gitbase/pull/897))
+- Fix bug that created multiple object cache with incorrect size ([#898](https://github.com/src-d/gitbase/pull/898))
+
 ## [0.22.0-beta1] - 2019-06-20
 
 ### Added

@@ -59,6 +59,7 @@ type Server struct {
 	Format        string         `long:"format" default:"git" choice:"git" choice:"siva" description:"Library format"`
 	Bucket        int            `long:"bucket" default:"2" description:"Bucketing level to use with siva libraries"`
 	Bare          bool           `long:"bare" description:"Sets the library to use bare git repositories, used only with git format libraries"`
+	NonBare       bool           `long:"non-bare" description:"Sets the library to use non bare git repositories, used only with git format libraries"`
 	NonRooted     bool           `long:"non-rooted" description:"Disables treating siva files as rooted repositories"`
 	Host          string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
 	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
@@ -120,6 +121,10 @@ func NewDatabaseEngine(
 func (c *Server) Execute(args []string) error {
 	if c.Verbose {
 		logrus.SetLevel(logrus.DebugLevel)
+	}
+
+	if c.Bare && c.NonBare {
+		return fmt.Errorf("cannot use both --bare and --non-bare")
 	}
 
 	// info is the default log level
@@ -220,10 +225,10 @@ func (c *Server) buildDatabase() error {
 		)
 	}
 
-	c.rootLibrary = libraries.New(libraries.Options{})
-	c.pool = gitbase.NewRepositoryPool(c.CacheSize*cache.MiByte, c.rootLibrary)
+	c.sharedCache = cache.NewObjectLRU(c.CacheSize * cache.MiByte)
 
-	c.sharedCache = cache.NewObjectLRU(512 * cache.MiByte)
+	c.rootLibrary = libraries.New(libraries.Options{})
+	c.pool = gitbase.NewRepositoryPool(c.sharedCache, c.rootLibrary)
 
 	if err := c.addDirectories(); err != nil {
 		return err
@@ -270,11 +275,19 @@ func (c *Server) addDirectories() error {
 		logrus.Error("at least one folder should be provided.")
 	}
 
+	defaultBare := bareAuto
+	switch {
+	case c.Bare:
+		defaultBare = bareOn
+	case c.NonBare:
+		defaultBare = bareOff
+	}
+
 	for _, d := range c.Directories {
 		dir := directory{
 			Path:   d,
 			Format: c.Format,
-			Bare:   c.Bare,
+			Bare:   defaultBare,
 			Bucket: c.Bucket,
 			Rooted: !c.NonRooted,
 		}
@@ -327,10 +340,15 @@ func (c *Server) addDirectory(d directory) error {
 		return nil
 	}
 
+	bare, err := discoverBare(d)
+	if err != nil {
+		return err
+	}
+
 	plainOpts := &plain.LocationOptions{
 		Cache:       c.sharedCache,
 		Performance: true,
-		Bare:        d.Bare,
+		Bare:        bare,
 	}
 
 	if c.plainLibrary == nil {
@@ -354,12 +372,20 @@ func (c *Server) addDirectory(d directory) error {
 	return nil
 }
 
+type bareOpt int
+
+const (
+	bareAuto bareOpt = iota
+	bareOn
+	bareOff
+)
+
 type directory struct {
 	Path   string
 	Format string
 	Bucket int
 	Rooted bool
-	Bare   bool
+	Bare   bareOpt
 }
 
 var (
@@ -405,12 +431,18 @@ func parseDirectory(dir directory) (directory, error) {
 			dir.Format = val
 
 		case "bare":
-			if val != "true" && val != "false" {
+			switch val {
+			case "true":
+				dir.Bare = bareOn
+			case "false":
+				dir.Bare = bareOff
+			case "auto":
+				dir.Bare = bareAuto
+			default:
 				logrus.Errorf("invalid value in bare, it can only "+
-					"be true or false %v", val)
+					"be true, false, or auto %v", val)
 				return dir, ErrInvalid
 			}
-			dir.Bare = (val == "true")
 
 		case "rooted":
 			if val != "true" && val != "false" {
@@ -435,4 +467,25 @@ func parseDirectory(dir directory) (directory, error) {
 	}
 
 	return dir, nil
+}
+
+func discoverBare(d directory) (bool, error) {
+	fs := osfs.New(d.Path)
+
+	var bare bool
+	if d.Bare == bareAuto {
+		b, err := plain.IsFirstRepositoryBare(fs, "/")
+		if plain.ErrRepositoriesNotFound.Is(err) {
+			logrus.WithField("path", d.Path).
+				Errorf("could not find repositories, assuming non bare format")
+		} else if err != nil {
+			return false, err
+		}
+
+		bare = b
+	} else {
+		bare = d.Bare == bareOn
+	}
+
+	return bare, nil
 }

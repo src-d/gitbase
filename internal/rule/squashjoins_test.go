@@ -22,7 +22,7 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 
 	catalog := sql.NewCatalog()
 	catalog.AddDatabase(
-		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0, lib)),
+		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(nil, lib)),
 	)
 	a := analyzer.NewBuilder(catalog).
 		WithParallelism(2).
@@ -61,7 +61,7 @@ func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 
 	catalog := sql.NewCatalog()
 	catalog.AddDatabase(
-		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0, lib)),
+		gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(nil, lib)),
 	)
 	a := analyzer.NewBuilder(catalog).
 		WithParallelism(2).
@@ -2289,7 +2289,7 @@ func TestIsJoinLeafSquashable(t *testing.T) {
 
 func TestOrderedTableNames(t *testing.T) {
 	lib := libraries.New(libraries.Options{})
-	tables := gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(0, lib)).Tables()
+	tables := gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(nil, lib)).Tables()
 
 	input := []sql.Table{
 		tables[gitbase.BlobsTableName],
@@ -2831,5 +2831,5 @@ func (l dummyLookup) Indexes() []string {
 
 func gitbaseTables() map[string]sql.Table {
 	lib := libraries.New(libraries.Options{})
-	return gitbase.NewDatabase("", gitbase.NewRepositoryPool(0, lib)).Tables()
+	return gitbase.NewDatabase("", gitbase.NewRepositoryPool(nil, lib)).Tables()
 }

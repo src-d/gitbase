@@ -119,19 +119,20 @@ mysql -q -u root -h 127.0.0.1 --default-auth=mysql_native_password
 
 ## Library format specification
 
-By default the directories added to github should contain normal git repositories. If the format of the repositories is different you have two ways to specify it.
+By default the directories added to gitbase should contain git repositories and it detects if they are standard or bare format. Each directory added can only contain one type of repository. If you want to specify the format you have two ways to do it:
 
 If all the directories are in the same format you can set it globally with these parameters:
 
 * `--format`: it can be either `git` for filesystem repositories or `siva` for siva archives
 * `--bare`: specifies that git archives are bare, can only be used with `git` format
+* `--non-bare`: specifies that git archives are standard, can only be used with `git` format
 * `--bucket`: sets the number of characters to use for bucketing, used with `siva` libraries
 * `--non-rooted`: disables rooted repositories management in `siva` libraries
 
 If you are mixing formats you can specify each directory as a `file://` URL with these parameters:
 
 * `format`: can be `git` or `siva`
-* `bare`: `true` or `false`
+* `bare`: `true`, `false` or `auto`
 * `bucket`: the characters to use for directory bucketing
 * `rooted`: `true` or `false`
 

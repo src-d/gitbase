@@ -51,7 +51,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 	lib.AddLocation(loc)
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := gitbase.NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 	engine := newBaseEngine(pool)
 
 	testCases := []struct {
@@ -740,7 +740,7 @@ func TestMissingHeadRefs(t *testing.T) {
 	})
 	require.NoError(err)
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := gitbase.NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 	engine := newBaseEngine(pool)
 
 	session := gitbase.NewSession(pool)
@@ -1114,7 +1114,7 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 	require.NoError(t, err)
 	lib.AddLocation(loc)
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := gitbase.NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 
 	cleanup := func() {
 		require.NoError(t, fixtures.Clean())
