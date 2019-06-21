@@ -108,7 +108,7 @@ func setupPool(t *testing.T) (*gitbase.RepositoryPool, func()) {
 	require.NoError(t, err)
 	lib.AddLocation(loc)
 
-	pool := gitbase.NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := gitbase.NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 
 	return pool, cleanup
 }

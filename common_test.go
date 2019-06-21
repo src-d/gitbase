@@ -49,7 +49,7 @@ func buildSession(
 	lib, err := newMultiLibrary()
 	require.NoError(err)
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 	for _, fixture := range repos {
 		path := fixture.Worktree().Root()
 		ok, err := IsGitRepo(path)
@@ -173,7 +173,7 @@ func setupSivaCloseRepos(t *testing.T, dir string) (*sql.Context, *closedLibrary
 	require.NoError(err)
 
 	closedLib := &closedLibrary{multiLibrary: lib}
-	pool := NewRepositoryPool(cache.DefaultMaxSize, closedLib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), closedLib)
 
 	cwd, err := os.Getwd()
 	require.NoError(err)
@@ -298,7 +298,7 @@ func newMultiPool() (*multiLibrary, *RepositoryPool, error) {
 		return nil, nil, err
 	}
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 
 	return lib, pool, err
 }

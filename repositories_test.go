@@ -22,7 +22,7 @@ func TestRepositoriesTable(t *testing.T) {
 	lib, err := newMultiLibrary()
 	require.NoError(err)
 
-	pool := NewRepositoryPool(cache.DefaultMaxSize, lib)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
 
 	path := fixtures.Basic().ByTag("worktree").One().Worktree().Root()
 	for _, id := range repoIDs {

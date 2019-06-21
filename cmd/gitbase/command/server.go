@@ -225,10 +225,10 @@ func (c *Server) buildDatabase() error {
 		)
 	}
 
-	c.rootLibrary = libraries.New(libraries.Options{})
-	c.pool = gitbase.NewRepositoryPool(c.CacheSize*cache.MiByte, c.rootLibrary)
+	c.sharedCache = cache.NewObjectLRU(c.CacheSize * cache.MiByte)
 
-	c.sharedCache = cache.NewObjectLRU(512 * cache.MiByte)
+	c.rootLibrary = libraries.New(libraries.Options{})
+	c.pool = gitbase.NewRepositoryPool(c.sharedCache, c.rootLibrary)
 
 	if err := c.addDirectories(); err != nil {
 		return err
