@@ -1,9 +1,14 @@
 package command
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 )
 
 func TestDirectories(t *testing.T) {
@@ -70,14 +75,14 @@ func TestDirectories(t *testing.T) {
 			path: "file:///siva/path?bare=true",
 			expected: directory{
 				Path: "/siva/path",
-				Bare: true,
+				Bare: bareOn,
 			},
 		},
 		{
 			path: "file:///siva/path?bare=false",
 			expected: directory{
 				Path: "/siva/path",
-				Bare: false,
+				Bare: bareOff,
 			},
 		},
 		{
@@ -118,7 +123,7 @@ func TestDirectories(t *testing.T) {
 			expected: directory{
 				Path:   "/siva/path",
 				Format: "git",
-				Bare:   false,
+				Bare:   bareOff,
 			},
 		},
 		{
@@ -146,4 +151,127 @@ func TestDirectories(t *testing.T) {
 			require.Equal(test.expected, dir)
 		})
 	}
+}
+
+func TestDiscoverBare(t *testing.T) {
+	err := fixtures.Init()
+	require.NoError(t, err)
+	defer func() {
+		_ = fixtures.Clean()
+	}
+
+	tmpDir, err := ioutil.TempDir("", "gitbase")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	emptyDir := filepath.Join(tmpDir, "empty")
+	err = os.Mkdir(emptyDir, 0777)
+	require.NoError(t, err)
+
+	bareDir := filepath.Join(tmpDir, "bare")
+	err = os.Mkdir(bareDir, 0777)
+	require.NoError(t, err)
+	dir := fixtures.ByTag("worktree").One().DotGit().Root()
+	err = os.Rename(dir, filepath.Join(bareDir, "repo"))
+	require.NoError(t, err)
+
+	nonBareDir := filepath.Join(tmpDir, "non_bare")
+	err = os.Mkdir(nonBareDir, 0777)
+	require.NoError(t, err)
+	dir = fixtures.ByTag("worktree").One().Worktree().Root()
+	err = os.Rename(dir, filepath.Join(nonBareDir, "repo"))
+	require.NoError(t, err)
+
+	tests := []struct {
+		path     string
+		bare     bareness
+		expected bool
+		err      bool
+	}{
+		{
+			path: "/does/not/exist",
+			err:  true,
+		},
+		{
+			path:     emptyDir,
+			bare:     bareAuto,
+			expected: false,
+		},
+		{
+			path:     emptyDir,
+			bare:     bareOn,
+			expected: true,
+		},
+		{
+			path:     emptyDir,
+			bare:     bareOff,
+			expected: false,
+		},
+		{
+			path:     bareDir,
+			bare:     bareAuto,
+			expected: true,
+		},
+		{
+			path:     bareDir,
+			bare:     bareOn,
+			expected: true,
+		},
+		{
+			path:     bareDir,
+			bare:     bareOff,
+			expected: false,
+		},
+		{
+			path:     nonBareDir,
+			bare:     bareAuto,
+			expected: false,
+		},
+		{
+			path:     nonBareDir,
+			bare:     bareOn,
+			expected: true,
+		},
+		{
+			path:     nonBareDir,
+			bare:     bareOff,
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		dir := directory{
+			Path: test.path,
+			Bare: test.bare,
+		}
+
+		t.Run(bareTestName(dir, test.err), func(t *testing.T) {
+			bare, err := discoverBare(dir)
+			if test.err {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.expected, bare)
+		})
+	}
+}
+
+func bareTestName(d directory, err bool) string {
+	bare := ""
+	switch d.Bare {
+	case bareOn:
+		bare = "bare"
+	case bareOff:
+		bare = "non-bare"
+	case bareAuto:
+		bare = "auto"
+	}
+
+	if err {
+		bare = "error"
+	}
+
+	return fmt.Sprintf("%s_%s", d.Path, bare)
 }

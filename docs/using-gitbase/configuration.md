@@ -92,6 +92,8 @@ Help Options:
           --bucket=                                    Bucketing level to use with siva libraries (default: 2)
           --bare                                       Sets the library to use bare git repositories, used
                                                        only with git format libraries
+          --non-bare                                   Sets the library to use non bare git repositories,
+                                                       used only with git format libraries
           --non-rooted                                 Disables treating siva files as rooted repositories
           --host=                                      Host where the server is going to listen (default:
                                                        localhost)
