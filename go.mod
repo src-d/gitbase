@@ -14,7 +14,7 @@ require (
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/sirupsen/logrus v1.3.0
 	github.com/src-d/enry/v2 v2.0.0
-	github.com/src-d/go-borges v0.0.0-20190620132223-0499c9b6034b
+	github.com/src-d/go-borges v0.0.0-20190624123045-3532fdfd0284
 	github.com/src-d/go-git v4.7.0+incompatible
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
 	github.com/src-d/go-mysql-server v0.4.1-0.20190624094722-bc2334894674
