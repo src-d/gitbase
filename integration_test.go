@@ -496,6 +496,19 @@ func TestIntegration(t *testing.T) {
 				{"lordran.local", int64(1)},
 			},
 		},
+		{
+			`
+			SELECT file_path
+			FROM commit_files
+			NATURAL JOIN refs
+			WHERE ref_name = 'HEAD'
+			AND LANGUAGE(file_path) = 'Go';
+			`,
+			[]sql.Row{
+				{"go/example.go"},
+				{"vendor/foo.go"},
+			},
+		},
 	}
 
 	var pid uint64

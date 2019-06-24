@@ -3486,17 +3486,7 @@ func (i *squashCommitFileBlobsIter) Close() error {
 }
 
 func evalFilters(ctx *sql.Context, row sql.Row, filters sql.Expression) (bool, error) {
-	v, err := filters.Eval(ctx, row)
-	if err != nil {
-		return false, err
-	}
-
-	v, err = sql.Boolean.Convert(v)
-	if err != nil {
-		return false, err
-	}
-
-	return v.(bool), nil
+	return sql.EvaluateCondition(ctx, filters, row)
 }
 
 var errInvalidCommit = errors.NewKind("invalid commit of type: %T")
