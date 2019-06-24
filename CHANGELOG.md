@@ -6,10 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0-rc2] - 2019-06-24
+
 ### Fixed
 - Panic on query using EXPLODE ([#755](https://github.com/src-d/go-mysql-server/issues/755))
 - Fixed error iterating over non ready repositories ([src-d/go-borges#54](https://github.com/src-d/go-borges/pull/54))
 - Error saying value could not be converted to bool.
+- function: make array_length not fail with literal null ([#767](https://github.com/src-d/go-mysql-server/pull/767))
 
 ## [0.22.0-rc1] - 2019-06-21
 
