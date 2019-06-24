@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Panic on query using EXPLODE ([#755](https://github.com/src-d/go-mysql-server/issues/755))
+
 ## [0.22.0-rc1] - 2019-06-21
 
 ### Added
