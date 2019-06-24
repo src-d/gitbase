@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Panic on query using EXPLODE ([#755](https://github.com/src-d/go-mysql-server/issues/755))
 - Fixed error iterating over non ready repositories ([src-d/go-borges#54](https://github.com/src-d/go-borges/pull/54))
+- Error saying value could not be converted to bool.
 
 ## [0.22.0-rc1] - 2019-06-21
 
@@ -24,10 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- function: correctly transform up explode nodes ([#757](https://github.com/src-d/go-mysql-server/pull/757)) 
+- function: correctly transform up explode nodes ([#757](https://github.com/src-d/go-mysql-server/pull/757))
 - git libraries bare or non bare format is automatically detected ([#897](https://github.com/src-d/gitbase/pull/897))
 - Fix bug that created multiple object cache with incorrect size ([#898](https://github.com/src-d/gitbase/pull/898))
-- sql/expression: handle null values in arithmetic expressions ([#760](https://github.com/src-d/go-mysql-server/pull/760)) 
+- sql/expression: handle null values in arithmetic expressions ([#760](https://github.com/src-d/go-mysql-server/pull/760))
 
 ## [0.22.0-beta1] - 2019-06-20
 
@@ -43,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- function: correctly transform up explode nodes ([#757](https://github.com/src-d/go-mysql-server/pull/757)) 
+- function: correctly transform up explode nodes ([#757](https://github.com/src-d/go-mysql-server/pull/757))
 
 ## [0.21.0] - 2019-06-20
 
