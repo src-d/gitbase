@@ -2,6 +2,7 @@ package gitbase
 
 import (
 	"io"
+	"strconv"
 	"testing"
 
 	"github.com/src-d/go-mysql-server/sql"
@@ -145,4 +146,61 @@ func TestPartitionRowsWithIndex(t *testing.T) {
 	require.NoError(err)
 
 	require.ElementsMatch(expected, result)
+}
+
+func TestCommitFilesIndexIter(t *testing.T) {
+	require := require.New(t)
+
+	ctx, _, cleanup := setupRepos(t)
+	defer cleanup()
+
+	key := &commitFileIndexKey{
+		Repository: "zero",
+		Packfile:   plumbing.ZeroHash.String(),
+		Hash:       plumbing.ZeroHash.String(),
+		Offset:     0,
+		Name:       "two",
+		Mode:       5,
+		Tree:       plumbing.ZeroHash.String(),
+		Commit:     plumbing.ZeroHash.String(),
+	}
+	limit := 10
+	it := newCommitFilesIndexIter(testIndexValueIter{key, int64(limit)}, poolFromCtx(t, ctx))
+	for off := 0; off < limit; off++ {
+		row, err := it.Next()
+		require.NoError(err)
+
+		require.Equal(key.Repository, row[0])
+		require.Equal(strconv.Itoa(off), row[2])
+	}
+	_, err := it.Next()
+	require.EqualError(err, io.EOF.Error())
+}
+
+type testIndexValueIter struct {
+	key   *commitFileIndexKey
+	limit int64
+}
+
+func (it testIndexValueIter) Next() ([]byte, error) {
+	if it.key.Offset >= it.limit {
+		return nil, io.EOF
+	}
+
+	it.key.Name = strconv.Itoa(int(it.key.Offset))
+	val, err := it.key.encode()
+	if err != nil {
+		return nil, err
+	}
+	val, err = encoder.encode(val)
+	if err != nil {
+		return nil, err
+	}
+
+	it.key.Offset++
+	return val, nil
+}
+
+func (it testIndexValueIter) Close() error {
+	return nil
 }
