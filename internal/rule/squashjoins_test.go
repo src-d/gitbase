@@ -18,7 +18,7 @@ import (
 func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 	require := require.New(t)
 
-	lib := libraries.New(libraries.Options{})
+	lib := libraries.New(nil)
 
 	catalog := sql.NewCatalog()
 	catalog.AddDatabase(
@@ -57,7 +57,7 @@ func TestAnalyzeSquashJoinsExchange(t *testing.T) {
 func TestAnalyzeSquashNaturalJoins(t *testing.T) {
 	require := require.New(t)
 
-	lib := libraries.New(libraries.Options{})
+	lib := libraries.New(nil)
 
 	catalog := sql.NewCatalog()
 	catalog.AddDatabase(
@@ -2288,7 +2288,7 @@ func TestIsJoinLeafSquashable(t *testing.T) {
 }
 
 func TestOrderedTableNames(t *testing.T) {
-	lib := libraries.New(libraries.Options{})
+	lib := libraries.New(nil)
 	tables := gitbase.NewDatabase("foo", gitbase.NewRepositoryPool(nil, lib)).Tables()
 
 	input := []sql.Table{
@@ -2830,6 +2830,6 @@ func (l dummyLookup) Indexes() []string {
 }
 
 func gitbaseTables() map[string]sql.Table {
-	lib := libraries.New(libraries.Options{})
+	lib := libraries.New(nil)
 	return gitbase.NewDatabase("", gitbase.NewRepositoryPool(nil, lib)).Tables()
 }
