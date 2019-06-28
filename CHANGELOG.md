@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Now non rooted siva files support old siva rooted repositories.
+
 ## [0.22.0-rc2] - 2019-06-24
 
 ### Fixed

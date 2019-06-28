@@ -748,7 +748,7 @@ func TestMissingHeadRefs(t *testing.T) {
 
 	path := filepath.Join(cwd, "_testdata")
 
-	lib, err := siva.NewLibrary("siva", osfs.New(path), siva.LibraryOptions{
+	lib, err := siva.NewLibrary("siva", osfs.New(path), &siva.LibraryOptions{
 		RootedRepo: true,
 	})
 	require.NoError(err)
