@@ -2,8 +2,6 @@ module github.com/src-d/gitbase
 
 go 1.12
 
-replace github.com/src-d/go-mysql-server => /home/juanjux/sourced/go-mysql-server.v0
-
 require (
 	github.com/bblfsh/go-client/v4 v4.1.0
 	github.com/bblfsh/sdk/v3 v3.1.0
@@ -21,7 +19,7 @@ require (
 	github.com/src-d/go-borges v0.0.0-20190628121335-da12a84d60fd
 	github.com/src-d/go-git v4.7.0+incompatible
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
-	github.com/src-d/go-mysql-server v0.4.1-0.20190703140603-bbae51955887
+	github.com/src-d/go-mysql-server v0.4.1-0.20190704102044-409efb9ac21c
 	github.com/stretchr/testify v1.3.0
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
