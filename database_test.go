@@ -14,7 +14,7 @@ const testDBName = "foo"
 func TestDatabase_Tables(t *testing.T) {
 	require := require.New(t)
 
-	lib := libraries.New(libraries.Options{})
+	lib := libraries.New(nil)
 	db := getDB(t, testDBName, NewRepositoryPool(nil, lib))
 
 	tables := db.Tables()
@@ -45,7 +45,7 @@ func TestDatabase_Tables(t *testing.T) {
 func TestDatabase_Name(t *testing.T) {
 	require := require.New(t)
 
-	lib := libraries.New(libraries.Options{})
+	lib := libraries.New(nil)
 	db := getDB(t, testDBName, NewRepositoryPool(nil, lib))
 	require.Equal(testDBName, db.Name())
 }
