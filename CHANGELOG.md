@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Errors now report the repository causing the error, if possible.
+- Now non rooted siva files support old siva rooted repositories.
 
 ## [0.22.0] - 2019-07-03
 

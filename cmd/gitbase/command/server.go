@@ -20,6 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/libraries"
+	"github.com/src-d/go-borges/oldsiva"
 	"github.com/src-d/go-borges/plain"
 	"github.com/src-d/go-borges/siva"
 	sqle "github.com/src-d/go-mysql-server"
@@ -227,7 +228,7 @@ func (c *Server) buildDatabase() error {
 
 	c.sharedCache = cache.NewObjectLRU(c.CacheSize * cache.MiByte)
 
-	c.rootLibrary = libraries.New(libraries.Options{})
+	c.rootLibrary = libraries.New(nil)
 	c.pool = gitbase.NewRepositoryPool(c.sharedCache, c.rootLibrary)
 
 	if err := c.addDirectories(); err != nil {
@@ -318,18 +319,34 @@ func (c *Server) addDirectories() error {
 
 func (c *Server) addDirectory(d directory) error {
 	if d.Format == "siva" {
-		sivaOpts := siva.LibraryOptions{
-			Transactional: true,
-			RootedRepo:    d.Rooted,
-			Cache:         c.sharedCache,
-			Bucket:        d.Bucket,
-			Performance:   true,
-			RegistryCache: 100000,
-		}
+		var lib borges.Library
+		var err error
 
-		lib, err := siva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
-		if err != nil {
-			return err
+		if d.Rooted {
+			sivaOpts := &siva.LibraryOptions{
+				Transactional: true,
+				RootedRepo:    d.Rooted,
+				Cache:         c.sharedCache,
+				Bucket:        d.Bucket,
+				Performance:   true,
+				RegistryCache: 100000,
+			}
+
+			lib, err = siva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
+			if err != nil {
+				return err
+			}
+		} else {
+			sivaOpts := &oldsiva.LibraryOptions{
+				Cache:         c.sharedCache,
+				Bucket:        d.Bucket,
+				RegistryCache: 100000,
+			}
+
+			lib, err = oldsiva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = c.rootLibrary.Add(lib)
