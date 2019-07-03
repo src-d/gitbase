@@ -91,10 +91,10 @@ func (r *repositoriesTable) PartitionRows(
 
 	if err != nil {
 		span.Finish()
-		return nil, err
+		return nil, errorWithRepo(repo, err)
 	}
 
-	return sql.NewSpanIter(span, iter), nil
+	return sql.NewSpanIter(span, newRepoRowIter(repo, iter)), nil
 }
 
 func (repositoriesTable) handledColumns() []string { return nil }

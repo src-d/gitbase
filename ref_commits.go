@@ -7,9 +7,9 @@ import (
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
+	"github.com/src-d/go-mysql-server/sql"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
-	"github.com/src-d/go-mysql-server/sql"
 )
 
 type refCommitsTable struct {
@@ -121,10 +121,10 @@ func (t *refCommitsTable) PartitionRows(
 
 	if err != nil {
 		span.Finish()
-		return nil, err
+		return nil, errorWithRepo(repo, err)
 	}
 
-	return sql.NewSpanIter(span, iter), nil
+	return sql.NewSpanIter(span, newRepoRowIter(repo, iter)), nil
 }
 
 func (refCommitsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
