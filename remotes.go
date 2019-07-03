@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/src-d/go-mysql-server/sql"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
-	"github.com/src-d/go-mysql-server/sql"
 )
 
 type remotesTable struct {
@@ -111,10 +111,10 @@ func (r *remotesTable) PartitionRows(
 
 	if err != nil {
 		span.Finish()
-		return nil, err
+		return nil, errorWithRepo(repo, err)
 	}
 
-	return sql.NewSpanIter(span, iter), nil
+	return sql.NewSpanIter(span, newRepoRowIter(repo, iter)), nil
 }
 
 func (remotesTable) HandledFilters(filters []sql.Expression) []sql.Expression {

@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/src-d/go-mysql-server/sql"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	"github.com/src-d/go-mysql-server/sql"
 )
 
 type filesTable struct {
@@ -143,10 +143,10 @@ func (r *filesTable) PartitionRows(
 
 	if err != nil {
 		span.Finish()
-		return nil, err
+		return nil, errorWithRepo(repo, err)
 	}
 
-	return sql.NewSpanIter(span, iter), nil
+	return sql.NewSpanIter(span, newRepoRowIter(repo, iter)), nil
 }
 
 func (filesTable) HandledFilters(filters []sql.Expression) []sql.Expression {

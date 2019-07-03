@@ -58,7 +58,7 @@ func setupErrorRepos(t *testing.T) (*sql.Context, CleanupFunc) {
 	tmpDir, err := ioutil.TempDir("", "gitbase")
 	require.NoError(err)
 
-	var rootFS billy.Filesystem = osfs.New(tmpDir)
+	rootFS := osfs.New(tmpDir)
 
 	lib, pool, err := newMultiPool()
 	require.NoError(err)
