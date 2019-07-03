@@ -271,3 +271,36 @@ func (i *partitionedIndexKeyValueIter) Close() error {
 	}
 	return nil
 }
+
+var errRepository = errors.NewKind("on repository %q")
+
+func errorWithRepo(repo *Repository, err error) error {
+	return errRepository.Wrap(err, repo.ID())
+}
+
+type repoRowIter struct {
+	iter sql.RowIter
+	repo *Repository
+}
+
+func newRepoRowIter(repo *Repository, iter sql.RowIter) sql.RowIter {
+	return &repoRowIter{iter, repo}
+}
+
+func (i *repoRowIter) Next() (sql.Row, error) {
+	row, err := i.iter.Next()
+	if err != nil {
+		if err == io.EOF {
+			return nil, io.EOF
+		}
+		return nil, errorWithRepo(i.repo, err)
+	}
+	return row, nil
+}
+
+func (i *repoRowIter) Close() error {
+	if err := i.iter.Close(); err != nil {
+		return errorWithRepo(i.repo, err)
+	}
+	return nil
+}

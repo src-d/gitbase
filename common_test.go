@@ -314,14 +314,14 @@ func newMultiLibrary() (*multiLibrary, error) {
 	plainLib.AddLocation(plainLoc)
 
 	sivaFS := memfs.New()
-	sivaLib, err := siva.NewLibrary("siva", sivaFS, siva.LibraryOptions{
+	sivaLib, err := siva.NewLibrary("siva", sivaFS, &siva.LibraryOptions{
 		RootedRepo: true,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	libs := libraries.New(libraries.Options{})
+	libs := libraries.New(nil)
 
 	err = libs.Add(plainLib)
 	if err != nil {

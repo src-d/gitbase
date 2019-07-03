@@ -5,13 +5,13 @@ import (
 	"io"
 
 	"github.com/sirupsen/logrus"
+	"github.com/src-d/go-mysql-server/sql"
+	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/src-d/go-mysql-server/sql/plan"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
-	"github.com/src-d/go-mysql-server/sql"
-	"github.com/src-d/go-mysql-server/sql/expression"
-	"github.com/src-d/go-mysql-server/sql/plan"
 )
 
 type commitFilesTable struct {
@@ -125,10 +125,10 @@ func (t *commitFilesTable) PartitionRows(
 
 	if err != nil {
 		span.Finish()
-		return nil, err
+		return nil, errorWithRepo(repo, err)
 	}
 
-	return sql.NewSpanIter(span, iter), nil
+	return sql.NewSpanIter(span, newRepoRowIter(repo, iter)), nil
 }
 
 func (commitFilesTable) HandledFilters(filters []sql.Expression) []sql.Expression {
