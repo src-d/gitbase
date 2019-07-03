@@ -6,10 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Varchar type.
+- FIRST and LAST aggregations.
+
 ### Changed
 
 - Errors now report the repository causing the error, if possible.
 - Now non rooted siva files support old siva rooted repositories.
+- Traces now have a root span.
+
+### Fixed
+
+- Fixed the behaviour of limit and offset.
+- Resolution of HAVING nodes.
 
 ## [0.22.0] - 2019-07-03
 
