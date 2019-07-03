@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Errors now report the repository causing the error, if possible.
+
 ## [0.22.0] - 2019-07-03
 
 ### Added
@@ -28,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed error iterating over non ready repositories ([src-d/go-borges#54](https://github.com/src-d/go-borges/pull/54))
 - Error saying value could not be converted to bool.
 - function: make array_length not fail with literal null ([#767](https://github.com/src-d/go-mysql-server/pull/767))
-- server: kill queries on connection closed (([#769](https://github.com/src-d/go-mysql-server/pull/769))) 
+- server: kill queries on connection closed (([#769](https://github.com/src-d/go-mysql-server/pull/769)))
 
 ## [0.22.0-rc2] - 2019-06-24
 

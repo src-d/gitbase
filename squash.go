@@ -83,19 +83,22 @@ func (t *SquashedTable) PartitionRows(ctx *sql.Context, p sql.Partition) (sql.Ro
 	iter, err := t.iter.New(ctx, repo)
 	if err != nil {
 		span.Finish()
-		return nil, err
+		return nil, errorWithRepo(repo, err)
 	}
 
 	if len(t.schemaMappings) == 0 {
 		return sql.NewSpanIter(
 			span,
-			NewChainableRowIter(iter),
+			newRepoRowIter(repo, NewChainableRowIter(iter)),
 		), nil
 	}
 
 	return sql.NewSpanIter(
 		span,
-		NewSchemaMapperIter(NewChainableRowIter(iter), t.schemaMappings),
+		newRepoRowIter(
+			repo,
+			NewSchemaMapperIter(NewChainableRowIter(iter), t.schemaMappings),
+		),
 	), nil
 }
 

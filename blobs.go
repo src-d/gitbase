@@ -143,10 +143,10 @@ func (r *blobsTable) PartitionRows(
 
 	if err != nil {
 		span.Finish()
-		return nil, err
+		return nil, errorWithRepo(repo, err)
 	}
 
-	return sql.NewSpanIter(span, iter), nil
+	return sql.NewSpanIter(span, newRepoRowIter(repo, iter)), nil
 }
 
 func (blobsTable) HandledFilters(filters []sql.Expression) []sql.Expression {
