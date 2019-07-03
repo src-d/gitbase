@@ -1,14 +1,14 @@
 # Schema
 
-You can execute the `SHOW TABLES` statement to get a list of the available tables.
-To get all the columns and types of a specific table, you can write `DESCRIBE TABLE [tablename]`.
+You can execute the `SHOW TABLES` statement to get a list of the available tables. To get all the columns and types of a specific table, you can write `DESCRIBE TABLE [tablename]`.
 
 gitbase exposes the following tables:
 
 ## Main tables
 
 ### repositories
-``` sql
+
+```sql
 +---------------+------+
 | name          | type |
 +---------------+------+
@@ -21,7 +21,8 @@ Table that contains all the repositories on the dataset. `repository_id` is the 
 In case of [siva files](https://github.com/src-d/go-siva/), the id is the path + the siva file name.
 
 ### remotes
-``` sql
+
+```sql
 +----------------------+------+
 | name                 | type |
 +----------------------+------+
@@ -37,7 +38,8 @@ In case of [siva files](https://github.com/src-d/go-siva/), the id is the path +
 This table will return all the [remotes](https://git-scm.com/book/en/v2/Git-Basics-Working-with-Remotes) configured on git `config` file of all the repositories.
 
 ### refs
-``` sql
+
+```sql
 +---------------+------+
 | name          | type |
 +---------------+------+
@@ -46,10 +48,12 @@ This table will return all the [remotes](https://git-scm.com/book/en/v2/Git-Basi
 | commit_hash   | TEXT |
 +---------------+------+
 ```
+
 This table contains all hash [git references](https://git-scm.com/book/en/v2/Git-Internals-Git-References) and the symbolic reference `HEAD` from all the repositories.
 
 ### commits
-``` sql
+
+```sql
 +---------------------+-----------+
 | name                | type      |
 +---------------------+-----------+
@@ -69,9 +73,10 @@ This table contains all hash [git references](https://git-scm.com/book/en/v2/Git
 
 Commits contains all the [commits](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects#_git_commit_objects) from all the references from all the repositories, not duplicated by repository. Note that you can have the same commit in several repositories. In that case the commit will appear two times on the table, one per repository.
 
-> Note that this table is not only showing `HEAD` commits but all the commits on the repository (that can be a lot more than the commits on `HEAD` reference).
+> Note that this table is not only showing `HEAD` commits but all the commits on the repository \(that can be a lot more than the commits on `HEAD` reference\).
 
 ### blobs
+
 ```sql
 +---------------+-------+
 | name          | type  |
@@ -87,7 +92,8 @@ This table exposes blob objects, that are the content without path from files.
 
 > Note that this table will return all the existing blobs on all the commits on all the repositories, potentially **a lot** of data. In most common cases you want to filter by commit, by reference or by repository.
 
-### tree_entries
+### tree\_entries
+
 ```sql
 +-----------------+------+
 | name            | type |
@@ -102,8 +108,8 @@ This table exposes blob objects, that are the content without path from files.
 
 `tree_entries` table contains all the objects from all the repositories that are [tree objects](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects#_git_commit_objects).
 
-
 ### files
+
 ```sql
 +-----------------+-------+
 | name            | type  |
@@ -120,11 +126,12 @@ This table exposes blob objects, that are the content without path from files.
 
 `files` is an utility table mixing `tree_entries` and `blobs` to create files. It includes the file path.
 
-Queries to this table are expensive and they should be done carefully (applying filters or using directly `blobs` or `tree_entries` tables).
+Queries to this table are expensive and they should be done carefully \(applying filters or using directly `blobs` or `tree_entries` tables\).
 
 ## Relation tables
 
-### commit_blobs
+### commit\_blobs
+
 ```sql
 +---------------+------+
 | name          | type |
@@ -137,7 +144,8 @@ Queries to this table are expensive and they should be done carefully (applying 
 
 This table represents the relation between commits and blobs. With this table you can obtain all the blobs contained on a commit object.
 
-### commit_trees
+### commit\_trees
+
 ```sql
 +---------------+------+
 | name          | type |
@@ -150,7 +158,8 @@ This table represents the relation between commits and blobs. With this table yo
 
 This table represents the relation between commits and trees. With this table you can obtain all the tree entries contained on a commit object.
 
-### commit_files
+### commit\_files
+
 ```sql
 +---------------+------+
 | name          | type |
@@ -163,9 +172,10 @@ This table represents the relation between commits and trees. With this table yo
 +---------------+------+
 ```
 
-This table represents the relation between commits and [files](#files). Using this table, you can obtain all the files related to a certain commit object.
+This table represents the relation between commits and [files](schema.md#files). Using this table, you can obtain all the files related to a certain commit object.
 
-### ref_commits
+### ref\_commits
+
 ```sql
 +---------------+-------+
 | name          | type  |
@@ -184,10 +194,6 @@ This table it's like the [log](https://git-scm.com/docs/git-log) from a specific
 Commits will be repeated if they are in several repositories or references.
 
 ## Database diagram
-<!--
 
-Diagram generated with MySQL Workbench. Edit the model in docs/assets/gitbase_model.mwb to generate a new diagram in case it needs some changes.
+![gitbase schema](../.gitbook/assets/gitbase-schema.png)
 
- -->
-
-![gitbase schema](/docs/assets/gitbase-schema.png)

@@ -2,25 +2,25 @@
 
 These are the clients we actively test against to check are compatible with go-mysql-server. Other clients may also work, but we don't check on every build if we remain compatible with them.
 
-- Python
-  - [pymysql](#pymysql)
-  - [mysql-connector](#python-mysql-connector)
-  - [sqlalchemy](#python-sqlalchemy)
-- Ruby
-  - [ruby-mysql](#ruby-mysql)
-- [PHP](#php)
-- Node.js
-  - [mysqljs/mysql](#mysqljs)
-- .NET Core
-  - [MysqlConnector](#mysqlconnector)
-- Java/JVM
-  - [mariadb-java-client](#mariadb-java-client)
-- Go
-  - [go-mysql-driver/mysql](#go-mysql-driver-mysql)
-- C
-  - [mysql-connector-c](#mysql-connector-c)
-- Grafana
-- Tableau Desktop
+* Python
+  * [pymysql](supported-clients.md#pymysql)
+  * [mysql-connector](supported-clients.md#python-mysql-connector)
+  * [sqlalchemy](supported-clients.md#python-sqlalchemy)
+* Ruby
+  * [ruby-mysql](supported-clients.md#ruby-mysql)
+* [PHP](supported-clients.md#php)
+* Node.js
+  * [mysqljs/mysql](supported-clients.md#mysqljs)
+* .NET Core
+  * [MysqlConnector](supported-clients.md#mysqlconnector)
+* Java/JVM
+  * [mariadb-java-client](supported-clients.md#mariadb-java-client)
+* Go
+  * [go-mysql-driver/mysql](supported-clients.md#go-mysql-driver-mysql)
+* C
+  * [mysql-connector-c](supported-clients.md#mysql-connector-c)
+* Grafana
+* Tableau Desktop
 
 ## Example client usage
 
@@ -112,7 +112,7 @@ try {
 
 ### mysqljs
 
-```js
+```javascript
 import mysql from 'mysql';
 
 const connection = mysql.createConnection({
@@ -198,27 +198,27 @@ class Main {
 package main
 
 import (
-	"database/sql"
+    "database/sql"
 
-	_ "github.com/go-sql-driver/mysql"
+    _ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
     db, err := sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/mydb")
-	if err != nil {
-		// handle error
-	}
+    if err != nil {
+        // handle error
+    }
 
-	rows, err := db.Query("SELECT * FROM mytable LIMIT 1")
-	if err != nil {
-		// handle error
+    rows, err := db.Query("SELECT * FROM mytable LIMIT 1")
+    if err != nil {
+        // handle error
     }
 
     // use rows
 }
 ```
 
-### #mysql-connector-c
+### \#mysql-connector-c
 
 ```c
 #include <my_global.h>
@@ -272,3 +272,4 @@ int main(int argc, char **argv)
     return 0;
 }
 ```
+

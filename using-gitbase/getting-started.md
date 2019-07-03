@@ -4,7 +4,7 @@
 
 `gitbase` optional dependencies that should be running on your system if you're planning on using certain functionality.
 
-- [bblfsh](https://github.com/bblfsh/bblfshd) >= 2.14.0 (only if you're planning to use the `UAST` functionality provided in gitbase)
+* [bblfsh](https://github.com/bblfsh/bblfshd) &gt;= 2.14.0 \(only if you're planning to use the `UAST` functionality provided in gitbase\)
 
 ## Installing gitbase
 
@@ -13,15 +13,16 @@ The easiest way to run the gitbase server is using Docker; However, you have the
 ### Running with Docker
 
 You can use the official image from [docker hub](https://hub.docker.com/r/srcd/gitbase/tags/) to quickly run gitbase:
-```
+
+```text
 docker run --rm --name gitbase -p 3306:3306 -v /my/git/repos:/opt/repos srcd/gitbase:latest
 ```
 
 **Note:** remember to replace `/my/git/repos` with the local path where your repositories are stored in your computer.
 
-If you want to use [bblfsh](https://github.com/bblfsh/bblfshd) with running in Docker you can do so by linking the 2 containers.
-Fist you need to start following [the bblfsh quick start](https://github.com/bblfsh/bblfshd#quick-start). After that you can run gitbase using:
-```
+If you want to use [bblfsh](https://github.com/bblfsh/bblfshd) with running in Docker you can do so by linking the 2 containers. Fist you need to start following [the bblfsh quick start](https://github.com/bblfsh/bblfshd#quick-start). After that you can run gitbase using:
+
+```text
 docker run --rm --name gitbase -p 3306:3306 --link bblfshd:bblfshd -e BBLFSH_ENDPOINT=bblfshd:9432 -v /my/git/repos/go:/opt/repos srcd/gitbase:latest
 ```
 
@@ -29,11 +30,11 @@ docker run --rm --name gitbase -p 3306:3306 --link bblfshd:bblfshd -e BBLFSH_END
 
 Check the [Releases](https://github.com/src-d/gitbase/releases) page to download the gitbase binary.
 
-For more info about command line arguments, [go here](/docs/using-gitbase/configuration.md#command-line-arguments).
+For more info about command line arguments, [go here](configuration.md#command-line-arguments).
 
 You can start a server by providing a path which contains multiple git repositories with this command:
 
-```
+```text
 gitbase server -v -d /path/to/repositories
 ```
 
@@ -43,7 +44,7 @@ gitbase server -v -d /path/to/repositories
 
 On Linux and macOS:
 
-```
+```text
 go get -u github.com/src-d/gitbase/...
 ```
 
@@ -53,24 +54,27 @@ On linux and macOS you can choose to build gitbase with oniguruma support, resul
 
 macOS:
 
-```
+```text
 brew install oniguruma
 ```
 
 Linux:
 
-- Debian-based distros:
-```
-sudo apt-get install libonig2 libonig-dev
-```
-- Arch linux:
-```
-pacman -S oniguruma
-```
+* Debian-based distros:
+
+  ```text
+  sudo apt-get install libonig2 libonig-dev
+  ```
+
+* Arch linux:
+
+  ```text
+  pacman -S oniguruma
+  ```
 
 Then build gitbase like this:
 
-```
+```text
 go build -tags oniguruma -o gitbase ./cmd/gitbase/main.go
 ```
 
@@ -80,7 +84,7 @@ On Windows:
 
 Because gitbase uses [bblfsh's client-go](https://github.com/bblfsh/client-go), which uses cgo, you need to install some dependencies by hand instead of just using `go get`. Use this instead:
 
-```
+```text
 go get -d github.com/src-d/gitbase
 cd $GOPATH/src/github.com/src-d/gitbase
 make dependencies
@@ -107,13 +111,13 @@ If you're using a MySQL client version 8.0 or higher, see the following section 
 
 ## Troubleshooting
 
-```
+```text
 ERROR 2012 (HY000): Client asked for auth caching_sha2_password, but server wants auth mysql_native_password
 ```
 
 As of MySQL 8.0 [the default authentication method is `caching_sha2_password`](https://dev.mysql.com/doc/refman/8.0/en/caching-sha2-pluggable-authentication.html) instead of `mysql_native_password`. You can solve this using the following command instead:
 
-```
+```text
 mysql -q -u root -h 127.0.0.1 --default-auth=mysql_native_password
 ```
 
@@ -138,6 +142,7 @@ If you are mixing formats you can specify each directory as a `file://` URL with
 
 For example:
 
-```
+```text
 -d 'file:///path/to/git?format=git&bare=true' -d 'file:///path/to/sivas?format=siva&rooted=false&bucket=0'
 ```
+

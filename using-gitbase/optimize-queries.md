@@ -1,18 +1,18 @@
-# Optimize queries
+# Optimizing queries
 
 Even though in each release performance improvements are included to make gitbase faster, there are some queries that might take too long. By rewriting them in some ways, you can squeeze that extra performance you need by taking advantage of some optimisations that are already in place.
 
 There are two ways to optimize a gitbase query:
-- Create an index for some parts.
-- Making sure the joined tables are squashed.
-- Making sure not squashed joins are performed in memory.
+
+* Create an index for some parts.
+* Making sure the joined tables are squashed.
+* Making sure not squashed joins are performed in memory.
 
 ## Assessing performance bottlenecks
 
 To assess if there is a performance bottleneck you might want to inspect the execution tree of the query. This is also very helpful when reporting performance issues on gitbase.
 
-The output from an `EXPLAIN` query is represented as a tree and shows how the query is actually evaluated.
-You can do that using the following query:
+The output from an `EXPLAIN` query is represented as a tree and shows how the query is actually evaluated. You can do that using the following query:
 
 ```sql
 EXPLAIN FORMAT=TREE <SQL QUERY TO EXPLAIN>
@@ -29,7 +29,7 @@ EXPLAIN FORMAT=TREE
 
 Will output something like this:
 
-```
+```text
 +-----------------------------------------------------------------------------------------+
 | plan                                                                                    |
 +-----------------------------------------------------------------------------------------+
@@ -56,24 +56,22 @@ Will output something like this:
 
 Some performance issues might not be obvious, but there are a few that really stand out by just looking at the query tree.
 
-- Joins not squashed. If you performed some joins between tables and instead of a `SquashedTable` node you see `Join` and `Table` nodes, it means the joins were not successfully squashed. There is a more detailed explanation about this in next sections of this document.
-- Indexes not used. If you can't see the indexes in your table nodes, it means somehow those indexes are not being used by the table. There is a more detailed explanation about this in next sections of this document.
-- Joins not squashed that are not being executed in memory. There is a more detailed explanation about this in the next sections of this document.
+* Joins not squashed. If you performed some joins between tables and instead of a `SquashedTable` node you see `Join` and `Table` nodes, it means the joins were not successfully squashed. There is a more detailed explanation about this in next sections of this document.
+* Indexes not used. If you can't see the indexes in your table nodes, it means somehow those indexes are not being used by the table. There is a more detailed explanation about this in next sections of this document.
+* Joins not squashed that are not being executed in memory. There is a more detailed explanation about this in the next sections of this document.
 
 ## In-memory joins
 
 There are two modes in which gitbase can execute an inner join:
 
-- Multipass: it fully iterates the right side of the join one time for each row in the left side. This is really expensive, but avoids having to load one side fully in memory.
-- In-memory: loads the whole right side in memory and iterates the left side. Both sides are iterated exactly once, thus it makes the query much faster, but it has the disadvantage of potentially requiring a lot of memory.
+* Multipass: it fully iterates the right side of the join one time for each row in the left side. This is really expensive, but avoids having to load one side fully in memory.
+* In-memory: loads the whole right side in memory and iterates the left side. Both sides are iterated exactly once, thus it makes the query much faster, but it has the disadvantage of potentially requiring a lot of memory.
 
-The default mode is multipass, unless the right side fits in memory (there's a more elaborate explanation about this below).
+The default mode is multipass, unless the right side fits in memory \(there's a more elaborate explanation about this below\).
 
 In-memory joins can be enabled at the user request, either with the `EXPERIMENTAL_IN_MEMORY_JOIN=on` environment variable or executing `SET inmemory_joins = 1`. The last method only enables it for the current connection.
 
-Even if they are not globally enabled for all queries, there is an optimization that checks if the join could be performed in memory and if it can't, switches to multipass mode.
-As long as the whole gitbase server memory usage is under the 20% of all available physical (not counting other memory used by other processes) memory in the machine, the join will be performed in memory. When this limit is passed, the multipass mode will be used instead.
-20% is just a default value that can be changed using the `MAX_MEMORY_INNER_JOIN` environment variable to the maximum amount of bytes the gitbase server can be using before switching to multipass mode. It can also be changed per session using `SET max_memory_joins=<MAX BYTES>`.
+Even if they are not globally enabled for all queries, there is an optimization that checks if the join could be performed in memory and if it can't, switches to multipass mode. As long as the whole gitbase server memory usage is under the 20% of all available physical \(not counting other memory used by other processes\) memory in the machine, the join will be performed in memory. When this limit is passed, the multipass mode will be used instead. 20% is just a default value that can be changed using the `MAX_MEMORY_INNER_JOIN` environment variable to the maximum amount of bytes the gitbase server can be using before switching to multipass mode. It can also be changed per session using `SET max_memory_joins=<MAX BYTES>`.
 
 So, as a good rule of thumb, the right side of an inner join should always be the smaller one, because that way, it has bigger chances of being executed in memory and it will be faster.
 
@@ -87,20 +85,18 @@ CREATE INDEX files_language_idx ON files USING pilosa (language(file_path, blob_
 
 Once you have the index in place, gitbase only looks for the rows with the values matching your conditions.
 
-But beware, even if you have an index it's possible that gitbase will not use it.
-These are the forms an expression **must** have to make sure the index will be used.
+But beware, even if you have an index it's possible that gitbase will not use it. These are the forms an expression **must** have to make sure the index will be used.
 
-- `<indexed expression> = <evaluable expression>`
-- `<indexed expression> < <evaluable expression>`
-- `<indexed expression> > <evaluable expression>`
-- `<indexed expression> <= <evaluable expression>`
-- `<indexed expression> >= <evaluable expression>`
-- `<indexed expression> != <evaluable expression>`
-- `<indexed expression> IN <evaluable expression>`
-- `<indexed expression> BETWEEN <evaluable expression> AND <evaluable expression>`
+* `<indexed expression> = <evaluable expression>`
+* `<indexed expression> < <evaluable expression>`
+* `<indexed expression> > <evaluable expression>`
+* `<indexed expression> <= <evaluable expression>`
+* `<indexed expression> >= <evaluable expression>`
+* `<indexed expression> != <evaluable expression>`
+* `<indexed expression> IN <evaluable expression>`
+* `<indexed expression> BETWEEN <evaluable expression> AND <evaluable expression>`
 
-`<indexed expression>` is the expression that was indexed when the index was created, in the previous case that would be `language(file_path, blob_content)`.
-`<evaluable expression>` is any expression that can be evaluated without using the current row. For example, a literal (`"foo"`), a function that takes no column arguments (`SUBSTRING("foo", 1)`), etc.
+`<indexed expression>` is the expression that was indexed when the index was created, in the previous case that would be `language(file_path, blob_content)`. `<evaluable expression>` is any expression that can be evaluated without using the current row. For example, a literal \(`"foo"`\), a function that takes no column arguments \(`SUBSTRING("foo", 1)`\), etc.
 
 So, if you have this query, the index would be used.
 
@@ -118,7 +114,7 @@ SELECT file_path FROM files WHERE language(file_path, blob_content) = SUBSTRING(
 SELECT file_path FROM files WHERE language(file_path, blob_content) LIKE 'G_'
 ```
 
-Note that when you use an index on multiple columns, there is a limitation (that may change in the future) that requires all columns sharing the same operation.
+Note that when you use an index on multiple columns, there is a limitation \(that may change in the future\) that requires all columns sharing the same operation.
 
 For example, let's make an index on two columns.
 
@@ -137,22 +133,23 @@ These, however, would not use the index.
 ```sql
 SELECT * FROM commits WHERE committer_name = 'John Doe'
 ```
+
 All columns in an index need to be present in the filters.
 
 ```sql
 SELECT * FROM commits WHERE committer_name = 'John Doe' AND committer_email != 'foo@example.com'
 ```
+
 All the columns need to use the same operation. In this case, one is using `=` and the other `!=`. This is a current limitation that will be removed in the future.
 
 ## Squash tables
 
 There is an optimization done inside gitbase called **squashed tables**. Instead of reading all the data from the tables and then performing the join, a squashed table is the union of several tables in which the output of a table is generated using the output of the previous one.
 
-Imagine we want to join `commits`, `commit_files` and `files`. Without the squashed joins we would read all `commits`, all `commit_files` and all `files`. Then, we would join all these rows. This is an incredibly expensive operation for large repositories.
-With squashed tables, however, we read all `commits`, then, for each commit we generate the `commit_files` for that commit and then for each commit file we generate the `files` for them.
-This has two advantages:
-- Filters are applied early on, which reduces the amount of data that needs to be read. If you filtered commits by a particular author in our previous example, only commit files, and thus files, by that commit author would be read, instead of all of them.
-- It works with raw git objects, not database rows, which makes it way more performant since there is no need to serialize and deserialize.
+Imagine we want to join `commits`, `commit_files` and `files`. Without the squashed joins we would read all `commits`, all `commit_files` and all `files`. Then, we would join all these rows. This is an incredibly expensive operation for large repositories. With squashed tables, however, we read all `commits`, then, for each commit we generate the `commit_files` for that commit and then for each commit file we generate the `files` for them. This has two advantages:
+
+* Filters are applied early on, which reduces the amount of data that needs to be read. If you filtered commits by a particular author in our previous example, only commit files, and thus files, by that commit author would be read, instead of all of them.
+* It works with raw git objects, not database rows, which makes it way more performant since there is no need to serialize and deserialize.
 
 As a result, your query could be orders of magnitude faster.
 
@@ -198,11 +195,13 @@ This advice can be applied to all squashed tables, not only `repository_id`.
 **Only works per repository**. This optimisation is built on top of some premises, one of them is the fact that all tables are joined by `repository_id`.
 
 This query will get squashed, because `NATURAL JOIN` makes sure all columns with equal names are used in the join.
+
 ```sql
 SELECT * FROM refs NATURAL JOIN ref_commits NATURAL JOIN commits
 ```
 
 This query, however, will not be squashed.
+
 ```sql
 SELECT * FROM refs r
 INNER JOIN ref_commits rc ON r.ref_name = rc.ref_name
@@ -224,14 +223,13 @@ SELECT * FROM commit_files cf
 INNER JOIN files f ON cf.file_path = f.file_path
 ```
 
-**TIP:** we suggest always using `NATURAL JOIN` for joining tables, since it's less verbose and already satisfies all the filters for squashing tables.
-The only exception to this advice is when joining `refs` and `ref_commits`. A `NATURAL JOIN` between `refs` and `ref_commits` will only get the HEAD commit of the reference. The same happens with `commits` and `commit_trees`/`commit_files`.
+**TIP:** we suggest always using `NATURAL JOIN` for joining tables, since it's less verbose and already satisfies all the filters for squashing tables. The only exception to this advice is when joining `refs` and `ref_commits`. A `NATURAL JOIN` between `refs` and `ref_commits` will only get the HEAD commit of the reference. The same happens with `commits` and `commit_trees`/`commit_files`.
 
-You can find the full list of conditions that need to be met for the squash to be applied [here](#list-of-filters-for-squashed-tables).
+You can find the full list of conditions that need to be met for the squash to be applied [here](optimize-queries.md#list-of-filters-for-squashed-tables).
 
 **Only works if the tables joined follow a hierarchy.** Joinin `commits` and `files` does not work, or joining `blobs` with `files`. It needs to follow one of the hierarchies of tables.
 
-```
+```text
 repositories -> refs -> ref_commits -> commits -> commit_trees -> tree_entries -> blobs
 repositories -> refs -> ref_commits -> commits -> commit_blobs -> blobs
 repositories -> refs -> ref_commits -> commits -> commit_files -> blobs
@@ -239,8 +237,7 @@ repositories -> refs -> ref_commits -> commits -> commit_files -> files
 repositories -> remotes -> refs -> (any of the other hierarchies)
 ```
 
-As long as the tables you join are a subset of any of these hierarchies, it will be applied, provided you gave the proper filters.
-If only some part follows the hierarchy, the leftmost squash will be performed.
+As long as the tables you join are a subset of any of these hierarchies, it will be applied, provided you gave the proper filters. If only some part follows the hierarchy, the leftmost squash will be performed.
 
 For example, if we join `repositories`, `remotes`, and then `commit_blobs` and `blobs`, the result will be a squashed table of `repositories` and `remotes` and a regular join with `commit_blobs` and `blobs`. The rule will try to squash as many tables as possible.
 
@@ -260,85 +257,84 @@ This will pretty-print the analyzed tree of your query. If you see a node named 
 
 #### `refs` with `ref_commits`
 
-- `refs.ref_name = ref_commits.ref_name`
-- `refs.commit_hash = ref_commits.commit_hash` (only if you want to get just the HEAD commit)
+* `refs.ref_name = ref_commits.ref_name`
+* `refs.commit_hash = ref_commits.commit_hash` \(only if you want to get just the HEAD commit\)
 
 #### `refs` with `commits`
 
-- `refs.commit_hash = commits.commit_hash`
+* `refs.commit_hash = commits.commit_hash`
 
 #### `refs` with `commit_trees`
 
-- `refs.commit_hash = commit_trees.commit_hash`
+* `refs.commit_hash = commit_trees.commit_hash`
 
 #### `refs` with `commit_blobs`
 
-- `refs.commit_hash = commit_blobs.commit_hash`
+* `refs.commit_hash = commit_blobs.commit_hash`
 
 #### `refs` with `commit_files`
 
-- `refs.commit_hash = commit_files.commit_hash`
+* `refs.commit_hash = commit_files.commit_hash`
 
 #### `ref_commits` with `commits`
 
-- `ref_commits.commit_hash = commits.commit_hash`
+* `ref_commits.commit_hash = commits.commit_hash`
 
 #### `ref_commits` with `commit_trees`
 
-- `ref_commits.commit_hash = commit_trees.commit_hash`
+* `ref_commits.commit_hash = commit_trees.commit_hash`
 
 #### `ref_commits` with `commit_blobs`
 
-- `ref_commits.commit_hash = commit_blobs.commit_hash`
+* `ref_commits.commit_hash = commit_blobs.commit_hash`
 
 #### `ref_commits` with `commit_files`
 
-- `ref_commits.commit_hash = commit_files.commit_hash`
-- `commits.tree_hash = commit_files.tree_hash` (only if you want just the main commit tree files)
+* `ref_commits.commit_hash = commit_files.commit_hash`
+* `commits.tree_hash = commit_files.tree_hash` \(only if you want just the main commit tree files\)
 
 #### `commits` with `commit_trees`
 
-- `commits.commit_hash = commit_trees.commit_hash`
-- `commits.tree_hash = commit_trees.tree_hash` (only if you want just the main commit tree)
+* `commits.commit_hash = commit_trees.commit_hash`
+* `commits.tree_hash = commit_trees.tree_hash` \(only if you want just the main commit tree\)
 
 #### `commits` with `commit_blobs`
 
-- `commits.commit_hash = commit_blobs.commit_hash`
+* `commits.commit_hash = commit_blobs.commit_hash`
 
 #### `commits` with `commit_files`
 
-- `commits.commit_hash = commit_files.commit_hash`
+* `commits.commit_hash = commit_files.commit_hash`
 
 ### `commits` with `tree_entries`
 
-- `commits.tree_hash = tree_entries.tree_hash`
+* `commits.tree_hash = tree_entries.tree_hash`
 
 ### `commit_trees` with `tree_entries`
 
-- `commit_trees.tree_hash = tree_entries.tree_hash`
+* `commit_trees.tree_hash = tree_entries.tree_hash`
 
 ### `commit_blobs` with `blobs`
 
--  `commit_blobs.blob_hash = blobs.blob_hash`
+* `commit_blobs.blob_hash = blobs.blob_hash`
 
 ### `tree_entries` with `blobs`
 
-- `tree_entries.blob_hash = blobs.blob_hash`
+* `tree_entries.blob_hash = blobs.blob_hash`
 
 ### `commit_files` with `blobs`
 
-- `commit_files.blob_hash = blobs.blob_hash`
+* `commit_files.blob_hash = blobs.blob_hash`
 
 ### `commit_files` with `files`
 
-- `commit_files.file_path = files.file_path`
-- `commit_files.tree_hash = files.tree_hash`
-- `commit_files.blob_hash = files.blob_hash`
+* `commit_files.file_path = files.file_path`
+* `commit_files.tree_hash = files.tree_hash`
+* `commit_files.blob_hash = files.blob_hash`
 
 ## GROUP BY and ORDER BY memory optimization
 
-The way GROUP BY and ORDER BY are implemented, they hold all the rows their child node will return in memory and once all of them are present, the grouping/sort is computed.
-In order to optimise a query having an ORDER BY or GROUP BY is important to perform those operations as late as possible and with the least amount of data possible. Otherwise, they can have a very big impact on memory usage and performance.
+The way GROUP BY and ORDER BY are implemented, they hold all the rows their child node will return in memory and once all of them are present, the grouping/sort is computed. In order to optimise a query having an ORDER BY or GROUP BY is important to perform those operations as late as possible and with the least amount of data possible. Otherwise, they can have a very big impact on memory usage and performance.
 
 For example, consider the following query:
 
@@ -349,8 +345,8 @@ NATURAL JOIN commits c
 NATURAL JOIN commit_files cf
 NATURAL JOIN files f
 WHERE rc.ref_name = 'HEAD'
-	AND f.file_path NOT REGEXP '^vendor.*'
-	AND NOT IS_BINARY(f.blob_content)
+    AND f.file_path NOT REGEXP '^vendor.*'
+    AND NOT IS_BINARY(f.blob_content)
 GROUP BY lang
 ```
 
@@ -375,3 +371,4 @@ GROUP BY lang
 ```
 
 As a good rule of thumb: defer as much as possible GROUP BY and ORDER BY operations and only perform them with the minimum amount of data needed.
+

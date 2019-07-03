@@ -1,6 +1,8 @@
 # Examples
 
-## Get all the repositories where a specific user contributes on HEAD reference
+## Examples
+
+### Get all the repositories where a specific user contributes on HEAD reference
 
 ```sql
 SELECT refs.repository_id
@@ -10,7 +12,7 @@ WHERE commits.commit_author_name = 'Johnny Bravo'
   AND refs.ref_name = 'HEAD';
 ```
 
-## Get all the HEAD references from all the repositories
+### Get all the HEAD references from all the repositories
 
 ```sql
 SELECT *
@@ -18,7 +20,7 @@ FROM refs
 WHERE ref_name = 'HEAD';
 ```
 
-## First commit on HEAD history for all repositories
+### First commit on HEAD history for all repositories
 
 ```sql
 SELECT file_path,
@@ -29,7 +31,7 @@ WHERE ref_commits.ref_name = 'HEAD'
   AND ref_commits.history_index = 0;
 ```
 
-## Commits that appear in more than one reference
+### Commits that appear in more than one reference
 
 ```sql
 SELECT *
@@ -42,7 +44,7 @@ FROM
 WHERE num > 1;
 ```
 
-## Get the number of blobs per HEAD commit
+### Get the number of blobs per HEAD commit
 
 ```sql
 SELECT COUNT(commit_hash),
@@ -54,7 +56,7 @@ WHERE ref_name = 'HEAD'
 GROUP BY commit_hash;
 ```
 
-## Get commits per committer, per year and month
+### Get commits per committer, per year and month
 
 ```sql
 SELECT YEAR,
@@ -76,7 +78,7 @@ GROUP BY committer_email,
          repo_id;
 ```
 
-## Report of line count per file from HEAD references
+### Report of line count per file from HEAD references
 
 ```sql
 SELECT
@@ -92,7 +94,7 @@ WHERE ref_name='HEAD'
 GROUP BY lang;
 ```
 
-## Files from first 6 commits from HEAD references that contains some key and are not in vendor directory
+### Files from first 6 commits from HEAD references that contains some key and are not in vendor directory
 
 ```sql
 SELECT file_path,
@@ -117,7 +119,7 @@ WHERE ref_name = 'HEAD'
        OR blob_content REGEXP '.*-----BEGIN OPENSSH PRIVATE KEY-----.*');
 ```
 
-## Create an index for columns on a table
+### Create an index for columns on a table
 
 You can create an index either on a specific column or on several columns:
 
@@ -127,7 +129,7 @@ CREATE INDEX commits_hash_idx ON commits USING pilosa (commit_hash);
 CREATE INDEX files_commit_path_blob_idx ON commit_files USING pilosa (commit_hash, file_path, blob_hash);
 ```
 
-## Create an index for an expression on a table
+### Create an index for an expression on a table
 
 Note that just one expression at a time is allowed to be indexed.
 
@@ -135,17 +137,17 @@ Note that just one expression at a time is allowed to be indexed.
 CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_content));
 ```
 
-## Drop a table's index
+### Drop a table's index
 
 ```sql
 DROP INDEX files_lang_idx ON files;
 ```
 
-## Calculating code line changes in the last commit
+### Calculating code line changes in the last commit
 
-This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in the last commit of each repository.
+This query will report how many lines of actual code \(only code, not comments, blank lines or text\) changed in the last commit of each repository.
 
-```
+```text
 SELECT
     repo,
     JSON_EXTRACT(stats, '$.Code.Additions') AS code_lines_added,
@@ -161,7 +163,7 @@ FROM (
 
 The output will be similar to this:
 
-```
+```text
 +-----------------+------------------+--------------------+
 | repo            | code_lines_added | code_lines_removed |
 +-----------------+------------------+--------------------+
@@ -170,12 +172,11 @@ The output will be similar to this:
 +-----------------+------------------+--------------------+
 ```
 
-## Calculating code line changes for files in the last commit
+### Calculating code line changes for files in the last commit
 
-This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in each file of the last commit of each repository. It's similar to the previous example. `COMMIT_STATS` is an aggregation over the result of `COMMIT_FILE_STATS` so to speak.
-We will only report those files that whose language has been identified.
+This query will report how many lines of actual code \(only code, not comments, blank lines or text\) changed in each file of the last commit of each repository. It's similar to the previous example. `COMMIT_STATS` is an aggregation over the result of `COMMIT_FILE_STATS` so to speak. We will only report those files that whose language has been identified.
 
-```
+```text
 SELECT
     repo,
     JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Path')) AS file_path,
@@ -194,7 +195,7 @@ WHERE file_language <> '';
 
 The output will be similar to this:
 
-```
+```text
 +-----------------+--------------------------------------+---------------+------------------+--------------------+
 | repo            | file_path                            | file_language | code_lines_added | code_lines_removed |
 +-----------------+--------------------------------------+---------------+------------------+--------------------+
@@ -204,13 +205,13 @@ The output will be similar to this:
 +-----------------+--------------------------------------+---------------+------------------+--------------------+
 ```
 
-# UAST UDFs Examples
+## UAST UDFs Examples
 
 First of all, you should check out the [bblfsh documentation](https://docs.sourced.tech/babelfish) to get yourself familiar with UAST concepts.
 
-Also, you can take a look to all the UDFs and their signatures in the [functions section](/docs/using-gitbase/functions.md)
+Also, you can take a look to all the UDFs and their signatures in the [functions section](functions.md)
 
-## Extract all import paths for every *Go* file on *HEAD* reference
+### Extract all import paths for every _Go_ file on _HEAD_ reference
 
 ```sql
 SELECT repository_id,
@@ -224,7 +225,7 @@ WHERE ref_name = 'HEAD'
   AND ARRAY_LENGTH(imports) > 0;
 ```
 
-## Extracting all identifier names
+### Extracting all identifier names
 
 ```sql
 SELECT file_path,
@@ -237,7 +238,7 @@ WHERE ref_name='HEAD' AND LANGUAGE(file_path) = 'Go';
 
 As result, you will get an array showing a list of the retrieved information. Each element in the list matches a node in the given sequence of nodes having a value for that property. It means that the length of the properties list may not be equal to the length of the given sequence of nodes:
 
-```sh
+```bash
 +-------------------------------------------------------------------------------------------------------------------+
 | file_path        | name                                                                                           |
 +-------------------+-----------------------------------------------------------------------------------------------+
@@ -245,9 +246,9 @@ As result, you will get an array showing a list of the retrieved information. Ea
 +-------------------+-----------------------------------------------------------------------------------------------+
 ```
 
-## Monitor the progress of a query
+### Monitor the progress of a query
 
-You can monitor the progress of a gitbase query (either a regular query or an index creation query using `SHOW PROCESSLIST`).
+You can monitor the progress of a gitbase query \(either a regular query or an index creation query using `SHOW PROCESSLIST`\).
 
 Let's say we do the following query over a huge repository:
 
@@ -263,7 +264,7 @@ SHOW PROCESSLIST;
 
 We'll get the following output:
 
-```
+```text
 +-----+------+-----------------+---------+---------+------+-------------------+--------------------------------------------------------------+
 | Id  | User | Host            | db      | Command | Time | State             | Info                                                         |
 +-----+------+-----------------+---------+---------+------+-------------------+--------------------------------------------------------------+
@@ -273,11 +274,13 @@ We'll get the following output:
 ```
 
 From this output, we can obtain some information about our query:
-- It's been running for 36 seconds.
-- It's querying commit_files table and has processed 8 out of 9 partitions.
+
+* It's been running for 36 seconds.
+* It's querying commit\_files table and has processed 8 out of 9 partitions.
 
 To kill a query that's currently running you can use the value in `Id`. If we were to kill the previous query, we would need to use the following query:
 
 ```sql
 KILL QUERY 168;
 ```
+
