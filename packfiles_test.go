@@ -5,8 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
 var (
@@ -41,6 +43,40 @@ func TestRepositoryPackfiles(t *testing.T) {
 		plumbing.NewHash("5d2ce6a45cb07803f9b0c8040e730f5715fc7144"),
 	}, packfiles)
 	require.NotNil(fs)
+}
+
+func TestRepositoryPackfilesNoBare(t *testing.T) {
+	require := require.New(t)
+
+	fs := fixtures.ByTag("worktree").One().Worktree()
+
+	dotgit, packfiles, err := repositoryPackfiles(fs)
+	require.NoError(err)
+	require.Equal([]plumbing.Hash{
+		plumbing.NewHash("323a4b6b5de684f9966953a043bc800154e5dbfa"),
+	}, packfiles)
+
+	require.NoError(dotgit.Close())
+}
+
+func TestGetUnpackedObject(t *testing.T) {
+	require := require.New(t)
+
+	fs := fixtures.ByURL("https://github.com/git-fixtures/submodule.git").One().Worktree()
+	path := fs.Root()
+
+	lib, err := newMultiLibrary()
+	require.NoError(err)
+	pool := NewRepositoryPool(cache.NewObjectLRUDefault(), lib)
+	require.NoError(lib.AddPlain(path, path, nil))
+
+	r, err := pool.GetRepo(path)
+	require.NoError(err)
+
+	obj, err := getUnpackedObject(r, plumbing.NewHash("3bf5d30ad4f23cf517676fee232e3bcb8537c1d0"))
+	require.NoError(err)
+	require.NotNil(obj)
+	require.NoError(r.Close())
 }
 
 func TestRepositoryIndex(t *testing.T) {

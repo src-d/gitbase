@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/src-d/go-borges"
 	"github.com/src-d/go-borges/plain"
@@ -21,6 +23,38 @@ func TestAllReposIter(t *testing.T) {
 	defer cleanup()
 
 	require.Len(chainableIterRows(t, ctx, NewAllReposIter(nil)), 2)
+}
+
+func TestSquashedTableString(t *testing.T) {
+	require := require.New(t)
+	ctx, cleanup := setupIter(t)
+	defer cleanup()
+
+	const expected = `SquashedTable(test)├─Columns│└─Column(repository_id,TEXT,nullable=false)└─Filters└─NOT(1)`
+
+	notTrue := expression.NewNot(
+		expression.NewLiteral(1, sql.Int64),
+	)
+
+	st := &SquashedTable{
+		iter:           NewAllReposIter(notTrue),
+		tables:         []string{"test"},
+		schemaMappings: nil,
+		filters:        []sql.Expression{notTrue},
+		indexedTables:  nil,
+	}
+
+	str := strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, st.String())
+	require.EqualValues(expected, str)
+
+	rows, err := tableToRows(ctx, st)
+	require.NoError(err)
+	require.Empty(rows)
 }
 
 func TestSquashContextCancelled(t *testing.T) {

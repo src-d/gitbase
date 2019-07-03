@@ -59,12 +59,13 @@ func (r *Repository) Cache() cache.Object {
 	return r.cache
 }
 
-func (r *Repository) Close() {
+func (r *Repository) Close() error {
 	if r != nil && r.repo != nil {
 		if closer, ok := r.repo.(io.Closer); ok {
-			closer.Close()
+			return closer.Close()
 		}
 	}
+	return nil
 }
 
 // RepositoryPool holds a pool git repository paths and

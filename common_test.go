@@ -57,9 +57,10 @@ func buildSession(
 		if ok {
 			name := strings.TrimLeft(path, string(os.PathSeparator))
 			if err := lib.AddPlain(name, path, nil); err == nil {
-				_, err := pool.GetRepo(name)
+				r, err := pool.GetRepo(name)
 				require.NoError(err)
 				paths = append(paths, pathToName(path))
+				require.NoError(r.Close())
 			}
 		}
 	}
