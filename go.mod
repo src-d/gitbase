@@ -2,6 +2,8 @@ module github.com/src-d/gitbase
 
 go 1.12
 
+replace github.com/src-d/go-mysql-server => /home/juanjux/sourced/go-mysql-server.v0
+
 require (
 	github.com/bblfsh/go-client/v4 v4.1.0
 	github.com/bblfsh/sdk/v3 v3.1.0

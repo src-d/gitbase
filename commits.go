@@ -20,16 +20,16 @@ type commitsTable struct {
 // CommitsSchema is the schema for the commits table.
 var CommitsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "commit_hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "commit_hash", Type: sql.VarChar(40), Nullable: false, Source: CommitsTableName},
 	{Name: "commit_author_name", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "commit_author_email", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "commit_author_email", Type: sql.VarChar(254), Nullable: false, Source: CommitsTableName},
 	{Name: "commit_author_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
 	{Name: "committer_name", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "committer_email", Type: sql.Text, Nullable: false, Source: CommitsTableName},
+	{Name: "committer_email", Type: sql.VarChar(254), Nullable: false, Source: CommitsTableName},
 	{Name: "committer_when", Type: sql.Timestamp, Nullable: false, Source: CommitsTableName},
 	{Name: "commit_message", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: CommitsTableName},
-	{Name: "commit_parents", Type: sql.Array(sql.Text), Nullable: false, Source: CommitsTableName},
+	{Name: "tree_hash", Type: sql.VarChar(40), Nullable: false, Source: CommitsTableName},
+	{Name: "commit_parents", Type: sql.Array(sql.VarChar(40)), Nullable: false, Source: CommitsTableName},
 }
 
 func newCommitsTable(pool *RepositoryPool) *commitsTable {

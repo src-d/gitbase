@@ -23,9 +23,9 @@ type filesTable struct {
 var FilesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Source: "files"},
 	{Name: "file_path", Type: sql.Text, Source: "files"},
-	{Name: "blob_hash", Type: sql.Text, Source: "files"},
-	{Name: "tree_hash", Type: sql.Text, Source: "files"},
-	{Name: "tree_entry_mode", Type: sql.Text, Source: "files"},
+	{Name: "blob_hash", Type: sql.VarChar(40), Source: "files"},
+	{Name: "tree_hash", Type: sql.VarChar(40), Source: "files"},
+	{Name: "tree_entry_mode", Type: sql.VarChar(16), Source: "files"},
 	{Name: "blob_content", Type: sql.Blob, Source: "files"},
 	{Name: "blob_size", Type: sql.Int64, Source: "files"},
 }

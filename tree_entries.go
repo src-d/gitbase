@@ -22,9 +22,9 @@ type treeEntriesTable struct {
 var TreeEntriesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
 	{Name: "tree_entry_name", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "blob_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "tree_hash", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
-	{Name: "tree_entry_mode", Type: sql.Text, Nullable: false, Source: TreeEntriesTableName},
+	{Name: "blob_hash", Type: sql.VarChar(40), Nullable: false, Source: TreeEntriesTableName},
+	{Name: "tree_hash", Type: sql.VarChar(40), Nullable: false, Source: TreeEntriesTableName},
+	{Name: "tree_entry_mode", Type: sql.VarChar(16), Nullable: false, Source: TreeEntriesTableName},
 }
 
 func newTreeEntriesTable(pool *RepositoryPool) *treeEntriesTable {
