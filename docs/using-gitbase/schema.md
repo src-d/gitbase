@@ -144,7 +144,7 @@ This table represents the relation between commits and blobs. With this table yo
 +---------------+-------------+
 | repository_id | TEXT        |
 | commit_hash   | VARCHAR(40) |
-| tree_hash     | TEXT        |
+| tree_hash     | VARCHAR(40) |
 +---------------+-------------+
 ```
 
