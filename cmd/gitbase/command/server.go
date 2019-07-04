@@ -1,8 +1,10 @@
 package command
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-kit/kit/metrics/prometheus"
+	promopts "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/internal/function"
@@ -54,29 +60,31 @@ type Server struct {
 	plainLibrary *plain.Library
 	sharedCache  cache.Object
 
-	Name          string         `long:"db" default:"gitbase" description:"Database name"`
-	Version       string         // Version of the application.
-	Directories   []string       `short:"d" long:"directories" description:"Path where standard git repositories are located, multiple directories can be defined."`
-	Format        string         `long:"format" default:"git" choice:"git" choice:"siva" description:"Library format"`
-	Bucket        int            `long:"bucket" default:"2" description:"Bucketing level to use with siva libraries"`
-	Bare          bool           `long:"bare" description:"Sets the library to use bare git repositories, used only with git format libraries"`
-	NonBare       bool           `long:"non-bare" description:"Sets the library to use non bare git repositories, used only with git format libraries"`
-	NonRooted     bool           `long:"non-rooted" description:"Disables treating siva files as rooted repositories"`
-	Host          string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
-	Port          int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
-	User          string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
-	Password      string         `short:"P" long:"password" default:"" description:"Password used for connection"`
-	UserFile      string         `short:"U" long:"user-file" env:"GITBASE_USER_FILE" default:"" description:"JSON file with credentials list"`
-	ConnTimeout   int            `short:"t" long:"timeout" env:"GITBASE_CONNECTION_TIMEOUT" description:"Timeout in seconds used for connections"`
-	IndexDir      string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
-	CacheSize     cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
-	Parallelism   uint           `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
-	DisableSquash bool           `long:"no-squash" description:"Disables the table squashing."`
-	TraceEnabled  bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
-	ReadOnly      bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
-	SkipGitErrors bool           // SkipGitErrors disables failing when Git errors are found.
-	Verbose       bool           `short:"v" description:"Activates the verbose mode"`
-	LogLevel      string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
+	Name           string         `long:"db" default:"gitbase" description:"Database name"`
+	Version        string         // Version of the application.
+	Directories    []string       `short:"d" long:"directories" description:"Path where standard git repositories are located, multiple directories can be defined."`
+	Format         string         `long:"format" default:"git" choice:"git" choice:"siva" description:"Library format"`
+	Bucket         int            `long:"bucket" default:"2" description:"Bucketing level to use with siva libraries"`
+	Bare           bool           `long:"bare" description:"Sets the library to use bare git repositories, used only with git format libraries"`
+	NonBare        bool           `long:"non-bare" description:"Sets the library to use non bare git repositories, used only with git format libraries"`
+	NonRooted      bool           `long:"non-rooted" description:"Disables treating siva files as rooted repositories"`
+	Host           string         `long:"host" default:"localhost" description:"Host where the server is going to listen"`
+	Port           int            `short:"p" long:"port" default:"3306" description:"Port where the server is going to listen"`
+	User           string         `short:"u" long:"user" default:"root" description:"User name used for connection"`
+	Password       string         `short:"P" long:"password" default:"" description:"Password used for connection"`
+	UserFile       string         `short:"U" long:"user-file" env:"GITBASE_USER_FILE" default:"" description:"JSON file with credentials list"`
+	ConnTimeout    int            `short:"t" long:"timeout" env:"GITBASE_CONNECTION_TIMEOUT" description:"Timeout in seconds used for connections"`
+	IndexDir       string         `short:"i" long:"index" default:"/var/lib/gitbase/index" description:"Directory where the gitbase indexes information will be persisted." env:"GITBASE_INDEX_DIR"`
+	CacheSize      cache.FileSize `long:"cache" default:"512" description:"Object cache size in megabytes" env:"GITBASE_CACHESIZE_MB"`
+	Parallelism    uint           `long:"parallelism" description:"Maximum number of parallel threads per table. By default, it's the number of CPU cores. 0 means default, 1 means disabled."`
+	DisableSquash  bool           `long:"no-squash" description:"Disables the table squashing."`
+	TraceEnabled   bool           `long:"trace" env:"GITBASE_TRACE" description:"Enables jaeger tracing"`
+	MetricsEnabled bool           `long:"metrics" env:"GITBASE_METRICS" description:"Enables prometheus metrics"`
+	MetricsPort    int            `long:"metrics-port" env:"GITBASE_METRICS_PORT" default:"2112" description:"Port where the server is going to expose prometheus metrics"`
+	ReadOnly       bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
+	SkipGitErrors  bool           // SkipGitErrors disables failing when Git errors are found.
+	Verbose        bool           `short:"v" description:"Activates the verbose mode"`
+	LogLevel       string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
 }
 
 type jaegerLogrus struct {
@@ -210,6 +218,19 @@ func (c *Server) Execute(args []string) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	if c.MetricsEnabled {
+		metricsSrv := enableMetrics(c.Host, c.MetricsPort)
+		defer func() {
+			if err := metricsSrv.Shutdown(context.Background()); err != nil {
+				logrus.Errorln(err)
+			}
+		}()
+		go func() {
+			logrus.Infof("metrics server started and listening on %s", metricsSrv.Addr)
+			logrus.Errorln(metricsSrv.ListenAndServe())
+		}()
 	}
 
 	logrus.Infof("server started and listening on %s:%d", c.Host, c.Port)
@@ -505,4 +526,106 @@ func discoverBare(d directory) (bool, error) {
 	}
 
 	return bare, nil
+}
+
+func enableMetrics(host string, port int) *http.Server {
+	// Engine metrics
+	sqle.QueryCounter = prometheus.NewCounterFrom(promopts.CounterOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "engine",
+		Name:      "query_counter",
+	}, []string{
+		"query",
+	})
+	sqle.QueryErrorCounter = prometheus.NewCounterFrom(promopts.CounterOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "engine",
+		Name:      "query_error_counter",
+	}, []string{
+		"query",
+		"error",
+	})
+	sqle.QueryHistogram = prometheus.NewHistogramFrom(promopts.HistogramOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "engine",
+		Name:      "query_histogram",
+	}, []string{
+		"query",
+		"duration",
+	})
+
+	// Analyzer metrics
+	analyzer.ParallelQueryCounter = prometheus.NewCounterFrom(promopts.CounterOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "analyzer",
+		Name:      "parallel_query_counter",
+	}, []string{
+		"parallelism",
+	})
+
+	// Pilosa index driver metrics
+	pilosa.RowsGauge = prometheus.NewGaugeFrom(promopts.GaugeOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "index",
+		Name:      "indexed_rows_gauge",
+	}, []string{
+		"driver",
+	})
+	pilosa.TotalHistogram = prometheus.NewHistogramFrom(promopts.HistogramOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "index",
+		Name:      "index_created_total_histogram",
+	}, []string{
+		"driver",
+		"duration",
+	})
+	pilosa.MappingHistogram = prometheus.NewHistogramFrom(promopts.HistogramOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "index",
+		Name:      "index_created_mapping_histogram",
+	}, []string{
+		"driver",
+		"duration",
+	})
+	pilosa.BitmapHistogram = prometheus.NewHistogramFrom(promopts.HistogramOpts{
+		Namespace: "go_mysql_server",
+		Subsystem: "index",
+		Name:      "index_created_bitmap_histogram",
+	}, []string{
+		"driver",
+		"duration",
+	})
+
+	//Uast metrics
+	function.UastHitCacheCounter = prometheus.NewCounterFrom(promopts.CounterOpts{
+		Namespace: "gitbase",
+		Subsystem: "uast",
+		Name:      "hit_cache_counter",
+	}, []string{
+		"lang",
+		"xpath",
+	})
+	function.UastMissCacheCounter = prometheus.NewCounterFrom(promopts.CounterOpts{
+		Namespace: "gitbase",
+		Subsystem: "uast",
+		Name:      "miss_cache_counter",
+	}, []string{
+		"lang",
+		"xpath",
+	})
+	function.UastQueryHistogram = prometheus.NewHistogramFrom(promopts.HistogramOpts{
+		Namespace: "gitbase",
+		Subsystem: "uast",
+		Name:      "query_histogram",
+	}, []string{
+		"lang",
+		"xpath",
+		"duration",
+	})
+
+	// metrics http server
+	return &http.Server{
+		Addr:    net.JoinHostPort(host, strconv.Itoa(port)),
+		Handler: promhttp.Handler(),
+	}
 }
