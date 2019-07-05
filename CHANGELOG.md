@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed the behaviour of limit and offset.
 - Resolution of HAVING nodes.
+- Fix the results of files table by not using git log.
 
 ## [0.22.0] - 2019-07-03
 

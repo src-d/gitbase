@@ -148,7 +148,7 @@ func TestFilesTablePushdownFilters(t *testing.T) {
 				rows[i] = row[1 : len(row)-2]
 			}
 
-			require.Equal(tt.expected, rows)
+			require.ElementsMatch(tt.expected, rows)
 		})
 	}
 }
