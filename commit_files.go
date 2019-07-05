@@ -24,10 +24,10 @@ type commitFilesTable struct {
 // CommitFilesSchema is the schema for the commit trees table.
 var CommitFilesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Source: CommitFilesTableName},
-	{Name: "commit_hash", Type: sql.Text, Source: CommitFilesTableName},
+	{Name: "commit_hash", Type: sql.VarChar(40), Source: CommitFilesTableName},
 	{Name: "file_path", Type: sql.Text, Source: CommitFilesTableName},
-	{Name: "blob_hash", Type: sql.Text, Source: CommitFilesTableName},
-	{Name: "tree_hash", Type: sql.Text, Source: CommitFilesTableName},
+	{Name: "blob_hash", Type: sql.VarChar(40), Source: CommitFilesTableName},
+	{Name: "tree_hash", Type: sql.VarChar(40), Source: CommitFilesTableName},
 }
 
 func newCommitFilesTable(pool *RepositoryPool) Indexable {

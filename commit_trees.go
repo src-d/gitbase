@@ -21,8 +21,8 @@ type commitTreesTable struct {
 // CommitTreesSchema is the schema for the commit trees table.
 var CommitTreesSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Source: CommitTreesTableName},
-	{Name: "commit_hash", Type: sql.Text, Source: CommitTreesTableName},
-	{Name: "tree_hash", Type: sql.Text, Source: CommitTreesTableName},
+	{Name: "commit_hash", Type: sql.VarChar(40), Source: CommitTreesTableName},
+	{Name: "tree_hash", Type: sql.VarChar(40), Source: CommitTreesTableName},
 }
 
 func newCommitTreesTable(pool *RepositoryPool) Indexable {

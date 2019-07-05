@@ -19,8 +19,8 @@ type commitBlobsTable struct {
 // CommitBlobsSchema is the schema for the commit blobs table.
 var CommitBlobsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Source: CommitBlobsTableName},
-	{Name: "commit_hash", Type: sql.Text, Source: CommitBlobsTableName},
-	{Name: "blob_hash", Type: sql.Text, Source: CommitBlobsTableName},
+	{Name: "commit_hash", Type: sql.VarChar(40), Source: CommitBlobsTableName},
+	{Name: "blob_hash", Type: sql.VarChar(40), Source: CommitBlobsTableName},
 }
 
 var _ Table = (*commitBlobsTable)(nil)

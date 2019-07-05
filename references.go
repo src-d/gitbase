@@ -23,7 +23,7 @@ type referencesTable struct {
 var RefsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
 	{Name: "ref_name", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
-	{Name: "commit_hash", Type: sql.Text, Nullable: false, Source: ReferencesTableName},
+	{Name: "commit_hash", Type: sql.VarChar(40), Nullable: false, Source: ReferencesTableName},
 }
 
 func newReferencesTable(pool *RepositoryPool) *referencesTable {

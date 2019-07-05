@@ -36,7 +36,7 @@ type blobsTable struct {
 // BlobsSchema is the schema for the blobs table.
 var BlobsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Nullable: false, Source: BlobsTableName},
-	{Name: "blob_hash", Type: sql.Text, Nullable: false, Source: BlobsTableName},
+	{Name: "blob_hash", Type: sql.VarChar(40), Nullable: false, Source: BlobsTableName},
 	{Name: "blob_size", Type: sql.Int64, Nullable: false, Source: BlobsTableName},
 	{Name: "blob_content", Type: sql.Blob, Nullable: false, Source: BlobsTableName},
 }

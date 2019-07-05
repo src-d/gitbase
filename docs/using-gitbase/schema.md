@@ -38,33 +38,33 @@ This table will return all the [remotes](https://git-scm.com/book/en/v2/Git-Basi
 
 ### refs
 ``` sql
-+---------------+------+
-| name          | type |
-+---------------+------+
-| repository_id | TEXT |
-| ref_name      | TEXT |
-| commit_hash   | TEXT |
-+---------------+------+
++---------------+-------------+
+| name          | type        |
++---------------+-------------+
+| repository_id | TEXT        |
+| ref_name      | TEXT        |
+| commit_hash   | VARCHAR(40) |
++---------------+-------------+
 ```
 This table contains all hash [git references](https://git-scm.com/book/en/v2/Git-Internals-Git-References) and the symbolic reference `HEAD` from all the repositories.
 
 ### commits
 ``` sql
-+---------------------+-----------+
-| name                | type      |
-+---------------------+-----------+
-| repository_id       | TEXT      |
-| commit_hash         | TEXT      |
-| commit_author_name  | TEXT      |
-| commit_author_email | TEXT      |
-| commit_author_when  | TIMESTAMP |
-| committer_name      | TEXT      |
-| committer_email     | TEXT      |
-| committer_when      | TIMESTAMP |
-| commit_message      | TEXT      |
-| tree_hash           | TEXT      |
-| commit_parents      | JSON      |
-+---------------------+-----------+
++---------------------+--------------+
+| name                | type         |
++---------------------+--------------+
+| repository_id       | TEXT         |
+| commit_hash         | VARCHAR(40)  |
+| commit_author_name  | TEXT         |
+| commit_author_email | VARCHAR(254) |
+| commit_author_when  | TIMESTAMP    |
+| committer_name      | TEXT         |
+| committer_email     | VARCHAR(254) |
+| committer_when      | TIMESTAMP    |
+| commit_message      | TEXT         |
+| tree_hash           | TEXT         |
+| commit_parents      | JSON         |
++---------------------+--------------+
 ```
 
 Commits contains all the [commits](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects#_git_commit_objects) from all the references from all the repositories, not duplicated by repository. Note that you can have the same commit in several repositories. In that case the commit will appear two times on the table, one per repository.
@@ -73,14 +73,14 @@ Commits contains all the [commits](https://git-scm.com/book/en/v2/Git-Internals-
 
 ### blobs
 ```sql
-+---------------+-------+
-| name          | type  |
-+---------------+-------+
-| repository_id | TEXT  |
-| blob_hash     | TEXT  |
-| blob_size     | INT64 |
-| blob_content  | BLOB  |
-+---------------+-------+
++---------------+--------------+
+| name          | type         |
++---------------+--------------+
+| repository_id | TEXT         |
+| blob_hash     | VARCHAR(40)  |
+| blob_size     | INT64        |
+| blob_content  | BLOB         |
++---------------+--------------+
 ```
 
 This table exposes blob objects, that are the content without path from files.
@@ -89,15 +89,15 @@ This table exposes blob objects, that are the content without path from files.
 
 ### tree_entries
 ```sql
-+-----------------+------+
-| name            | type |
-+-----------------+------+
-| repository_id   | TEXT |
-| tree_entry_name | TEXT |
-| blob_hash       | TEXT |
-| tree_hash       | TEXT |
-| tree_entry_mode | TEXT |
-+-----------------+------+
++-----------------+-------------+
+| name            | type        |
++-----------------+-------------+
+| repository_id   | TEXT        |
+| tree_entry_name | TEXT        |
+| blob_hash       | VARCHAR(40) |
+| tree_hash       | VARCHAR(40) |
+| tree_entry_mode | VARCHAR(16) |
++-----------------+-------------+
 ```
 
 `tree_entries` table contains all the objects from all the repositories that are [tree objects](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects#_git_commit_objects).
@@ -105,17 +105,17 @@ This table exposes blob objects, that are the content without path from files.
 
 ### files
 ```sql
-+-----------------+-------+
-| name            | type  |
-+-----------------+-------+
-| repository_id   | TEXT  |
-| file_path       | TEXT  |
-| blob_hash       | TEXT  |
-| tree_hash       | TEXT  |
-| tree_entry_mode | TEXT  |
-| blob_content    | BLOB  |
-| blob_size       | INT64 |
-+-----------------+-------+
++-----------------+--------------+
+| name            | type         |
++-----------------+--------------+
+| repository_id   | TEXT         |
+| file_path       | TEXT         |
+| blob_hash       | VARCHAR(40)  |
+| tree_hash       | VARCHAR(40)  |
+| tree_entry_mode | VARCHAR(16)  |
+| blob_content    | BLOB         |
+| blob_size       | INT64        |
++-----------------+--------------+
 ```
 
 `files` is an utility table mixing `tree_entries` and `blobs` to create files. It includes the file path.
@@ -126,55 +126,55 @@ Queries to this table are expensive and they should be done carefully (applying 
 
 ### commit_blobs
 ```sql
-+---------------+------+
-| name          | type |
-+---------------+------+
-| repository_id | TEXT |
-| commit_hash   | TEXT |
-| blob_hash     | TEXT |
-+---------------+------+
++---------------+-------------+
+| name          | type        |
++---------------+-------------+
+| repository_id | TEXT        |
+| commit_hash   | VARCHAR(40) |
+| blob_hash     | VARCHAR(40) |
++---------------+-------------+
 ```
 
 This table represents the relation between commits and blobs. With this table you can obtain all the blobs contained on a commit object.
 
 ### commit_trees
 ```sql
-+---------------+------+
-| name          | type |
-+---------------+------+
-| repository_id | TEXT |
-| commit_hash   | TEXT |
-| tree_hash     | TEXT |
-+---------------+------+
++---------------+-------------+
+| name          | type        |
++---------------+-------------+
+| repository_id | TEXT        |
+| commit_hash   | VARCHAR(40) |
+| tree_hash     | VARCHAR(40) |
++---------------+-------------+
 ```
 
 This table represents the relation between commits and trees. With this table you can obtain all the tree entries contained on a commit object.
 
 ### commit_files
 ```sql
-+---------------+------+
-| name          | type |
-+---------------+------+
-| repository_id | TEXT |
-| commit_hash   | TEXT |
-| file_path     | TEXT |
-| blob_hash     | TEXT |
-| tree_hash     | TEXT |
-+---------------+------+
++----------------------+------+
+| name          | type        |
++----------------------+------+
+| repository_id | TEXT        |
+| commit_hash   | VARCHAR(40) |
+| file_path     | TEXT        |
+| blob_hash     | VARCHAR(40) |
+| tree_hash     | VARCHAR(40) |
++---------------+-------------+
 ```
 
 This table represents the relation between commits and [files](#files). Using this table, you can obtain all the files related to a certain commit object.
 
 ### ref_commits
 ```sql
-+---------------+-------+
-| name          | type  |
-+---------------+-------+
-| repository_id | TEXT  |
-| commit_hash   | TEXT  |
-| ref_name      | TEXT  |
-| history_index | INT64 |
-+---------------+-------+
++---------------+--------------+
+| name          | type         |
++---------------+--------------+
+| repository_id | TEXT         |
+| commit_hash   | VARCHAR(40)  |
+| ref_name      | TEXT         |
+| history_index | INT64        |
++---------------+--------------+
 ```
 
 This table allow us to get the commit history from a specific reference name. `history_index` column represents the position of the commit from a specific reference.

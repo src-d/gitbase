@@ -22,7 +22,7 @@ type refCommitsTable struct {
 // RefCommitsSchema is the schema for the ref commits table.
 var RefCommitsSchema = sql.Schema{
 	{Name: "repository_id", Type: sql.Text, Source: RefCommitsTableName},
-	{Name: "commit_hash", Type: sql.Text, Source: RefCommitsTableName},
+	{Name: "commit_hash", Type: sql.VarChar(40), Source: RefCommitsTableName},
 	{Name: "ref_name", Type: sql.Text, Source: RefCommitsTableName},
 	{Name: "history_index", Type: sql.Int64, Source: RefCommitsTableName},
 }

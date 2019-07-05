@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Errors now report the repository causing the error, if possible.
 - Now non rooted siva files support old siva rooted repositories.
+- Switch some types of known or maximum length (mostly hashes and emails)
+  to VarChar with a size.
 - Traces now have a root span.
 
 ### Fixed
