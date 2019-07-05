@@ -9,7 +9,6 @@ import (
 
 	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/require"
-	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
@@ -78,9 +77,7 @@ func TestRepositoryPoolGit(t *testing.T) {
 	require.NotNil(repo)
 	require.NoError(err)
 
-	iter, err := repo.Log(&git.LogOptions{
-		All: true,
-	})
+	iter, err := newCommitIter(repo, false)
 	require.NoError(err)
 
 	count := 0
@@ -165,9 +162,9 @@ func TestRepositoryPoolSiva(t *testing.T) {
 	expectedRepos := 5
 	expected := map[string]int{
 		"015da2f4-6d89-7ec8-5ac9-a38329ea875b": 606,
-		"015dcc49-9049-b00c-ba72-b6f5fa98cbe7": 68,
-		"015dcc49-90e6-34f2-ac03-df879ee269f3": 21,
-		"015dcc4d-0bdf-6aff-4aac-ffe68c752eb3": 380,
+		"015dcc49-9049-b00c-ba72-b6f5fa98cbe7": 71,
+		"015dcc49-90e6-34f2-ac03-df879ee269f3": 45,
+		"015dcc4d-0bdf-6aff-4aac-ffe68c752eb3": 382,
 		"015dcc4d-2622-bdac-12a5-ec441e3f3508": 72,
 	}
 	result := make(map[string]int)
@@ -183,9 +180,7 @@ func TestRepositoryPoolSiva(t *testing.T) {
 		}
 		require.NoError(err)
 
-		iter, err := repo.Log(&git.LogOptions{
-			All: true,
-		})
+		iter, err := newCommitIter(repo, false)
 		require.NoError(err)
 
 		id := repo.ID()

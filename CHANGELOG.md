@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.1] - 2019-07-05
+
+### Fixed
+
+- Fix the results of files table by not using git log.
+
 ## [0.23.0] - 2019-07-04
 
 ### Changed
