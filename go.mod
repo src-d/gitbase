@@ -19,7 +19,7 @@ require (
 	github.com/src-d/go-borges v0.0.0-20190628121335-da12a84d60fd
 	github.com/src-d/go-git v4.7.0+incompatible
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
-	github.com/src-d/go-mysql-server v0.4.1-0.20190704102044-bbae51955887
+	github.com/src-d/go-mysql-server v0.4.1-0.20190708083625-b61703ad45cc
 	github.com/stretchr/testify v1.3.0
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
@@ -33,7 +33,6 @@ require (
 	gopkg.in/src-d/go-billy-siva.v4 v4.5.1
 	gopkg.in/src-d/go-billy.v4 v4.3.0
 	gopkg.in/src-d/go-errors.v1 v1.0.0
-	gopkg.in/src-d/go-git-fixtures.v3 v3.5.0
 	gopkg.in/src-d/go-git.v4 v4.12.0
 	gopkg.in/yaml.v2 v2.2.2
 	vitess.io/vitess v3.0.0-rc.3.0.20190602171040-12bfde34629c+incompatible

@@ -11,10 +11,10 @@ import (
 	"github.com/src-d/go-borges/plain"
 	"github.com/stretchr/testify/require"
 
+	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"gopkg.in/src-d/go-billy.v4/osfs"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 )
 
@@ -86,7 +86,6 @@ func TestCommitStatsEval(t *testing.T) {
 
 func setupPool(t *testing.T) (*gitbase.RepositoryPool, func()) {
 	t.Helper()
-	require.NoError(t, fixtures.Init())
 
 	path := fixtures.ByTag("worktree").One().Worktree().Root()
 	pathLib := path + "-lib"

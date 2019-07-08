@@ -47,12 +47,10 @@ func (v *IsVendor) String() string {
 	return fmt.Sprintf("IS_VENDOR(%s)", v.Child)
 }
 
-// TransformUp implements the sql.Expression interface.
-func (v *IsVendor) TransformUp(f sql.TransformExprFunc) (sql.Expression, error) {
-	child, err := v.Child.TransformUp(f)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (v IsVendor) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(v, len(children), 1)
 	}
-
-	return f(NewIsVendor(child))
+	return NewIsVendor(children[0]), nil
 }

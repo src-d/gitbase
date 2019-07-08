@@ -118,42 +118,41 @@ func (u *uastFunc) Children() []sql.Expression {
 	return exprs
 }
 
-// TransformUp implements the Expression interface.
-func (u *uastFunc) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	var lang, xpath sql.Expression
-	mode, err := u.Mode.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
-	blob, err := u.Blob.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
+// WithChildren implements the Expression interface.
+func (u *uastFunc) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	expected := 2
 	if u.Lang != nil {
-		lang, err = u.Lang.TransformUp(fn)
-		if err != nil {
-			return nil, err
-		}
+		expected++
 	}
 
 	if u.XPath != nil {
-		xpath, err = u.XPath.TransformUp(fn)
-		if err != nil {
-			return nil, err
-		}
+		expected++
 	}
 
-	tu := uastFunc{
+	if len(children) != expected {
+		return nil, sql.ErrInvalidChildrenNumber.New(u, len(children), expected)
+	}
+
+	blob := children[0]
+	mode := children[1]
+	var lang, xpath sql.Expression
+	var idx = 2
+	if u.Lang != nil {
+		lang = children[idx]
+		idx++
+	}
+
+	if u.XPath != nil {
+		xpath = children[idx]
+	}
+
+	return &uastFunc{
 		Mode:  mode,
 		Blob:  blob,
-		Lang:  lang,
 		XPath: xpath,
+		Lang:  lang,
 		h:     sha1.New(),
-	}
-
-	return fn(&tu)
+	}, nil
 }
 
 // String implements the Expression interface.
@@ -299,8 +298,6 @@ type UAST struct {
 	*uastFunc
 }
 
-var _ sql.Expression = (*UAST)(nil)
-
 // NewUAST creates a new UAST UDF.
 func NewUAST(args ...sql.Expression) (sql.Expression, error) {
 	var mode = expression.NewLiteral("semantic", sql.Text)
@@ -308,7 +305,7 @@ func NewUAST(args ...sql.Expression) (sql.Expression, error) {
 
 	switch len(args) {
 	default:
-		return nil, sql.ErrInvalidArgumentNumber.New("1, 2 or 3", len(args))
+		return nil, sql.ErrInvalidArgumentNumber.New("uast", "1, 2 or 3", len(args))
 	case 3:
 		xpath = args[2]
 		fallthrough
@@ -328,14 +325,34 @@ func NewUAST(args ...sql.Expression) (sql.Expression, error) {
 	}}, nil
 }
 
-// TransformUp implements the Expression interface.
-func (u *UAST) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	uf, err := u.uastFunc.TransformUp(fn)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (u *UAST) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	expected := 1
+	if u.Lang != nil {
+		expected++
 	}
 
-	return fn(&UAST{uf.(*uastFunc)})
+	if u.XPath != nil {
+		expected++
+	}
+
+	if len(children) != expected {
+		return nil, sql.ErrInvalidChildrenNumber.New(u, len(children), expected)
+	}
+
+	return NewUAST(children...)
+}
+
+// Children implements the Expression interface.
+func (u *UAST) Children() []sql.Expression {
+	result := []sql.Expression{u.Blob}
+	if u.Lang != nil {
+		result = append(result, u.Lang)
+	}
+	if u.XPath != nil {
+		result = append(result, u.XPath)
+	}
+	return result
 }
 
 // String implements the Expression interface.
@@ -356,8 +373,6 @@ type UASTMode struct {
 	*uastFunc
 }
 
-var _ sql.Expression = (*UASTMode)(nil)
-
 // NewUASTMode creates a new UASTMode UDF.
 func NewUASTMode(mode, blob, lang sql.Expression) sql.Expression {
 	return &UASTMode{&uastFunc{
@@ -369,14 +384,13 @@ func NewUASTMode(mode, blob, lang sql.Expression) sql.Expression {
 	}}
 }
 
-// TransformUp implements the Expression interface.
-func (u *UASTMode) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	uf, err := u.uastFunc.TransformUp(fn)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (u *UASTMode) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 3 {
+		return nil, sql.ErrInvalidChildrenNumber.New(u, len(children), 3)
 	}
 
-	return fn(&UASTMode{uf.(*uastFunc)})
+	return NewUASTMode(children[0], children[1], children[2]), nil
 }
 
 // String implements the Expression interface.
@@ -450,19 +464,13 @@ func (f UASTXPath) String() string {
 	return fmt.Sprintf("uast_xpath(%s, %s)", f.Left, f.Right)
 }
 
-// TransformUp implements the Expression interface.
-func (f UASTXPath) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	left, err := f.Left.TransformUp(fn)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (f *UASTXPath) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 2 {
+		return nil, sql.ErrInvalidChildrenNumber.New(f, len(children), 2)
 	}
 
-	right, err := f.Right.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
-	return fn(NewUASTXPath(left, right))
+	return NewUASTXPath(children[0], children[1]), nil
 }
 
 // UASTExtract extracts keys from an UAST.
@@ -641,19 +649,13 @@ func valueToString(n nodes.Value) (interface{}, error) {
 	return sql.Text.Convert(n.Native())
 }
 
-// TransformUp implements the sql.Expression interface.
-func (u *UASTExtract) TransformUp(f sql.TransformExprFunc) (sql.Expression, error) {
-	left, err := u.Left.TransformUp(f)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (u *UASTExtract) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 2 {
+		return nil, sql.ErrInvalidChildrenNumber.New(u, len(children), 2)
 	}
 
-	rigth, err := u.Right.TransformUp(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return f(NewUASTExtract(left, rigth))
+	return NewUASTExtract(children[0], children[1]), nil
 }
 
 // UASTChildren returns children from UAST nodes.
@@ -676,14 +678,13 @@ func (u *UASTChildren) Type() sql.Type {
 	return sql.Blob
 }
 
-// TransformUp implements the sql.Expression interface.
-func (u *UASTChildren) TransformUp(f sql.TransformExprFunc) (sql.Expression, error) {
-	child, err := u.Child.TransformUp(f)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (u *UASTChildren) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(u, len(children), 1)
 	}
 
-	return f(NewUASTChildren(child))
+	return NewUASTChildren(children[0]), nil
 }
 
 // Eval implements the sql.Expression interface.

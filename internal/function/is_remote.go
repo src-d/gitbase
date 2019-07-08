@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"gopkg.in/src-d/go-git.v4/plumbing"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 // IsRemote checks the given string is a remote reference.
@@ -45,13 +45,12 @@ func (f IsRemote) String() string {
 	return fmt.Sprintf("is_remote(%s)", f.Child)
 }
 
-// TransformUp implements the Expression interface.
-func (f IsRemote) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	child, err := f.Child.TransformUp(fn)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (f IsRemote) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(f, len(children), 1)
 	}
-	return fn(NewIsRemote(child))
+	return NewIsRemote(children[0]), nil
 }
 
 // Type implements the Expression interface.

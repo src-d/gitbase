@@ -47,19 +47,9 @@ func (LOC) Type() sql.Type {
 	return sql.JSON
 }
 
-// TransformUp implements the Expression interface.
-func (f *LOC) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	left, err := f.Left.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
-	right, err := f.Right.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
-	return fn(&LOC{left, right})
+// WithChildren implements the Expression interface.
+func (f *LOC) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	return NewLOC(children...)
 }
 
 // Eval implements the Expression interface.

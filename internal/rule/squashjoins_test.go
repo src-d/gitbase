@@ -179,7 +179,7 @@ func TestSquashJoins(t *testing.T) {
 
 	result, err := SquashJoins(sql.NewEmptyContext(), analyzer.NewDefault(nil), node)
 	require.NoError(err)
-	expected, err = expected.TransformUp(func(n sql.Node) (sql.Node, error) {
+	expected, err = plan.TransformUp(expected, func(n sql.Node) (sql.Node, error) {
 		t, ok := n.(*plan.ResolvedTable)
 		if ok {
 			// precompute schema
