@@ -2,6 +2,8 @@ package function
 
 import (
 	"context"
+
+	"reflect"
 	"testing"
 
 	"github.com/src-d/gitbase"
@@ -79,4 +81,18 @@ func TestCommitFileStats(t *testing.T) {
 			require.EqualValues(t, tc.expected, result)
 		})
 	}
+}
+
+func TestWithChildren(t *testing.T) {
+	repo := expression.NewGetField(0, sql.Text, "repository_id", false)
+	from := expression.NewGetField(2, sql.Text, "commit_hash", false)
+
+	cfs, err := NewCommitFileStats(repo, from)
+	require.NoError(t, err)
+
+	newCfs, err := cfs.WithChildren(repo, from)
+
+	require.NoError(t, err)
+	require.EqualValues(t, cfs.Children(), newCfs.Children())
+	require.Equal(t, reflect.TypeOf(cfs), reflect.TypeOf(newCfs))
 }
