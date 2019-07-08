@@ -82,22 +82,18 @@ func (Language) Type() sql.Type {
 	return sql.Text
 }
 
-// TransformUp implements the Expression interface.
-func (f *Language) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	left, err := f.Left.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
-	var right sql.Expression
+// WithChildren implements the Expression interface.
+func (f *Language) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	expected := 1
 	if f.Right != nil {
-		right, err = f.Right.TransformUp(fn)
-		if err != nil {
-			return nil, err
-		}
+		expected = 2
 	}
 
-	return fn(&Language{left, right})
+	if len(children) != expected {
+		return nil, sql.ErrInvalidChildrenNumber.New(f, len(children), expected)
+	}
+
+	return NewLanguage(children...)
 }
 
 // Eval implements the Expression interface.

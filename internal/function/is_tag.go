@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"gopkg.in/src-d/go-git.v4/plumbing"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 // IsTag checks the given string is a tag name.
@@ -45,13 +45,12 @@ func (f IsTag) String() string {
 	return fmt.Sprintf("is_tag(%s)", f.Child)
 }
 
-// TransformUp implements the Expression interface.
-func (f IsTag) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	child, err := f.Child.TransformUp(fn)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (f IsTag) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(f, len(children), 1)
 	}
-	return fn(NewIsTag(child))
+	return NewIsTag(children[0]), nil
 }
 
 // Type implements the Expression interface.

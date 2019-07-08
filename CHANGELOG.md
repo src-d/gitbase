@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Varchar type.
 - FIRST and LAST aggregations.
+- Count distinct aggregation.
 
 ### Changed
 
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switch some types of known or maximum length (mostly hashes and emails)
   to VarChar with a size.
 - Traces now have a root span.
+- New API for node transformations.
 
 ### Fixed
 

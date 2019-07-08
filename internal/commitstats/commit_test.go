@@ -3,9 +3,9 @@ package commitstats
 import (
 	"testing"
 
+	fixtures "github.com/src-d/go-git-fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
@@ -14,12 +14,8 @@ import (
 )
 
 func TestCalculate(t *testing.T) {
-	err := fixtures.Init()
-	require.NoError(t, err)
-
 	defer func() {
-		err := fixtures.Clean()
-		require.NoError(t, err)
+		require.NoError(t, fixtures.Clean())
 	}()
 
 	tests := map[string]struct {

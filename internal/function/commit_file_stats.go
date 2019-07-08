@@ -46,28 +46,27 @@ func (CommitFileStats) Type() sql.Type {
 	return sql.Array(sql.JSON)
 }
 
-// TransformUp implements the Expression interface.
-func (f *CommitFileStats) TransformUp(fn sql.TransformExprFunc) (sql.Expression, error) {
-	repo, err := f.Repository.TransformUp(fn)
-	if err != nil {
-		return nil, err
+// WithChildren implements the Expression interface.
+func (f *CommitFileStats) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	expected := 2
+	if f.From != nil {
+		expected = 3
 	}
 
-	to, err := f.To.TransformUp(fn)
-	if err != nil {
-		return nil, err
+	if len(children) != expected {
+		return nil, sql.ErrInvalidChildrenNumber.New(f, len(children), expected)
 	}
 
-	if f.From == nil {
-		return fn(&CommitFileStats{Repository: repo, To: to})
+	repo := children[0]
+	var from, to sql.Expression
+	if f.From != nil {
+		from = children[1]
+		to = children[2]
+	} else {
+		to = children[1]
 	}
 
-	from, err := f.From.TransformUp(fn)
-	if err != nil {
-		return nil, err
-	}
-
-	return fn(&CommitFileStats{Repository: repo, From: from, To: to})
+	return &CommitStats{repo, from, to}, nil
 }
 
 // Children implements the Expression interface.

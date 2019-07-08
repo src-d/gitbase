@@ -34,7 +34,7 @@ func SquashJoins(
 
 	projectSquashes := countProjectSquashes(n)
 
-	n, err := n.TransformUp(func(n sql.Node) (sql.Node, error) {
+	n, err := plan.TransformUp(n, func(n sql.Node) (sql.Node, error) {
 		join, ok := n.(*plan.InnerJoin)
 		if !ok {
 			return n, nil
@@ -47,7 +47,7 @@ func SquashJoins(
 		return nil, err
 	}
 
-	n, err = n.TransformUp(func(n sql.Node) (sql.Node, error) {
+	n, err = plan.TransformUp(n, func(n sql.Node) (sql.Node, error) {
 		t, ok := n.(*joinedTables)
 		if !ok {
 			return n, nil
@@ -60,7 +60,7 @@ func SquashJoins(
 		return nil, err
 	}
 
-	return n.TransformUp(func(n sql.Node) (sql.Node, error) {
+	return plan.TransformUp(n, func(n sql.Node) (sql.Node, error) {
 		switch n := n.(type) {
 		case *plan.Project:
 			if projectSquashes <= 0 {
@@ -1084,7 +1084,7 @@ func isJoinCondSquashable(join *plan.InnerJoin) bool {
 		// tables in order to find the condition, since natural joins deduplicate
 		// columns with the same name.
 		if stringInSlice(squashedTables, rt) {
-			c, err := join.Cond.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+			c, err := expression.TransformUp(join.Cond, func(e sql.Expression) (sql.Expression, error) {
 				gf, ok := e.(*expression.GetField)
 				if ok && gf.Table() != rt && gf.Table() != lt {
 					if tableHasColumn(rt, gf.Name()) {
@@ -1262,10 +1262,10 @@ func (t *joinedTables) RowIter(*sql.Context) (sql.RowIter, error) {
 }
 func (t *joinedTables) Children() []sql.Node { return nil }
 func (t *joinedTables) Resolved() bool       { return true }
-func (t *joinedTables) TransformUp(f sql.TransformNodeFunc) (sql.Node, error) {
-	return f(t)
-}
-func (t *joinedTables) TransformExpressionsUp(f sql.TransformExprFunc) (sql.Node, error) {
+func (t *joinedTables) WithChildren(children ...sql.Node) (sql.Node, error) {
+	if len(children) != 0 {
+		return nil, sql.ErrInvalidChildrenNumber.New(t, len(children), 0)
+	}
 	return t, nil
 }
 
@@ -1591,7 +1591,7 @@ func fixFieldIndexes(e sql.Expression, schema sql.Schema) (sql.Expression, error
 	if e == nil {
 		return nil, nil
 	}
-	return e.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+	return expression.TransformUp(e, func(e sql.Expression) (sql.Expression, error) {
 		gf, ok := e.(*expression.GetField)
 		if !ok {
 			return e, nil
@@ -1636,7 +1636,7 @@ func fixFieldTable(
 	if e == nil {
 		return nil, nil
 	}
-	return e.TransformUp(func(e sql.Expression) (sql.Expression, error) {
+	return expression.TransformUp(e, func(e sql.Expression) (sql.Expression, error) {
 		gf, ok := e.(*expression.GetField)
 		if !ok {
 			return e, nil

@@ -25,7 +25,6 @@ before_script:
   - docker run -d --name bblfshd --privileged -p 9432:9432 bblfsh/bblfshd:v2.14.0-drivers
   - docker exec -it bblfshd bblfshctl driver list
   - go get -v github.com/go-sql-driver/mysql/...
-  - go get gopkg.in/src-d/go-git-fixtures.v3/...
 
 script:
   - make test-coverage codecov
