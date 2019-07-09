@@ -66,7 +66,7 @@ func (f *CommitFileStats) WithChildren(children ...sql.Expression) (sql.Expressi
 		to = children[1]
 	}
 
-	return &CommitStats{repo, from, to}, nil
+	return &CommitFileStats{repo, from, to}, nil
 }
 
 // Children implements the Expression interface.
