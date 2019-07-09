@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0-beta1] - 2019-07-08
+
 ### Added
 
 - Varchar type.
@@ -15,7 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Errors now report the repository causing the error, if possible.
-- Now non rooted siva files support old siva rooted repositories.
 - Switch some types of known or maximum length (mostly hashes and emails)
   to VarChar with a size.
 - Traces now have a root span.
@@ -25,7 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed the behaviour of limit and offset.
 - Resolution of HAVING nodes.
+
+## [0.23.1] - 2019-07-05
+
+### Fixed
+
 - Fix the results of files table by not using git log.
+
+## [0.23.0] - 2019-07-04
+
+### Changed
+
+- Now non rooted siva files support old siva rooted repositories.
 
 ## [0.22.0] - 2019-07-03
 
