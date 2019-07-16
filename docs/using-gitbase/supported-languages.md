@@ -1,6 +1,6 @@
 ## Supported languages
 
-Gitbase supports many programming languages depends on the use case.
+Gitbase supports many programming languages depending on the use case.
 For instance the `language(path, [blob])` function supports all languages which [enry's package](https://github.com/src-d/enry) can autodetect.
 More details about aliases, groups, extensions, etc. you can find in [enry's repo](https://github.com/src-d/enry/blob/master/data/alias.go),
 or go directly to [linguist defines](https://github.com/github/linguist/blob/master/lib/linguist/languages.yml).
