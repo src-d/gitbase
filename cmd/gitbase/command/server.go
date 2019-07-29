@@ -83,8 +83,8 @@ type Server struct {
 	MetricsPort    int            `long:"metrics-port" env:"GITBASE_METRICS_PORT" default:"2112" description:"Port where the server is going to expose prometheus metrics"`
 	ReadOnly       bool           `short:"r" long:"readonly" description:"Only allow read queries. This disables creating and deleting indexes as well. Cannot be used with --user-file." env:"GITBASE_READONLY"`
 	SkipGitErrors  bool           // SkipGitErrors disables failing when Git errors are found.
-	Verbose        bool           `short:"v" description:"Activates the verbose mode"`
-	LogLevel       string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level"`
+	Verbose        bool           `short:"v" description:"Activates the verbose mode (equivalent to debug logging level), overwriting any passed logging level"`
+	LogLevel       string         `long:"log-level" env:"GITBASE_LOG_LEVEL" choice:"info" choice:"debug" choice:"warning" choice:"error" choice:"fatal" default:"info" description:"logging level; ignored if using -v verbose flag"`
 }
 
 type jaegerLogrus struct {
@@ -138,11 +138,18 @@ func (c *Server) Execute(args []string) error {
 
 	// info is the default log level
 	if c.LogLevel != "info" {
-		level, err := logrus.ParseLevel(c.LogLevel)
-		if err != nil {
-			return fmt.Errorf("cannot parse log level: %s", err.Error())
+		if c.Verbose {
+			logrus.Infof(
+				"ignoring passed '%s' log-level, using requesed '-v' verbose flag instead",
+				c.LogLevel,
+			)
+		} else {
+			level, err := logrus.ParseLevel(c.LogLevel)
+			if err != nil {
+				return fmt.Errorf("cannot parse log level: %s", err.Error())
+			}
+			logrus.SetLevel(level)
 		}
-		logrus.SetLevel(level)
 	}
 
 	var err error

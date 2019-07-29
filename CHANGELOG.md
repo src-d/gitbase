@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- When it's added the `-v` verbose flag, gitbase will use `debug` as logging level, ignoring any other passed ([#935](https://github.com/src-d/gitbase/pull/935))
+
+### Fixed
+
+- If using docker image, and `info` logging level, it will be now used instead of `debug` ([#935](https://github.com/src-d/gitbase/pull/935))
+
+
 ## [0.24.0-beta1] - 2019-07-08
 
 ### Added
