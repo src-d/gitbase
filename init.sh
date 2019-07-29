@@ -10,7 +10,9 @@ user=${GITBASE_USER}
 password=${GITBASE_PASSWORD}
 EOT
 
-/tini -s -- /bin/gitbase server -v \
+export GITBASE_LOG_LEVEL=${GITBASE_LOG_LEVEL:-debug}
+
+/tini -s -- /bin/gitbase server \
     --host=0.0.0.0 \
     --port=3306 \
     --user="$GITBASE_USER" \

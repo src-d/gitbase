@@ -117,6 +117,7 @@ Help Options:
       -r, --readonly                                   Only allow read queries. This disables creating and
                                                        deleting indexes as well. Cannot be used with
                                                        --user-file. [$GITBASE_READONLY]
-      -v                                               Activates the verbose mode
+      -v                                               Activates the verbose mode (equivalent to debug
+                                                       logging level), overwriting any passed logging level
           --log-level=[info|debug|warning|error|fatal] logging level (default: info) [$GITBASE_LOG_LEVEL]
 ```
