@@ -18,34 +18,30 @@ FROM refs
 WHERE ref_name = 'HEAD';
 ```
 
-## First commit on HEAD history for all repositories
+## Files in the first commit on HEAD history for all repositories
 
 ```sql
 SELECT file_path,
        ref_commits.repository_id
 FROM commit_files
 NATURAL JOIN ref_commits
-WHERE ref_commits.ref_name = 'HEAD'
-  AND ref_commits.history_index = 0;
+WHERE ref_name = 'HEAD'
+  AND history_index = 0;
 ```
 
 ## Commits that appear in more than one reference
 
 ```sql
-SELECT *
-FROM
-  (SELECT COUNT(c.commit_hash) AS num,
-          c.commit_hash
-   FROM ref_commits r
-   NATURAL JOIN commits c
-   GROUP BY c.commit_hash) t
-WHERE num > 1;
+SELECT COUNT(commit_hash) AS num, commit_hash
+FROM ref_commits
+GROUP BY commit_hash
+HAVING num > 1;
 ```
 
 ## Get the number of blobs per HEAD commit
 
 ```sql
-SELECT COUNT(commit_hash),
+SELECT COUNT(commit_blob),
        commit_hash
 FROM ref_commits
 NATURAL JOIN commits
@@ -85,8 +81,8 @@ SELECT
     SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Comments')) as comments,
     SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Blanks')) as blanks,
     COUNT(1) as files
-FROM commit_files
-NATURAL JOIN refs
+FROM refs
+NATURAL JOIN commit_files
 NATURAL JOIN blobs
 WHERE ref_name='HEAD'
 GROUP BY lang;
@@ -98,13 +94,13 @@ GROUP BY lang;
 SELECT file_path,
        repository_id,
        blob_content
-FROM files
+FROM ref_commits
 NATURAL JOIN commit_files
-NATURAL JOIN ref_commits
+NATURAL JOIN files
 WHERE ref_name = 'HEAD'
-  AND ref_commits.history_index BETWEEN 0 AND 5
-  AND is_binary(blob_content) = FALSE
-  AND files.file_path NOT REGEXP '^vendor.*'
+  AND history_index BETWEEN 0 AND 5
+  AND NOT IS_BINARY(blob_content)
+  AND NOT IS_VENDOR(file_path)
   AND (blob_content REGEXP '(?i)facebook.*[\'\\"][0-9a-f]{32}[\'\\"]'
        OR blob_content REGEXP '(?i)twitter.*[\'\\"][0-9a-zA-Z]{35,44}[\'\\"]'
        OR blob_content REGEXP '(?i)github.*[\'\\"][0-9a-zA-Z]{35,40}[\'\\"]'
@@ -145,7 +141,7 @@ DROP INDEX files_lang_idx ON files;
 
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in the last commit of each repository.
 
-```
+```sql
 SELECT
     repo,
     JSON_EXTRACT(stats, '$.Code.Additions') AS code_lines_added,
@@ -175,7 +171,7 @@ The output will be similar to this:
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in each file of the last commit of each repository. It's similar to the previous example. `COMMIT_STATS` is an aggregation over the result of `COMMIT_FILE_STATS` so to speak.
 We will only report those files that whose language has been identified.
 
-```
+```sql
 SELECT
     repo,
     JSON_UNQUOTE(JSON_EXTRACT(stats, '$.Path')) AS file_path,
@@ -210,29 +206,15 @@ First of all, you should check out the [bblfsh documentation](https://docs.sourc
 
 Also, you can take a look to all the UDFs and their signatures in the [functions section](/docs/using-gitbase/functions.md)
 
-## Extract all import paths for every *Go* file on *HEAD* reference
-
-```sql
-SELECT repository_id,
-       file_path,
-       uast_extract(uast(blob_content, LANGUAGE(file_path), '//uast:Import/Path'), "Value") AS imports
-FROM commit_files
-NATURAL JOIN refs
-NATURAL JOIN blobs
-WHERE ref_name = 'HEAD'
-  AND LANGUAGE(file_path) = 'Go'
-  AND ARRAY_LENGTH(imports) > 0;
-```
-
 ## Extracting all identifier names
 
 ```sql
 SELECT file_path,
        uast_extract(uast(blob_content, LANGUAGE(file_path), '//uast:Identifier'), "Name") name
-FROM commit_files
-NATURAL JOIN refs
+FROM refs
+NATURAL JOIN commit_files
 NATURAL JOIN blobs
-WHERE ref_name='HEAD' AND LANGUAGE(file_path) = 'Go';
+WHERE ref_name = 'HEAD' AND LANGUAGE(file_path) = 'Go';
 ```
 
 As result, you will get an array showing a list of the retrieved information. Each element in the list matches a node in the given sequence of nodes having a value for that property. It means that the length of the properties list may not be equal to the length of the given sequence of nodes:
