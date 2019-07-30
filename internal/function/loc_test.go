@@ -3,11 +3,10 @@ package function
 import (
 	"testing"
 
-	"github.com/hhatto/gocloc"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/src-d/go-errors.v1"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/src-d/go-errors.v1"
 )
 
 func TestLoc(t *testing.T) {
@@ -22,7 +21,7 @@ func TestLoc(t *testing.T) {
 		{"too few args given", sql.NewRow("foo.foobar"), nil, nil},
 		{"too many args given", sql.NewRow("foo.rb", "bar", "baz"), nil, sql.ErrInvalidArgumentNumber},
 		{"invalid blob type given", sql.NewRow("foo", 5), nil, sql.ErrInvalidType},
-		{"path and blob are given", sql.NewRow("foo", "#!/usr/bin/env python\n\nprint 'foo'"), &gocloc.ClocFile{
+		{"path and blob are given", sql.NewRow("foo", "#!/usr/bin/env python\n\nprint 'foo'"), LocFile{
 			Code: 2, Comments: 0, Blanks: 1, Name: "foo", Lang: "Python",
 		}, nil},
 	}
