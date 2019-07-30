@@ -169,6 +169,26 @@ Also, if you want to retrieve values from a non common property, you can pass it
 
 > uast_extract(nodes_column, 'some-property')
 
+## How to use `loc`
+
+`loc` will return statistics about the lines of code in a file, such as the code lines, comment lines, etc.
+
+It requires a file path and a file content.
+
+> loc(file_path, blob_content)
+
+The result of this function is a JSON document with the following shape:
+
+```
+{
+	"Code": code lines,
+	"Comment": comment lines,
+	"Blank": blank lines,
+	"Name": file name,
+	"Lang": language
+}
+```
+
 ## How to use `commit_file_stats`
 
 `commit_file_stats` will return statistics about the line changes in all files in the given range of commits classifying them in 4 categories: code, comments, blank lines and other.

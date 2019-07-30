@@ -52,6 +52,15 @@ func (f *LOC) WithChildren(children ...sql.Expression) (sql.Expression, error) {
 	return NewLOC(children...)
 }
 
+// LocFile is the result of the LOC function for each file.
+type LocFile struct {
+	Code     int32  `json:"Code"`
+	Comments int32  `json:"Comment"`
+	Blanks   int32  `json:"Blank"`
+	Name     string `json:"Name"`
+	Lang     string `json:"Language"`
+}
+
 // Eval implements the Expression interface.
 func (f *LOC) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	span, ctx := ctx.Span("gitbase.LOC")
@@ -70,11 +79,19 @@ func (f *LOC) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, nil
 	}
 
-	return gocloc.AnalyzeReader(
+	file := gocloc.AnalyzeReader(
 		path,
 		languages.Langs[lang],
 		bytes.NewReader(blob), &gocloc.ClocOptions{},
-	), nil
+	)
+
+	return LocFile{
+		Code:     file.Code,
+		Comments: file.Comments,
+		Blanks:   file.Blanks,
+		Name:     file.Name,
+		Lang:     file.Lang,
+	}, nil
 }
 
 func (f *LOC) getInputValues(ctx *sql.Context, row sql.Row) (string, []byte, error) {
