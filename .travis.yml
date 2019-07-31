@@ -1,6 +1,7 @@
 language: go
 
 go_import_path: github.com/src-d/gitbase
+go: 1.12.x
 
 env:
   - GO111MODULE=on
@@ -32,8 +33,7 @@ script:
 
 jobs:
   include:
-    - go: 1.11.x
-      os: linux
+    - os: linux
       sudo: required
       dist: trusty
       services: [docker]
@@ -51,8 +51,7 @@ jobs:
         on:
           tags: true
 
-    - go: 1.11.x
-      os: osx
+    - os: osx
       osx_image: xcode9.3
 
       before_install:
