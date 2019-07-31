@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0-beta2] - 2019-07-31
+
 ### Changed
 
 - When it's added the `-v` verbose flag, gitbase will use `debug` as logging level, ignoring any other passed ([#935](https://github.com/src-d/gitbase/pull/935))
@@ -13,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - If using docker image, and `info` logging level, it will be now used instead of `debug` ([#935](https://github.com/src-d/gitbase/pull/935))
-
+- sql/analyzer: fix order by resolution for all nodes ([#793](https://github.com/src-d/gitbase/pull/793))
+- sql: fix SQL method for arrays of JSON ([#790](https://github.com/src-d/gitbase/pull/790))
 
 ## [0.24.0-beta1] - 2019-07-08
 
