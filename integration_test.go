@@ -475,7 +475,7 @@ func TestIntegration(t *testing.T) {
 					) q
 				) q2`,
 			[]sql.Row{
-				{float64(1), float64(0), time.Date(2015, time.March, 31, 12, 00, 8, 0, time.UTC), "e8d3ffab552895c19b9fcf7aa264d277cde33881", "worktree", "Changed"},
+				{float64(1), float64(0), time.Date(2015, time.March, 31, 12, 00, 8, 0, time.UTC), "e8d3ffab552895c19b9fcf7aa264d277cde33881", "worktree", "Added"},
 				{float64(0), float64(0), time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "worktree", "Changed"},
 				{float64(0), float64(0), time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "worktree", "Changed"},
 				{float64(0), float64(0), time.Date(2015, time.April, 5, 21, 30, 47, 0, time.UTC), "6ecf0ef2c2dffb796033e5a02219af86ec6584e5", "worktree", "Changed"},
