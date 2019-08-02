@@ -759,3 +759,70 @@ func getChildren(node nodes.Object) nodes.Array {
 
 	return children
 }
+
+// UASTImports finds the imports in UAST nodes.
+type UASTImports struct {
+	expression.UnaryExpression
+}
+
+// NewUASTImports creates a new UASTImports node.
+func NewUASTImports(child sql.Expression) sql.Expression {
+	return &UASTImports{expression.UnaryExpression{Child: child}}
+}
+
+// Type implements the sql.Expression interface.
+func (f *UASTImports) Type() sql.Type {
+	return sql.Array(sql.Array(sql.Text))
+}
+
+// IsNullable implements the sql.Expression interface.
+func (f *UASTImports) IsNullable() bool { return true }
+
+// Eval implements the sql.Expression interface.
+func (f *UASTImports) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	span, ctx := ctx.Span("function.UASTImports")
+	defer span.Finish()
+
+	child, err := f.Child.Eval(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes, err := getNodes(child)
+	if err != nil {
+		return nil, err
+	}
+
+	if nodes == nil {
+		return nil, nil
+	}
+
+	var result = make([]interface{}, nodes.Size())
+	for i := 0; i < nodes.Size(); i++ {
+		node := nodes.ValueAt(i)
+		imports := uast.AllImportPaths(node)
+		nodeImports := make([]interface{}, len(imports))
+		for j, imp := range imports {
+			nodeImports[j] = imp
+		}
+		result[i] = nodeImports
+	}
+
+	return result, nil
+}
+
+func (f *UASTImports) String() string {
+	return fmt.Sprintf("uast_imports(%s)", f.Child)
+}
+
+// Children implements the sql.Expression interface.
+func (f *UASTImports) Children() []sql.Expression { return []sql.Expression{f.Child} }
+
+// WithChildren implements the sql.Expression interface.
+func (f *UASTImports) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(f, len(children), 1)
+	}
+
+	return NewUASTImports(children[0]), nil
+}

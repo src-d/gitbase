@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `uast_imports` function to gather import paths from an UAST.
+
 ## [0.24.0-beta2] - 2019-07-31
 
 ### Changed
