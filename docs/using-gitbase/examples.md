@@ -137,7 +137,7 @@ CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_cont
 DROP INDEX files_lang_idx ON files;
 ```
 
-## Calculating code line changes in the last commit
+## Calculating code line changes in the last commit
 
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in the last commit of each repository.
 
@@ -166,7 +166,7 @@ The output will be similar to this:
 +-----------------+------------------+--------------------+
 ```
 
-## Calculating code line changes for files in the last commit
+## Calculating code line changes for files in the last commit
 
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in each file of the last commit of each repository. It's similar to the previous example. `COMMIT_STATS` is an aggregation over the result of `COMMIT_FILE_STATS` so to speak.
 We will only report those files that whose language has been identified.
