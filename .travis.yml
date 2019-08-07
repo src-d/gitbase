@@ -8,24 +8,10 @@ env:
 
 matrix:
   fast_finish: true
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - gcc-6
-    - g++-6
-    - libonig-dev
-
-
-before_install:
-  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-6 90
-  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 90
 
 before_script:
   - docker run -d --name bblfshd --privileged -p 9432:9432 bblfsh/bblfshd:v2.14.0-drivers
   - docker exec -it bblfshd bblfshctl driver list
-  - go get -v github.com/go-sql-driver/mysql/...
 
 script:
   - make test-coverage codecov
@@ -61,8 +47,6 @@ jobs:
         - echo "skipping before_script for macOS"
 
       script:
-        - brew update
-        - brew install oniguruma
         - make packages || echo "" # will fail because of docker being missing
         - if [ ! -f "build/gitbase_darwin_amd64/gitbase" ]; then echo "gitbase binary not generated" && exit 1; fi
         - cd build
