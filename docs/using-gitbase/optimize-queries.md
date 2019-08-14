@@ -2,7 +2,7 @@
 
 Even though in each release performance improvements are included to make gitbase faster, there are some queries that might take too long. By rewriting them in some ways, you can squeeze that extra performance you need by taking advantage of some optimisations that are already in place.
 
-There are two ways to optimize a gitbase query:
+There are three ways to optimize a gitbase query:
 - Create an index for some parts.
 - Making sure the joined tables are squashed.
 - Making sure not squashed joins are performed in memory.
@@ -82,7 +82,7 @@ So, as a good rule of thumb, the right side of an inner join should always be th
 The more obvious way to improve the performance of a query is to create an index for such query. Since you can index multiple columns or a single arbitrary expression, this may be useful for some kinds of queries. For example, if you're querying by language, you may want to index that so there is no need to compute the language each time.
 
 ```sql
-CREATE INDEX files_language_idx ON files USING pilosa (language(file_path, blob_content))
+CREATE INDEX files_language_idx ON files USING pilosa (language(file_path, blob_content));
 ```
 
 Once you have the index in place, gitbase only looks for the rows with the values matching your conditions.
@@ -199,14 +199,14 @@ This advice can be applied to all squashed tables, not only `repository_id`.
 
 This query will get squashed, because `NATURAL JOIN` makes sure all columns with equal names are used in the join.
 ```sql
-SELECT * FROM refs NATURAL JOIN ref_commits NATURAL JOIN commits
+SELECT * FROM refs NATURAL JOIN ref_commits NATURAL JOIN commits;
 ```
 
 This query, however, will not be squashed.
 ```sql
 SELECT * FROM refs r
 INNER JOIN ref_commits rc ON r.ref_name = rc.ref_name
-INNER JOIN commits c ON rc.commit_hash = c.commit_hash
+INNER JOIN commits c ON rc.commit_hash = c.commit_hash;
 ```
 
 **It requires some filters to be present in order to perform the squash.**
@@ -214,14 +214,14 @@ INNER JOIN commits c ON rc.commit_hash = c.commit_hash
 This query will be squashed.
 
 ```sql
-SELECT * FROM commit_files NATURAL JOIN files
+SELECT * FROM commit_files NATURAL JOIN files;
 ```
 
 This query will not be squashed, as the join between `commit_files` and `files` requires more filters to be squashed.
 
 ```sql
 SELECT * FROM commit_files cf
-INNER JOIN files f ON cf.file_path = f.file_path
+INNER JOIN files f ON cf.file_path = f.file_path;
 ```
 
 **TIP:** we suggest always using `NATURAL JOIN` for joining tables, since it's less verbose and already satisfies all the filters for squashing tables.
@@ -229,7 +229,7 @@ The only exception to this advice is when joining `refs` and `ref_commits`. A `N
 
 You can find the full list of conditions that need to be met for the squash to be applied [here](#list-of-filters-for-squashed-tables).
 
-**Only works if the tables joined follow a hierarchy.** Joinin `commits` and `files` does not work, or joining `blobs` with `files`. It needs to follow one of the hierarchies of tables.
+**Only works if the tables joined follow a hierarchy.** Joining `commits` and `files` does not work, or joining `blobs` with `files`. It needs to follow one of the hierarchies of tables.
 
 ```
 repositories -> refs -> ref_commits -> commits -> commit_trees -> tree_entries -> blobs

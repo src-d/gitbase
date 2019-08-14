@@ -41,7 +41,7 @@ HAVING num > 1;
 ## Get the number of blobs per HEAD commit
 
 ```sql
-SELECT COUNT(commit_blob),
+SELECT COUNT(blob_hash),
        commit_hash
 FROM ref_commits
 NATURAL JOIN commits
@@ -137,7 +137,7 @@ CREATE INDEX files_lang_idx ON files USING pilosa (language(file_path, blob_cont
 DROP INDEX files_lang_idx ON files;
 ```
 
-## Calculating code line changes in the last commit
+## Calculating code line changes in the last commit
 
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in the last commit of each repository.
 
@@ -166,10 +166,10 @@ The output will be similar to this:
 +-----------------+------------------+--------------------+
 ```
 
-## Calculating code line changes for files in the last commit
+## Calculating code line changes for files in the last commit
 
 This query will report how many lines of actual code (only code, not comments, blank lines or text) changed in each file of the last commit of each repository. It's similar to the previous example. `COMMIT_STATS` is an aggregation over the result of `COMMIT_FILE_STATS` so to speak.
-We will only report those files that whose language has been identified.
+We will only report those files whose language has been identified.
 
 ```sql
 SELECT
@@ -256,7 +256,7 @@ We'll get the following output:
 
 From this output, we can obtain some information about our query:
 - It's been running for 36 seconds.
-- It's querying commit_files table and has processed 8 out of 9 partitions.
+- It's querying `commit_files` table and has processed 8 out of 9 partitions.
 
 To kill a query that's currently running you can use the value in `Id`. If we were to kill the previous query, we would need to use the following query:
 
