@@ -7,7 +7,7 @@ pipeline {
       nodeSelector 'srcd.host/type=jenkins-worker'
       containerTemplate {
         name 'regression-gitbase'
-        image 'srcd/regression-gitbase:v0.2.1'
+        image 'srcd/regression-gitbase:v0.3.1'
         ttyEnabled true
         command 'cat'
       }
@@ -17,13 +17,16 @@ pipeline {
     GOPATH = "/go"
     GO_IMPORT_PATH = "github.com/src-d/regression-gibase"
     GO_IMPORT_FULL_PATH = "${env.GOPATH}/src/${env.GO_IMPORT_PATH}"
+    GO111MODULE = "on"
+    PROM_ADDRESS = "http://prom-pushgateway-prometheus-pushgateway.monitoring.svc.cluster.local:9091"
+    PROM_JOB = "gitbase_perfomance"
   }
   triggers { pollSCM('0 0,12 * * *') }
   stages {
     stage('Run') {
       when { branch 'master' }
       steps {
-        sh '/bin/regression --complexity=2 --csv local:HEAD'
+        sh '/bin/regression --complexity=2 --csv --prom local:HEAD'
       }
     }
     stage('PR-run') {

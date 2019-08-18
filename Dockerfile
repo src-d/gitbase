@@ -14,6 +14,7 @@ WORKDIR $GITBASE_PATH
 ENV GO_BUILD_ARGS="-o /bin/gitbase"
 ENV GO_BUILD_PATH="./cmd/gitbase"
 ENV GO111MODULE=on
+ENV GOPROXY=https://proxy.golang.org
 
 RUN make static-build
 
