@@ -1,4 +1,4 @@
-## Supported languages
+# Supported languages
 
 Gitbase supports many programming languages depending on the use case.
 For instance the `language(path, [blob])` function supports all languages which [enry's package](https://github.com/src-d/enry) can autodetect.
@@ -14,4 +14,4 @@ If your use case requires _Universal Abstract Syntax Tree_ then most likely one 
 
 The _UAST_ functions support programming languages which already have implemented [babelfish](https://docs.sourced.tech/babelfish) driver.
 The list of currently supported languages on babelfish, you can find [here](https://docs.sourced.tech/babelfish/languages#supported-languages).
-Drivers which are still in development can be find [here](https://docs.sourced.tech/babelfish/languages#in-development).
+Drivers which are still in development can be found [here](https://docs.sourced.tech/babelfish/languages#in-development).

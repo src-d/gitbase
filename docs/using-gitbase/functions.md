@@ -6,19 +6,19 @@ To make some common tasks easier for the user, there are some functions to inter
 
 |     Name     |                                               Description                                                                      |
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
-|`commit_stats(repository_id, [from_commit_hash], to_commit_hash) json`|returns the stats between two commits for a repository. If from is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
-|`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash) json array`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If from is not given, the parent commit will be used. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
-|`is_remote(reference_name)bool`| check if the given reference name is from a remote one                                                          |
-|`is_tag(reference_name)bool`| check if the given reference name is a tag                                                                         |
-|`is_vendor(file_path)bool`| check if the given file name is a vendored file                                                                         |
-|`language(path, [blob])text`| gets the language of a file given its path and the optional content of the file                                    |
-|`uast(blob, [lang, [xpath]]) blob`| returns a node array of UAST nodes in semantic mode                                                          |
-|`uast_mode(mode, blob, lang) blob`| returns a node array of UAST nodes specifying its language and mode (semantic, annotated or native)          |
-|`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes                                                                |
-|`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes                                       |
-|`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array              |
-|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines |
-|`version() text`| returns the gitbase version in the following format `8.0.11-{GITBASE_VERSION}` for compatibility with MySQL versioning |
+|`commit_stats(repository_id, [from_commit_hash], to_commit_hash) json`|returns the stats between two commits for a repository. If `from_commit_hash` is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
+|`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash) json array`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If `from_commit_hash` is not given, the parent commit will be used. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
+|`is_remote(reference_name)bool`| checks if the given reference name is from a remote one.                                                          |
+|`is_tag(reference_name)bool`| checks if the given reference name is a tag.                                                                         |
+|`is_vendor(file_path)bool`| checks if the given file name is a vendored file.                                                                         |
+|`language(path, [blob])text`| gets the language of a file given its path and the optional content of the file.                                    |
+|`uast(blob, [lang, [xpath]]) blob`| returns a node array of UAST nodes in semantic mode.                                                          |
+|`uast_mode(mode, blob, lang) blob`| returns a node array of UAST nodes specifying its language and mode (semantic, annotated or native).          |
+|`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes.                                                                |
+|`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes.                                       |
+|`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array.              |
+|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines. |
+|`version() text`| returns the gitbase version in the following format `8.0.11-{GITBASE_VERSION}` for compatibility with MySQL versioning. |
 ## Standard functions
 
 These are all functions that are available because they are implemented in `go-mysql-server`, used by gitbase.
@@ -159,7 +159,9 @@ Check out the [UAST v2 specification](https://docs.sourced.tech/babelfish/uast/u
 
 Using these selectors as in,
 
-> uast_extract(nodes_column, @common_selector)
+```
+uast_extract(nodes_column, @common_selector)
+```
 
 you will extract the value of that property for each node.
 
@@ -167,7 +169,9 @@ Nodes that have no value for the requested property will not be present in any w
 
 Also, if you want to retrieve values from a non common property, you can pass it directly
 
-> uast_extract(nodes_column, 'some-property')
+```
+uast_extract(nodes_column, 'some-property')
+```
 
 ## How to use `loc`
 
@@ -175,7 +179,9 @@ Also, if you want to retrieve values from a non common property, you can pass it
 
 It requires a file path and a file content.
 
-> loc(file_path, blob_content)
+```
+loc(file_path, blob_content)
+```
 
 The result of this function is a JSON document with the following shape:
 
@@ -266,9 +272,9 @@ FROM (
 
 It can be used in two ways:
 - To get the statistics of a specific commit `COMMIT_STATS(repository_id, commit_hash)`
-- To get the statistics of a the diff of a commit range `COMMIT_STATS(repository_id, from_commit, to_commit)`
+- To get the statistics of the diff of a commit range `COMMIT_STATS(repository_id, from_commit, to_commit)`
 
-`commit_stats` it's pretty much an aggregation of the result of `commit_file_stats`. While `commit_file_stats` has the stats for each file in a commit, `commit_stats` has the global stats of all files in the commit. As a result, it outputs a single structure instead of an array of them.
+`commit_stats` is pretty much an aggregation of the result of `commit_file_stats`. While `commit_file_stats` has the stats for each file in a commit, `commit_stats` has the global stats of all files in the commit. As a result, it outputs a single structure instead of an array of them.
 
 The shape of the result returned by this function is the following:
 
@@ -300,7 +306,7 @@ The shape of the result returned by this function is the following:
 
 **NOTE:** Files that are considered vendored files are ignored for the purpose of computing these statistics. Note that `.gitignore` is considered a vendored file.
 
-The result returned by this function is a JSON, which means to access its fields, the use of `JSON_EXTRACT is needed.
+The result returned by this function is a JSON, which means that to access its fields, the use of `JSON_EXTRACT` is needed.
 
 For example, code additions would be accessed like this:
 ```sql
