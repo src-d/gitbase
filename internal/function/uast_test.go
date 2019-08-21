@@ -360,6 +360,47 @@ func TestExtractAnyProp(t *testing.T) {
 	require.Nil(t, props)
 }
 
+func TestUASTImports(t *testing.T) {
+	code := `
+package foo
+
+import "fmt"
+import "github.com/src-d/foo"
+import "gopkg.in/src-d/bar"
+
+func main() {
+	fmt.Println("Hello", foo.Foo, bar.Bar)
+}
+	`
+
+	ctx, cleanup := setup(t)
+	defer cleanup()
+
+	require := require.New(t)
+
+	f, err := NewUAST(
+		expression.NewLiteral([]byte(code), sql.Blob),
+		expression.NewLiteral("Go", sql.Text),
+	)
+	require.NoError(err)
+	result, err := f.Eval(ctx, nil)
+	require.NoError(err)
+	require.NotNil(result)
+
+	result, err = NewUASTImports(expression.NewLiteral(result, sql.Blob)).Eval(ctx, nil)
+	require.NoError(err)
+
+	expected := []interface{}{
+		[]interface{}{
+			"fmt",
+			"github.com/src-d/foo",
+			"gopkg.in/src-d/bar",
+		},
+	}
+
+	require.Equal(expected, result)
+}
+
 func assertUASTBlobs(t *testing.T, ctx *sql.Context, a, b interface{}) {
 	t.Helper()
 	var require = require.New(t)

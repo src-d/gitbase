@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/bblfsh/go-client/v4 v4.1.0
-	github.com/bblfsh/sdk/v3 v3.1.0
+	github.com/bblfsh/sdk/v3 v3.2.2
 	github.com/gliderlabs/ssh v0.2.0 // indirect
 	github.com/go-kit/kit v0.8.0
 	github.com/go-sql-driver/mysql v1.4.1
@@ -14,7 +14,7 @@ require (
 	github.com/miekg/dns v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/prometheus/client_golang v1.0.0
-	github.com/sirupsen/logrus v1.3.0
+	github.com/sirupsen/logrus v1.4.2
 	github.com/src-d/enry/v2 v2.0.0
 	github.com/src-d/go-borges v0.0.0-20190628121335-da12a84d60fd
 	github.com/src-d/go-git v4.7.0+incompatible
@@ -25,7 +25,6 @@ require (
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
 	github.com/uber/jaeger-lib v2.0.0+incompatible // indirect
 	go.uber.org/atomic v1.4.0 // indirect
-	golang.org/x/crypto v0.0.0-20190618222545-ea8f1a30c443 // indirect
 	golang.org/x/net v0.0.0-20190619014844-b5b0513f8c1b // indirect
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58 // indirect
 	golang.org/x/sys v0.0.0-20190618155005-516e3c20635f // indirect

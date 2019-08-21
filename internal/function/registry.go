@@ -15,5 +15,6 @@ var Functions = []sql.Function{
 	sql.Function2{Name: "uast_xpath", Fn: NewUASTXPath},
 	sql.Function2{Name: "uast_extract", Fn: NewUASTExtract},
 	sql.Function1{Name: "uast_children", Fn: NewUASTChildren},
+	sql.Function1{Name: "uast_imports", Fn: NewUASTImports},
 	sql.Function1{Name: "is_vendor", Fn: NewIsVendor},
 }
