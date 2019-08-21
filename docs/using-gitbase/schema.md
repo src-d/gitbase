@@ -179,7 +179,7 @@ This table represents the relation between commits and [files](#files). Using th
 
 This table allow us to get the commit history from a specific reference name. `history_index` column represents the position of the commit from a specific reference.
 
-This table it's like the [log](https://git-scm.com/docs/git-log) from a specific reference.
+This table is like the [log](https://git-scm.com/docs/git-log) from a specific reference.
 
 Commits will be repeated if they are in several repositories or references.
 
