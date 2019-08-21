@@ -8,7 +8,8 @@ require (
 	github.com/gliderlabs/ssh v0.2.0 // indirect
 	github.com/go-kit/kit v0.8.0
 	github.com/go-sql-driver/mysql v1.4.1
-	github.com/hashicorp/golang-lru v0.5.1
+	github.com/gorilla/handlers v1.4.0 // indirect
+	github.com/hashicorp/golang-lru v0.5.3
 	github.com/hhatto/gocloc v0.3.0
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/miekg/dns v1.1.1 // indirect
@@ -19,7 +20,7 @@ require (
 	github.com/src-d/go-borges v0.0.0-20190628121335-da12a84d60fd
 	github.com/src-d/go-git v4.7.0+incompatible
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
-	github.com/src-d/go-mysql-server v0.4.1-0.20190730105128-550cc54baee2
+	github.com/src-d/go-mysql-server v0.4.1-0.20190821121850-0e0249cf7bc0
 	github.com/stretchr/testify v1.3.0
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible
