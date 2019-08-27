@@ -1,13 +1,12 @@
 package function
 
 import (
-	"encoding/binary"
 	"fmt"
 	"hash/crc32"
 	"os"
 	"strconv"
+	"sync"
 
-	lru "github.com/hashicorp/golang-lru"
 	enry "github.com/src-d/enry/v2"
 	"github.com/src-d/go-mysql-server/sql"
 )
@@ -27,14 +26,21 @@ func languageCacheSize() int {
 	return size
 }
 
-var languageCache *lru.TwoQueueCache
+var (
+	languageMut   sync.Mutex
+	languageCache sql.KeyValueCache
+)
 
-func init() {
-	var err error
-	languageCache, err = lru.New2Q(languageCacheSize())
-	if err != nil {
-		panic(fmt.Errorf("cannot initialize language cache: %s", err))
+func getLanguageCache(ctx *sql.Context) sql.KeyValueCache {
+	languageMut.Lock()
+	defer languageMut.Unlock()
+	if languageCache == nil {
+		// Dispose function is ignored because the cache will never be disposed
+		// until the program dies.
+		languageCache, _ = ctx.Memory.NewLRUCache(uint(languageCacheSize()))
 	}
+
+	return languageCache
 }
 
 // Language gets the language of a file given its path and
@@ -136,11 +142,13 @@ func (f *Language) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		blob = right.([]byte)
 	}
 
-	var hash [8]byte
+	languageCache := getLanguageCache(ctx)
+
+	var hash uint64
 	if len(blob) > 0 {
 		hash = languageHash(path, blob)
-		value, ok := languageCache.Get(hash)
-		if ok {
+		value, err := languageCache.Get(hash)
+		if err == nil {
 			return value, nil
 		}
 	}
@@ -151,38 +159,31 @@ func (f *Language) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	}
 
 	if len(blob) > 0 {
-		languageCache.Add(hash, lang)
+		if err := languageCache.Put(hash, lang); err != nil {
+			return nil, err
+		}
 	}
 
 	return lang, nil
 }
 
-func languageHash(filename string, blob []byte) [8]byte {
+func languageHash(filename string, blob []byte) uint64 {
 	fh := filenameHash(filename)
 	bh := blobHash(blob)
 
-	var result [8]byte
-	copy(result[:], fh)
-	copy(result[4:], bh)
-	return result
+	return uint64(fh)<<32 | uint64(bh)
 }
 
-func blobHash(blob []byte) []byte {
+func blobHash(blob []byte) uint32 {
 	if len(blob) == 0 {
-		return nil
+		return 0
 	}
 
-	n := crc32.ChecksumIEEE(blob)
-	hash := make([]byte, 4)
-	binary.LittleEndian.PutUint32(hash, n)
-	return hash
+	return crc32.ChecksumIEEE(blob)
 }
 
-func filenameHash(filename string) []byte {
-	n := crc32.ChecksumIEEE([]byte(filename))
-	hash := make([]byte, 4)
-	binary.LittleEndian.PutUint32(hash, n)
-	return hash
+func filenameHash(filename string) uint32 {
+	return crc32.ChecksumIEEE([]byte(filename))
 }
 
 // Children implements the Expression interface.
