@@ -476,7 +476,7 @@ func setup(t *testing.T) (*sql.Context, func()) {
 	err = os.Rename(path, pathRepo)
 	require.NoError(t, err)
 
-	lib := plain.NewLibrary("plain")
+	lib := plain.NewLibrary("plain", nil)
 	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
 	require.NoError(t, err)
 	lib.AddLocation(loc)
