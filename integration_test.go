@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/src-d/gitbase"
 	"github.com/src-d/gitbase/cmd/gitbase/command"
+	"github.com/src-d/gitbase/internal/function"
 	"github.com/src-d/gitbase/internal/rule"
+
 	"github.com/src-d/go-borges/plain"
 	"github.com/src-d/go-borges/siva"
-
-	"github.com/src-d/gitbase"
-	"github.com/src-d/gitbase/internal/function"
 	fixtures "github.com/src-d/go-git-fixtures"
 	sqle "github.com/src-d/go-mysql-server"
 	"github.com/src-d/go-mysql-server/auth"
@@ -46,7 +46,7 @@ func TestIntegration(t *testing.T) {
 	err = os.Rename(path, pathRepo)
 	require.NoError(t, err)
 
-	lib := plain.NewLibrary("plain")
+	lib := plain.NewLibrary("plain", nil)
 	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
 	require.NoError(t, err)
 	lib.AddLocation(loc)
@@ -748,7 +748,7 @@ func TestMissingHeadRefs(t *testing.T) {
 
 	path := filepath.Join(cwd, "_testdata")
 
-	lib, err := siva.NewLibrary("siva", osfs.New(path), &siva.LibraryOptions{
+	lib, err := siva.NewLibrary("", osfs.New(path), &siva.LibraryOptions{
 		RootedRepo: true,
 	})
 	require.NoError(err)
@@ -1122,7 +1122,7 @@ func setup(t testing.TB) (*sqle.Engine, *gitbase.RepositoryPool, func()) {
 	err = os.Rename(path, pathRepo)
 	require.NoError(t, err)
 
-	lib := plain.NewLibrary("plain")
+	lib := plain.NewLibrary("plain", nil)
 	loc, err := plain.NewLocation("location", osfs.New(pathLib), nil)
 	require.NoError(t, err)
 	lib.AddLocation(loc)

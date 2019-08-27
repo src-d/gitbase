@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `go-borges` library was updated to `0.1.1` to support metadata reloading.
+
 ## [0.24.0-beta3] - 2019-07-31
 
 ### Added
