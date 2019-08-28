@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `go-borges` library was updated to `0.1.1` to support metadata reloading.
+
+## [0.24.0-beta3] - 2019-07-31
+
+### Added
+
+- `uast_imports` function to gather import paths from an UAST.
+- sql: implement memory management system for caches  ([#802](https://github.com/src-d/go-mysql-server/pull/802))
+- function: implement regexp_matches ([#794](https://github.com/src-d/go-mysql-server/pull/794))
+
+### Fixed
+
+- Added a checker that will detect dead sockets before the timeout (Linux only)
+- Make Sleep check for cancelled context every second ([#798](https://github.com/src-d/go-mysql-server/pull/798))
+
 ## [0.24.0-beta2] - 2019-07-31
 
 ### Changed

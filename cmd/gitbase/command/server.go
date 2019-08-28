@@ -25,8 +25,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/sirupsen/logrus"
 	"github.com/src-d/go-borges"
+	"github.com/src-d/go-borges/legacysiva"
 	"github.com/src-d/go-borges/libraries"
-	"github.com/src-d/go-borges/oldsiva"
 	"github.com/src-d/go-borges/plain"
 	"github.com/src-d/go-borges/siva"
 	sqle "github.com/src-d/go-mysql-server"
@@ -360,18 +360,18 @@ func (c *Server) addDirectory(d directory) error {
 				RegistryCache: 100000,
 			}
 
-			lib, err = siva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
+			lib, err = siva.NewLibrary("", osfs.New(d.Path), sivaOpts)
 			if err != nil {
 				return err
 			}
 		} else {
-			sivaOpts := &oldsiva.LibraryOptions{
+			sivaOpts := &legacysiva.LibraryOptions{
 				Cache:         c.sharedCache,
 				Bucket:        d.Bucket,
 				RegistryCache: 100000,
 			}
 
-			lib, err = oldsiva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
+			lib, err = legacysiva.NewLibrary(d.Path, osfs.New(d.Path), sivaOpts)
 			if err != nil {
 				return err
 			}
@@ -397,7 +397,7 @@ func (c *Server) addDirectory(d directory) error {
 	}
 
 	if c.plainLibrary == nil {
-		c.plainLibrary = plain.NewLibrary(borges.LibraryID("plain"))
+		c.plainLibrary = plain.NewLibrary(borges.LibraryID("plain"), nil)
 		err := c.rootLibrary.Add(c.plainLibrary)
 		if err != nil {
 			return err

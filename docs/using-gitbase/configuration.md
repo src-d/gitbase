@@ -26,8 +26,7 @@
 |:-----|:-----|:------------|
 |`INMEMORY_JOINS`|environment|If set it will perform all joins in memory. Default is off.|
 |`inmemory_joins`|session|If set it will perform all joins in memory. Default is off. This has precedence over `INMEMORY_JOINS`.|
-|`MAX_MEMORY_JOIN`|environment|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in joins. Default is the 20% of all available physical memory.|
-|`max_memory_joins`|session|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server before switching to multipass mode in joins. Default is the 20% of all available physical memory. This has precedence over `MAX_MEMORY_JOIN`.|
+|`MAX_MEMORY`|environment|The maximum number of memory, in megabytes, that can be consumed by go-mysql-server. Any in-memory caches or computations will no longer try to use memory when the limit is reached. Note that this may cause certain queries to fail if there is not enough memory available, such as queries using DISTINCT, ORDER BY or GROUP BY with groupings.|
 |`DEBUG_ANALYZER`|environment|If set, the analyzer will print debug messages. Default is off.|
 |`PILOSA_INDEX_THREADS`|environment|Number of threads used in index creation. Default is the number of cores available in the machine.|
 |`pilosa_index_threads`|environment|Number of threads used in index creation. Default is the number of cores available in the machine. This has precedence over `PILOSA_INDEX_THREADS`.|

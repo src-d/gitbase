@@ -227,6 +227,27 @@ As result, you will get an array showing a list of the retrieved information. Ea
 +-------------------+-----------------------------------------------------------------------------------------------+
 ```
 
+## Extracting all import paths
+
+```sql
+SELECT file_path,
+       uast_imports(uast(blob_content, LANGUAGE(file_path, blob_content))) AS imports
+FROM refs
+NATURAL JOIN commit_files
+NATURAL JOIN blobs
+WHERE ref_name = 'HEAD' AND LANGUAGE(file_path) = 'Go';
+```
+
+As result, you will get an array with an array of import paths for each node in the UAST.
+
+```sh
++-------------------------------------------------------------------------------------------------------------------+
+| file_path        | imports                                                                                        |
++-------------------+-----------------------------------------------------------------------------------------------+
+| _example/main.go | [["fmt","database/sql","github.com/sirupsen/logrus"]]                                          |
++-------------------+-----------------------------------------------------------------------------------------------+
+```
+
 ## Monitor the progress of a query
 
 You can monitor the progress of a gitbase query (either a regular query or an index creation query using `SHOW PROCESSLIST`).
