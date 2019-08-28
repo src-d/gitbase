@@ -1,7 +1,6 @@
 package function
 
 import (
-	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -16,7 +15,6 @@ import (
 	"github.com/bblfsh/sdk/v3/uast"
 	"github.com/bblfsh/sdk/v3/uast/nodes"
 	"github.com/go-kit/kit/metrics/discard"
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/sirupsen/logrus"
 
 	"github.com/src-d/go-mysql-server/sql"
@@ -53,8 +51,24 @@ func observeQuery(lang, xpath string, t time.Time) func(bool) {
 	}
 }
 
-var uastCache *lru.Cache
-var uastMaxBlobSize int
+var (
+	uastmut         sync.Mutex
+	uastCache       sql.KeyValueCache
+	uastCacheSize   int
+	uastMaxBlobSize int
+)
+
+func getUASTCache(ctx *sql.Context) sql.KeyValueCache {
+	uastmut.Lock()
+	defer uastmut.Unlock()
+	if uastCache == nil {
+		// Dispose function is ignored because the cache will never be disposed
+		// until the program dies.
+		uastCache, _ = ctx.Memory.NewLRUCache(uint(uastCacheSize))
+	}
+
+	return uastCache
+}
 
 func init() {
 	s := os.Getenv(uastCacheSizeKey)
@@ -63,10 +77,7 @@ func init() {
 		size = defaultUASTCacheSize
 	}
 
-	uastCache, err = lru.New(size)
-	if err != nil {
-		panic(fmt.Errorf("cannot initialize UAST cache: %s", err))
-	}
+	uastCacheSize = size
 
 	uastMaxBlobSize, err = strconv.Atoi(os.Getenv(uastMaxBlobSizeKey))
 	if err != nil {
@@ -83,7 +94,7 @@ type uastFunc struct {
 	Lang  sql.Expression
 	XPath sql.Expression
 
-	h hash.Hash
+	h hash.Hash64
 	m sync.Mutex
 }
 
@@ -151,7 +162,7 @@ func (u *uastFunc) WithChildren(children ...sql.Expression) (sql.Expression, err
 		Blob:  blob,
 		XPath: xpath,
 		Lang:  lang,
-		h:     sha1.New(),
+		h:     newHash(),
 	}, nil
 }
 
@@ -234,6 +245,13 @@ func (u *uastFunc) Eval(ctx *sql.Context, row sql.Row) (out interface{}, err err
 	return u.getUAST(ctx, bytes, lang, xpath, mode)
 }
 
+func (u *uastFunc) computeKey(mode, lang string, blob []byte) (uint64, error) {
+	u.m.Lock()
+	defer u.m.Unlock()
+
+	return computeKey(u.h, mode, lang, blob)
+}
+
 func (u *uastFunc) getUAST(
 	ctx *sql.Context,
 	blob []byte,
@@ -242,17 +260,17 @@ func (u *uastFunc) getUAST(
 ) (interface{}, error) {
 	finish := observeQuery(lang, xpath, time.Now())
 
-	u.m.Lock()
-	key, err := computeKey(u.h, mode.String(), lang, blob)
-	u.m.Unlock()
-
+	key, err := u.computeKey(mode.String(), lang, blob)
 	if err != nil {
 		return nil, err
 	}
 
+	uastCache := getUASTCache(ctx)
+
 	var node nodes.Node
-	value, ok := uastCache.Get(key)
-	if ok {
+	value, err := uastCache.Get(key)
+	cacheMiss := err != nil
+	if !cacheMiss {
 		node = value.(nodes.Node)
 	} else {
 		var err error
@@ -265,7 +283,9 @@ func (u *uastFunc) getUAST(
 			return nil, err
 		}
 
-		uastCache.Add(key, node)
+		if err := uastCache.Put(key, node); err != nil {
+			return nil, err
+		}
 	}
 
 	var nodeArray nodes.Array
@@ -288,7 +308,7 @@ func (u *uastFunc) getUAST(
 		return nil, nil
 	}
 
-	finish(ok)
+	finish(!cacheMiss)
 
 	return result, nil
 }
@@ -321,7 +341,7 @@ func NewUAST(args ...sql.Expression) (sql.Expression, error) {
 		Blob:  blob,
 		Lang:  lang,
 		XPath: xpath,
-		h:     sha1.New(),
+		h:     newHash(),
 	}}, nil
 }
 
@@ -380,7 +400,7 @@ func NewUASTMode(mode, blob, lang sql.Expression) sql.Expression {
 		Blob:  blob,
 		Lang:  lang,
 		XPath: nil,
-		h:     sha1.New(),
+		h:     newHash(),
 	}}
 }
 
