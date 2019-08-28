@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"fmt"
 	"hash"
+	"hash/crc64"
 
 	"github.com/bblfsh/go-client/v4/tools"
 	"github.com/bblfsh/sdk/v3/uast/nodes/nodesproto"
 
-	"github.com/sirupsen/logrus"
-	"github.com/src-d/gitbase"
 	bblfsh "github.com/bblfsh/go-client/v4"
 	"github.com/bblfsh/sdk/v3/uast/nodes"
-	errors "gopkg.in/src-d/go-errors.v1"
+	"github.com/sirupsen/logrus"
+	"github.com/src-d/gitbase"
 	"github.com/src-d/go-mysql-server/sql"
+	errors "gopkg.in/src-d/go-errors.v1"
 )
 
 var (
@@ -53,17 +54,23 @@ func exprToString(
 	return x.(string), nil
 }
 
-func computeKey(h hash.Hash, mode, lang string, blob []byte) (string, error) {
+var crcTable = crc64.MakeTable(crc64.ISO)
+
+func newHash() hash.Hash64 {
+	return crc64.New(crcTable)
+}
+
+func computeKey(h hash.Hash64, mode, lang string, blob []byte) (uint64, error) {
 	h.Reset()
 	if err := writeToHash(h, [][]byte{
 		[]byte(mode),
 		[]byte(lang),
 		blob,
 	}); err != nil {
-		return "", err
+		return 0, err
 	}
 
-	return string(h.Sum(nil)), nil
+	return h.Sum64(), nil
 }
 
 func writeToHash(h hash.Hash, elements [][]byte) error {

@@ -14,6 +14,7 @@ var languages = gocloc.NewDefinedLanguages()
 
 var errEmptyInputValues = errors.New("empty input values")
 
+// LOC is a function that returns the count of different types of lines of code.
 type LOC struct {
 	Left  sql.Expression
 	Right sql.Expression
@@ -74,7 +75,11 @@ func (f *LOC) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, err
 	}
 
-	lang := f.getLanguage(path, blob)
+	lang, err := f.getLanguage(path, blob)
+	if err != nil {
+		return nil, err
+	}
+
 	if lang == "" || languages.Langs[lang] == nil {
 		return nil, nil
 	}
@@ -137,20 +142,22 @@ func (f *LOC) getInputValues(ctx *sql.Context, row sql.Row) (string, []byte, err
 	return path, blob, nil
 }
 
-func (f *LOC) getLanguage(path string, blob []byte) string {
+func (f *LOC) getLanguage(path string, blob []byte) (string, error) {
 	hash := languageHash(path, blob)
 
-	value, ok := languageCache.Get(hash)
-	if ok {
-		return value.(string)
+	value, err := languageCache.Get(hash)
+	if err == nil {
+		return value.(string), nil
 	}
 
 	lang := enry.GetLanguage(path, blob)
 	if len(blob) > 0 {
-		languageCache.Add(hash, lang)
+		if err := languageCache.Put(hash, lang); err != nil {
+			return "", err
+		}
 	}
 
-	return lang
+	return lang, nil
 }
 
 // Children implements the Expression interface.
