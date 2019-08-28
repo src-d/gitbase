@@ -7,7 +7,7 @@ pipeline {
       nodeSelector 'srcd.host/type=jenkins-worker'
       containerTemplate {
         name 'regression-gitbase'
-        image 'srcd/regression-gitbase:v0.3.1'
+        image 'srcd/regression-gitbase:v0.3.3'
         ttyEnabled true
         command 'cat'
       }
@@ -23,10 +23,16 @@ pipeline {
   }
   triggers { pollSCM('0 0,12 * * *') }
   stages {
-    stage('Run') {
+    stage('Run performance tests') {
       when { branch 'master' }
       steps {
         sh '/bin/regression --complexity=2 --csv --prom local:HEAD'
+      }
+    }
+    stage('Run bblfsh mockup tests') {
+      when { branch 'master' }
+      steps {
+        sh '/bin/regression-bblfsh-mockups local:HEAD'
       }
     }
     stage('PR-run') {
