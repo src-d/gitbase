@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `go-borges` library was updated to `0.1.3`:
   - support metadata reloading [issue](https://github.com/src-d/go-borges/pull/84)
   - speedup loading legacy sivas with lots of references [issue](https://github.com/src-d/go-borges/pull/87)
-  - fix bug that missplaced location metadata [issue](https://github.com/src-d/go-borges/pull/88)
+  - fix bug that misplaced location metadata [issue](https://github.com/src-d/go-borges/pull/88)
 
 ## [0.24.0-beta3] - 2019-07-31
 
