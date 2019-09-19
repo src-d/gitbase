@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0-rc1] - 2019-09-19
+
+### Added
+
+- function: use new caches from go-mysql-server ([#957](https://github.com/src-d/gitbase/pull/957))
+
 ### Changed
 
 - `go-borges` library was updated to `0.1.3`:
