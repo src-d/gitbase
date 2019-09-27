@@ -96,11 +96,13 @@ func getUASTFromBblfsh(ctx *sql.Context,
 ) (nodes.Node, error) {
 	session, ok := ctx.Session.(*gitbase.Session)
 	if !ok {
+		logrus.Infof("getUASTFromBblfsh -> session !ok")
 		return nil, gitbase.ErrInvalidGitbaseSession.New(ctx.Session)
 	}
 
 	client, err := session.BblfshClient()
 	if err != nil {
+		logrus.Infof("getUASTFromBblfsh -> session.BblfshClient() failed")
 		return nil, err
 	}
 
@@ -118,14 +120,19 @@ func getUASTFromBblfsh(ctx *sql.Context,
 		}
 	}
 
+	logrus.Infof("getUASTFromBblfsh -> parsing...")
 	node, _, err := client.ParseWithMode(ctx, mode, lang, blob)
 	if err != nil {
+		logrus.Infof("getUASTFromBblfsh -> parse err")
 		err := ErrParseBlob.New(err)
+		logrus.Infof("getUASTFromBblfsh -> warn")
 		logrus.Warn(err)
+		logrus.Infof("getUASTFromBblfsh -> ctx.Warn")
 		ctx.Warn(0, err.Error())
 		return nil, err
 	}
 
+	logrus.Infof("getUASTFromBblfsh -> return node, nil")
 	return node, nil
 }
 
