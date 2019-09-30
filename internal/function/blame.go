@@ -3,12 +3,67 @@ package function
 import (
 	"fmt"
 	"github.com/src-d/gitbase"
-	"gopkg.in/src-d/go-git.v4"
 	"github.com/src-d/go-mysql-server/sql"
+	"gopkg.in/src-d/go-git.v4"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
+
+type BlameGenerator struct {
+	commit  *object.Commit
+	fIter   *object.FileIter
+	curLine int
+	curFile *object.File
+	lines   []*git.Line
+}
+
+func NewBlameGenerator(c *object.Commit, f *object.FileIter) (*BlameGenerator, error) {
+	return &BlameGenerator{commit: c, fIter: f, curLine: -1}, nil
+}
+
+func (g *BlameGenerator) loadNewFile() error {
+	var err error
+	g.curFile, err = g.fIter.Next()
+	if err != nil {
+		return err
+	}
+
+	result, err := git.Blame(g.commit, g.curFile.Name)
+	if err != nil {
+		return err
+	}
+	g.lines = result.Lines
+	g.curLine = 0
+	return nil
+}
+
+func (g *BlameGenerator) Next() (interface{}, error) {
+	if g.curLine == -1 || g.curLine >= len(g.lines) {
+		err := g.loadNewFile()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	l := g.lines[g.curLine]
+	b := BlameLine{
+		Commit:  g.commit.Hash.String(),
+		File:    g.curFile.Name,
+		LineNum: g.curLine,
+		Author:  l.Author,
+		Text:    l.Text,
+	}
+	g.curLine++
+	return b, nil
+}
+
+func (g *BlameGenerator) Close() error {
+	g.fIter.Close()
+	return nil
+}
+
+var _ sql.Generator = (*BlameGenerator)(nil)
 
 type (
 	// Blame implements git-blame function as UDF
@@ -83,27 +138,13 @@ func (b *Blame) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fIter.Close()
 
-	var lines []BlameLine
-	for f, err := fIter.Next(); err == nil; f, err = fIter.Next() {
-		result, err := git.Blame(commit, f.Name)
-		if err != nil {
-			return nil, err
-		}
-
-		for i, l := range result.Lines {
-			lines = append(lines, BlameLine{
-				Commit:  commit.Hash.String(),
-				File:    f.Name,
-				LineNum: i,
-				Author:  l.Author,
-				Text:    l.Text,
-			})
-		}
+	bg, err := NewBlameGenerator(commit, fIter)
+	if err != nil {
+		return nil, err
 	}
 
-	return lines, nil
+	return bg, nil
 }
 
 func (b *Blame) resolveCommit(ctx *sql.Context, repo *gitbase.Repository, row sql.Row) (*object.Commit, error) {

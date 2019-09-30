@@ -59,7 +59,7 @@ func TestBlameEval(t *testing.T) {
 				"CHANGELOG",
 				0,
 				"daniel@lordran.local",
-				"Creating changelog",
+				"Initial changelog",
 			},
 		},
 	}
@@ -67,18 +67,23 @@ func TestBlameEval(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			blame := NewBlame(tc.repo, tc.commit)
-			results, err := blame.Eval(ctx, tc.row)
+			blameGen, err := blame.Eval(ctx, tc.row)
 			require.NoError(t, err)
+			bg := blameGen.(*BlameGenerator)
+			defer bg.Close()
+
 			lineCount := 0
-			for i, r := range results.([]BlameLine) {
-				if r.File != tc.expected.File {
+			for i, err := bg.Next(); err == nil; i, err = bg.Next() {
+				i := i.(BlameLine)
+				if i.File != tc.expected.File {
+					continue
+				}
+				if lineCount != tc.testedLine {
+					lineCount++
 					continue
 				}
 				lineCount++
-				if i != tc.testedLine {
-					continue
-				}
-				require.EqualValues(t, tc.expected, r)
+				require.EqualValues(t, tc.expected, i)
 			}
 			require.Equal(t, tc.lineCount, lineCount)
 		})
