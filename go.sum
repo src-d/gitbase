@@ -250,8 +250,8 @@ github.com/src-d/go-git v4.7.0+incompatible h1:IYSSnbAHeKmsfbQFi9ozbid+KNh0bKjlo
 github.com/src-d/go-git v4.7.0+incompatible/go.mod h1:1bQciz+hn0jzPQNsYj0hDFZHLJBdV7gXE2mWhC7EkFk=
 github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible h1:A5bKevhs9C//Nh8QV0J+1KphEaIa25cDe1DTs/yPxDI=
 github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible/go.mod h1:XcIQp7L+k0pgfTqfbaTKj3kxlBv8kYOKZ/tKNXbZFLg=
-github.com/src-d/go-mysql-server v0.4.1-0.20190821121850-0e0249cf7bc0 h1:FaAetYRjr0fV+I44rqjgAoM6FZK2S1GmWuphk0CIpDU=
-github.com/src-d/go-mysql-server v0.4.1-0.20190821121850-0e0249cf7bc0/go.mod h1:DdWE0ku/mNfuLsRJIrHeHpDtB7am+6oopxEsQKmVkx8=
+github.com/src-d/go-mysql-server v0.4.1-0.20191001122120-b09e8c1c8ab9 h1:q/CX2DbMybt2m9OlJFrzOtTVe8visM/q752UnA0mVPo=
+github.com/src-d/go-mysql-server v0.4.1-0.20191001122120-b09e8c1c8ab9/go.mod h1:DdWE0ku/mNfuLsRJIrHeHpDtB7am+6oopxEsQKmVkx8=
 github.com/src-d/go-oniguruma v1.0.0/go.mod h1:chVbff8kcVtmrhxtZ3yBVLLquXbzCS6DrxQaAK/CeqM=
 github.com/src-d/go-oniguruma v1.1.0 h1:EG+Nm5n2JqWUaCjtM0NtutPxU7ZN5Tp50GWrrV8bTww=
 github.com/src-d/go-oniguruma v1.1.0/go.mod h1:chVbff8kcVtmrhxtZ3yBVLLquXbzCS6DrxQaAK/CeqM=
