@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0-rc2] - 2019-10-02
+
+## Fixed
+
+- plan: return types in lowercase in SHOW CREATE TABLE ([#827](https://github.com/src-d/go-mysql-server/pull/827))
+- analyzer: do not erase sort node when pushing it down ([#818](https://github.com/src-d/go-mysql-server/pull/818))
+- Fixed null errors during value comparisons ([#831](https://github.com/src-d/go-mysql-server/pull/831))
+- plan: fix race conditions in Exchange node
+- Add CHAR and DATETIME types support ([#823](https://github.com/src-d/go-mysql-server/pull/823))
+- Also check sockets bind to tcp6 and fail on all closed sockets ([#824](https://github.com/src-d/go-mysql-server/pull/824))
+
+## Changed
+
+- Added LIKE test with newlines ([#820](https://github.com/src-d/go-mysql-server/pull/820))
+- Convert LIKE patterns to specific Go regexes ([#817](https://github.com/src-d/go-mysql-server/pull/817))
+
 ## [0.24.0-rc1] - 2019-09-19
 
 ### Added
