@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Added BLAME function.
+
 ## [0.24.0-rc2] - 2019-10-02
 
 ## Fixed
@@ -263,7 +265,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - COUNT expression now returns an int64 number instead of int32 https://github.com/src-d/go-mysql-server/issues/642
 - Dockerfile: include zero-config MySQL client https://github.com/src-d/gitbase/pull/737
 - uast_extract function now returns a JSON for `pos` instead of a custom format https://github.com/src-d/gitbase/pull/715
-- Added BLAME function.
 
 #### Documentation
 - docs: expand optimization guide on early filtering (#837)

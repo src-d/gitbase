@@ -8,7 +8,6 @@ To make some common tasks easier for the user, there are some functions to inter
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
 |`commit_stats(repository_id, [from_commit_hash], to_commit_hash) json`|returns the stats between two commits for a repository. If `from_commit_hash` is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
 |`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash) json array`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If `from_commit_hash` is not given, the parent commit will be used. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
-|`is_remote(reference_name)bool`| checks if the given reference name is from a remote one.                                                          |
 |`is_tag(reference_name)bool`| checks if the given reference name is a tag.                                                                         |
 |`is_vendor(file_path)bool`| checks if the given file name is a vendored file.                                                                         |
 |`language(path, [blob])text`| gets the language of a file given its path and the optional content of the file.                                    |
@@ -19,16 +18,15 @@ To make some common tasks easier for the user, there are some functions to inter
 |`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array.              |
 |`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines. |
 |`version() text`| returns the gitbase version in the following format `8.0.11-{GITBASE_VERSION}` for compatibility with MySQL versioning. |
-||||||| merged common ancestors
-|`is_remote(reference_name)bool`| check if the given reference name is from a remote one                                                          |
-|`is_tag(reference_name)bool`| check if the given reference name is a tag                                                                         |
-|`language(path, [blob])text`| gets the language of a file given its path and the optional content of the file                                    |
-|`uast(blob, [lang, [xpath]]) blob`| returns a node array of UAST nodes in semantic mode                                                          |
-|`uast_mode(mode, blob, lang) blob`| returns a node array of UAST nodes specifying its language and mode (semantic, annotated or native)          |
-|`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes                                                                |
-|`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes                                       |
-|`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array              |
-|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines |
+|`is_remote(reference_name)bool`| checks if the given reference name is from a remote one.                                                         |
+|`is_tag(reference_name)bool`| check if the given reference name is a tag.                                                                         |
+|`language(path, [blob])text`| gets the language of a file given its path and the optional content of the file.                                    |
+|`uast(blob, [lang, [xpath]]) blob`| returns a node array of UAST nodes in semantic mode.                                                          |
+|`uast_mode(mode, blob, lang) blob`| returns a node array of UAST nodes specifying its language and mode (semantic, annotated or native).          |
+|`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes.                                                                |
+|`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes.                                       |
+|`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array.              |
+|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines. |
 
 ## Standard functions
 
@@ -39,7 +37,7 @@ These are all functions that are available because they are implemented in `go-m
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
 |`ARRAY_LENGTH(json)`|if the json representation is an array, this function returns its size.|
 |`AVG(expr)`| returns the average value of expr in all rows.|
-|`BLAME(expr)`|Returns a list, as a json array, of lines changes and authorship.|
+|`BLAME(repository, commit)`|Returns an array, of lines changes and authorship.|
 |`CEIL(number)`| returns the smallest integer value that is greater than or equal to `number`.|
 |`CEILING(number)`| returns the smallest integer value that is greater than or equal to `number`.|
 |`CHAR_LENGTH(str)`| returns the length of the string in characters.|
