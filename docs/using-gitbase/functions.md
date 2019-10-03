@@ -6,27 +6,20 @@ To make some common tasks easier for the user, there are some functions to inter
 
 |     Name     |                                               Description                                                                      |
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
-|`commit_stats(repository_id, [from_commit_hash], to_commit_hash) json`|returns the stats between two commits for a repository. If `from_commit_hash` is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
+|`blame(repository, commit)`|Returns an array of lines changes and authorship.                                                                 |
 |`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash) json array`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If `from_commit_hash` is not given, the parent commit will be used. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
-|`is_tag(reference_name)bool`| checks if the given reference name is a tag.                                                                         |
-|`is_vendor(file_path)bool`| checks if the given file name is a vendored file.                                                                         |
-|`language(path, [blob])text`| gets the language of a file given its path and the optional content of the file.                                    |
-|`uast(blob, [lang, [xpath]]) blob`| returns a node array of UAST nodes in semantic mode.                                                          |
-|`uast_mode(mode, blob, lang) blob`| returns a node array of UAST nodes specifying its language and mode (semantic, annotated or native).          |
-|`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes.                                                                |
-|`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes.                                       |
-|`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array.              |
-|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines. |
-|`version() text`| returns the gitbase version in the following format `8.0.11-{GITBASE_VERSION}` for compatibility with MySQL versioning. |
+|`commit_stats(repository_id, [from_commit_hash], to_commit_hash) json`|returns the stats between two commits for a repository. If `from_commit_hash` is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
 |`is_remote(reference_name)bool`| checks if the given reference name is from a remote one.                                                         |
-|`is_tag(reference_name)bool`| check if the given reference name is a tag.                                                                         |
+|`is_tag(reference_name)bool`| checks if the given reference name is a tag.                                                                     |
+|`is_vendor(file_path)bool`| checks if the given file name is a vendored file.                                                                  |
 |`language(path, [blob])text`| gets the language of a file given its path and the optional content of the file.                                    |
+|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines. |
 |`uast(blob, [lang, [xpath]]) blob`| returns a node array of UAST nodes in semantic mode.                                                          |
+|`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array.              |
+|`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes.                                       |
 |`uast_mode(mode, blob, lang) blob`| returns a node array of UAST nodes specifying its language and mode (semantic, annotated or native).          |
 |`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes.                                                                |
-|`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes.                                       |
-|`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array.              |
-|`loc(path, blob) json`| returns a JSON map, containing the lines of code of a file, separated in three categories: Code, Blank and Comment lines. |
+|`version() text`| returns the gitbase version in the following format `8.0.11-{GITBASE_VERSION}` for compatibility with MySQL versioning. |
 
 ## Standard functions
 
@@ -37,7 +30,6 @@ These are all functions that are available because they are implemented in `go-m
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
 |`ARRAY_LENGTH(json)`|if the json representation is an array, this function returns its size.|
 |`AVG(expr)`| returns the average value of expr in all rows.|
-|`BLAME(repository, commit)`|Returns an array, of lines changes and authorship.|
 |`CEIL(number)`| returns the smallest integer value that is greater than or equal to `number`.|
 |`CEILING(number)`| returns the smallest integer value that is greater than or equal to `number`.|
 |`CHAR_LENGTH(str)`| returns the length of the string in characters.|
@@ -46,10 +38,10 @@ These are all functions that are available because they are implemented in `go-m
 |`CONCAT_WS(sep, ...)`| concatenates any group of fields into a single string. The first argument is the separator for the rest of the arguments. The separator is added between the strings to be concatenated. The separator can be a string, as can the rest of the arguments. If the separator is NULL, the result is NULL.|
 |`CONNECTION_ID()`| returns the current connection ID.|
 |`COUNT(expr)`|  returns a count of the number of non-NULL values of expr in the rows retrieved by a SELECT statement.|
+|`DATE(date)`| returns the date part of the given `date`.|
 |`DATE_ADD(date, interval)`| adds the interval to the given `date`.|
 |`DATE_SUB(date, interval)`| subtracts the interval from the given `date`.|
 |`DAY(date)`| is a synonym for DAYOFMONTH().|
-|`DATE(date)`| returns the date part of the given `date`.|
 |`DAYOFMONTH(date)`| returns the day of the month (0-31).|
 |`DAYOFWEEK(date)`| returns the day of the week of the given `date`.|
 |`DAYOFYEAR(date)`| returns the day of the year of the given `date`.|

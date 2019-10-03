@@ -2,12 +2,13 @@ package function
 
 import (
 	"context"
+	"testing"
+
 	"github.com/src-d/gitbase"
 	"github.com/src-d/go-mysql-server/sql"
 	"github.com/src-d/go-mysql-server/sql/expression"
 	"github.com/stretchr/testify/require"
 	fixtures "gopkg.in/src-d/go-git-fixtures.v3"
-	"testing"
 )
 
 func TestBlameEval(t *testing.T) {
@@ -24,13 +25,14 @@ func TestBlameEval(t *testing.T) {
 	ctx := sql.NewContext(context.TODO(), sql.WithSession(session))
 
 	testCases := []struct {
-		name       string
-		repo       sql.Expression
-		commit     sql.Expression
-		row        sql.Row
-		expected   BlameLine
-		testedLine int
-		lineCount  int
+		name        string
+		repo        sql.Expression
+		commit      sql.Expression
+		row         sql.Row
+		expected    BlameLine
+		expectedNil bool
+		testedLine  int
+		lineCount   int
 	}{
 		{
 			name:       "init commit",
@@ -46,6 +48,7 @@ func TestBlameEval(t *testing.T) {
 				"mcuadros@gmail.com",
 				"*.class",
 			},
+			expectedNil: false,
 		},
 		{
 			name:       "changelog",
@@ -61,6 +64,27 @@ func TestBlameEval(t *testing.T) {
 				"daniel@lordran.local",
 				"Initial changelog",
 			},
+			expectedNil: false,
+		},
+		{
+			name:        "no repo",
+			repo:        expression.NewGetField(0, sql.Text, "repository_id", false),
+			commit:      expression.NewGetField(1, sql.Text, "commit_hash", false),
+			row:         sql.NewRow("foo", "bar"),
+			testedLine:  0,
+			lineCount:   1,
+			expected:    BlameLine{},
+			expectedNil: true,
+		},
+		{
+			name:        "no commit",
+			repo:        expression.NewGetField(0, sql.Text, "repository_id", false),
+			commit:      expression.NewGetField(1, sql.Text, "commit_hash", false),
+			row:         sql.NewRow("worktree", "foo"),
+			testedLine:  0,
+			lineCount:   1,
+			expected:    BlameLine{},
+			expectedNil: true,
 		},
 	}
 
@@ -69,6 +93,14 @@ func TestBlameEval(t *testing.T) {
 			blame := NewBlame(tc.repo, tc.commit)
 			blameGen, err := blame.Eval(ctx, tc.row)
 			require.NoError(t, err)
+
+			if tc.expectedNil {
+				require.Nil(t, blameGen)
+				return
+			} else {
+				require.NotNil(t, blameGen)
+			}
+
 			bg := blameGen.(*BlameGenerator)
 			defer bg.Close()
 

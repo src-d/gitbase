@@ -2,6 +2,7 @@ package function
 
 import (
 	"fmt"
+
 	"github.com/src-d/gitbase"
 	"github.com/src-d/go-mysql-server/sql"
 	"gopkg.in/src-d/go-git.v4"
@@ -33,6 +34,11 @@ func (g *BlameGenerator) loadNewFile() error {
 	if err != nil {
 		return err
 	}
+
+	if len(result.Lines) == 0 {
+		return g.loadNewFile()
+	}
+
 	g.lines = result.Lines
 	g.curLine = 0
 	return nil
@@ -110,8 +116,8 @@ func (b *Blame) Children() []sql.Expression {
 }
 
 // IsNullable implements the Expression interface.
-func (*Blame) IsNullable() bool {
-	return false
+func (b *Blame) IsNullable() bool {
+	return b.repo.IsNullable() || (b.commit.IsNullable())
 }
 
 // Resolved implements the Expression interface.
@@ -126,12 +132,14 @@ func (b *Blame) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 	repo, err := b.resolveRepo(ctx, row)
 	if err != nil {
-		return nil, err
+		ctx.Warn(0, err.Error())
+		return nil, nil
 	}
 
 	commit, err := b.resolveCommit(ctx, repo, row)
 	if err != nil {
-		return nil, err
+		ctx.Warn(0, err.Error())
+		return nil, nil
 	}
 
 	fIter, err := commit.Files()
