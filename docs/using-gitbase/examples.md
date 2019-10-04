@@ -200,6 +200,41 @@ The output will be similar to this:
 +-----------------+--------------------------------------+---------------+------------------+--------------------+
 ```
 
+## Get miscelaneous information about lines with a "// TODO" comment in HEAD
+
+```sql
+SELECT repository_id,
+       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.commit")),
+       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.file")),
+       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.linenum")),
+       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author")),
+       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.text"))
+FROM   (SELECT repository_id,
+               EXPLODE(BLAME(repository_id, commit_hash)) AS bl
+        FROM   ref_commits
+               NATURAL JOIN blobs
+        WHERE  ref_name = 'HEAD'
+               AND NOT IS_BINARY(blob_content)
+        ) as p
+WHERE  JSON_EXTRACT(bl, "$.text") LIKE '%// TODO%';
+```
+
+## Report of authors with more lines authored in HEAD
+
+```sql
+SELECT
+       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author")),
+       COUNT(JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author")))
+
+FROM   (SELECT EXPLODE(BLAME(repository_id, commit_hash)) AS bl
+        FROM   ref_commits
+               NATURAL JOIN blobs
+        WHERE  ref_name = 'HEAD'
+               AND NOT IS_BINARY(blob_content)
+        ) AS p
+GROUP BY JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author"));
+```
+
 # UAST UDFs Examples
 
 First of all, you should check out the [bblfsh documentation](https://docs.sourced.tech/babelfish) to get yourself familiar with UAST concepts.
