@@ -15,16 +15,16 @@ import (
 )
 
 type BlameGenerator struct {
+	ctx     *sql.Context
 	commit  *object.Commit
 	fIter   *object.FileIter
 	curLine int
 	curFile *object.File
 	lines   []*git.Line
-	ctx     *sql.Context
 }
 
-func NewBlameGenerator(c *object.Commit, f *object.FileIter, ctx *sql.Context) (*BlameGenerator, error) {
-	return &BlameGenerator{commit: c, fIter: f, curLine: -1, ctx: ctx}, nil
+func NewBlameGenerator(ctx *sql.Context, c *object.Commit, f *object.FileIter) (*BlameGenerator, error) {
+	return &BlameGenerator{ctx: ctx, commit: c, fIter: f, curLine: -1}, nil
 }
 
 func (g *BlameGenerator) loadNewFile() error {
@@ -36,8 +36,11 @@ func (g *BlameGenerator) loadNewFile() error {
 
 	result, err := git.Blame(g.commit, g.curFile.Name)
 	if err != nil {
-		msg := fmt.Sprintf("Error in BLAME for file %s: %s",
-			g.curFile.Name, err.Error())
+		msg := fmt.Sprintf(
+			"Error in BLAME for file %s: %s",
+			g.curFile.Name,
+			err.Error(),
+		)
 		logrus.Warn(msg)
 		g.ctx.Warn(0, msg)
 		return io.EOF
@@ -153,7 +156,7 @@ func (b *Blame) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, err
 	}
 
-	bg, err := NewBlameGenerator(commit, fIter, ctx)
+	bg, err := NewBlameGenerator(ctx, commit, fIter)
 	if err != nil {
 		return nil, err
 	}
