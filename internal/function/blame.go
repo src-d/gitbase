@@ -54,7 +54,6 @@ func (g *BlameGenerator) Next() (interface{}, error) {
 
 	l := g.lines[g.curLine]
 	b := BlameLine{
-		Commit:  g.commit.Hash.String(),
 		File:    g.curFile.Name,
 		LineNum: g.curLine,
 		Author:  l.Author,
@@ -80,7 +79,6 @@ type (
 
 	// BlameLine represents each line of git blame's output
 	BlameLine struct {
-		Commit  string `json:"commit"`
 		File    string `json:"file"`
 		LineNum int    `json:"linenum"`
 		Author  string `json:"author"`

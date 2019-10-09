@@ -204,7 +204,6 @@ The output will be similar to this:
 
 ```sql
 SELECT repository_id,
-       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.commit")),
        JSON_UNQUOTE(JSON_EXTRACT(bl, "$.file")),
        JSON_UNQUOTE(JSON_EXTRACT(bl, "$.linenum")),
        JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author")),

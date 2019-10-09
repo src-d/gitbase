@@ -42,7 +42,6 @@ func TestBlameEval(t *testing.T) {
 			testedLine: 0,
 			lineCount:  12,
 			expected: BlameLine{
-				"b029517f6300c2da0f4b651b8642506cd6aaf45d",
 				".gitignore",
 				0,
 				"mcuadros@gmail.com",
@@ -58,7 +57,6 @@ func TestBlameEval(t *testing.T) {
 			testedLine: 0,
 			lineCount:  1,
 			expected: BlameLine{
-				"b8e471f58bcbca63b07bda20e428190409c2db47",
 				"CHANGELOG",
 				0,
 				"daniel@lordran.local",
