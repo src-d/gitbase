@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added BLAME function.
 ## Fixed
 - Removed redundant commit information from BLAME results.
+- Don't abort, just warn, on git.Blame errors.
 
 ## [0.24.0-rc2] - 2019-10-02
 
