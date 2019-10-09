@@ -29,12 +29,6 @@ pipeline {
         sh '/bin/regression --complexity=2 --csv --prom local:HEAD'
       }
     }
-    stage('Run bblfsh mockup tests') {
-      when { branch 'master' }
-      steps {
-        sh '/bin/regression-bblfsh-mockups local:HEAD'
-      }
-    }
     stage('PR-run') {
       when { changeRequest target: 'master' }
       steps {
@@ -64,6 +58,12 @@ pipeline {
             )
           }
         }
+      }
+    }
+    stage('Run bblfsh mockup tests') {
+      when { branch 'master' }
+      steps {
+        sh '/bin/regression-bblfsh-mockups local:HEAD'
       }
     }
   }
