@@ -78,8 +78,8 @@ GROUP BY committer_email,
 SELECT
     LANGUAGE(file_path, blob_content) as lang,
     SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Code')) as code,
-    SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Comments')) as comments,
-    SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Blanks')) as blanks,
+    SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Comment')) as comments,
+    SUM(JSON_EXTRACT(LOC(file_path, blob_content), '$.Blank')) as blanks,
     COUNT(1) as files
 FROM refs
 NATURAL JOIN commit_files
