@@ -17,6 +17,7 @@ To make some common tasks easier for the user, there are some functions to inter
 |`uast(blob, [lang, [xpath]]) blob`| returns a node array of UAST nodes in semantic mode.                                                          |
 |`uast_children(blob) blob`| returns a flattened array of the children UAST nodes from each one of the UAST nodes in the given array.              |
 |`uast_extract(blob, key) text array`| extracts information identified by the given key from the uast nodes.                                       |
+|`uast_imports(blob) text array`| returns all imports given the specified UAST blob. |
 |`uast_mode(mode, blob, lang) blob`| returns a node array of UAST nodes specifying its language and mode (semantic, annotated or native).          |
 |`uast_xpath(blob, xpath) blob`| performs an XPath query over the given UAST nodes.                                                                |
 |`version() text`| returns the gitbase version in the following format `8.0.11-{GITBASE_VERSION}` for compatibility with MySQL versioning. |
