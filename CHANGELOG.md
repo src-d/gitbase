@@ -6,15 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## Added
-- Added BLAME function.
-## Fixed
+### Fixed
+
+- Only optimizer sorted DISTINCT if the first column on the order by is on the distinct schema. ([#976](https://github.com/src-d/gitbase/issues/976))
 - Removed redundant commit information from BLAME results.
 - Don't abort, just warn, on git.Blame errors.
 
+### Added
+
+- Added BLAME function.
+- Better error messages for index failures.
+- Implemented subquery expressions.
+
+### Changed
+
+- Use the minimum integer size as necessary when parsing literals.
+
 ## [0.24.0-rc2] - 2019-10-02
 
-## Fixed
+### Fixed
 
 - plan: return types in lowercase in SHOW CREATE TABLE ([#827](https://github.com/src-d/go-mysql-server/pull/827))
 - analyzer: do not erase sort node when pushing it down ([#818](https://github.com/src-d/go-mysql-server/pull/818))
@@ -23,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add CHAR and DATETIME types support ([#823](https://github.com/src-d/go-mysql-server/pull/823))
 - Also check sockets bind to tcp6 and fail on all closed sockets ([#824](https://github.com/src-d/go-mysql-server/pull/824))
 
-## Changed
+### Changed
 
 - Added LIKE test with newlines ([#820](https://github.com/src-d/go-mysql-server/pull/820))
 - Convert LIKE patterns to specific Go regexes ([#817](https://github.com/src-d/go-mysql-server/pull/817))
