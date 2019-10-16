@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Only optimizer sorted DISTINCT if the first column on the order by is on the distinct schema. ([#976](https://github.com/src-d/gitbase/issues/976))
+- Only optimize sorted DISTINCT if the first column on the order by is on the distinct schema. ([#976](https://github.com/src-d/gitbase/issues/976))
 - Removed redundant commit information from BLAME results.
 - Don't abort, just warn, on git.Blame errors.
 
