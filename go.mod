@@ -19,7 +19,7 @@ require (
 	github.com/src-d/go-borges v0.1.3
 	github.com/src-d/go-git v4.7.0+incompatible
 	github.com/src-d/go-git-fixtures v3.5.1-0.20190605154830-57f3972b0248+incompatible
-	github.com/src-d/go-mysql-server v0.4.1-0.20191001122120-b09e8c1c8ab9
+	github.com/src-d/go-mysql-server v0.6.1-0.20191016135058-b8d91559c9a9
 	github.com/stretchr/testify v1.3.0
 	github.com/uber-go/atomic v1.4.0 // indirect
 	github.com/uber/jaeger-client-go v2.16.0+incompatible

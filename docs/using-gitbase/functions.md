@@ -39,10 +39,10 @@ These are all functions that are available because they are implemented in `go-m
 |`CONCAT_WS(sep, ...)`| concatenates any group of fields into a single string. The first argument is the separator for the rest of the arguments. The separator is added between the strings to be concatenated. The separator can be a string, as can the rest of the arguments. If the separator is NULL, the result is NULL.|
 |`CONNECTION_ID()`| returns the current connection ID.|
 |`COUNT(expr)`|  returns a count of the number of non-NULL values of expr in the rows retrieved by a SELECT statement.|
-|`DATE(date)`| returns the date part of the given `date`.|
 |`DATE_ADD(date, interval)`| adds the interval to the given `date`.|
 |`DATE_SUB(date, interval)`| subtracts the interval from the given `date`.|
 |`DAY(date)`| is a synonym for DAYOFMONTH().|
+|`DATE(date)`| returns the date part of the given `date`.|
 |`DAYOFMONTH(date)`| returns the day of the month (0-31).|
 |`DAYOFWEEK(date)`| returns the day of the week of the given `date`.|
 |`DAYOFYEAR(date)`| returns the day of the year of the given `date`.|
