@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed redundant commit information from BLAME results.
 - Don't abort, just warn, on git.Blame errors.
 - Avoid possible panics in LOC by using a safe cache accessor.
-- sql: Add length to VARCHAR MySQLTypeName string
+- sql: Add length to VARCHAR and CHAR MySQLTypeName strings in `SHOW CREATE TABLE` output.
 
 ### Added
 
