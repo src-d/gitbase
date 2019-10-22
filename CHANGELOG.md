@@ -11,13 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Only optimize sorted DISTINCT if the first column on the order by is on the distinct schema. ([#976](https://github.com/src-d/gitbase/issues/976))
 - Removed redundant commit information from BLAME results.
 - Don't abort, just warn, on git.Blame errors.
+<<<<<<< HEAD
 - Avoid possible panics in LOC by using a safe cache accessor.
+=======
+- sql: Add length to VARCHAR MySQLTypeName string
+>>>>>>> Update go-mysql-server dependency
 
 ### Added
 
 - Added BLAME function.
 - Better error messages for index failures.
 - Implemented subquery expressions.
+- Added support for 24-bit integers (MySQL's MEDIUMINT)
 
 ### Changed
 
