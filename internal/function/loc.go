@@ -75,7 +75,7 @@ func (f *LOC) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, err
 	}
 
-	lang, err := f.getLanguage(path, blob)
+	lang, err := getLanguage(ctx, path, blob)
 	if err != nil {
 		return nil, err
 	}
@@ -142,9 +142,10 @@ func (f *LOC) getInputValues(ctx *sql.Context, row sql.Row) (string, []byte, err
 	return path, blob, nil
 }
 
-func (f *LOC) getLanguage(path string, blob []byte) (string, error) {
+func getLanguage(ctx *sql.Context, path string, blob []byte) (string, error) {
 	hash := languageHash(path, blob)
 
+	languageCache := getLanguageCache(ctx)
 	value, err := languageCache.Get(hash)
 	if err == nil {
 		return value.(string), nil
