@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0-rc3] - 2019-10-23
+
 ### Fixed
 
 - Only optimize sorted DISTINCT if the first column on the order by is on the distinct schema. ([#976](https://github.com/src-d/gitbase/issues/976))
