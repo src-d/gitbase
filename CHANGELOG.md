@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Do not cancel context for async queries on success ([#859](https://github.com/src-d/go-mysql-server/pull/859))
+- sql: information schema column types should be lowercase ([#851](https://github.com/src-d/go-mysql-server/pull/851))
+
+### Changed
+
+- Add progress for each partition in SHOW PROCESSLIST ([#855](https://github.com/src-d/go-mysql-server/pull/855))
+
 ## [0.24.0-rc3] - 2019-10-23
 
 ### Fixed
