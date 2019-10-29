@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/src-d/gitbase"
 	"github.com/src-d/go-mysql-server/sql"
 	"gopkg.in/src-d/go-git.v4"
@@ -15,57 +13,27 @@ import (
 )
 
 type BlameGenerator struct {
-	ctx     *sql.Context
 	commit  *object.Commit
-	fIter   *object.FileIter
+	file    string
 	curLine int
-	curFile *object.File
 	lines   []*git.Line
 }
 
-func NewBlameGenerator(ctx *sql.Context, c *object.Commit, f *object.FileIter) (*BlameGenerator, error) {
-	return &BlameGenerator{ctx: ctx, commit: c, fIter: f, curLine: -1}, nil
-}
-
-func (g *BlameGenerator) loadNewFile() error {
-	var err error
-	g.curFile, err = g.fIter.Next()
+func NewBlameGenerator(c *object.Commit, f string) (*BlameGenerator, error) {
+	result, err := git.Blame(c, f)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	result, err := git.Blame(g.commit, g.curFile.Name)
-	if err != nil {
-		msg := fmt.Sprintf(
-			"Error in BLAME for file %s: %s",
-			g.curFile.Name,
-			err.Error(),
-		)
-		logrus.Warn(msg)
-		g.ctx.Warn(0, msg)
-		return io.EOF
-	}
-
-	if len(result.Lines) == 0 {
-		return g.loadNewFile()
-	}
-
-	g.lines = result.Lines
-	g.curLine = 0
-	return nil
+	return &BlameGenerator{commit: c, file: f, curLine: 0, lines: result.Lines}, nil
 }
 
 func (g *BlameGenerator) Next() (interface{}, error) {
-	if g.curLine == -1 || g.curLine >= len(g.lines) {
-		err := g.loadNewFile()
-		if err != nil {
-			return nil, err
-		}
+	if len(g.lines) == 0 || g.curLine >= len(g.lines) {
+		return nil, io.EOF
 	}
 
 	l := g.lines[g.curLine]
 	b := BlameLine{
-		File:    g.curFile.Name,
 		LineNum: g.curLine,
 		Author:  l.Author,
 		Text:    l.Text,
@@ -75,7 +43,6 @@ func (g *BlameGenerator) Next() (interface{}, error) {
 }
 
 func (g *BlameGenerator) Close() error {
-	g.fIter.Close()
 	return nil
 }
 
@@ -86,11 +53,11 @@ type (
 	Blame struct {
 		repo   sql.Expression
 		commit sql.Expression
+		file   sql.Expression
 	}
 
 	// BlameLine represents each line of git blame's output
 	BlameLine struct {
-		File    string `json:"file"`
 		LineNum int    `json:"linenum"`
 		Author  string `json:"author"`
 		Text    string `json:"text"`
@@ -98,8 +65,8 @@ type (
 )
 
 // NewBlame constructor
-func NewBlame(repo, commit sql.Expression) sql.Expression {
-	return &Blame{repo, commit}
+func NewBlame(repo, commit, file sql.Expression) sql.Expression {
+	return &Blame{repo, commit, file}
 }
 
 func (b *Blame) String() string {
@@ -112,26 +79,26 @@ func (*Blame) Type() sql.Type {
 }
 
 func (b *Blame) WithChildren(children ...sql.Expression) (sql.Expression, error) {
-	if len(children) != 2 {
+	if len(children) != 3 {
 		return nil, sql.ErrInvalidChildrenNumber.New(b, len(children), 2)
 	}
 
-	return NewBlame(children[0], children[1]), nil
+	return NewBlame(children[0], children[1], children[2]), nil
 }
 
 // Children implements the Expression interface.
 func (b *Blame) Children() []sql.Expression {
-	return []sql.Expression{b.repo, b.commit}
+	return []sql.Expression{b.repo, b.commit, b.file}
 }
 
 // IsNullable implements the Expression interface.
 func (b *Blame) IsNullable() bool {
-	return b.repo.IsNullable() || (b.commit.IsNullable())
+	return b.repo.IsNullable() || (b.commit.IsNullable()) || (b.file.IsNullable())
 }
 
 // Resolved implements the Expression interface.
 func (b *Blame) Resolved() bool {
-	return b.repo.Resolved() && b.commit.Resolved()
+	return b.repo.Resolved() && b.commit.Resolved() && b.file.Resolved()
 }
 
 // Eval implements the sql.Expression interface.
@@ -151,14 +118,16 @@ func (b *Blame) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, nil
 	}
 
-	fIter, err := commit.Files()
+	file, err := exprToString(ctx, b.file, row)
 	if err != nil {
-		return nil, err
+		ctx.Warn(0, err.Error())
+		return nil, nil
 	}
 
-	bg, err := NewBlameGenerator(ctx, commit, fIter)
+	bg, err := NewBlameGenerator(commit, file)
 	if err != nil {
-		return nil, err
+		ctx.Warn(0, err.Error())
+		return nil, nil
 	}
 
 	return bg, nil

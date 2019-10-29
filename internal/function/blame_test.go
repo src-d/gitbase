@@ -28,6 +28,7 @@ func TestBlameEval(t *testing.T) {
 		name        string
 		repo        sql.Expression
 		commit      sql.Expression
+		file        sql.Expression
 		row         sql.Row
 		expected    BlameLine
 		expectedNil bool
@@ -38,11 +39,11 @@ func TestBlameEval(t *testing.T) {
 			name:       "init commit",
 			repo:       expression.NewGetField(0, sql.Text, "repository_id", false),
 			commit:     expression.NewGetField(1, sql.Text, "commit_hash", false),
-			row:        sql.NewRow("worktree", "b029517f6300c2da0f4b651b8642506cd6aaf45d"),
+			file:       expression.NewGetField(2, sql.Text, "file", false),
+			row:        sql.NewRow("worktree", "b029517f6300c2da0f4b651b8642506cd6aaf45d", ".gitignore"),
 			testedLine: 0,
 			lineCount:  12,
 			expected: BlameLine{
-				".gitignore",
 				0,
 				"mcuadros@gmail.com",
 				"*.class",
@@ -53,11 +54,11 @@ func TestBlameEval(t *testing.T) {
 			name:       "changelog",
 			repo:       expression.NewGetField(0, sql.Text, "repository_id", false),
 			commit:     expression.NewGetField(1, sql.Text, "commit_hash", false),
-			row:        sql.NewRow("worktree", "b8e471f58bcbca63b07bda20e428190409c2db47"),
+			file:       expression.NewGetField(2, sql.Text, "file", false),
+			row:        sql.NewRow("worktree", "b8e471f58bcbca63b07bda20e428190409c2db47", "CHANGELOG"),
 			testedLine: 0,
 			lineCount:  1,
 			expected: BlameLine{
-				"CHANGELOG",
 				0,
 				"daniel@lordran.local",
 				"Initial changelog",
@@ -68,7 +69,8 @@ func TestBlameEval(t *testing.T) {
 			name:        "no repo",
 			repo:        expression.NewGetField(0, sql.Text, "repository_id", false),
 			commit:      expression.NewGetField(1, sql.Text, "commit_hash", false),
-			row:         sql.NewRow("foo", "bar"),
+			file:        expression.NewGetField(2, sql.Text, "file", false),
+			row:         sql.NewRow("foo", "bar", "baz"),
 			testedLine:  0,
 			lineCount:   1,
 			expected:    BlameLine{},
@@ -78,7 +80,19 @@ func TestBlameEval(t *testing.T) {
 			name:        "no commit",
 			repo:        expression.NewGetField(0, sql.Text, "repository_id", false),
 			commit:      expression.NewGetField(1, sql.Text, "commit_hash", false),
-			row:         sql.NewRow("worktree", "foo"),
+			file:        expression.NewGetField(2, sql.Text, "file", false),
+			row:         sql.NewRow("worktree", "foo", "bar"),
+			testedLine:  0,
+			lineCount:   1,
+			expected:    BlameLine{},
+			expectedNil: true,
+		},
+		{
+			name:        "no file",
+			repo:        expression.NewGetField(0, sql.Text, "repository_id", false),
+			commit:      expression.NewGetField(1, sql.Text, "commit_hash", false),
+			file:        expression.NewGetField(2, sql.Text, "file", false),
+			row:         sql.NewRow("worktree", "b8e471f58bcbca63b07bda20e428190409c2db47", "foo"),
 			testedLine:  0,
 			lineCount:   1,
 			expected:    BlameLine{},
@@ -88,7 +102,7 @@ func TestBlameEval(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			blame := NewBlame(tc.repo, tc.commit)
+			blame := NewBlame(tc.repo, tc.commit, tc.file)
 			blameGen, err := blame.Eval(ctx, tc.row)
 			require.NoError(t, err)
 
@@ -105,9 +119,6 @@ func TestBlameEval(t *testing.T) {
 			lineCount := 0
 			for i, err := bg.Next(); err == nil; i, err = bg.Next() {
 				i := i.(BlameLine)
-				if i.File != tc.expected.File {
-					continue
-				}
 				if lineCount != tc.testedLine {
 					lineCount++
 					continue
