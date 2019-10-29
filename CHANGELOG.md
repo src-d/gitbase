@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Add progress for each partition in SHOW PROCESSLIST ([#855](https://github.com/src-d/go-mysql-server/pull/855))
+- Change BLAME to also take a file parameter.
 
 ## [0.24.0-rc3] - 2019-10-23
 

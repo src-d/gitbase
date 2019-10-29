@@ -6,7 +6,7 @@ To make some common tasks easier for the user, there are some functions to inter
 
 |     Name     |                                               Description                                                                      |
 |:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
-|`blame(repository, commit)`|Returns an array of lines changes and authorship.                                                                 |
+|`blame(repository, commit, file)`|Returns an array of lines changes and authorship for the specific file and commit.
 |`commit_file_stats(repository_id, [from_commit_hash], to_commit_hash) json array`|returns an array with the stats of each file in `to_commit_hash` since the given `from_commit_hash`. If `from_commit_hash` is not given, the parent commit will be used. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
 |`commit_stats(repository_id, [from_commit_hash], to_commit_hash) json`|returns the stats between two commits for a repository. If `from_commit_hash` is empty, it will compare the given `to_commit_hash` with its parent commit. Vendored files stats are not included in the result of this function. This function is more thoroughly explained later in this document.|
 |`is_remote(reference_name)bool`| checks if the given reference name is from a remote one.                                                         |

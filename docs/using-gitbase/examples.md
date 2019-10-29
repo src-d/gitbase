@@ -203,15 +203,15 @@ The output will be similar to this:
 ## Get miscelaneous information about lines with a "// TODO" comment in HEAD
 
 ```sql
-SELECT repository_id,
-       JSON_UNQUOTE(JSON_EXTRACT(bl, "$.file")),
+SELECT repository_id, file_path,
        JSON_UNQUOTE(JSON_EXTRACT(bl, "$.linenum")),
        JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author")),
        JSON_UNQUOTE(JSON_EXTRACT(bl, "$.text"))
-FROM   (SELECT repository_id,
-               EXPLODE(BLAME(repository_id, commit_hash)) AS bl
+FROM   (SELECT repository_id, file_path,
+               EXPLODE(BLAME(repository_id, commit_hash, file_path)) AS bl
         FROM   ref_commits
                NATURAL JOIN blobs
+               NATURAL JOIN commit_files
         WHERE  ref_name = 'HEAD'
                AND NOT IS_BINARY(blob_content)
         ) as p
@@ -225,9 +225,10 @@ SELECT
        JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author")),
        COUNT(JSON_UNQUOTE(JSON_EXTRACT(bl, "$.author")))
 
-FROM   (SELECT EXPLODE(BLAME(repository_id, commit_hash)) AS bl
+FROM   (SELECT EXPLODE(BLAME(repository_id, commit_hash, file_path)) AS bl
         FROM   ref_commits
                NATURAL JOIN blobs
+               NATURAL JOIN commit_files
         WHERE  ref_name = 'HEAD'
                AND NOT IS_BINARY(blob_content)
         ) AS p

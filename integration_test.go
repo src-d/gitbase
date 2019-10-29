@@ -514,12 +514,12 @@ func TestIntegration(t *testing.T) {
 				SELECT repository_id, JSON_EXTRACT(bl, "$.author"),
 					   COUNT(bl)
 				FROM (
-					SELECT repository_id, EXPLODE(BLAME(repository_id, commit_hash)) as bl
+					SELECT repository_id, EXPLODE(BLAME(repository_id, commit_hash, '.gitignore')) as bl
 					FROM commits
 					WHERE  commit_hash = '918c48b83bd081e863dbe1b80f8998f058cd8294'
 				) as p
 			`,
-			[]sql.Row{{"worktree", "mcuadros@gmail.com", int64(7235)}},
+			[]sql.Row{{"worktree", "mcuadros@gmail.com", int64(12)}},
 		},
 	}
 
