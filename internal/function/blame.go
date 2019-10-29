@@ -13,21 +13,34 @@ import (
 )
 
 type BlameGenerator struct {
+	ctx     *sql.Context
 	commit  *object.Commit
 	file    string
 	curLine int
 	lines   []*git.Line
 }
 
-func NewBlameGenerator(c *object.Commit, f string) (*BlameGenerator, error) {
+func NewBlameGenerator(ctx *sql.Context, c *object.Commit, f string) (*BlameGenerator, error) {
 	result, err := git.Blame(c, f)
 	if err != nil {
 		return nil, err
 	}
-	return &BlameGenerator{commit: c, file: f, curLine: 0, lines: result.Lines}, nil
+	return &BlameGenerator{
+		ctx:     ctx,
+		commit:  c,
+		file:    f,
+		curLine: 0,
+		lines:   result.Lines,
+	}, nil
 }
 
 func (g *BlameGenerator) Next() (interface{}, error) {
+	select {
+	case <-g.ctx.Done():
+		return nil, io.EOF
+	default:
+	}
+
 	if len(g.lines) == 0 || g.curLine >= len(g.lines) {
 		return nil, io.EOF
 	}
@@ -124,7 +137,7 @@ func (b *Blame) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, nil
 	}
 
-	bg, err := NewBlameGenerator(commit, file)
+	bg, err := NewBlameGenerator(ctx, commit, file)
 	if err != nil {
 		ctx.Warn(0, err.Error())
 		return nil, nil
