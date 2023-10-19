@@ -3,6 +3,7 @@ package gitbase
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -225,7 +226,7 @@ type BrokenFile struct {
 }
 
 func (fs *BrokenFile) Read(p []byte) (int, error) {
-	_, err := fs.Seek(0, os.SEEK_CUR)
+	_, err := fs.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return 0, err
 	}
